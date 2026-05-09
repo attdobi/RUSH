@@ -1,0 +1,101 @@
+{
+  "policy_graph_version": "Generative_AI.v0.1",
+  "ground_truth_tier": [
+    "gold",
+    "platinum"
+  ],
+  "labelers": [
+    {
+      "labeler_id": "gpt-5.4",
+      "labeler_type": "llm",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    },
+    {
+      "labeler_id": "gpt-5.5",
+      "labeler_type": "llm",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    },
+    {
+      "labeler_id": "gpt-5.5-high",
+      "labeler_type": "llm",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    },
+    {
+      "labeler_id": "gemini-3.1-pro",
+      "labeler_type": "llm",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    },
+    {
+      "labeler_id": "majority_vote",
+      "labeler_type": "ensemble",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    },
+    {
+      "labeler_id": "non_expert",
+      "labeler_type": "human",
+      "metrics": {
+        "accuracy": null,
+        "f1": null,
+        "precision": null,
+        "recall": null,
+        "fpr": null,
+        "fnr": null,
+        "positive_proportion": null,
+        "n": 0,
+        "informedness": null
+      }
+    }
+  ],
+  "evolution": [],
+  "warning": "Placeholder decision-quality snapshot: no SME ground-truth comparison has been run yet, so all per-labeler metrics are null and n is 0."
+}

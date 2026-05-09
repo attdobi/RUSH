@@ -94,5 +94,69 @@
     "confidence": 0.7,
     "provenance": "seed_hypothesis",
     "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.negative.authentic_photo",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.exception.compression_artifacts",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.exception.compression_artifacts",
+    "target_node_id": "GA.surface_texture.plastic_skin",
+    "edge_type": "confused_with",
+    "confidence": 0.8,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.exception.compression_artifacts",
+    "target_node_id": "GA.boundary.low_quality_uncertain",
+    "edge_type": "boundary_with",
+    "confidence": 0.7,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.exception.medical_prosthetic",
+    "target_node_id": "GA.visual_artifacts.anatomy.hands",
+    "edge_type": "exception_to",
+    "confidence": 1.0,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.exception.medical_prosthetic",
+    "target_node_id": "GA.surface_texture.plastic_skin",
+    "edge_type": "confused_with",
+    "confidence": 0.6,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.repeated_details",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.repeated_details",
+    "target_node_id": "GA.boundary.photo_editing",
+    "edge_type": "confused_with",
+    "confidence": 0.7,
+    "provenance": "hardening_v1",
+    "version": "Generative_AI.v0.1"
   }
 ]

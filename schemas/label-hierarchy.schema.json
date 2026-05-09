@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH LabelHierarchy",
+  "type": "object",
+  "required": [
+    "l0_labels",
+    "l1_labels",
+    "l2_source",
+    "hierarchy_version",
+    "policy_document_ref",
+    "frozen"
+  ],
+  "properties": {
+    "l0_labels": {
+      "type": "array",
+      "items": {"enum": ["violative", "non_violative", "abstain"]}
+    },
+    "l1_labels": {
+      "type": "array",
+      "items": {"enum": ["ignore", "hide", "deactivate"]}
+    },
+    "l2_source": {
+      "type": "string",
+      "const": "policy_graph_node_ids"
+    },
+    "hierarchy_version": {"type": "string"},
+    "policy_document_ref": {"type": "string"},
+    "frozen": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

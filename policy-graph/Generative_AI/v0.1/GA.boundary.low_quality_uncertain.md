@@ -25,7 +25,22 @@ canonical_examples: []
 # Low-quality, cropped, or insufficient-evidence cases
 
 ## Decision rule
-If the image is too small, blurry, cropped, compressed, or ambiguous to ground a GenAI decision, classify as `not_gen_ai` or `abstain` according to workflow settings and route high-impact cases to SME review.
+If the image is too small, blurry, cropped, compressed, occluded, or ambiguous to ground a GenAI decision, route it here instead of forcing a positive or negative call. The default label for images that land here is `abstain`. LLM labelers and human reviewers MUST NOT guess.
+
+## Routing criteria
+Use this boundary node when one or more of the following prevents a grounded GenAI determination:
+
+1. Resolution is below 200×200 pixels, or the relevant region of interest is effectively below that size after cropping.
+2. More than 60% of the image or decision-relevant subject is occluded, cropped out, blocked by overlays, or covered by watermarks.
+3. Combined confidence across label and policy-graph placement is below 0.5.
+4. The input is a screenshot-of-screenshot, heavily re-encoded upload, thumbnail, or other multi-generation copy where evidence is degraded.
+5. Blur, compression, glare, darkness, motion, partial framing, or extreme stylization removes the visual details needed to distinguish `gen_ai` from `not_gen_ai`.
+
+## Boundary criteria
+Do not use low quality as a shortcut for suspiciousness. If decisive evidence remains visible, label the image under the appropriate positive, negative, exception, or boundary node. If severe compression is the main confounder, consider `[[GA.exception.compression_artifacts]]`; if conventional editing is the main confounder, consider `[[GA.boundary.photo_editing]]`.
+
+## SME review expectations
+High-impact or sampled low-quality cases should be routed to SME review. The SME either reclassifies the image into a supported policy-graph node or confirms `abstain`. Confirmed abstains are excluded from decision-quality metric denominators so the evaluation set does not reward guessing.
 
 ## Why this node exists
 Cold-start systems love overcalling blurry nonsense. This node exists to make uncertainty explicit instead of pretending every pixel is a confession.

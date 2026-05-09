@@ -17,16 +17,22 @@
         <button class="tab" data-tab="labeling" role="tab">Labeling</button>
         <button class="tab" data-tab="diff" role="tab">Policy Diff</button>
         <button class="tab" data-tab="metrics" role="tab">Metrics</button>
+        <button class="tab" data-tab="dq" role="tab">Decision Quality</button>
       </div>
     </nav>
     <section class="hero-grid">
       <div>
         <p class="eyebrow">SME-in-the-loop RLHF policy graph</p>
-        <h1>Scale expert judgment with high-reasoning consensus and graph policies.</h1>
-        <p class="lede">RUSH uses high-reasoning model voting, grounded consensus audits, and Obsidian-style graph-based Markdown policies to turn SME labels, LLM disagreements, and policy clarifications into versioned decision quality infrastructure. The first pilot cold-starts GenAI image classification.</p>
+        <h1>Scale SME judgment with a high-reasoning committee, policy graph, and truth-aware consensus.</h1>
+        <p class="acronym"><strong>RUSH</strong> = Reinforcement learning Using high SME-in-the-loop and High reasoning models.</p>
+        <p class="lede">RUSH combines independent high-reasoning model votes, Obsidian-style Markdown policy graphs, and SME-reviewed ground truth so disagreements become versioned decision-quality infrastructure instead of hidden uncertainty. The first pilot cold-starts GenAI image classification.</p>
       </div>
-      <div class="hero-card">
-        <img src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
+      <div class="hero-card hero-card-combo">
+        <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
+        <figure class="movie-poster-card">
+          <img src="../docs/visuals/rush-movie-poster.jpeg" alt="Poster for the 2013 Formula One movie Rush" />
+          <figcaption>For fun: yes, that <em>Rush</em>. High-speed feedback loops, fewer fiery crashes.</figcaption>
+        </figure>
       </div>
     </section>
   </header>
@@ -35,9 +41,9 @@
     <section id="about" class="panel active" role="tabpanel">
       <div class="section-head"><p class="eyebrow">About</p><h2>What we are building</h2></div>
       <div class="cards three">
-        <article class="card"><h3>High-reasoning committee</h3><p>Multiple high-reasoning models vote independently, cite policy evidence, and expose disagreements for SME review instead of hiding uncertainty behind a single label.</p></article>
-        <article class="card"><h3>Obsidian policy graph</h3><p>Every category, boundary, exception, and clarification is a Markdown node with frontmatter, examples, graph edges, and source anchors.</p></article>
-        <article class="card"><h3>Consensus ≠ truth</h3><p>Gold/platinum SME labels drive final metrics. Model consensus is a risk signal for routing, audits, and policy iteration — not silent ground truth.</p></article>
+        <article class="card"><h3>High-reasoning committee</h3><p>Models vote independently, cite policy evidence, and expose disagreements for SME review instead of hiding uncertainty behind a single label.</p></article>
+        <article class="card"><h3>Obsidian policy graph</h3><p>Markdown nodes with frontmatter, examples, graph edges, and source anchors capture every category, boundary, exception, and clarification.</p></article>
+        <article class="card"><h3>Consensus ≠ truth</h3><p>SME labels are gold; consensus is a risk signal for routing, audits, and policy iteration — not ground truth.</p></article>
       </div>
       <div class="flow"><img src="../docs/visuals/policy-evolution.svg" alt="Policy graph evolution loop" /></div>
     </section>
@@ -66,8 +72,32 @@
 
     <section id="metrics" class="panel" role="tabpanel">
       <div class="section-head"><p class="eyebrow">Metrics</p><h2>Decision quality + graph health</h2></div>
+      <div class="metrics-banner warning">
+        ⚠️ Seed metrics are placeholders (n&nbsp;=&nbsp;2). Real decision-quality metrics
+        require golden-set images, model votes, and SME-reviewed labels. Graph-health
+        values reflect scaffold structure only.
+      </div>
       <div id="metricCards" class="cards metrics"></div>
       <div id="metricNote" class="note">Seed metrics are mock-only and show not-enough-data until real images, gold/platinum SME truth, and paired predictions exist.</div>
+    </section>
+
+    <section id="dq" class="panel" role="tabpanel">
+      <div class="section-head">
+        <p class="eyebrow">Per-labeler accuracy vs SME ground truth</p>
+        <h2>Decision Quality</h2>
+      </div>
+      <div class="dq-banner warning">
+        ⚠️ Decision quality metrics are placeholders until golden-set images receive
+        model votes and SME review. Ground truth = SME latest label (gold/platinum tier).
+      </div>
+      <div id="dqTable" class="table-wrap"></div>
+      <div class="section-head" style="margin-top:32px">
+        <p class="eyebrow">Metrics across policy versions</p>
+        <h3>Evolution</h3>
+      </div>
+      <div id="dqChart" class="chart-placeholder">
+        Evolution chart renders after ≥2 policy versions have metrics.
+      </div>
     </section>
   </main>
   <script src="app.js"></script>

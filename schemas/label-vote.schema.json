@@ -76,6 +76,26 @@
         "deprecated",
         "superseded"
       ]
+    },
+    "l0_label": {
+      "enum": [
+        "violative",
+        "non_violative",
+        "abstain"
+      ]
+    },
+    "l2_label": {
+      "type": "string"
+    },
+    "is_boundary": {
+      "type": "boolean"
+    },
+    "difficulty": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
     }
   }
 }

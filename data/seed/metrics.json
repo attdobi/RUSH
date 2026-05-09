@@ -6,25 +6,14 @@
     "gold",
     "platinum"
   ],
-  "split": "development_placeholder",
+  "split": "development",
   "status": "not_enough_data",
   "mock_only": true,
   "denominators": {
-    "truth_n": 0,
-    "prediction_n": 0,
-    "paired_truth_prediction_n": 0,
-    "positive_truth_n": 0,
-    "negative_truth_n": 0,
-    "excluded_provisional_n": 1,
-    "by_split": {
-      "development": 0,
-      "validation": 0,
-      "locked_holdout": 0,
-      "boundary_holdout": 0,
-      "production_sentinel_random": 0,
-      "adaptive_boundary_batch": 0
-    },
-    "by_node": {}
+    "n_total": 2,
+    "n_positive": 1,
+    "n_negative": 1,
+    "n_abstain": 1
   },
   "confusion_matrix": {
     "tp": null,
@@ -38,47 +27,26 @@
     "recall": null,
     "fpr": null,
     "positive_proportion": null,
-    "informedness": null
+    "informedness": null,
+    "macro_f1": null,
+    "calibration_ece": null,
+    "graph_location_accuracy": null
   },
   "confidence_intervals": {
-    "accuracy": {
-      "low": null,
-      "high": null,
-      "method": "not_enough_data"
-    },
-    "precision": {
-      "low": null,
-      "high": null,
-      "method": "not_enough_data"
-    },
-    "recall": {
-      "low": null,
-      "high": null,
-      "method": "not_enough_data"
-    }
-  },
-  "macro_metrics": {
-    "macro_precision": null,
-    "macro_recall": null,
-    "macro_f1": null,
-    "balanced_accuracy": null
-  },
-  "calibration": {
-    "ece": null,
-    "brier_score": null,
-    "bins": []
-  },
-  "graph_location_metrics": {
-    "by_node": {},
-    "by_edge": {},
-    "gray_zone_mass": null
+    "method": "none",
+    "alpha": 0.05,
+    "intervals": {}
   },
   "graph_health": {
-    "node_count": 9,
-    "edge_count": 12,
+    "node_count": 13,
+    "edge_count": 20,
     "coverage": 0.08,
     "gray_zone_mass": null,
-    "orphan_nodes": 0
+    "orphan_nodes": 0,
+    "consensus_audit_error_rate": null,
+    "sme_override_rate": null,
+    "per_node_difficulty": {},
+    "per_node_coverage": {}
   },
-  "warning": "Mock-only scaffold. No reportable accuracy/precision/recall until real image records, SME gold/platinum truth, and paired predictions exist."
+  "warning": "Placeholder \u2014 all decision-quality metrics are null until golden-set images are labeled and SME-reviewed. Graph-health values reflect v0.1 scaffold structure only."
 }

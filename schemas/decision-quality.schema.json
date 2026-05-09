@@ -1,25 +1,48 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RUSH DecisionQuality",
+  "title": "RUSH DecisionQualitySnapshot",
   "type": "object",
   "required": [
-    "labeler_id",
-    "labeler_type",
     "policy_graph_version",
-    "ground_truth_source",
-    "metrics",
-    "timestamp"
+    "ground_truth_tier",
+    "labelers"
   ],
   "properties": {
-    "labeler_id": {"type": "string"},
-    "labeler_type": {
-      "enum": ["llm", "human", "majority_vote"]
-    },
     "policy_graph_version": {"type": "string"},
-    "ground_truth_source": {
-      "enum": ["sme_latest"]
+    "ground_truth_tier": {
+      "type": "array",
+      "items": {"enum": ["gold", "platinum"]}
     },
-    "metrics": {
+    "labelers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["labeler_id", "labeler_type", "metrics"],
+        "properties": {
+          "labeler_id": {"type": "string"},
+          "labeler_type": {"enum": ["llm", "ensemble", "human"]},
+          "metrics": {"$ref": "#/$defs/decision_quality_metrics"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "evolution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["version", "labeler_id", "metrics"],
+        "properties": {
+          "version": {"type": "string"},
+          "labeler_id": {"type": "string"},
+          "metrics": {"$ref": "#/$defs/decision_quality_metrics"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "warning": {"type": "string"}
+  },
+  "$defs": {
+    "decision_quality_metrics": {
       "type": "object",
       "required": [
         "accuracy",
@@ -29,7 +52,7 @@
         "fpr",
         "fnr",
         "positive_proportion",
-        "n_images",
+        "n",
         "informedness"
       ],
       "properties": {
@@ -40,12 +63,11 @@
         "fpr": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
         "fnr": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
         "positive_proportion": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "n_images": {"type": "integer", "minimum": 0},
+        "n": {"type": "integer", "minimum": 0},
         "informedness": {"type": ["number", "null"], "minimum": -1, "maximum": 1}
       },
       "additionalProperties": false
-    },
-    "timestamp": {"type": "string", "format": "date-time"}
+    }
   },
   "additionalProperties": false
 }

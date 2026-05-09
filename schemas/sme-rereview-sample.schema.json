@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH SMERereviewSample",
+  "type": "object",
+  "required": [
+    "sample_id",
+    "policy_graph_version",
+    "selection_criteria",
+    "image_ids",
+    "status"
+  ],
+  "properties": {
+    "sample_id": {"type": "string"},
+    "policy_graph_version": {"type": "string"},
+    "selection_criteria": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "image_ids": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "status": {
+      "enum": ["pending", "in_progress", "completed"]
+    },
+    "expected_yield": {"type": "number"},
+    "overturn_count": {"type": "integer", "minimum": 0},
+    "metrics_recomputed": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}
