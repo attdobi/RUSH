@@ -17,3 +17,6 @@ build/
 # IDE/editor
 .vscode/
 .idea/
+
+# Obsidian local workspace state
+policy-graph/**/.obsidian/
