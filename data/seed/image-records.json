@@ -1,0 +1,41 @@
+[
+  {
+    "image_id": "ga_seed_0001",
+    "source": "placeholder_golden_set",
+    "content_hash": "sha256:placeholder-0001",
+    "media_uri": "images/pending/ga_seed_0001.jpg",
+    "metadata": {
+      "note": "placeholder until golden-set images are downloaded"
+    },
+    "dedupe_cluster_id": "cluster_pending_001",
+    "near_duplicate_cluster_id": "near_pending_001",
+    "ingestion_version": "ingest.2026-05-09.v0",
+    "split": "development"
+  },
+  {
+    "image_id": "ga_seed_0002",
+    "source": "placeholder_golden_set",
+    "content_hash": "sha256:placeholder-0002",
+    "media_uri": "images/pending/ga_seed_0002.jpg",
+    "metadata": {
+      "note": "boundary example placeholder"
+    },
+    "dedupe_cluster_id": "cluster_pending_002",
+    "near_duplicate_cluster_id": "near_pending_002",
+    "ingestion_version": "ingest.2026-05-09.v0",
+    "split": "validation"
+  },
+  {
+    "image_id": "ga_seed_0003",
+    "source": "placeholder_golden_set",
+    "content_hash": "sha256:placeholder-0003",
+    "media_uri": "images/pending/ga_seed_0003.jpg",
+    "metadata": {
+      "note": "consensus audit placeholder"
+    },
+    "dedupe_cluster_id": "cluster_pending_003",
+    "near_duplicate_cluster_id": "near_pending_003",
+    "ingestion_version": "ingest.2026-05-09.v0",
+    "split": "locked_holdout"
+  }
+]

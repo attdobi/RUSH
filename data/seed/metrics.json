@@ -1,0 +1,32 @@
+{
+  "metric_snapshot_id": "metrics.seed.Generative_AI.v0.1",
+  "policy_graph_version": "Generative_AI.v0.1",
+  "label_version": "manual_seed_2026_05_09",
+  "truth_label_tiers": [
+    "gold",
+    "platinum"
+  ],
+  "split": "development_placeholder",
+  "confusion_matrix": {
+    "tp": 1,
+    "fp": 0,
+    "tn": 1,
+    "fn": 0
+  },
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "fpr": 0.0,
+    "positive_proportion": 0.5,
+    "informedness": 1.0
+  },
+  "graph_health": {
+    "node_count": 9,
+    "edge_count": 12,
+    "coverage": 0.08,
+    "gray_zone_mass": 0.34,
+    "orphan_nodes": 0
+  },
+  "warning": "Illustrative placeholder metrics only; real metrics require downloaded golden-set images and label votes."
+}

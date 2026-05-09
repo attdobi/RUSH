@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
+  <title id="title">RUSH system architecture</title>
+  <desc id="desc">Policy graph, golden set, LLM committee, SME review, policy diffs, and metrics loops.</desc>
+  <defs>
+    <style>
+      .bg{fill:#0b1020}.panel{fill:#111a33;stroke:#2d3f73;stroke-width:2;rx:18}.node{fill:#18284d;stroke:#6da8ff;stroke-width:2;rx:14}.sme{fill:#2a1f45;stroke:#d394ff}.gold{fill:#322815;stroke:#ffc857}.metric{fill:#102d2a;stroke:#46d9a8}.txt{font-family:Inter,Arial,sans-serif;fill:#edf3ff}.muted{fill:#a9b8d8;font-size:15px}.h{font-size:24px;font-weight:700}.b{font-size:17px;font-weight:650}.small{font-size:13px}.arrow{stroke:#8bbcff;stroke-width:3;fill:none;marker-end:url(#arrow)}.dash{stroke-dasharray:7 7}.label{fill:#cfe0ff;font-size:14px;font-weight:650}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#8bbcff"/></marker>
+  </defs>
+  <rect class="bg" width="1100" height="620"/>
+  <text class="txt h" x="42" y="52">RUSH: SME quality at scale</text>
+  <text class="muted" x="42" y="80">Graph-structured policy + high-reasoning committee + SME adjudication + protected metrics</text>
+
+  <rect class="panel" x="36" y="115" width="240" height="370"/>
+  <text class="txt b" x="62" y="152">Inputs</text>
+  <rect class="node" x="62" y="178" width="188" height="62"/><text class="txt small" x="82" y="205">Policy docs / cold-start</text><text class="muted small" x="82" y="224">or images + labels</text>
+  <rect class="node" x="62" y="264" width="188" height="62"/><text class="txt small" x="82" y="291">Golden-set images</text><text class="muted small" x="82" y="310">hashes, splits, metadata</text>
+  <rect class="node" x="62" y="350" width="188" height="62"/><text class="txt small" x="82" y="377">Production candidates</text><text class="muted small" x="82" y="396">future sampler source</text>
+
+  <rect class="panel" x="332" y="115" width="258" height="370"/>
+  <text class="txt b" x="358" y="152">Policy graph</text>
+  <rect class="gold" x="360" y="178" width="202" height="68"/><text class="txt small" x="380" y="205">Obsidian .md nodes</text><text class="muted small" x="380" y="224">definitions, examples, edges</text>
+  <rect class="node" x="360" y="272" width="202" height="68"/><text class="txt small" x="380" y="299">Context packs</text><text class="muted small" x="380" y="318">cached canonical examples</text>
+  <rect class="node" x="360" y="366" width="202" height="68"/><text class="txt small" x="380" y="393">Policy patches</text><text class="muted small" x="380" y="412">git-style SME diffs</text>
+
+  <rect class="panel" x="646" y="115" width="196" height="370"/>
+  <text class="txt b" x="674" y="152">Labeling</text>
+  <rect class="node" x="674" y="178" width="140" height="62"/><text class="txt small" x="699" y="205">LLM votes</text><text class="muted small" x="695" y="224">3+ models</text>
+  <rect class="node" x="674" y="264" width="140" height="62"/><text class="txt small" x="701" y="291">Arbiter</text><text class="muted small" x="696" y="310">placement</text>
+  <rect class="sme" x="674" y="350" width="140" height="62"/><text class="txt small" x="699" y="377">SME audit</text><text class="muted small" x="693" y="396">gold/platinum</text>
+
+  <rect class="panel" x="896" y="115" width="168" height="370"/>
+  <text class="txt b" x="922" y="152">Metrics</text>
+  <rect class="metric" x="922" y="178" width="116" height="62"/><text class="txt small" x="946" y="205">Quality</text><text class="muted small" x="941" y="224">F1, J, FPR</text>
+  <rect class="metric" x="922" y="264" width="116" height="62"/><text class="txt small" x="949" y="291">Graph</text><text class="muted small" x="934" y="310">coverage</text>
+  <rect class="metric" x="922" y="350" width="116" height="62"/><text class="txt small" x="946" y="377">Drift</text><text class="muted small" x="936" y="396">sentinels</text>
+
+  <path class="arrow" d="M276 210 C300 210 308 210 332 210"/><path class="arrow" d="M590 210 C616 210 622 210 646 210"/><path class="arrow" d="M842 296 C868 296 872 296 896 296"/>
+  <path class="arrow" d="M744 350 C744 330 744 330 744 326"/><path class="arrow dash" d="M922 418 C780 560 500 560 462 435"/>
+  <path class="arrow dash" d="M730 412 C650 520 450 520 462 435"/>
+  <text class="label" x="475" y="555">misalignments → proposed graph diffs → SME approval</text>
+</svg>

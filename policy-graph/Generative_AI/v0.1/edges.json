@@ -1,0 +1,98 @@
+[
+  {
+    "source_node_id": "GA.visual_artifacts.anatomy.hands",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.text_symbols",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture.plastic_skin",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.scene_geometry.inconsistent_perspective",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.provenance.synthetic_disclosure",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.boundary.photo_editing",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.boundary.cgi_game_render",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.boundary.low_quality_uncertain",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture.plastic_skin",
+    "target_node_id": "GA.boundary.photo_editing",
+    "edge_type": "confused_with",
+    "confidence": 0.7,
+    "provenance": "seed_hypothesis",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.anatomy.hands",
+    "target_node_id": "GA.boundary.photo_editing",
+    "edge_type": "boundary_with",
+    "confidence": 0.7,
+    "provenance": "seed_hypothesis",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.scene_geometry.inconsistent_perspective",
+    "target_node_id": "GA.boundary.cgi_game_render",
+    "edge_type": "boundary_with",
+    "confidence": 0.7,
+    "provenance": "seed_hypothesis",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.text_symbols",
+    "target_node_id": "GA.boundary.low_quality_uncertain",
+    "edge_type": "boundary_with",
+    "confidence": 0.7,
+    "provenance": "seed_hypothesis",
+    "version": "Generative_AI.v0.1"
+  }
+]

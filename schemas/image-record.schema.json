@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH ImageRecord",
+  "type": "object",
+  "required": [
+    "image_id",
+    "source",
+    "content_hash",
+    "ingestion_version",
+    "split"
+  ],
+  "properties": {
+    "image_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "content_hash": {
+      "type": "string"
+    },
+    "media_uri": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "embedding_refs": {
+      "type": "array"
+    },
+    "caption_refs": {
+      "type": "array"
+    },
+    "dedupe_cluster_id": {
+      "type": "string"
+    },
+    "near_duplicate_cluster_id": {
+      "type": "string"
+    },
+    "ingestion_version": {
+      "type": "string"
+    },
+    "split": {
+      "enum": [
+        "development",
+        "validation",
+        "locked_holdout",
+        "boundary_holdout",
+        "production_sentinel_random",
+        "adaptive_boundary_batch"
+      ]
+    }
+  }
+}

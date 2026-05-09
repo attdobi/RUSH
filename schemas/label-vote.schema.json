@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH LabelVote",
+  "type": "object",
+  "required": [
+    "run_id",
+    "image_id",
+    "labeler_type",
+    "label",
+    "node_ids",
+    "confidence",
+    "justification",
+    "policy_graph_version"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "image_id": {
+      "type": "string"
+    },
+    "labeler_type": {
+      "enum": [
+        "llm",
+        "human",
+        "arbiter"
+      ]
+    },
+    "labeler_id": {
+      "type": "string"
+    },
+    "model_id": {
+      "type": "string"
+    },
+    "label": {
+      "enum": [
+        "gen_ai",
+        "not_gen_ai",
+        "positive",
+        "negative",
+        "abstain"
+      ]
+    },
+    "node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "justification": {
+      "type": "string"
+    },
+    "policy_evidence": {
+      "type": "array"
+    },
+    "uncertainty_reasons": {
+      "type": "array"
+    },
+    "prompt_version": {
+      "type": "string"
+    },
+    "policy_graph_version": {
+      "type": "string"
+    },
+    "label_tier": {
+      "enum": [
+        "provisional",
+        "silver",
+        "gold",
+        "platinum",
+        "deprecated",
+        "superseded"
+      ]
+    }
+  }
+}

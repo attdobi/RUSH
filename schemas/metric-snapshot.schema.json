@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH MetricSnapshot",
+  "type": "object",
+  "required": [
+    "metric_snapshot_id",
+    "policy_graph_version",
+    "truth_label_tiers",
+    "metrics"
+  ],
+  "properties": {
+    "metric_snapshot_id": {
+      "type": "string"
+    },
+    "policy_graph_version": {
+      "type": "string"
+    },
+    "label_version": {
+      "type": "string"
+    },
+    "truth_label_tiers": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "gold",
+          "platinum"
+        ]
+      }
+    },
+    "split": {
+      "type": "string"
+    },
+    "confusion_matrix": {
+      "type": "object"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "graph_health": {
+      "type": "object"
+    }
+  }
+}

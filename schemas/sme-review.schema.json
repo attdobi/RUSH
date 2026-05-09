@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH SMEReview",
+  "type": "object",
+  "required": [
+    "image_id",
+    "sme_label",
+    "sme_node_ids",
+    "review_mode",
+    "reviewed_at",
+    "reviewer_id_hash",
+    "adjudication_version"
+  ],
+  "properties": {
+    "image_id": {
+      "type": "string"
+    },
+    "sme_label": {
+      "enum": [
+        "gen_ai",
+        "not_gen_ai",
+        "positive",
+        "negative",
+        "abstain"
+      ]
+    },
+    "sme_node_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "override_reason": {
+      "type": "string"
+    },
+    "review_mode": {
+      "enum": [
+        "disagreement_queue",
+        "consensus_audit",
+        "repeat_review",
+        "manual",
+        "policy_owner_adjudication"
+      ]
+    },
+    "reviewed_at": {
+      "type": "string"
+    },
+    "reviewer_id_hash": {
+      "type": "string"
+    },
+    "adjudication_version": {
+      "type": "string"
+    }
+  }
+}

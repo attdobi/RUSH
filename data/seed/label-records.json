@@ -1,0 +1,68 @@
+[
+  {
+    "run_id": "manual_seed_2026_05_09",
+    "image_id": "ga_seed_0001",
+    "labeler_type": "human",
+    "labeler_id": "sme_placeholder",
+    "label": "gen_ai",
+    "node_ids": [
+      "GA.visual_artifacts.anatomy.hands"
+    ],
+    "confidence": 0.86,
+    "justification": "Placeholder: impossible finger count would support positive GenAI classification.",
+    "policy_evidence": [
+      {
+        "node_id": "GA.visual_artifacts.anatomy.hands",
+        "section": "Positive criteria",
+        "quote": "Extra, missing, fused, webbed, or duplicated digits"
+      }
+    ],
+    "policy_graph_version": "Generative_AI.v0.1",
+    "label_tier": "gold",
+    "reviewed_at": "2026-05-09T00:00:00-07:00"
+  },
+  {
+    "run_id": "manual_seed_2026_05_09",
+    "image_id": "ga_seed_0002",
+    "labeler_type": "human",
+    "labeler_id": "sme_placeholder",
+    "label": "not_gen_ai",
+    "node_ids": [
+      "GA.boundary.photo_editing"
+    ],
+    "confidence": 0.72,
+    "justification": "Placeholder: conventional retouching should not be overcalled as GenAI without stronger evidence.",
+    "policy_evidence": [
+      {
+        "node_id": "GA.boundary.photo_editing",
+        "section": "Negative rule",
+        "quote": "Do not classify as gen_ai solely because an image is edited"
+      }
+    ],
+    "policy_graph_version": "Generative_AI.v0.1",
+    "label_tier": "gold",
+    "reviewed_at": "2026-05-09T00:00:00-07:00"
+  },
+  {
+    "run_id": "llm_committee_placeholder",
+    "image_id": "ga_seed_0003",
+    "labeler_type": "llm",
+    "labeler_id": "future_high_reasoning_ensemble",
+    "label": "abstain",
+    "node_ids": [
+      "GA.boundary.low_quality_uncertain"
+    ],
+    "confidence": 0.48,
+    "justification": "Placeholder: insufficient evidence should route to SME/audit instead of becoming truth.",
+    "policy_evidence": [
+      {
+        "node_id": "GA.boundary.low_quality_uncertain",
+        "section": "Decision rule",
+        "quote": "too small, blurry, cropped, compressed, or ambiguous"
+      }
+    ],
+    "policy_graph_version": "Generative_AI.v0.1",
+    "label_tier": "provisional",
+    "reviewed_at": null
+  }
+]

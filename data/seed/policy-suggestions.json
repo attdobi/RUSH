@@ -1,0 +1,50 @@
+[
+  {
+    "patch_id": "patch.Generative_AI.v0.1.seed.001",
+    "status": "proposed",
+    "suggestion_type": "clarification_with_examples",
+    "created_at": "2026-05-09T00:00:00-07:00",
+    "target_nodes": [
+      "GA.surface_texture.plastic_skin",
+      "GA.boundary.photo_editing"
+    ],
+    "rationale": "Early policy should explicitly separate synthetic waxy skin from beauty filters/retouching because this is likely to be a high-density boundary.",
+    "proposed_diff": [
+      {
+        "op": "add_boundary_example",
+        "node_id": "GA.boundary.photo_editing",
+        "text": "Beauty filter causing poreless skin but no additional GenAI evidence => not_gen_ai / hard negative."
+      }
+    ],
+    "metrics_to_watch": [
+      "FPR",
+      "informedness",
+      "gray_zone_mass",
+      "consensus_audit_error_rate"
+    ],
+    "sme_decision": "pending"
+  },
+  {
+    "patch_id": "patch.Generative_AI.v0.1.seed.002",
+    "status": "proposed",
+    "suggestion_type": "new_subcategory",
+    "created_at": "2026-05-09T00:00:00-07:00",
+    "target_nodes": [
+      "GA.root"
+    ],
+    "rationale": "If early labels repeatedly cite generated jewelry, teeth, or repeated background objects, add a dedicated repeated-detail artifact node rather than dumping everything into generic visual artifacts.",
+    "proposed_diff": [
+      {
+        "op": "add_node",
+        "node_id": "GA.visual_artifacts.repeated_details",
+        "parent": "GA.root"
+      }
+    ],
+    "metrics_to_watch": [
+      "node_exact_match",
+      "coverage",
+      "hard_positive_count"
+    ],
+    "sme_decision": "pending"
+  }
+]

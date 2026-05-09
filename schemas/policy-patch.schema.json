@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH PolicyPatch",
+  "type": "object",
+  "required": [
+    "patch_id",
+    "status",
+    "suggestion_type",
+    "target_nodes",
+    "rationale",
+    "proposed_diff"
+  ],
+  "properties": {
+    "patch_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "rejected",
+        "superseded"
+      ]
+    },
+    "suggestion_type": {
+      "enum": [
+        "new_subcategory",
+        "clarification_with_examples",
+        "generic_rewording",
+        "exception",
+        "edge_update",
+        "canonical_example"
+      ]
+    },
+    "target_nodes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "proposed_diff": {
+      "type": "array"
+    },
+    "sme_decision": {
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
+    "rejection_memory": {
+      "type": "string"
+    }
+  }
+}

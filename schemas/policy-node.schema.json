@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH PolicyNode Frontmatter",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "title",
+    "area",
+    "node_type",
+    "polarity",
+    "coverage_target"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "area": {
+      "type": "string"
+    },
+    "node_type": {
+      "enum": [
+        "category",
+        "boundary",
+        "exception",
+        "example",
+        "clarification",
+        "root"
+      ]
+    },
+    "parent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "polarity": {
+      "enum": [
+        "positive",
+        "negative",
+        "hard-positive",
+        "hard-negative",
+        "mixed"
+      ]
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "active",
+        "deprecated",
+        "superseded"
+      ]
+    },
+    "coverage_weight": {
+      "type": "number"
+    },
+    "coverage_target": {
+      "type": "object"
+    },
+    "source_anchors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "canonical_examples": {
+      "type": "array"
+    }
+  }
+}
