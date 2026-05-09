@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH LLM Output Format",
+  "description": "Structured output format that every LLM labeler must return. This schema also defines the .md prompt section describing the expected output.",
+  "type": "object",
+  "required": ["label", "l2_label", "justification", "confidence", "difficulty", "is_boundary"],
+  "properties": {
+    "label": {
+      "type": "string",
+      "description": "L0 decision. For warm-start: violative/non_violative. For cold-start GenAI: gen_ai/not_gen_ai."
+    },
+    "l1_label": {
+      "type": "string",
+      "description": "L1 enforcement action (warm-start only). Values: ignore/hide/deactivate. Omit for cold-start.",
+      "enum": ["ignore", "hide", "deactivate"]
+    },
+    "l2_label": {
+      "type": "string",
+      "description": "L2 subcategory node_id from the policy graph. Must reference a valid node in the current policy version."
+    },
+    "justification": {
+      "type": "string",
+      "description": "Grounded justification citing specific policy sections, criteria, or boundary warnings that led to the decision."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Model self-assessed confidence in the label. Low confidence near boundaries is expected and useful."
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Labeler's assessment of case difficulty. High = near boundary, ambiguous, or policy-silent. Used to flag hard positives/negatives."
+    },
+    "is_boundary": {
+      "type": "boolean",
+      "description": "Whether the case sits near a decision boundary between positive and negative, or between subcategories. Critical signal for policy refinement."
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH ExportRecord",
+  "type": "object",
+  "required": [
+    "export_id",
+    "policy_graph_version",
+    "label_version",
+    "truth_label_tiers",
+    "split",
+    "holdout_report_ref",
+    "item_count",
+    "denominators",
+    "created_at"
+  ],
+  "properties": {
+    "export_id": {"type": "string"},
+    "policy_graph_version": {"type": "string"},
+    "label_version": {"type": "string"},
+    "truth_label_tiers": {
+      "type": "array",
+      "items": {"enum": ["gold", "platinum"]}
+    },
+    "split": {
+      "enum": [
+        "development",
+        "validation",
+        "locked_holdout",
+        "boundary_holdout",
+        "production_sentinel_random",
+        "adaptive_boundary_batch"
+      ]
+    },
+    "holdout_report_ref": {"type": "string"},
+    "item_count": {"type": "integer", "minimum": 0},
+    "denominators": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH PolicyEdge",
+  "type": "object",
+  "required": [
+    "source_node_id",
+    "target_node_id",
+    "edge_type",
+    "confidence",
+    "provenance",
+    "version"
+  ],
+  "properties": {
+    "source_node_id": {"type": "string"},
+    "target_node_id": {"type": "string"},
+    "edge_type": {
+      "enum": [
+        "subtype_of",
+        "exception_to",
+        "boundary_with",
+        "confused_with",
+        "clarifies",
+        "example_of",
+        "negative_example_of"
+      ]
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "provenance": {"type": "string"},
+    "version": {"type": "string"}
+  },
+  "additionalProperties": false
+}

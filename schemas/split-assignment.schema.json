@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH SplitAssignment",
+  "type": "object",
+  "required": [
+    "image_id",
+    "split",
+    "assigned_at",
+    "dedupe_cluster_id",
+    "near_duplicate_cluster_id",
+    "assignment_version",
+    "leak_check_passed"
+  ],
+  "properties": {
+    "image_id": {"type": "string"},
+    "split": {
+      "enum": [
+        "development",
+        "validation",
+        "locked_holdout",
+        "boundary_holdout",
+        "production_sentinel_random",
+        "adaptive_boundary_batch"
+      ]
+    },
+    "assigned_at": {"type": "string", "format": "date-time"},
+    "dedupe_cluster_id": {"type": "string"},
+    "near_duplicate_cluster_id": {"type": ["string", "null"]},
+    "assignment_version": {"type": "string"},
+    "leak_check_passed": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

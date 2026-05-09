@@ -50,7 +50,7 @@
 
     <section id="golden" class="panel" role="tabpanel">
       <div class="section-head"><p class="eyebrow">Golden set registry</p><h2>Images, tiers, and splits</h2></div>
-      <div class="toolbar"><span class="pill">gold/platinum = truth</span><span class="pill">provisional = triage only</span><span class="pill">locked holdout protected</span></div>
+      <div class="toolbar"><span class="pill">gold/platinum = truth</span><span class="pill">provisional = triage only</span><span class="pill">locked holdout protected</span><span class="pill">seed UI = mock-only</span></div>
       <div id="goldenGrid" class="golden-grid"></div>
     </section>
 
@@ -67,7 +67,7 @@
     <section id="metrics" class="panel" role="tabpanel">
       <div class="section-head"><p class="eyebrow">Metrics</p><h2>Decision quality + graph health</h2></div>
       <div id="metricCards" class="cards metrics"></div>
-      <div class="note">Seed metrics are illustrative placeholders until images and real labels are added. The UI is wired for accuracy, precision, recall, FPR, positive proportion, informedness, coverage, and gray-zone mass.</div>
+      <div id="metricNote" class="note">Seed metrics are mock-only and show not-enough-data until real images, gold/platinum SME truth, and paired predictions exist.</div>
     </section>
   </main>
   <script src="app.js"></script>

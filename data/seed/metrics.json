@@ -7,26 +7,78 @@
     "platinum"
   ],
   "split": "development_placeholder",
+  "status": "not_enough_data",
+  "mock_only": true,
+  "denominators": {
+    "truth_n": 0,
+    "prediction_n": 0,
+    "paired_truth_prediction_n": 0,
+    "positive_truth_n": 0,
+    "negative_truth_n": 0,
+    "excluded_provisional_n": 1,
+    "by_split": {
+      "development": 0,
+      "validation": 0,
+      "locked_holdout": 0,
+      "boundary_holdout": 0,
+      "production_sentinel_random": 0,
+      "adaptive_boundary_batch": 0
+    },
+    "by_node": {}
+  },
   "confusion_matrix": {
-    "tp": 1,
-    "fp": 0,
-    "tn": 1,
-    "fn": 0
+    "tp": null,
+    "fp": null,
+    "tn": null,
+    "fn": null
   },
   "metrics": {
-    "accuracy": 1.0,
-    "precision": 1.0,
-    "recall": 1.0,
-    "fpr": 0.0,
-    "positive_proportion": 0.5,
-    "informedness": 1.0
+    "accuracy": null,
+    "precision": null,
+    "recall": null,
+    "fpr": null,
+    "positive_proportion": null,
+    "informedness": null
+  },
+  "confidence_intervals": {
+    "accuracy": {
+      "low": null,
+      "high": null,
+      "method": "not_enough_data"
+    },
+    "precision": {
+      "low": null,
+      "high": null,
+      "method": "not_enough_data"
+    },
+    "recall": {
+      "low": null,
+      "high": null,
+      "method": "not_enough_data"
+    }
+  },
+  "macro_metrics": {
+    "macro_precision": null,
+    "macro_recall": null,
+    "macro_f1": null,
+    "balanced_accuracy": null
+  },
+  "calibration": {
+    "ece": null,
+    "brier_score": null,
+    "bins": []
+  },
+  "graph_location_metrics": {
+    "by_node": {},
+    "by_edge": {},
+    "gray_zone_mass": null
   },
   "graph_health": {
     "node_count": 9,
     "edge_count": 12,
     "coverage": 0.08,
-    "gray_zone_mass": 0.34,
+    "gray_zone_mass": null,
     "orphan_nodes": 0
   },
-  "warning": "Illustrative placeholder metrics only; real metrics require downloaded golden-set images and label votes."
+  "warning": "Mock-only scaffold. No reportable accuracy/precision/recall until real image records, SME gold/platinum truth, and paired predictions exist."
 }

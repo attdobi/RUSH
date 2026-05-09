@@ -10,8 +10,8 @@ The first pilot is a **cold-start Generative AI image-classification policy**. W
 
 - `web/` — dependency-free foundation web interface with tabs for About, Policy Graph, Golden Set, Labeling, Policy Diff, and Metrics.
 - `policy-graph/Generative_AI/v0.1/` — initial Obsidian-compatible Markdown policy graph for GenAI detection.
-- `schemas/` — JSON schemas for policy nodes, image records, label votes, SME reviews, policy patches, and metric snapshots.
-- `data/seed/` — placeholder golden-set records, labels, metrics, and policy-suggestion examples.
+- `schemas/` — JSON schemas for policy nodes/edges, image records, split assignments, label votes, structured LLM outputs, arbiter decisions, SME reviews, label-tier records, decision-quality records, policy patches, export records, and metric snapshots.
+- `data/seed/` — mock-only placeholder golden-set records, labels, not-enough-data metrics, and policy-suggestion examples.
 - `docs/visuals/` — SVG architecture visuals used by README and the web UI.
 - `scripts/validate_foundation.py` — lightweight repository validation with no external dependencies.
 
@@ -25,7 +25,7 @@ The first pilot is a **cold-start Generative AI image-classification policy**. W
 2. **Keep labels separate.** Legacy labels, model votes, arbiter decisions, SME canonical labels, label tiers, and downstream exports are distinct records.
 3. **Policy is the product and the measurement surface.** Nodes carry definitions, criteria, hard negatives, coverage targets, examples, and source anchors.
 4. **Graph diffs are reviewable.** Cold-start and warm-start refinements become Markdown/JSON patches that SMEs can approve or reject.
-5. **Metrics must be split-aware.** Use gold/platinum labels for final decision-quality metrics, protect holdouts, and keep adaptive discovery batches separate from prevalence estimates.
+5. **Metrics must be split-aware and denominator-explicit.** Use gold/platinum labels for final decision-quality metrics, show denominators and confidence intervals, protect holdouts, and keep adaptive discovery batches separate from prevalence estimates.
 
 ## First pilot: cold-start GenAI image classification
 
@@ -56,13 +56,21 @@ python3 -m http.server 8766 --bind 127.0.0.1
 # open http://127.0.0.1:8766/web/
 ```
 
+## Guardrails baked into the scaffold
+
+- **Consensus audit:** 3/3 LLM agreement is not truth. It is a routing signal, and a stratified sample of consensus cases must still go to SME audit to catch correlated model failures.
+- **Gold/platinum truth:** Final metrics can only use SME-reviewed gold/platinum labels. Provisional LLM, arbiter, or majority labels are triage records until promoted by review.
+- **Split leakage protection:** Validation, locked holdout, boundary holdout, and sentinel examples must not leak into prompt/context packs, policy tuning, or adaptive node discovery.
+- **Adaptive vs sentinel separation:** Adaptive boundary batches are for finding hard cases and improving coverage; production sentinel/random batches are for prevalence and monitoring. Do not mix them when reporting rates.
+- **Mock-only metrics:** Seed metrics intentionally report `not_enough_data` with null accuracy/precision/recall until real media, canonical truth, and paired predictions exist.
+
 ## Validate the scaffold
 
 ```bash
 python3 scripts/validate_foundation.py
 ```
 
-The validator checks that graph node IDs are unique, edge endpoints exist, seed data references valid nodes, JSON files parse, and required web/docs assets are present.
+The validator checks that graph node IDs are unique, `GA.root` is the single root node, parent chains are not orphaned, edge endpoints and seed references exist, schemas parse, seed metrics do not masquerade as reportable when mock-only/not-enough-data, and required web/docs assets are present.
 
 ## Near-term roadmap
 

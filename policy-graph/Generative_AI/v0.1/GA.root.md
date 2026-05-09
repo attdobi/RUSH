@@ -3,7 +3,7 @@ id: GA.root
 version: Generative_AI.v0.1
 title: Generative AI Image Classification
 area: Generative_AI
-node_type: category
+node_type: root
 parent: null
 polarity: mixed
 status: draft
@@ -17,7 +17,6 @@ coverage_target:
 source_anchors:
   - RUSH user brief 2026-05-09: cold-start GenAI classification
 edges:
-  - {type: subtype_of, to: ROOT}
   - {type: clarifies, to: GA.boundary.low_quality_uncertain}
 canonical_examples: []
 ---

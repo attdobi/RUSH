@@ -6,38 +6,101 @@
     "metric_snapshot_id",
     "policy_graph_version",
     "truth_label_tiers",
+    "split",
+    "status",
+    "denominators",
     "metrics"
   ],
   "properties": {
-    "metric_snapshot_id": {
-      "type": "string"
-    },
-    "policy_graph_version": {
-      "type": "string"
-    },
-    "label_version": {
-      "type": "string"
-    },
+    "metric_snapshot_id": {"type": "string"},
+    "policy_graph_version": {"type": "string"},
+    "label_version": {"type": "string"},
     "truth_label_tiers": {
       "type": "array",
-      "items": {
-        "enum": [
-          "gold",
-          "platinum"
-        ]
-      }
+      "items": {"enum": ["gold", "platinum"]}
     },
     "split": {
-      "type": "string"
+      "enum": [
+        "development",
+        "validation",
+        "locked_holdout",
+        "boundary_holdout",
+        "production_sentinel_random",
+        "adaptive_boundary_batch"
+      ]
+    },
+    "status": {
+      "enum": ["not_enough_data", "mock_only", "preliminary", "reportable", "deprecated"]
+    },
+    "mock_only": {"type": "boolean"},
+    "denominators": {
+      "type": "object",
+      "required": ["n_total", "n_positive", "n_negative", "n_abstain"],
+      "properties": {
+        "n_total": {"type": "integer", "minimum": 0},
+        "n_positive": {"type": "integer", "minimum": 0},
+        "n_negative": {"type": "integer", "minimum": 0},
+        "n_abstain": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
     },
     "confusion_matrix": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "tp": {"type": ["integer", "null"], "minimum": 0},
+        "fp": {"type": ["integer", "null"], "minimum": 0},
+        "tn": {"type": ["integer", "null"], "minimum": 0},
+        "fn": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
     },
     "metrics": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "accuracy": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "precision": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "recall": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "fpr": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "positive_proportion": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "informedness": {"type": ["number", "null"], "minimum": -1, "maximum": 1},
+        "macro_f1": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "calibration_ece": {"type": ["number", "null"], "minimum": 0},
+        "graph_location_accuracy": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "confidence_intervals": {
+      "type": "object",
+      "required": ["method", "alpha", "intervals"],
+      "properties": {
+        "method": {"enum": ["wilson", "clopper_pearson", "bootstrap", "none"]},
+        "alpha": {"type": "number", "minimum": 0, "maximum": 1},
+        "intervals": {"type": "object"}
+      },
+      "additionalProperties": false
     },
     "graph_health": {
-      "type": "object"
-    }
-  }
+      "type": "object",
+      "properties": {
+        "node_count": {"type": "integer", "minimum": 0},
+        "edge_count": {"type": "integer", "minimum": 0},
+        "coverage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "gray_zone_mass": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "orphan_nodes": {"type": "integer", "minimum": 0},
+        "consensus_audit_error_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "sme_override_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "per_node_difficulty": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        },
+        "per_node_coverage": {
+          "type": "object",
+          "additionalProperties": {"type": "number"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "warning": {"type": "string"}
+  },
+  "additionalProperties": false
 }

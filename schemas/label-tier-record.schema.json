@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH LabelTierRecord",
+  "type": "object",
+  "required": [
+    "image_id",
+    "current_tier",
+    "previous_tier",
+    "promoted_by",
+    "promotion_reason",
+    "promoted_at",
+    "policy_graph_version"
+  ],
+  "properties": {
+    "image_id": {"type": "string"},
+    "current_tier": {
+      "enum": ["provisional", "silver", "gold", "platinum", "deprecated", "superseded"]
+    },
+    "previous_tier": {
+      "enum": ["provisional", "silver", "gold", "platinum", "deprecated", "superseded"]
+    },
+    "promoted_by": {
+      "enum": ["sme_review", "consensus_audit", "repeat_review", "policy_owner"]
+    },
+    "promotion_reason": {"type": "string"},
+    "promoted_at": {"type": "string", "format": "date-time"},
+    "policy_graph_version": {"type": "string"}
+  },
+  "additionalProperties": false
+}
