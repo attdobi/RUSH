@@ -1,0 +1,215 @@
+"""Safety and request-validation helpers for the local RUSH web server."""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+from pathlib import Path
+import re
+from typing import Any
+from urllib.parse import unquote, urlsplit
+
+from pipeline.providers.registry import MODEL_REGISTRY
+
+_ALLOWED_SPLITS = {"dev_golden", "holdout", "all"}
+_ALLOWED_MODES = {"cold_start", "warm_start"}
+_POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
+
+
+class APIError(Exception):
+    """Exception that maps cleanly onto the JSON error envelope."""
+
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.message = message
+        self.details = details or {}
+
+    def to_payload(self) -> dict[str, Any]:
+        error: dict[str, Any] = {"code": self.code, "message": self.message}
+        if self.details:
+            error["details"] = self.details
+        return {"error": error}
+
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def ensure_repo_relative(repo_root: Path, candidate: Path) -> Path:
+    """Resolve ``candidate`` and require it to remain under ``repo_root``."""
+    root = repo_root.resolve()
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(root):
+        raise APIError(404, "not_found", "path is outside the repository root")
+    return resolved
+
+
+def safe_static_path(repo_root: Path, request_path: str) -> Path:
+    """Translate a URL path to a repo-root-relative static file path safely."""
+    parsed_path = unquote(urlsplit(request_path).path)
+    if "\x00" in parsed_path:
+        raise APIError(400, "bad_path", "path contains a NUL byte")
+    parts = [part for part in parsed_path.split("/") if part]
+    if any(part == ".." for part in parts):
+        raise APIError(404, "not_found", "path traversal is not allowed")
+    rel = Path(*parts) if parts else Path(".")
+    return ensure_repo_relative(repo_root, repo_root / rel)
+
+
+def read_json_body(handler, *, max_bytes: int = 64 * 1024) -> dict[str, Any]:
+    raw_len = handler.headers.get("Content-Length", "0")
+    try:
+        length = int(raw_len)
+    except ValueError as exc:
+        raise APIError(400, "bad_content_length", "Content-Length must be an integer") from exc
+    if length < 0 or length > max_bytes:
+        raise APIError(413, "body_too_large", "request body is too large")
+    raw = handler.rfile.read(length) if length else b"{}"
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise APIError(400, "bad_json", "request body must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise APIError(400, "bad_request", "request JSON must be an object")
+    return payload
+
+
+def _require_bool_true(payload: dict[str, Any], name: str, message: str) -> None:
+    if payload.get(name) is not True:
+        raise APIError(400, "validation_error", message, details={"field": name})
+
+
+def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize ``POST /api/runs/start`` JSON."""
+    raw_models = payload.get("models")
+    if not isinstance(raw_models, list) or not raw_models:
+        raise APIError(400, "validation_error", "models must be a non-empty list")
+    models: list[str] = []
+    for model in raw_models:
+        if not isinstance(model, str) or not model.strip():
+            raise APIError(400, "validation_error", "models must contain non-empty strings")
+        model_id = model.strip()
+        if model_id not in MODEL_REGISTRY:
+            raise APIError(
+                400,
+                "unknown_model_id",
+                f"unknown model_id: {model_id}",
+                details={"model_id": model_id},
+            )
+        if model_id not in models:
+            models.append(model_id)
+
+    split = payload.get("split", "dev_golden")
+    if split not in _ALLOWED_SPLITS:
+        raise APIError(
+            400,
+            "validation_error",
+            "split must be one of: all, dev_golden, holdout",
+            details={"field": "split"},
+        )
+
+    mode = payload.get("mode", "cold_start")
+    if mode not in _ALLOWED_MODES:
+        raise APIError(
+            400,
+            "validation_error",
+            "mode must be one of: cold_start, warm_start",
+            details={"field": "mode"},
+        )
+
+    policy_version = payload.get("policy_version", "v0.1")
+    if not isinstance(policy_version, str) or not _POLICY_VERSION_RE.match(policy_version):
+        raise APIError(
+            400,
+            "validation_error",
+            "policy_version must match ^v\\d+(\\.\\d+)?$",
+            details={"field": "policy_version"},
+        )
+
+    _require_bool_true(
+        payload,
+        "allow_spend",
+        "allow_spend: true is required before starting a live run",
+    )
+    if split == "holdout":
+        _require_bool_true(
+            payload,
+            "allow_holdout",
+            "allow_holdout: true is required for split=holdout",
+        )
+
+    concurrency = payload.get("concurrency", 1)
+    if not isinstance(concurrency, int) or isinstance(concurrency, bool) or not (1 <= concurrency <= 4):
+        raise APIError(
+            400,
+            "validation_error",
+            "concurrency must be an integer in [1, 4]",
+            details={"field": "concurrency"},
+        )
+
+    has_limit = payload.get("limit") is not None
+    has_sample_ids = payload.get("sample_ids") is not None
+    if has_limit == has_sample_ids:
+        raise APIError(
+            400,
+            "validation_error",
+            "provide exactly one of limit or sample_ids",
+            details={"fields": ["limit", "sample_ids"]},
+        )
+
+    limit = payload.get("limit")
+    if limit is not None and (
+        not isinstance(limit, int) or isinstance(limit, bool) or limit < 1
+    ):
+        raise APIError(
+            400,
+            "validation_error",
+            "limit must be a positive integer",
+            details={"field": "limit"},
+        )
+
+    sample_ids: str | None = None
+    raw_sample_ids = payload.get("sample_ids")
+    if raw_sample_ids is not None:
+        if isinstance(raw_sample_ids, str):
+            ids = [s.strip() for s in raw_sample_ids.split(",") if s.strip()]
+        elif isinstance(raw_sample_ids, list):
+            ids = []
+            for item in raw_sample_ids:
+                if not isinstance(item, str) or not item.strip():
+                    raise APIError(
+                        400,
+                        "validation_error",
+                        "sample_ids list must contain non-empty strings",
+                    )
+                ids.append(item.strip())
+        else:
+            raise APIError(
+                400,
+                "validation_error",
+                "sample_ids must be a CSV string or list of strings",
+                details={"field": "sample_ids"},
+            )
+        if not ids:
+            raise APIError(400, "validation_error", "sample_ids must not be empty")
+        sample_ids = ",".join(ids)
+
+    return {
+        "models": models,
+        "split": split,
+        "limit": limit,
+        "sample_ids": sample_ids,
+        "policy_version": policy_version,
+        "mode": mode,
+        "allow_spend": True,
+        "allow_holdout": payload.get("allow_holdout") is True,
+        "concurrency": concurrency,
+    }
