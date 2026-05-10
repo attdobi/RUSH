@@ -1,0 +1,121 @@
+"""Chat-callable factory for policy proposal drafting with Claude.
+
+The Anthropic SDK is imported and instantiated lazily by the returned callable,
+so importing this module never performs authentication or network setup.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable
+
+from pipeline.policy_iterator import ChatCallable
+from pipeline.providers.registry import MODEL_REGISTRY
+
+
+_DEFAULT_MAX_TOKENS = 4096
+
+
+def _content_to_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                if block.get("type") == "text" and block.get("text") is not None:
+                    parts.append(str(block["text"]))
+                elif block.get("content") is not None:
+                    parts.append(str(block["content"]))
+            else:
+                parts.append(str(block))
+        return "\n".join(parts)
+    return "" if content is None else str(content)
+
+
+def _extract_text(response: Any) -> str:
+    content = getattr(response, "content", None)
+    if content is None and isinstance(response, dict):
+        content = response.get("content")
+    if not content:
+        return ""
+    parts: list[str] = []
+    for block in content:
+        btype = getattr(block, "type", None) or (block.get("type") if isinstance(block, dict) else None)
+        if btype != "text":
+            continue
+        text = getattr(block, "text", None) or (block.get("text") if isinstance(block, dict) else None)
+        if text:
+            parts.append(str(text))
+    return "".join(parts)
+
+
+def _spec_for(model_id: str) -> tuple[str, int]:
+    spec = MODEL_REGISTRY.get(model_id)
+    if spec is None:
+        raise KeyError(f"unknown model_id: {model_id}")
+    if spec.provider != "anthropic":
+        raise ValueError(f"model_id is not Anthropic-backed: {model_id}")
+    return spec.provider_model_name, int(spec.params.get("max_tokens", _DEFAULT_MAX_TOKENS))
+
+
+def policy_chat_callable(model_id: str) -> ChatCallable:
+    """Return ``chat(messages, *, model_id, reasoning_effort='high', **_) -> str``.
+
+    The callable maps OpenAI-style chat messages into Anthropic Messages API
+    params: the first system message becomes ``system=...`` and subsequent
+    user/assistant messages are forwarded via ``messages=[...]``.
+    """
+    default_model_name, default_max_tokens = _spec_for(model_id)
+    client_holder: dict[str, Any] = {}
+
+    def _ensure_client() -> Any:
+        if "client" not in client_holder:
+            import anthropic  # type: ignore[import-not-found]
+
+            client_holder["client"] = anthropic.Anthropic()
+        return client_holder["client"]
+
+    def chat(
+        messages: list[dict[str, Any]],
+        *,
+        model_id: str = model_id,
+        reasoning_effort: str = "high",
+        **_: Any,
+    ) -> str:
+        provider_model_name = default_model_name
+        max_tokens = default_max_tokens
+        if model_id != policy_chat_callable_model_id:
+            provider_model_name, max_tokens = _spec_for(model_id)
+
+        system: str | None = None
+        rest: list[dict[str, Any]] = []
+        for idx, message in enumerate(messages):
+            role = message.get("role")
+            content = message.get("content", "")
+            if idx == 0 and role == "system":
+                system = _content_to_text(content)
+                continue
+            if role == "system":
+                # Anthropic accepts only a top-level system prompt; preserve
+                # any later system text as user-visible context instead of
+                # dropping it silently.
+                rest.append({"role": "user", "content": _content_to_text(content)})
+                continue
+            if role not in {"user", "assistant"}:
+                raise ValueError(f"unsupported chat role for Anthropic: {role!r}")
+            rest.append({"role": role, "content": content})
+
+        params: dict[str, Any] = {
+            "model": provider_model_name,
+            "max_tokens": max_tokens,
+            "messages": rest,
+        }
+        if system is not None:
+            params["system"] = system
+        response = _ensure_client().messages.create(**params)
+        return _extract_text(response)
+
+    policy_chat_callable_model_id = model_id
+    return chat
+
+
+__all__ = ["policy_chat_callable"]

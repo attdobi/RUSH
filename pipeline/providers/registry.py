@@ -10,7 +10,8 @@ pipeline. Adding a new model means:
 The five entries below cover the v1 plan:
 
 * phase 1 (canonical pass): ``openai/gpt-5.5`` (reasoning=high),
-  ``google/gemini-3.1-pro-preview``, ``anthropic/claude-opus-4-6``.
+  ``google/gemini-3.1-pro-preview``, ``anthropic/claude-opus-4-6``,
+  ``anthropic/claude-opus-4-7``.
 * phase 2 (cheaper sweep / fanout): ``openai/gpt-5.4-mini``,
   ``google/gemini-3.1-flash-lite-preview``.
 
@@ -73,6 +74,15 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "max_tokens": 2048,
+        },
+    ),
+    "anthropic/claude-opus-4-7": ModelSpec(
+        model_id="anthropic/claude-opus-4-7",
+        provider="anthropic",
+        provider_model_name="claude-opus-4-7",
+        phase=1,
+        params={
+            "max_tokens": 4096,
         },
     ),
     # --- Phase 2: cheaper sweep / consensus fanout -----------------------
