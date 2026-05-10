@@ -64,11 +64,8 @@ def _is_borderline(votes: list[dict[str, Any]], low_conf: float) -> tuple[bool, 
             reasons.append("is_boundary_flag")
         if v.get("difficulty") == "high":
             reasons.append("difficulty_high")
-        try:
-            conf = float(v.get("confidence", 1.0))
-        except (TypeError, ValueError):
-            conf = 1.0
-        if conf < low_conf:
+        conf = _common.optional_confidence(v.get("confidence"))
+        if conf is not None and conf < low_conf:
             reasons.append("low_confidence")
     if len(decided_labels) > 1:
         reasons.append("model_disagreement")

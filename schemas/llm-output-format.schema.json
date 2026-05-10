@@ -23,10 +23,10 @@
       "description": "Grounded justification citing specific policy sections, criteria, or boundary warnings that led to the decision."
     },
     "confidence": {
-      "type": "number",
+      "type": ["number", "null"],
       "minimum": 0,
       "maximum": 1,
-      "description": "Model self-assessed confidence in the label. Low confidence near boundaries is expected and useful."
+      "description": "Model self-assessed confidence in the label. Null means confidence was missing or malformed. Low confidence near boundaries is expected and useful."
     },
     "difficulty": {
       "type": "string",

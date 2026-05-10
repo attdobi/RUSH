@@ -118,6 +118,16 @@ def labeler_id_for(vote: dict[str, Any]) -> str:
     return str(vote.get("labeler_id") or vote.get("model_id") or "unknown")
 
 
+def optional_confidence(value: Any) -> float | None:
+    """Return numeric confidence, or None when it is missing/malformed."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def extract_prep_metadata(vote: dict[str, Any]) -> dict[str, Any]:
     """Return a shallow dict of prepared_image_* fields present on the vote.
 

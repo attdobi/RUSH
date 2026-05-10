@@ -24,7 +24,7 @@ Output shape (X3-defined; persisted as ``scoring/misalignment.json``)::
               "model_id": str | None,
               "label": str,
               "l2_label": str,
-              "confidence": float,
+              "confidence": float | null,
               "is_boundary": bool,
               "difficulty": str,
               "justification": str,

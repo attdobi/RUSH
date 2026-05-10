@@ -88,7 +88,7 @@ class LabelResponse:
     label: str
     l2_label: str
     justification: str
-    confidence: float
+    confidence: float | None
     difficulty: str
     is_boundary: bool
     raw_provider_payload: dict[str, Any]
@@ -202,6 +202,15 @@ def _coerce_float(value: Any, *, default: float = 0.0) -> float:
         return default
 
 
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _coerce_bool(value: Any, *, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
@@ -216,13 +225,17 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
     """Normalize a parsed label dict to the six canonical fields.
 
     Missing fields fall back to safe defaults (``label="abstain"``,
-    ``confidence=0.0``, etc.). Callers should still validate against
-    ``schemas/llm-output.schema.json`` before persistence.
+    ``confidence=None`` for unknown confidence, etc.). Numeric confidence is
+    clamped to ``[0, 1]``; missing/malformed confidence remains ``None`` so
+    downstream scoring can treat it as unknown rather than zero-confidence.
+    Callers should still validate against ``schemas/llm-output.schema.json``
+    before persistence.
     """
     label = str(parsed.get("label", "abstain")).strip().lower()
     l2_label = str(parsed.get("l2_label", "")).strip()
     justification = str(parsed.get("justification", "")).strip()
-    confidence = max(0.0, min(1.0, _coerce_float(parsed.get("confidence"), default=0.0)))
+    raw_confidence = _coerce_optional_float(parsed.get("confidence"))
+    confidence = None if raw_confidence is None else max(0.0, min(1.0, raw_confidence))
     difficulty = str(parsed.get("difficulty", "medium")).strip().lower()
     if difficulty not in {"high", "medium", "low"}:
         difficulty = "medium"
@@ -267,7 +280,7 @@ def abstain_response(
         label="abstain",
         l2_label="",
         justification=justification,
-        confidence=0.0,
+        confidence=None,
         difficulty="high",
         is_boundary=False,
         raw_provider_payload=payload,
