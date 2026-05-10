@@ -22,6 +22,9 @@ Wire RUSH's first real bulk-LLM labeling pass across three providers, score the 
 RUSH/
 ├── pipeline/                              # NEW python package
 │   ├── __init__.py                        # X1
+│   ├── labeling/                          # X1
+│   │   ├── __init__.py
+│   │   └── image_prep.py                  # shared provider image downsampler + audit metadata
 │   ├── providers/                         # X1
 │   │   ├── __init__.py
 │   │   ├── base.py                        # LabelClient ABC + LabelRequest/LabelResponse dataclasses
@@ -72,6 +75,36 @@ RUSH/
 └── requirements.txt                       # X1 — pin openai, anthropic, google-genai, jsonschema, reportlab, pytest
 ```
 
+### Shared image preparation requirement (Pista correction)
+
+Every provider call MUST pass the source image through exactly one shared helper before building provider payloads:
+
+```python
+PreparedImage = prepare_image_for_labeling(
+    image_path,
+    max_size=(1024, 1024),
+    jpeg_quality=85,
+)
+```
+
+`pipeline/labeling/image_prep.py` is owned by X1 and imported by all provider clients (`openai_client.py`, `anthropic_client.py`, `gemini_client.py`). Provider clients must not read or encode original image bytes directly.
+
+Implementation details:
+
+- Use PIL: `Image.thumbnail((1024, 1024), Resampling.LANCZOS)` to preserve aspect ratio with longest edge ≤ 1024.
+- Re-encode as JPEG at quality ≈ 85.
+- Return the prepared JPEG bytes and metadata:
+  - `prepared_image_sha256`
+  - `prepared_image_width`
+  - `prepared_image_height`
+  - `prepared_image_mime_type` (`image/jpeg`)
+  - `prepared_image_byte_size`
+- OpenAI vision blocks MUST pass `detail: "high"` explicitly.
+- Token budget reference: OpenAI high@1024² ≈ 765 tokens; Anthropic @768² ≈ 600 tokens; Gemini @768² ≈ 1032 tokens. The shared 1024px cap is the cross-provider default for auditability and cost control.
+- These prepared-image metadata fields must be persisted into each label/vote record so downstream scoring/web surfaces can audit cost/quality without embedding image bytes.
+
+OpenAI implementation note: X1 should reference `/Users/sacsimoto/GitHub/d-ai-trader/config.py::ask_openai` for the working GPT-5 vision pattern (system message, user content array with text + base64 `image_url` blocks, `reasoning_effort` handling, JSON `response_format`). Do **not** import or couple to `d-ai-trader`; copy only the clean request-pattern ideas into RUSH.
+
 ### .gitignore additions (X2 owns)
 ```
 data/runs/
@@ -111,6 +144,11 @@ class LabelResponse:
     error: str | None               # populated if call failed permanently
     latency_ms: int
     attempts: int
+    prepared_image_sha256: str
+    prepared_image_width: int
+    prepared_image_height: int
+    prepared_image_mime_type: str
+    prepared_image_byte_size: int
 ```
 
 ### 3.3 Persisted shapes (X2 writes; X3 reads; X4 reads exporter outputs)
@@ -142,7 +180,8 @@ data/runs/<run_id>/
 
 1. **`schemas/llm-output.schema.json`** — extend `label` enum to `["violative","non_violative","abstain","gen_ai","not_gen_ai"]`. Add `$comment` noting cold-start GenAI labels coexist with warm-start labels. Bump `title` to `RUSH LLMOutput v1.1`.
 2. **`schemas/run-manifest.schema.json`** (new) — required: `run_id, started_at, finished_at|null, sample_manifest_path, sample_ids, models[], policy_graph_version, prompt_version, sampling_version`.
-3. Existing `label-vote.schema.json`, `policy-patch.schema.json`, `decision-quality.schema.json` are sufficient — do not edit semantics.
+3. Existing `policy-patch.schema.json`, `decision-quality.schema.json` are sufficient — do not edit semantics.
+4. **`schemas/label-vote.schema.json`** — add optional non-breaking prepared-image audit fields: `prepared_image_sha256`, `prepared_image_width`, `prepared_image_height`, `prepared_image_mime_type`, `prepared_image_byte_size`.
 
 ---
 
@@ -150,7 +189,7 @@ data/runs/<run_id>/
 
 1. **Branch:** all work on `feat/bulk-labeling-v1`. Run `git branch --show-current` before every commit. Never commit to `main`.
 2. **Secrets:** load from `.env` via `pipeline.providers.auth`. Never log keys, never include them in error strings, never echo via `print(os.environ)` or similar. Never pass via CLI args. CI-friendly: support env var override `RUSH_DOTENV_PATH`.
-3. **No image bytes in JSON manifests** (we keep this discipline). Provider payloads may include base64 in-memory only; persisted `raw_provider_payload` MUST have any base64 image content stripped (replace with `"<image-bytes-omitted>"`).
+3. **No original image bytes in provider calls; no image bytes in JSON manifests.** Every provider call must use `pipeline/labeling/image_prep.py` downsampled JPEG bytes (longest edge ≤1024, q≈85). Provider payloads may include prepared JPEG base64 in-memory only; persisted `raw_provider_payload` MUST have any base64 image content stripped (replace with `"<image-bytes-omitted>"`).
 4. **Validate every persisted record** against its schema before write. Invalid records go to `errors.jsonl` with reason.
 5. **Rate limits:** honor `Retry-After` headers, exponential backoff (base 1s, jitter, cap 60s, max 6 attempts). Concurrency cap: 4 in-flight per provider by default.
 6. **Determinism where possible:** runner sorts sample_ids before dispatch; per-image (model, prompt) pairs are stable.
@@ -164,6 +203,7 @@ data/runs/<run_id>/
 - **Hero CTA:** "Download bound policy (PDF)" → links to `/web/policy.pdf` or `data/runs/<run_id>/policy.pdf`.
 - **Section: Borderline Inspector** — grouped by L0 bucket at cold start; expand to L2 once policy graph has more nodes for this label set.
 - **Section: Misalignment Worklist** — table with columns: image thumbnail (path-based, no embedded bytes), SME truth label, per-model labels (3 cols), agreement chip, disagreement reason (when X3 emits one), proposed policy_patch_id (link).
+- **Prepared-image audit metadata:** when available, show width × height, byte size, and shortened prepared SHA256 on borderline/misalignment detail cards. This confirms every provider saw the same downsampled input without exposing image bytes.
 - **No fake data.** If no run exists yet, show empty-state copy: "Run `python scripts/run_bulk_labeling.py --models <ids>` to populate this view."
 - **Run picker:** dropdown listing runs found at `data/runs/*/web/summary.json`. Defaults to most-recent.
 
