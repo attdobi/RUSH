@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=vc-demo-overhaul" />
+  <link rel="stylesheet" href="styles.css?v=bulk-labeling-v1" />
 </head>
 <body>
   <header class="hero">
@@ -12,6 +12,9 @@
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="nav-pills" aria-label="Page sections">
         <a href="#demo">Demo</a>
+        <a href="#runs">Runs</a>
+        <a href="#borderline">Borderline</a>
+        <a href="#misalignment">Misalignment</a>
         <a href="#system">System</a>
         <a href="#policy">Policy loop</a>
         <a href="#quality">Decision quality</a>
@@ -26,9 +29,12 @@
         <p class="lede">RUSH starts with SME-quality examples, builds a versioned policy graph, and treats high-reasoning LLMs as misalignment detectors — not ground truth. This demo cold-starts GenAI image classification and sets up bulk model labeling as the next step.</p>
         <div class="hero-actions">
           <a class="primary-action" href="#demo">Start GenAI demo</a>
+          <a id="policyPdfLink" class="primary-action ghost" href="policy.pdf" target="_blank" rel="noopener">Download bound policy (PDF)</a>
           <span class="quiet-pill">Consensus ≠ truth</span>
           <span class="quiet-pill">Gold/platinum SME labels win</span>
+          <span class="quiet-pill">Provider images: longest edge ≤1024 · JPEG q≈85</span>
         </div>
+        <p class="fineprint">PDF is built on demand from <code>policy-graph/Generative_AI/v0.1/*.md</code> via <code>scripts/build_policy_pdf.py</code>; it is not committed. If the link 404s, run the script locally first.</p>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
         <div class="loop-step active"><strong>1</strong><span>Sample candidate images</span></div>
@@ -68,6 +74,42 @@
 
       <div id="demoStats" class="stat-grid"></div>
       <div id="sampleGallery" class="sample-gallery"></div>
+    </section>
+
+    <section id="runs" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Bulk labeling runs</p>
+        <h2>Pick a run, inspect what the models said.</h2>
+        <p>Each run writes its outputs to <code>data/runs/&lt;run_id&gt;/web/</code>. Select one below to populate the Borderline Inspector and Misalignment Worklist. Provider calls are made against downsampled images (longest edge ≤1024, JPEG quality≈85); original bytes are never embedded in JSON outputs — only optional audit metadata (downsampled sha256, width, height, byte size, mime type).</p>
+      </div>
+      <div class="run-controls" aria-label="Run picker">
+        <label>Run
+          <select id="runPicker"><option value="">— no runs found —</option></select>
+        </label>
+        <button id="refreshRuns" type="button">Refresh</button>
+        <span id="runStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="runSummary" class="stat-grid"></div>
+    </section>
+
+    <section id="borderline" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Borderline inspector</p>
+        <h2>Where models hedge, SMEs decide.</h2>
+        <p>Cold start groups boundary cases by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). As the policy graph grows, this view will fan out to L2 nodes per label.</p>
+      </div>
+      <div id="borderlineEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/run_bulk_labeling.py --models &lt;ids&gt;</code> to populate this view.</div>
+      <div id="borderlineGroups" class="borderline-groups"></div>
+    </section>
+
+    <section id="misalignment" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Misalignment worklist</p>
+        <h2>Model vs SME disagreement, ranked for review.</h2>
+        <p>Per-image table of SME truth vs model labels. Disagreement reasons and any proposed policy-patch IDs link out to the patch record. Thumbnails reference local image paths — no embedded image bytes. When a run carries prepared-image audit metadata, the downsampled sha256, dimensions, byte size, and mime type are surfaced inline so reviewers can verify the exact bytes the providers saw.</p>
+      </div>
+      <div id="misalignmentEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> after a labeling pass to populate this view.</div>
+      <div id="misalignmentTable" class="misalignment-table"></div>
     </section>
 
     <section id="system" class="section system-section">

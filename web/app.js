@@ -321,6 +321,228 @@ async function runSamplerDemo() {
   }
 }
 
+// ---------- Bulk-labeling runs (X4) ----------
+// Web reads run outputs written by the pipeline runner under
+//   data/runs/<run_id>/web/{summary,borderline,misalignment}.json
+// All shapes are tolerant: missing fields render an empty-state row, never a crash.
+//
+// IMPORTANT: provider calls downsample every image (longest edge ≤1024,
+// JPEG quality≈85) before submission. JSON outputs never embed image bytes;
+// when present, optional prepared-image audit metadata is surfaced in the UI:
+//   prepared_image: { sha256, width, height, byte_size, mime_type, longest_edge, jpeg_quality }
+
+const RUNS_INDEX_URL = '../data/runs/index.json';
+const RUNS_DIR_URL = '../data/runs/';
+const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
+
+const runState = {
+  available: [],
+  selectedRunId: null,
+  summary: null,
+  borderline: null,
+  misalignment: null
+};
+
+async function fetchJsonOptional(path) {
+  try {
+    const response = await fetch(path, { cache: 'no-store' });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
+async function discoverRuns() {
+  // Preferred: an index file produced by the runner / scoring exporter.
+  const index = await fetchJsonOptional(RUNS_INDEX_URL);
+  if (index && Array.isArray(index.runs)) {
+    return index.runs.filter(r => r && r.run_id).map(r => ({
+      run_id: r.run_id,
+      label: r.label || r.run_id,
+      started_at: r.started_at || null
+    })).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+  }
+  return [];
+}
+
+async function loadRun(runId) {
+  if (!runId) {
+    runState.selectedRunId = null;
+    runState.summary = null;
+    runState.borderline = null;
+    runState.misalignment = null;
+    renderRun();
+    return;
+  }
+  const status = $('#runStatus');
+  if (status) {
+    status.classList.remove('error');
+    status.textContent = `Loading run ${runId}…`;
+  }
+  const base = `${RUNS_DIR_URL}${encodeURIComponent(runId)}/web`;
+  const [summary, borderline, misalignment] = await Promise.all([
+    fetchJsonOptional(`${base}/summary.json`),
+    fetchJsonOptional(`${base}/borderline.json`),
+    fetchJsonOptional(`${base}/misalignment.json`)
+  ]);
+  runState.selectedRunId = runId;
+  runState.summary = summary;
+  runState.borderline = borderline;
+  runState.misalignment = misalignment;
+  if (status) {
+    if (!summary && !borderline && !misalignment) {
+      status.classList.add('error');
+      status.textContent = `No web exports found for run ${runId}.`;
+    } else {
+      status.textContent = `Loaded run ${runId}.`;
+    }
+  }
+  // Wire the per-run policy.pdf link if the file exists at the expected path.
+  const policyLink = $('#policyPdfLink');
+  if (policyLink) {
+    policyLink.href = `${RUNS_DIR_URL}${encodeURIComponent(runId)}/policy.pdf`;
+    policyLink.dataset.runId = runId;
+  }
+  renderRun();
+}
+
+function renderRunPicker() {
+  const picker = $('#runPicker');
+  if (!picker) return;
+  if (!runState.available.length) {
+    picker.innerHTML = '<option value="">— no runs found —</option>';
+    picker.disabled = true;
+    return;
+  }
+  picker.disabled = false;
+  picker.innerHTML = runState.available.map(r => {
+    const label = r.started_at ? `${r.run_id} · ${r.started_at}` : r.run_id;
+    const selected = r.run_id === runState.selectedRunId ? ' selected' : '';
+    return `<option value="${attr(r.run_id)}"${selected}>${esc(label)}</option>`;
+  }).join('');
+}
+
+function renderRunSummary() {
+  const target = $('#runSummary');
+  if (!target) return;
+  if (!runState.summary) {
+    target.innerHTML = '';
+    return;
+  }
+  const s = runState.summary;
+  const cards = [
+    ['Run id', s.run_id || runState.selectedRunId || '—', s.started_at || ''],
+    ['Models', Array.isArray(s.models) ? s.models.length : (s.model_count ?? '—'), Array.isArray(s.models) ? s.models.join(' · ') : ''],
+    ['Images', s.image_count ?? s.n_images ?? '—', s.split ? `split: ${s.split}` : ''],
+    ['Policy graph', s.policy_graph_version || '—', s.prompt_version ? `prompt ${s.prompt_version}` : '']
+  ];
+  target.innerHTML = cards.map(([k, v, n]) =>
+    `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`
+  ).join('');
+}
+
+function preparedMetaLine(prepared) {
+  if (!prepared || typeof prepared !== 'object') return '';
+  const bits = [];
+  if (prepared.width && prepared.height) bits.push(`${prepared.width}×${prepared.height}px`);
+  if (typeof prepared.byte_size === 'number') bits.push(`${prepared.byte_size.toLocaleString()} bytes`);
+  if (prepared.mime_type) bits.push(esc(prepared.mime_type));
+  if (prepared.longest_edge) bits.push(`longest edge ≤${prepared.longest_edge}`);
+  if (typeof prepared.jpeg_quality === 'number') bits.push(`q≈${prepared.jpeg_quality}`);
+  if (prepared.sha256) bits.push(`sha256 ${esc(String(prepared.sha256).slice(0, 12))}…`);
+  if (!bits.length) return '';
+  return `<p class="prepared-meta" title="Bytes the providers actually saw"><strong>Prepared image:</strong> ${bits.join(' · ')}</p>`;
+}
+
+function renderBorderline() {
+  const empty = $('#borderlineEmpty');
+  const target = $('#borderlineGroups');
+  if (!target) return;
+  const data = runState.borderline;
+  if (!data || !Array.isArray(data.groups) || data.groups.length === 0) {
+    if (empty) empty.hidden = false;
+    target.innerHTML = '';
+    return;
+  }
+  if (empty) empty.hidden = true;
+  target.innerHTML = data.groups.map(group => {
+    const items = (group.items || []).slice(0, 12);
+    const itemHtml = items.map(item => {
+      const id = item.image_id || item.sample_id || '';
+      const reason = item.reason || item.borderline_reason || '';
+      const conf = (typeof item.confidence === 'number') ? `confidence ${item.confidence.toFixed(2)}` : '';
+      const diff = item.difficulty ? `difficulty ${esc(item.difficulty)}` : '';
+      return `<li><strong>${esc(id)}</strong>${reason ? ` — ${esc(reason)}` : ''}<span class="row-meta">${[conf, diff].filter(Boolean).join(' · ')}</span>${preparedMetaLine(item.prepared_image)}</li>`;
+    }).join('');
+    const heading = group.l0 || group.label || group.bucket || 'unbucketed';
+    return `<article class="borderline-group"><header><span class="badge ${KNOWN_LABELS.includes(heading) ? heading.replace('_', '-') : 'dev'}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><ul>${itemHtml || '<li class="muted">no items</li>'}</ul></article>`;
+  }).join('');
+}
+
+function renderMisalignment() {
+  const empty = $('#misalignmentEmpty');
+  const target = $('#misalignmentTable');
+  if (!target) return;
+  const data = runState.misalignment;
+  if (!data || !Array.isArray(data.rows) || data.rows.length === 0) {
+    if (empty) empty.hidden = false;
+    target.innerHTML = '';
+    return;
+  }
+  if (empty) empty.hidden = true;
+  const models = Array.isArray(data.models) ? data.models : [];
+  const headerCells = ['<th>image</th>', '<th>SME truth</th>',
+    ...models.map(m => `<th>${esc(m)}</th>`),
+    '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
+  const rows = data.rows.slice(0, 100).map(row => {
+    const id = row.image_id || row.sample_id || '';
+    const thumb = row.image_path ? `<img class="row-thumb" src="${attr('../' + row.image_path.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+    const sme = row.sme_truth || row.truth || '—';
+    const perModel = models.map(m => {
+      const vote = (row.model_labels && row.model_labels[m]) || '—';
+      const cls = KNOWN_LABELS.includes(vote) ? vote.replace('_', '-') : 'dev';
+      return `<td><span class="badge ${cls}">${esc(vote)}</span></td>`;
+    }).join('');
+    const agreement = row.agreement || (row.unanimous ? 'unanimous' : 'split');
+    const reason = row.disagreement_reason || '';
+    const patch = row.policy_patch_id
+      ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
+      : '<span class="muted">—</span>';
+    return `<tr><td><div class="thumb-wrap">${thumb}<div><strong>${esc(id)}</strong>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+  }).join('');
+  target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderRun() {
+  renderRunPicker();
+  renderRunSummary();
+  renderBorderline();
+  renderMisalignment();
+}
+
+async function refreshRuns(autoSelectMostRecent = true) {
+  const status = $('#runStatus');
+  if (status) {
+    status.classList.remove('error');
+    status.textContent = 'Looking for runs…';
+  }
+  runState.available = await discoverRuns();
+  if (status) {
+    if (!runState.available.length) {
+      status.textContent = 'No runs found yet. Run scripts/run_bulk_labeling.py to create one.';
+    } else {
+      status.textContent = `Found ${runState.available.length} run(s).`;
+    }
+  }
+  renderRunPicker();
+  if (autoSelectMostRecent && runState.available.length) {
+    await loadRun(runState.available[0].run_id);
+  } else {
+    renderRun();
+  }
+}
+
 function bindControls() {
   $('#runSampler')?.addEventListener('click', runSamplerDemo);
   $('#randomSamplerSeed')?.addEventListener('click', () => {
@@ -346,10 +568,17 @@ function bindControls() {
   });
 }
 
+function bindRunControls() {
+  $('#runPicker')?.addEventListener('change', event => loadRun(event.target.value));
+  $('#refreshRuns')?.addEventListener('click', () => refreshRuns(true));
+}
+
 function init() {
   $('#policyNodeList').innerHTML = '';
   bindControls();
+  bindRunControls();
   runSamplerDemo();
+  refreshRuns(true);
 }
 
 init();

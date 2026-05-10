@@ -155,11 +155,58 @@ main { padding: 0 clamp(18px, 4vw, 58px) 70px; }
 .roadmap article span { color: var(--green); font-weight: 950; letter-spacing: .08em; }
 .roadmap article h3 { margin: 10px 0 8px; }
 
+/* ----- Bulk-labeling additions (X4) ----- */
+.primary-action.ghost {
+  background: rgba(125, 176, 255, .14);
+  border-color: rgba(125, 176, 255, .55);
+}
+.fineprint { color: var(--muted); font-size: 13px; line-height: 1.45; max-width: 760px; margin-top: 14px; }
+.fineprint code { background: rgba(7, 16, 31, .6); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+
+.run-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 14px; }
+.run-controls label { display: grid; gap: 7px; color: #dce8ff; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
+.run-controls select { min-width: 280px; border: 1px solid var(--line); border-radius: 13px; background: #07101f; color: var(--text); padding: 11px 12px; }
+.run-controls button { border: 1px solid var(--line); border-radius: 14px; background: #13254a; color: var(--text); padding: 12px 15px; font-weight: 900; cursor: pointer; }
+.run-controls button:hover { filter: brightness(1.12); }
+
+.empty-state {
+  border: 1px dashed rgba(170, 184, 211, .35);
+  background: rgba(16, 26, 49, .42);
+  color: var(--muted);
+  border-radius: 18px;
+  padding: 18px 20px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.empty-state code { background: rgba(7, 16, 31, .6); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
+
+.borderline-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+.borderline-group { border: 1px solid var(--line); background: linear-gradient(180deg, rgba(17, 27, 51, .94), rgba(9, 16, 31, .94)); border-radius: 18px; padding: 16px; }
+.borderline-group header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.borderline-group ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.borderline-group li { padding: 10px 12px; border: 1px solid rgba(170,184,211,.16); border-radius: 12px; background: rgba(7, 16, 31, .55); color: #dce8ff; font-size: 13px; line-height: 1.4; }
+.borderline-group li.muted { color: var(--muted); font-style: italic; }
+.row-meta { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; letter-spacing: .04em; }
+.prepared-meta { color: var(--muted); font-size: 11px; margin: 6px 0 0; line-height: 1.4; }
+.prepared-meta strong { color: #dce8ff; }
+
+.misalignment-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(8, 16, 31, .55); }
+table.misalignment { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.misalignment th, table.misalignment td { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(170, 184, 211, .12); vertical-align: top; }
+table.misalignment th { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; background: rgba(16, 26, 49, .9); position: sticky; top: 0; }
+table.misalignment tr:last-child td { border-bottom: 0; }
+table.misalignment .muted { color: var(--muted); }
+.thumb-wrap { display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: start; }
+.row-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 1px solid rgba(170,184,211,.18); background: #07101f; }
+.badge.gen-ai { color: var(--gold); background: rgba(255,209,102,.12); border: 1px solid rgba(255,209,102,.38); }
+.badge.not-gen-ai { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.38); }
+.badge.abstain { color: var(--muted); background: rgba(170, 184, 211, .12); border: 1px solid rgba(170, 184, 211, .35); }
+
 @media (max-width: 1220px) {
   .hero-grid, .split-section, .system-section { grid-template-columns: 1fr; }
   .demo-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-grid, .sample-grid, .quality-grid, .roadmap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .queue-grid { grid-template-columns: 1fr; }
+  .queue-grid, .borderline-groups { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
   .topbar, .gallery-head { align-items: flex-start; flex-direction: column; }
