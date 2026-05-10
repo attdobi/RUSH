@@ -201,6 +201,16 @@ table.misalignment .muted { color: var(--muted); }
 .badge.gen-ai { color: var(--gold); background: rgba(255,209,102,.12); border: 1px solid rgba(255,209,102,.38); }
 .badge.not-gen-ai { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.38); }
 .badge.abstain { color: var(--muted); background: rgba(170, 184, 211, .12); border: 1px solid rgba(170, 184, 211, .35); }
+.badge.consensus-unanimous { color: #6cd49b; background: rgba(108,212,155,.12); border: 1px solid rgba(108,212,155,.45); }
+.badge.consensus-majority { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.45); }
+.badge.consensus-tie { color: #ffba6b; background: rgba(255,186,107,.12); border: 1px solid rgba(255,186,107,.5); }
+.dist-chip { display: inline-block; padding: 2px 8px; margin-right: 4px; border-radius: 999px; font-size: 12px; font-family: var(--mono, monospace); }
+.dist-chip.gen-ai { color: var(--gold); background: rgba(255,209,102,.12); border: 1px solid rgba(255,209,102,.3); }
+.dist-chip.not-gen-ai { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.3); }
+.dist-chip.abstain { color: var(--muted); background: rgba(170,184,211,.12); border: 1px solid rgba(170,184,211,.3); }
+.row-mismatch td { background: rgba(255,107,107,.07); }
+.row-mismatch td:first-child strong { color: #ff8b8b; }
+.mismatch-note { color: #ff8b8b; font-size: 12px; margin: 2px 0 0; }
 
 @media (max-width: 1220px) {
   .hero-grid, .split-section, .system-section { grid-template-columns: 1fr; }

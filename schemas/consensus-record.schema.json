@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH ConsensusRecord",
+  "description": "Per-image consensus / majority-vote aggregation across all model votes in a run.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "image_id",
+    "n_votes_total",
+    "n_votes_decisive",
+    "n_abstain",
+    "vote_distribution",
+    "majority_label",
+    "majority_count",
+    "majority_fraction",
+    "is_unanimous",
+    "is_consensus",
+    "is_split",
+    "tie",
+    "voters",
+    "any_boundary_flag",
+    "boundary_voter_count",
+    "computed_at"
+  ],
+  "properties": {
+    "run_id": { "type": "string" },
+    "image_id": { "type": "string" },
+    "n_votes_total": { "type": "integer", "minimum": 0 },
+    "n_votes_decisive": { "type": "integer", "minimum": 0 },
+    "n_abstain": { "type": "integer", "minimum": 0 },
+    "vote_distribution": {
+      "type": "object",
+      "description": "Counts of decisive votes by L1 label.",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "majority_label": {
+      "description": "Most-voted decisive label, or null on tie / all-abstain.",
+      "type": ["string", "null"],
+      "enum": ["gen_ai", "not_gen_ai", "positive", "negative", null]
+    },
+    "majority_count": { "type": "integer", "minimum": 0 },
+    "majority_fraction": {
+      "description": "majority_count / n_votes_decisive (null when nothing decided).",
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "is_unanimous": {
+      "type": "boolean",
+      "description": "All decisive votes agree AND there were no abstains."
+    },
+    "is_consensus": {
+      "type": "boolean",
+      "description": "All decisive votes agree (abstains permitted)."
+    },
+    "is_split": {
+      "type": "boolean",
+      "description": "More than one distinct decisive label OR a tie."
+    },
+    "tie": {
+      "type": "boolean",
+      "description": "Two or more labels share the top decisive count."
+    },
+    "voters": {
+      "type": "array",
+      "description": "Audit array of per-voter records (labeler/model + label only; no justifications).",
+      "items": {
+        "type": "object",
+        "required": ["model_id", "label", "is_boundary"],
+        "properties": {
+          "model_id": { "type": "string" },
+          "labeler_id": { "type": "string" },
+          "label": {
+            "type": "string",
+            "enum": ["gen_ai", "not_gen_ai", "positive", "negative", "abstain"]
+          },
+          "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "is_boundary": { "type": "boolean" }
+        }
+      }
+    },
+    "any_boundary_flag": { "type": "boolean" },
+    "boundary_voter_count": { "type": "integer", "minimum": 0 },
+    "computed_at": {
+      "type": "string",
+      "description": "ISO 8601 UTC timestamp (seconds resolution)."
+    }
+  }
+}

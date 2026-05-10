@@ -31,6 +31,7 @@ REQUIRED_FILES = [
 
 REQUIRED_SCHEMAS = [
     "arbiter-decision.schema.json",
+    "consensus-record.schema.json",
     "decision-quality.schema.json",
     "export-record.schema.json",
     "image-record.schema.json",

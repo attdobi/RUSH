@@ -340,7 +340,9 @@ const runState = {
   selectedRunId: null,
   summary: null,
   borderline: null,
-  misalignment: null
+  misalignment: null,
+  consensus: null,
+  consensusFilter: 'all'
 };
 
 async function fetchJsonOptional(path) {
@@ -381,17 +383,19 @@ async function loadRun(runId) {
     status.textContent = `Loading run ${runId}…`;
   }
   const base = `${RUNS_DIR_URL}${encodeURIComponent(runId)}/web`;
-  const [summary, borderline, misalignment] = await Promise.all([
+  const [summary, borderline, misalignment, consensus] = await Promise.all([
     fetchJsonOptional(`${base}/summary.json`),
     fetchJsonOptional(`${base}/borderline.json`),
-    fetchJsonOptional(`${base}/misalignment.json`)
+    fetchJsonOptional(`${base}/misalignment.json`),
+    fetchJsonOptional(`${base}/consensus.json`)
   ]);
   runState.selectedRunId = runId;
   runState.summary = summary;
   runState.borderline = borderline;
   runState.misalignment = misalignment;
+  runState.consensus = consensus;
   if (status) {
-    if (!summary && !borderline && !misalignment) {
+    if (!summary && !borderline && !misalignment && !consensus) {
       status.classList.add('error');
       status.textContent = `No web exports found for run ${runId}.`;
     } else {
@@ -514,11 +518,116 @@ function renderMisalignment() {
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+function renderConsensus() {
+  const data = runState.consensus;
+  const summaryTarget = $('#consensusSummary');
+  const emptyEl = $('#consensusEmpty');
+  const tableTarget = $('#consensusTable');
+  if (!tableTarget) return;
+  if (!data || !Array.isArray(data.records) || data.records.length === 0) {
+    if (summaryTarget) summaryTarget.innerHTML = '';
+    if (emptyEl) emptyEl.hidden = false;
+    tableTarget.innerHTML = '';
+    return;
+  }
+  if (emptyEl) emptyEl.hidden = true;
+
+  const s = data.summary || {};
+  if (summaryTarget) {
+    const cards = [
+      ['Images', s.n_images_total ?? data.records.length, ''],
+      ['Unanimous', s.n_images_unanimous ?? '—', ''],
+      ['Split', s.n_images_split ?? '—', ''],
+      ['Ties', s.n_images_with_tie ?? '—', ''],
+      ['Boundary-flagged', s.n_images_with_boundary_flag ?? '—', ''],
+      ['Majority vs SME', isNumber(s.majority_vs_sme_accuracy) ? `${(s.majority_vs_sme_accuracy * 100).toFixed(1)}%` : '—',
+        isNumber(s.majority_vs_sme_compared) ? `${s.majority_vs_sme_correct ?? 0} / ${s.majority_vs_sme_compared}` : '']
+    ];
+    summaryTarget.innerHTML = cards.map(([k, v, n]) =>
+      `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`
+    ).join('');
+  }
+
+  // Build sme_truth lookup from misalignment payload (which carries SME truth per image).
+  const smeMap = {};
+  const misRecords = runState.misalignment?.records || [];
+  for (const r of misRecords) {
+    if (r && r.image_id) smeMap[r.image_id] = r.sme_truth;
+  }
+
+  const filter = runState.consensusFilter || 'all';
+  const records = data.records.filter(r => {
+    if (filter === 'unanimous') return !!r.is_unanimous;
+    if (filter === 'split') return !!r.is_split;
+    if (filter === 'boundary') return !!r.any_boundary_flag;
+    return true;
+  });
+  const statusEl = $('#consensusStatus');
+  if (statusEl) statusEl.textContent = `Showing ${records.length} of ${data.records.length} image(s).`;
+
+  if (records.length === 0) {
+    tableTarget.innerHTML = '<p class="muted">No images match the current filter.</p>';
+    return;
+  }
+
+  // Determine column order of models across the dataset (stable, sorted).
+  const modelSet = new Set();
+  for (const r of data.records) {
+    for (const v of (r.voters || [])) modelSet.add(v.labeler_id || v.model_id || 'unknown');
+  }
+  const models = Array.from(modelSet).sort();
+
+  const headerCells = [
+    '<th>image</th>',
+    '<th>SME truth</th>',
+    ...models.map(m => `<th>${esc(m)}</th>`),
+    '<th>consensus</th>',
+    '<th>distribution</th>'
+  ].join('');
+
+  const chipFor = r => {
+    const tot = r.n_votes_total ?? (r.voters || []).length;
+    if (r.tie) return `<span class="badge consensus-tie" title="tie">⚠ tie ${r.majority_count}/${tot}</span>`;
+    if (r.is_unanimous) return `<span class="badge consensus-unanimous" title="all voters agreed">✓ unanimous ${r.majority_count}/${tot}</span>`;
+    if (r.majority_label) {
+      const dec = r.n_votes_decisive ?? r.majority_count;
+      return `<span class="badge consensus-majority" title="majority among decisive voters">majority ${r.majority_count}/${dec}</span>`;
+    }
+    return '<span class="badge dev" title="no majority">no majority</span>';
+  };
+
+  const rows = records.slice(0, 200).map(r => {
+    const sme = smeMap[r.image_id];
+    const smeBadge = sme
+      ? `<span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span>`
+      : '<span class="muted">—</span>';
+    const voterById = {};
+    for (const v of (r.voters || [])) voterById[v.labeler_id || v.model_id || 'unknown'] = v;
+    const perModel = models.map(m => {
+      const v = voterById[m];
+      if (!v) return '<td><span class="muted">—</span></td>';
+      const cls = KNOWN_LABELS.includes(v.label) ? v.label.replace('_', '-') : 'dev';
+      const boundary = v.is_boundary ? ' · boundary' : '';
+      const conf = isNumber(v.confidence) ? ` (${v.confidence.toFixed(2)})` : '';
+      return `<td><span class="badge ${cls}" title="confidence${conf}${boundary}">${esc(v.label)}</span></td>`;
+    }).join('');
+    const distChips = Object.entries(r.vote_distribution || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([lbl, cnt]) => `<span class="dist-chip ${KNOWN_LABELS.includes(lbl) ? lbl.replace('_', '-') : 'dev'}">${esc(lbl)}: ${cnt}</span>`)
+      .join(' ');
+    const mismatch = sme && r.majority_label && r.majority_label !== sme;
+    const rowCls = mismatch ? ' class="row-mismatch"' : '';
+    return `<tr${rowCls}><td><strong>${esc(r.image_id)}</strong>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</td><td>${smeBadge}</td>${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+  }).join('');
+  tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 function renderRun() {
   renderRunPicker();
   renderRunSummary();
   renderBorderline();
   renderMisalignment();
+  renderConsensus();
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
@@ -571,6 +680,10 @@ function bindControls() {
 function bindRunControls() {
   $('#runPicker')?.addEventListener('change', event => loadRun(event.target.value));
   $('#refreshRuns')?.addEventListener('click', () => refreshRuns(true));
+  $('#consensusFilter')?.addEventListener('change', event => {
+    runState.consensusFilter = event.target.value || 'all';
+    renderConsensus();
+  });
 }
 
 function init() {

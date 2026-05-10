@@ -92,6 +92,28 @@
       <div id="runSummary" class="stat-grid"></div>
     </section>
 
+    <section id="consensus" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Consensus / majority vote</p>
+        <h2>What did the panel decide — together?</h2>
+        <p>For each image, every model casts a vote; this view shows how the panel agreed (or didn’t). Unanimous calls are green, plain majorities are blue, and ties are amber. Rows where the majority disagrees with the SME ground truth are highlighted for review.</p>
+      </div>
+      <div class="run-controls" aria-label="Consensus filter">
+        <label>Filter
+          <select id="consensusFilter">
+            <option value="all">All images</option>
+            <option value="unanimous">Unanimous only</option>
+            <option value="split">Split only</option>
+            <option value="boundary">Boundary-flagged</option>
+          </select>
+        </label>
+        <span id="consensusStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="consensusSummary" class="stat-grid"></div>
+      <div id="consensusEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> to populate this view.</div>
+      <div id="consensusTable" class="misalignment-table"></div>
+    </section>
+
     <section id="borderline" class="section">
       <div class="section-head compact">
         <p class="eyebrow">Borderline inspector</p>

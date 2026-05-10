@@ -6,7 +6,9 @@ Reads ``data/runs/<run_id>/label_votes.jsonl`` plus the SME manifest, writes:
     data/runs/<run_id>/scoring/decision_quality.json
     data/runs/<run_id>/scoring/misalignment.json
     data/runs/<run_id>/scoring/borderline.json
-    data/runs/<run_id>/web/{summary,misalignment,borderline}.json
+    data/runs/<run_id>/scoring/consensus.json    (cohort rollups)
+    data/runs/<run_id>/consensus.jsonl           (per-image records)
+    data/runs/<run_id>/web/{summary,misalignment,borderline,consensus}.json
 
 Stdlib-only; no network. Determinism: outputs are stable for a given input.
 """
@@ -22,10 +24,12 @@ sys.path.insert(0, str(ROOT))
 
 from pipeline.scoring import (  # noqa: E402
     borderline as borderline_mod,
+    consensus as consensus_mod,
     decision_quality as dq_mod,
     exporters as exporters_mod,
     misalignment as mis_mod,
 )
+from pipeline.scoring._common import load_ground_truth, load_label_votes  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,16 +108,50 @@ def main() -> int:
         low_confidence_threshold=args.low_confidence_threshold,
     )
 
+    # Consensus / majority-vote layer (additive; pure function on the raw votes).
+    votes_raw = load_label_votes(votes_path)
+    consensus_records = consensus_mod.build_consensus_records(
+        votes_raw, run_id=args.run_id
+    )
+    try:
+        truth = load_ground_truth(Path(args.manifest), truth_tiers=tiers)
+    except FileNotFoundError:
+        truth = {}
+    consensus_rollup = consensus_mod.build_cohort_rollups(
+        consensus_records, ground_truth=truth
+    )
+    consensus_summary = {
+        "run_id": args.run_id,
+        "policy_graph_version": args.policy_graph_version,
+        "ground_truth_tier": [t for t in tiers if t in {"gold", "platinum"}] or list(tiers),
+        "summary": consensus_rollup,
+        "records": consensus_records,
+    }
+
     scoring_dir = run_dir / "scoring"
     _atomic_write_json(scoring_dir / "decision_quality.json", dq)
     _atomic_write_json(scoring_dir / "misalignment.json", mis)
     _atomic_write_json(scoring_dir / "borderline.json", bord)
+    _atomic_write_json(scoring_dir / "consensus.json", consensus_summary)
+
+    # Per-image JSONL alongside label_votes.jsonl for downstream tooling.
+    consensus_jsonl = run_dir / "consensus.jsonl"
+    consensus_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    tmp_jsonl = consensus_jsonl.with_suffix(consensus_jsonl.suffix + ".tmp")
+    tmp_jsonl.write_text(
+        "".join(
+            json.dumps(r, sort_keys=False) + "\n" for r in consensus_records
+        ),
+        encoding="utf-8",
+    )
+    tmp_jsonl.replace(consensus_jsonl)
 
     written = exporters_mod.write_web_exports(
         run_dir,
         decision_quality=dq,
         misalignment=mis,
         borderline=bord,
+        consensus=consensus_summary,
         run_id=args.run_id,
     )
     for name, path in written.items():
@@ -125,7 +163,8 @@ def main() -> int:
     print(
         f"DQ: {len(dq.get('labelers', []))} labelers | "
         f"misalignment: {mis['summary']} | "
-        f"borderline: {bord['summary']}"
+        f"borderline: {bord['summary']} | "
+        f"consensus: {consensus_rollup}"
     )
     return 0
 

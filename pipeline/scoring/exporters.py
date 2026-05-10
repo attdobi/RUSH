@@ -57,8 +57,9 @@ def build_summary(
     borderline: dict[str, Any],
     *,
     run_id: str,
+    consensus: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    out: dict[str, Any] = {
         "run_id": run_id,
         "policy_graph_version": decision_quality.get("policy_graph_version"),
         "ground_truth_tier": decision_quality.get("ground_truth_tier", []),
@@ -72,6 +73,26 @@ def build_summary(
         ],
         "misalignment_summary": misalignment.get("summary", {}),
         "borderline_summary": borderline.get("summary", {}),
+    }
+    if consensus:
+        out["consensus_summary"] = consensus.get("summary", {})
+    return out
+
+
+def build_consensus_web(consensus: dict[str, Any]) -> dict[str, Any]:
+    """UI-friendly consensus payload: cohort rollups + per-image records.
+
+    Voters are passed through verbatim (already slim — no justifications).
+    Records are ordered by image_id (same as the canonical output).
+    """
+    records = list(consensus.get("records", []))
+    records.sort(key=lambda r: r.get("image_id", ""))
+    return {
+        "run_id": consensus.get("run_id"),
+        "policy_graph_version": consensus.get("policy_graph_version"),
+        "ground_truth_tier": consensus.get("ground_truth_tier", []),
+        "summary": consensus.get("summary", {}),
+        "records": records,
     }
 
 
@@ -134,26 +155,38 @@ def write_web_exports(
     decision_quality: dict[str, Any],
     misalignment: dict[str, Any],
     borderline: dict[str, Any],
+    consensus: dict[str, Any] | None = None,
     run_id: str | None = None,
 ) -> dict[str, Path]:
-    """Write summary/borderline/misalignment JSON under ``run_dir/web/``.
+    """Write summary/borderline/misalignment/consensus JSON under ``run_dir/web/``.
 
-    Returns a dict of ``{name: path}`` for the files written.
+    ``consensus`` is optional; when omitted, the legacy three-file output is
+    preserved (additive, no breakage). Returns ``{name: path}`` for the files
+    written.
     """
     web_dir = run_dir / "web"
     web_dir.mkdir(parents=True, exist_ok=True)
     rid = run_id or run_dir.name
 
-    paths = {
+    paths: dict[str, Path] = {
         "summary": web_dir / "summary.json",
         "misalignment": web_dir / "misalignment.json",
         "borderline": web_dir / "borderline.json",
     }
-    payload = {
-        "summary": build_summary(decision_quality, misalignment, borderline, run_id=rid),
+    payload: dict[str, Any] = {
+        "summary": build_summary(
+            decision_quality,
+            misalignment,
+            borderline,
+            run_id=rid,
+            consensus=consensus,
+        ),
         "misalignment": build_misalignment_web(misalignment),
         "borderline": build_borderline_web(borderline),
     }
+    if consensus is not None:
+        paths["consensus"] = web_dir / "consensus.json"
+        payload["consensus"] = build_consensus_web(consensus)
     for name, path in paths.items():
         _atomic_write_json(path, payload[name])
     return paths
