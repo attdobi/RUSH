@@ -22,6 +22,7 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
+from pipeline.providers._config import resolve_temperature
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -134,7 +135,12 @@ class AnthropicClient(LabelClient):
             "system": DEFAULT_SYSTEM_PROMPT,
             "messages": messages,
         }
+        temperature = resolve_temperature(self.config.model_name)
+        if temperature is not None:
+            params["temperature"] = temperature
         for k, v in self.config.extra_params.items():
+            if k == "temperature":
+                continue
             params.setdefault(k, v)
         return params
 
