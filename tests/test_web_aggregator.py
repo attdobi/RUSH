@@ -1,0 +1,256 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from pipeline.web import aggregator
+from pipeline.web import handlers_dq
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _write_jsonl(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+
+def _make_run(
+    runs_root: Path,
+    run_id: str,
+    *,
+    started_at: str,
+    policy_version: str,
+    majority_label: str = "not_gen_ai",
+) -> Path:
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": started_at,
+            "policy_graph_version": policy_version.replace("Generative_AI.", ""),
+            "sample_ids": ["img-1", "img-2"],
+        },
+    )
+    _write_json(
+        run_dir / "scoring" / "decision_quality.json",
+        {
+            "policy_graph_version": policy_version,
+            "ground_truth_tier": ["gold"],
+            "labelers": [
+                {"labeler_id": "model-a", "labeler_type": "llm", "metrics": {"accuracy": 1.0, "n": 2}},
+                {"labeler_id": "model-b", "labeler_type": "llm", "metrics": {"accuracy": 0.5, "n": 2}},
+                {"labeler_id": "majority_vote", "labeler_type": "ensemble", "metrics": {"accuracy": 0.5, "n": 2}},
+            ],
+        },
+    )
+    _write_json(
+        run_dir / "scoring" / "consensus.json",
+        {
+            "run_id": run_id,
+            "policy_graph_version": policy_version,
+            "ground_truth_tier": ["gold"],
+            "summary": {
+                "n_images_total": 2,
+                "n_images_unanimous": 1,
+                "n_images_consensus": 1,
+                "n_images_split": 1,
+                "n_images_with_tie": 0,
+                "n_images_with_boundary_flag": 1,
+            },
+            "records": [
+                {
+                    "run_id": run_id,
+                    "image_id": "img-1",
+                    "majority_label": majority_label,
+                    "majority_count": 2,
+                    "majority_fraction": 0.666667,
+                    "is_split": True,
+                    "vote_distribution": {"gen_ai": 1, "not_gen_ai": 2},
+                    "voters": [
+                        {"labeler_id": "model-a", "model_id": "model-a", "label": "gen_ai", "confidence": 0.9},
+                        {"labeler_id": "model-b", "model_id": "model-b", "label": "not_gen_ai", "confidence": 0.8},
+                    ],
+                },
+                {
+                    "run_id": run_id,
+                    "image_id": "img-2",
+                    "majority_label": "gen_ai",
+                    "majority_count": 2,
+                    "majority_fraction": 1.0,
+                    "is_split": False,
+                    "vote_distribution": {"gen_ai": 2},
+                    "voters": [
+                        {"labeler_id": "model-a", "model_id": "model-a", "label": "gen_ai", "confidence": 0.9},
+                        {"labeler_id": "model-b", "model_id": "model-b", "label": "gen_ai", "confidence": 0.8},
+                    ],
+                },
+            ],
+        },
+    )
+    _write_json(
+        run_dir / "scoring" / "misalignment.json",
+        {
+            "policy_graph_version": policy_version,
+            "summary": {"total_images": 2, "all_agree": 1, "model_vs_sme": 1, "model_vs_model": 0, "consensus_wrong": 0},
+            "records": [
+                {
+                    "image_id": "img-1",
+                    "repo_rel_path": "images/img-1.png",
+                    "sme_truth": "gen_ai",
+                    "misalignment_type": "model_vs_sme",
+                    "severity": "medium",
+                    "votes": [
+                        {"labeler_id": "model-a", "model_id": "model-a", "label": "gen_ai", "l2_label": "GA.synthetic", "confidence": 0.9},
+                        {"labeler_id": "model-b", "model_id": "model-b", "label": "not_gen_ai", "l2_label": "GA.photo", "confidence": 0.8},
+                    ],
+                },
+                {
+                    "image_id": "img-2",
+                    "repo_rel_path": "images/img-2.png",
+                    "sme_truth": "gen_ai",
+                    "misalignment_type": "all_agree",
+                    "severity": "low",
+                    "votes": [],
+                },
+            ],
+        },
+    )
+    _write_json(
+        run_dir / "scoring" / "borderline.json",
+        {
+            "policy_graph_version": policy_version,
+            "low_confidence_threshold": 0.6,
+            "summary": {"total_images": 2, "borderline_images": 1, "by_l0": {"gen_ai": 1, "not_gen_ai": 0}},
+            "groups": {
+                "gen_ai": [
+                    {
+                        "image_id": "img-1",
+                        "repo_rel_path": "images/img-1.png",
+                        "sme_truth": "gen_ai",
+                        "reasons": ["model_disagreement"],
+                        "votes": [
+                            {"labeler_id": "model-a", "label": "gen_ai", "l2_label": "GA.synthetic"},
+                            {"labeler_id": "model-b", "label": "not_gen_ai", "l2_label": "GA.photo"},
+                        ],
+                    }
+                ],
+                "not_gen_ai": [],
+            },
+        },
+    )
+    return run_dir
+
+
+def _runs_fixture(tmp_path: Path) -> Path:
+    runs_root = tmp_path / "runs"
+    _make_run(runs_root, "run-late", started_at="2026-05-10T02:00:00Z", policy_version="Generative_AI.v0.2")
+    _make_run(runs_root, "run-early", started_at="2026-05-10T01:00:00Z", policy_version="Generative_AI.v0.1")
+    flip_dir = runs_root / "_flip_rate" / "2026-05-10T03:00:00Z"
+    _write_json(
+        flip_dir / "flip_rate_summary.json",
+        {
+            "n_pairs_total": 2,
+            "n_pairs_flipped": 1,
+            "mean_flip_rate": 0.5,
+            "top_flipped_images": [{"image_id": "img-1", "flip_rate": 1.0}],
+        },
+    )
+    _write_jsonl(
+        flip_dir / "flip_rate.jsonl",
+        [
+            {
+                "image_id": "img-1",
+                "model_id": "model-b",
+                "n_runs": 2,
+                "labels_observed": ["gen_ai", "not_gen_ai"],
+                "flip_count": 1,
+                "flip_rate": 1.0,
+                "run_ids": ["run-early", "run-late"],
+            },
+            {
+                "image_id": "img-2",
+                "model_id": "model-a",
+                "n_runs": 2,
+                "labels_observed": ["gen_ai"],
+                "flip_count": 0,
+                "flip_rate": 0.0,
+                "run_ids": ["run-early"],
+            },
+        ],
+    )
+    return runs_root
+
+
+def test_aggregate_decision_quality_returns_runs_sorted_by_started_at(tmp_path: Path) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    payload = aggregator.aggregate_decision_quality(runs_root)
+
+    assert [run["run_id"] for run in payload["runs"]] == ["run-early", "run-late"]
+    assert payload["policy_versions"] == ["Generative_AI.v0.1", "Generative_AI.v0.2"]
+    assert payload["runs"][0]["majority_vote"] == {"accuracy": 0.5, "n": 2}
+    assert payload["runs"][0]["boundary_rate"] == 0.5
+    assert payload["runs"][0]["flip_rate_summary"]["mean_flip_rate"] == 0.5
+
+
+def test_aggregate_decision_quality_filters_by_run_id(tmp_path: Path) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    payload = aggregator.aggregate_decision_quality(runs_root, run_id="run-late")
+
+    assert [run["run_id"] for run in payload["runs"]] == ["run-late"]
+
+
+def test_aggregate_decision_quality_filters_by_policy_version(tmp_path: Path) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    payload = aggregator.aggregate_decision_quality(runs_root, policy_version="Generative_AI.v0.1")
+
+    assert [run["run_id"] for run in payload["runs"]] == ["run-early"]
+
+
+def test_compute_insights_returns_documented_capped_lists(tmp_path: Path) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    payload = aggregator.compute_insights(runs_root / "run-early")
+
+    expected_keys = {
+        "policy_clarity_hot_spots",
+        "majority_wrong",
+        "model_disagreement",
+        "boundary_concentration",
+        "consistent_pair_disagreement",
+    }
+    assert expected_keys <= set(payload)
+    for key in expected_keys:
+        assert isinstance(payload[key], list)
+        assert len(payload[key]) <= 50
+    assert payload["majority_wrong"][0]["image_id"] == "img-1"
+    assert payload["model_disagreement"][0]["image_id"] == "img-1"
+    assert payload["consistent_pair_disagreement"][0]["n_disagreements"] == 1
+
+
+def test_handle_decision_quality_ok_and_not_found(tmp_path: Path, monkeypatch) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+
+    status, body = handlers_dq.handle_decision_quality({})
+    assert status == 200
+    assert len(body["runs"]) == 2
+
+    status, body = handlers_dq.handle_decision_quality({"run_id": ["bogus"]})
+    assert status == 404
+    assert "error" in body
+
+
+def test_handle_insights_requires_run_id_and_returns_payload(tmp_path: Path, monkeypatch) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+
+    status, body = handlers_dq.handle_insights({})
+    assert status == 400
+    assert "error" in body
+
+    status, body = handlers_dq.handle_insights({"run_id": ["run-early"]})
+    assert status == 200
+    assert body["run_id"] == "run-early"
