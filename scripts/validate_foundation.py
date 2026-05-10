@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     ROOT / "README.md",
     ROOT / "web" / "index.html",
     ROOT / "web" / "styles.css",
+    ROOT / "web" / "genai-sampler.js",
     ROOT / "web" / "app.js",
     ROOT / "docs" / "visuals" / "rush-system.svg",
     ROOT / "docs" / "visuals" / "policy-evolution.svg",
@@ -356,6 +357,41 @@ def validate_graph(errors: list[str]) -> tuple[dict[str, dict[str, Any]], list[d
     return node_meta, edges
 
 
+def validate_static_web(errors: list[str]) -> None:
+    index_path = ROOT / "web" / "index.html"
+    try:
+        index_html = index_path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - validation report
+        errors.append(f"web/index.html does not parse as text: {exc}")
+        return
+
+    scripts = re.findall(r'<script\s+[^>]*src="([^"]+)"', index_html)
+    for script in ["genai-sampler.js", "app.js"]:
+        if script not in scripts:
+            errors.append(f"web/index.html must load {script}")
+    if "genai-sampler.js" in scripts and "app.js" in scripts:
+        if scripts.index("genai-sampler.js") > scripts.index("app.js"):
+            errors.append("web/index.html must load genai-sampler.js before app.js")
+    for script in scripts:
+        if script.startswith(("http://", "https://", "//")):
+            continue
+        script_path = (ROOT / "web" / script.split("?", 1)[0]).resolve()
+        if ROOT.resolve() not in script_path.parents and script_path != ROOT.resolve():
+            errors.append(f"web script escapes repo root: {script}")
+        elif not script_path.exists():
+            errors.append(f"web script missing: web/{script}")
+
+    sampler_text = (ROOT / "web" / "genai-sampler.js").read_text(encoding="utf-8")
+    if "RushGenaiSampler" not in sampler_text or "runDemoReset" not in sampler_text:
+        errors.append("web/genai-sampler.js missing expected RushGenaiSampler.runDemoReset contract")
+    if "applyOverride" not in sampler_text and "applyHumanOverrides" not in sampler_text:
+        errors.append("web/genai-sampler.js should expose an override helper")
+    app_text = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+    for token in ["runSamplerDemo", "LLM labeling comes next", "SME/human override"]:
+        if token not in app_text:
+            errors.append(f"web/app.js missing sampler demo UI token {token}")
+
+
 def validate_decision_quality(errors: list[str]) -> None:
     path = SEED / "decision-quality.json"
     if not path.exists():
@@ -496,6 +532,7 @@ def main() -> int:
     schema_names = validate_schema_files(errors)
     if not errors:
         validate_schema_expectations(errors)
+    validate_static_web(errors)
     node_meta, edges = validate_graph(errors)
     image_count, label_count = validate_seed_data(errors, set(node_meta))
 

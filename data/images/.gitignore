@@ -1,0 +1,8 @@
+# Image datasets are local/private by default.
+# Commit only explicit per-project skeleton/docs/ignore files.
+*
+!.gitignore
+!*/
+!genai-classification/.gitignore
+!genai-classification/README.md
+!genai-classification/**/.gitkeep

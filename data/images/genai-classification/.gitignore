@@ -1,0 +1,8 @@
+# GenAI classification image payloads are local-only by default.
+# Keep the directory skeleton and documentation in git; keep media/manifests out
+# until we intentionally add de-identified sample fixtures.
+*
+!.gitignore
+!README.md
+!*/
+!.gitkeep

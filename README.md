@@ -8,7 +8,7 @@ The first pilot is a **cold-start Generative AI image-classification policy**. W
 
 ## What this repository contains now
 
-- `web/` — dependency-free foundation web interface with tabs for About, Policy Graph, Golden Set, Labeling, Policy Diff, and Metrics.
+- `web/` — dependency-free VC-demo interface: a simplified narrative flow for GenAI sampling, SME policy graph building, future bulk LLM labeling, and decision-quality/misalignment review. `web/genai-sampler.js` remains the static client-side fallback sampler for demos when local manifests are unavailable.
 - `policy-graph/Generative_AI/v0.1/` — initial Obsidian-compatible Markdown policy graph for GenAI detection.
 - `schemas/` — JSON schemas for policy nodes/edges, image records, split assignments, label votes, structured LLM outputs, arbiter decisions, SME reviews, label-tier records, decision-quality records, policy patches, export records, and metric snapshots.
 - `data/seed/` — mock-only placeholder golden-set records, labels, not-enough-data metrics, and policy-suggestion examples.
@@ -64,13 +64,19 @@ python3 -m http.server 8766 --bind 127.0.0.1
 - **Adaptive vs sentinel separation:** Adaptive boundary batches are for finding hard cases and improving coverage; production sentinel/random batches are for prevalence and monitoring. Do not mix them when reporting rates.
 - **Mock-only metrics:** Seed metrics intentionally report `not_enough_data` with null accuracy/precision/recall until real media, canonical truth, and paired predictions exist.
 
+## GenAI sampler paths
+
+- Real local image manifests: run `python3 scripts/sample_genai_gold_sets.py` against ignored `data/images/genai-classification/source-datasets/` image folders. The CLI reads local image files and writes ignored manifest files; it does not add image bytes to git.
+- Static web demo reset: the web interface defaults to 100 dev golden + 100 locked holdout records. It first tries ignored local manifests under `data/images/genai-classification/manifests/` so local images can render in the demo; if those manifests are unavailable, `web/genai-sampler.js` exposes `window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode })` as a synthetic browser fallback. The current web flow intentionally does not invoke LLMs; bulk model labeling is the next milestone.
+
 ## Validate the scaffold
 
 ```bash
 python3 scripts/validate_foundation.py
+node scripts/validate_web_sampler.js
 ```
 
-The validator checks that graph node IDs are unique, `GA.root` is the single root node, parent chains are not orphaned, edge endpoints and seed references exist, schemas parse, seed metrics do not masquerade as reportable when mock-only/not-enough-data, and required web/docs assets are present.
+The foundation validator checks that graph node IDs are unique, `GA.root` is the single root node, parent chains are not orphaned, edge endpoints and seed references exist, schemas parse, seed metrics do not masquerade as reportable when mock-only/not-enough-data, and required web/docs assets are present. The web sampler validator checks deterministic sampling, split disjointness, balanced totals, required assumptions, and SME override handling.
 
 ## Near-term roadmap
 
@@ -81,7 +87,7 @@ The validator checks that graph node IDs are unique, `GA.root` is the single roo
 | M3 — Labeling queue | Human + future LLM labels with justifications, confidence, evidence refs, and SME audit routing. |
 | M4 — Metrics dashboard | Accuracy, precision, recall, FPR, positive proportion, informedness, graph coverage, gray-zone mass by node/version/split. |
 | M5 — Policy diff workflow | Proposed node additions, clarifications, examples, exceptions, and rejected-change memory. |
-| M6 — LLM ensemble integration | 3 high-reasoning model votes plus arbiter; consensus audits; prompt/context packs from graph nodes. |
+| M6 — LLM ensemble integration | Multiple API-backed model votes with structured outputs, policy-node citations, consensus audits, prompt/context packs from graph nodes, and SME resurfacing for misalignments. |
 
 ## Why Obsidian-style Markdown?
 
