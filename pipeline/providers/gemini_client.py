@@ -25,6 +25,7 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
+from pipeline.providers._config import resolve_temperature
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -133,7 +134,12 @@ class GeminiClient(LabelClient):
         config: dict[str, Any] = {
             "response_mime_type": self.config.response_mime_type,
         }
+        temperature = resolve_temperature(self.config.model_name)
+        if temperature is not None:
+            config["temperature"] = temperature
         for k, v in self.config.extra_params.items():
+            if k == "temperature":
+                continue
             config.setdefault(k, v)
         return {
             "model": self.config.model_name,

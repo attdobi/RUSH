@@ -146,8 +146,11 @@ class OpenAIClient(LabelClient):
         }
         if self.config.reasoning_effort:
             params["reasoning_effort"] = self.config.reasoning_effort
-        # Pass through any extra params (forward-compat for new SDK args).
+        # GPT-5.5 reasoning models do not accept custom temperature; never
+        # forward it for OpenAI while preserving reasoning_effort behavior.
         for k, v in self.config.extra_params.items():
+            if k == "temperature":
+                continue
             params.setdefault(k, v)
         return params
 

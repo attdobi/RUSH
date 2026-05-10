@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from . import persistence
+from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
 from .io_paths import (
     DEFAULT_POLICY_GRAPH_DIR,
@@ -71,6 +72,7 @@ class ModelSpec:
     model_id: str
     phase: str | None = None
     params: dict | None = None
+    resolved_temperature: float | None = None
 
     @property
     def provider(self) -> str:
@@ -278,11 +280,20 @@ def _initial_manifest(
         "sample_manifest_path": sample_manifest_rel,
         "sample_ids": sample_ids,
         "models": [
-            {k: v for k, v in {
-                "model_id": m.model_id,
-                "phase": m.phase,
-                "params": m.params,
-            }.items() if v is not None or k == "model_id"}
+            {
+                k: v
+                for k, v in {
+                    "model_id": m.model_id,
+                    "phase": m.phase,
+                    "params": m.params,
+                    "resolved_temperature": (
+                        m.resolved_temperature
+                        if m.resolved_temperature is not None
+                        else resolve_temperature(m.model_id)
+                    ),
+                }.items()
+                if v is not None or k in {"model_id", "resolved_temperature"}
+            }
             for m in models
         ],
         "policy_graph_version": policy_graph_version,

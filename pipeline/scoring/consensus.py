@@ -49,11 +49,7 @@ def _voter_audit(vote: dict[str, Any]) -> dict[str, Any]:
         "labeler_id": _common.labeler_id_for(vote),
         "label": vote.get("label", _common.ABSTAIN),
     }
-    conf = vote.get("confidence")
-    if isinstance(conf, (int, float)):
-        out["confidence"] = float(conf)
-    else:
-        out["confidence"] = None
+    out["confidence"] = _common.optional_confidence(vote.get("confidence"))
     out["is_boundary"] = bool(vote.get("is_boundary", False))
     return out
 

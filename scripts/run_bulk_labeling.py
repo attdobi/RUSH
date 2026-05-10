@@ -36,6 +36,7 @@ from pipeline.io_paths import (  # noqa: E402  (after sys.path edit)
     DEFAULT_SAMPLE_MANIFEST,
 )
 from pipeline.manifest import HOLDOUT_SPLITS, load_records, select_samples  # noqa: E402
+from pipeline.providers._config import resolve_temperature  # noqa: E402
 from pipeline.runner import (  # noqa: E402
     DEFAULT_PROMPT_VERSION,
     ModelSpec,
@@ -129,10 +130,11 @@ def main(argv: list[str] | None = None) -> int:
                     model_id=mid,
                     phase=f"phase-{reg_spec.phase}",
                     params=dict(reg_spec.params) if reg_spec.params else None,
+                    resolved_temperature=resolve_temperature(reg_spec.provider_model_name),
                 )
             )
         else:
-            enriched.append(ModelSpec(model_id=mid))
+            enriched.append(ModelSpec(model_id=mid, resolved_temperature=resolve_temperature(mid)))
     model_specs = enriched
     sample_ids = (
         [s.strip() for s in args.sample_ids.split(",") if s.strip()]

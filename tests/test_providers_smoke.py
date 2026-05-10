@@ -235,7 +235,7 @@ class TestCoerceLabelFields:
     def test_missing_fields_defaults(self) -> None:
         out = coerce_label_fields({})
         assert out["label"] == "abstain"
-        assert out["confidence"] == 0.0
+        assert out["confidence"] is None
         assert out["difficulty"] == "medium"
         assert out["is_boundary"] is False
 
