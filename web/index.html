@@ -3,131 +3,119 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RUSH Foundation</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>RUSH GenAI Demo</title>
+  <link rel="stylesheet" href="styles.css?v=vc-demo-overhaul" />
 </head>
 <body>
   <header class="hero">
     <nav class="topbar" aria-label="Primary">
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
-      <div class="tabs" role="tablist" aria-label="RUSH sections">
-        <button class="tab active" data-tab="about" role="tab" aria-selected="true">About</button>
-        <button class="tab" data-tab="graph" role="tab">Policy Graph</button>
-        <button class="tab" data-tab="golden" role="tab">Golden Set</button>
-        <button class="tab" data-tab="sampler" role="tab">Sampler Demo</button>
-        <button class="tab" data-tab="labeling" role="tab">Labeling</button>
-        <button class="tab" data-tab="diff" role="tab">Policy Diff</button>
-        <button class="tab" data-tab="metrics" role="tab">Metrics</button>
-        <button class="tab" data-tab="dq" role="tab">Decision Quality</button>
+      <div class="nav-pills" aria-label="Page sections">
+        <a href="#demo">Demo</a>
+        <a href="#system">System</a>
+        <a href="#policy">Policy loop</a>
+        <a href="#quality">Decision quality</a>
+        <a href="#roadmap">Next</a>
       </div>
     </nav>
+
     <section class="hero-grid">
-      <div>
-        <p class="eyebrow">SME-in-the-loop RLHF policy graph</p>
-        <h1>Scale SME judgment with a high-reasoning committee, policy graph, and truth-aware consensus.</h1>
-        <p class="acronym"><strong>RUSH</strong> = Reinforcement learning Using high SME-in-the-loop and High reasoning models.</p>
-        <p class="lede">RUSH combines independent high-reasoning model votes, Obsidian-style Markdown policy graphs, and SME-reviewed ground truth so disagreements become versioned decision-quality infrastructure instead of hidden uncertainty. The first pilot cold-starts GenAI image classification.</p>
+      <div class="hero-copy">
+        <p class="eyebrow">SME-in-the-loop policy intelligence</p>
+        <h1>Turn expert judgment into a living policy graph, then use LLMs to find the cases humans should re-check.</h1>
+        <p class="lede">RUSH starts with SME-quality examples, builds a versioned policy graph, and treats high-reasoning LLMs as misalignment detectors — not ground truth. This demo cold-starts GenAI image classification and sets up bulk model labeling as the next step.</p>
+        <div class="hero-actions">
+          <a class="primary-action" href="#demo">Start GenAI demo</a>
+          <span class="quiet-pill">Consensus ≠ truth</span>
+          <span class="quiet-pill">Gold/platinum SME labels win</span>
+        </div>
       </div>
-      <div class="hero-card hero-card-combo">
-        <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
-        <figure class="movie-poster-card">
-          <img src="../docs/visuals/rush-movie-poster.jpeg" alt="Poster for the 2013 Formula One movie Rush" />
-          <figcaption>High-speed feedback loops, fewer fiery crashes.</figcaption>
-        </figure>
-      </div>
+      <aside class="hero-panel" aria-label="RUSH operating loop">
+        <div class="loop-step active"><strong>1</strong><span>Sample candidate images</span></div>
+        <div class="loop-step"><strong>2</strong><span>SME confirms labels + policy evidence</span></div>
+        <div class="loop-step"><strong>3</strong><span>LLMs bulk-label and cite policy nodes</span></div>
+        <div class="loop-step"><strong>4</strong><span>Misalignments route back to SMEs</span></div>
+      </aside>
     </section>
   </header>
 
   <main>
-    <section id="about" class="panel active" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">About</p><h2>What we are building</h2></div>
-      <div class="cards three">
-        <article class="card"><h3>High-reasoning committee</h3><p>Models vote independently, cite policy evidence, and expose disagreements for SME review instead of hiding uncertainty behind a single label.</p></article>
-        <article class="card"><h3>Obsidian policy graph</h3><p>Markdown nodes with frontmatter, examples, graph edges, and source anchors capture every category, boundary, exception, and clarification.</p></article>
-        <article class="card"><h3>Consensus ≠ truth</h3><p>SME labels are gold; consensus is a risk signal for routing, audits, and policy iteration — not ground truth.</p></article>
+    <section id="demo" class="section demo-shell">
+      <div class="section-head compact">
+        <p class="eyebrow">Cold-start GenAI image demo</p>
+        <h2>Sample first, then turn edge cases into policy.</h2>
+        <p>The local demo uses ignored image manifests when present; otherwise it falls back to deterministic synthetic records. No LLM calls happen yet — that comes next with the API keys.</p>
       </div>
-      <div class="flow"><img src="../docs/visuals/policy-evolution.svg" alt="Policy graph evolution loop" /></div>
-    </section>
 
-    <section id="graph" class="panel" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">Obsidian graph</p><h2>Cold-start GenAI policy v0.1</h2></div>
-      <div id="graphCanvas" class="graph-canvas" aria-label="Policy graph visualization"></div>
-      <div id="nodeDetails" class="details"></div>
-    </section>
-
-    <section id="golden" class="panel" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">Golden set registry</p><h2>Images, tiers, and splits</h2></div>
-      <div class="toolbar"><span class="pill">gold/platinum = truth</span><span class="pill">provisional = triage only</span><span class="pill">locked holdout protected</span><span class="pill">seed UI = mock-only</span></div>
-      <div id="goldenGrid" class="golden-grid"></div>
-    </section>
-
-    <section id="sampler" class="panel" role="tabpanel">
-      <div class="section-head">
-        <p class="eyebrow">GenAI sampler</p>
-        <h2>Start a demo sample</h2>
-      </div>
-      <div class="sampler-banner loading-ready">
-        <span class="spinner" aria-hidden="true"></span>
-        <span id="samplerLoadingText">Ready. Click start to load the sampled images and labels.</span>
-      </div>
-      <div class="sampler-controls" aria-label="Sampler controls">
+      <div class="demo-controls" aria-label="Sampler controls">
         <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
         <label>Mode
           <select id="samplerMode">
-            <option value="cold_start">cold_start</option>
-            <option value="warm_start">warm_start</option>
+            <option value="cold_start">cold start</option>
+            <option value="warm_start">warm start</option>
           </select>
         </label>
         <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
         <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
-        <button id="runSampler" class="primary-action" type="button">Start demo</button>
-        <button id="randomSamplerSeed" type="button">Random seed</button>
+        <button id="runSampler" class="primary-action" type="button">Run sample</button>
+        <button id="randomSamplerSeed" type="button">Randomize</button>
       </div>
-      <div id="samplerStatus" class="sampler-status" role="status"></div>
-      <div id="samplerSummary" class="sampler-summary"></div>
-      <div id="samplerRecords" class="sampler-records"></div>
+      <div id="samplerLoading" class="loading-indicator" hidden aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Loading sampled images and labels…</span>
+      </div>
+      <div id="samplerStatus" class="status-line" role="status"></div>
+
+      <div id="demoStats" class="stat-grid"></div>
+      <div id="sampleGallery" class="sample-gallery"></div>
     </section>
 
-    <section id="labeling" class="panel" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">Labeling</p><h2>Votes with evidence, not vibes</h2></div>
-      <div id="labelTable" class="table-wrap"></div>
+    <section id="system" class="section system-section">
+      <div class="section-head compact">
+        <p class="eyebrow">System view</p>
+        <h2>The RUSH loop at scale.</h2>
+        <p>Same architecture from the foundation view: policy data and golden examples feed the policy graph, labeling, audit, metrics, and graph diffs.</p>
+      </div>
+      <div class="system-card">
+        <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
+      </div>
     </section>
 
-    <section id="diff" class="panel" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">Policy iteration</p><h2>Suggested graph diffs for SME review</h2></div>
-      <div id="diffList" class="diff-list"></div>
+    <section id="policy" class="section split-section">
+      <div>
+        <p class="eyebrow">Policy graph</p>
+        <h2>Policy is the product, not a prompt blob.</h2>
+        <p class="body-copy">Every label should point to a policy node: positive evidence, boundary negative, exception, or uncertainty. SMEs approve policy diffs; LLMs provide pressure tests and candidate ambiguities.</p>
+        <div id="policyNodeList" class="node-list"></div>
+      </div>
+      <div class="panel-card">
+        <h3>Current demo loop</h3>
+        <div id="policyLoop" class="timeline"></div>
+      </div>
     </section>
 
-    <section id="metrics" class="panel" role="tabpanel">
-      <div class="section-head"><p class="eyebrow">Metrics</p><h2>Decision quality + graph health</h2></div>
-      <div class="metrics-banner warning">
-        ⚠️ Seed metrics are placeholders (n&nbsp;=&nbsp;2). Real decision-quality metrics
-        require golden-set images, model votes, and SME-reviewed labels. Graph-health
-        values reflect scaffold structure only.
+    <section id="quality" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Decision quality</p>
+        <h2>Assume SME quality in the demo. Use LLMs to surface what might be wrong.</h2>
+        <p>For the VC story, the sampled labels are treated as SME-quality candidates. Bulk LLM labeling will compare models against that truth, then prioritize misalignments, hard negatives, and policy gaps for SME review.</p>
       </div>
-      <div id="metricCards" class="cards metrics"></div>
-      <div id="metricNote" class="note">Seed metrics are mock-only and show not-enough-data until real images, gold/platinum SME truth, and paired predictions exist.</div>
+      <div id="qualityCards" class="quality-grid"></div>
+      <div id="misalignmentQueue" class="queue-grid"></div>
     </section>
 
-    <section id="dq" class="panel" role="tabpanel">
-      <div class="section-head">
-        <p class="eyebrow">Per-labeler accuracy vs SME ground truth</p>
-        <h2>Decision Quality</h2>
-      </div>
-      <div class="dq-banner warning">
-        ⚠️ Decision quality metrics are placeholders until golden-set images receive
-        model votes and SME review. Ground truth = SME latest label (gold/platinum tier).
-      </div>
-      <div id="dqTable" class="table-wrap"></div>
-      <div class="section-head" style="margin-top:32px">
-        <p class="eyebrow">Metrics across policy versions</p>
-        <h3>Evolution</h3>
-      </div>
-      <div id="dqChart" class="chart-placeholder">
-        Evolution chart renders after ≥2 policy versions have metrics.
+    <section id="roadmap" class="section roadmap">
+      <p class="eyebrow">Next build phase</p>
+      <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
+      <div class="roadmap-grid">
+        <article><span>01</span><h3>Bulk model labeling</h3><p>Run multiple API-backed models over sampled images with structured outputs, confidence, policy-node citations, and abstain support.</p></article>
+        <article><span>02</span><h3>Misalignment mining</h3><p>Compare LLM labels to SME truth, highlight disagreement clusters, and separate correlated model failure from useful consensus.</p></article>
+        <article><span>03</span><h3>Policy diffs</h3><p>Convert repeated ambiguities into graph patches: new nodes, examples, exceptions, clarifications, or rejected-change memory.</p></article>
+        <article><span>04</span><h3>Decision quality</h3><p>Report per-model accuracy, F1, FPR/FNR, positive rate, coverage, confidence intervals, and review burden by policy version.</p></article>
       </div>
     </section>
   </main>
+
   <script src="genai-sampler.js"></script>
   <script src="app.js"></script>
 </body>
