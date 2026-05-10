@@ -1,0 +1,10 @@
+# RUSH bulk-labeling pipeline runtime + test deps.
+# Pin to ranges that are known to work with the v1 plan; bump deliberately.
+openai>=1.50,<2
+anthropic>=0.40,<1
+google-genai>=0.3,<2
+jsonschema>=4.20,<5
+python-dotenv>=1.0,<2
+pillow>=10,<13
+reportlab>=4.0,<5
+pytest>=8.0,<9
