@@ -13,6 +13,7 @@
       <div class="nav-pills" aria-label="Page sections">
         <a href="#demo">Demo</a>
         <a href="#runs">Runs</a>
+        <a href="#flip-rate-panel">Policy clarity</a>
         <a href="#borderline">Borderline</a>
         <a href="#misalignment">Misalignment</a>
         <a href="#system">System</a>
@@ -112,6 +113,18 @@
       <div id="consensusSummary" class="stat-grid"></div>
       <div id="consensusEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> to populate this view.</div>
       <div id="consensusTable" class="misalignment-table"></div>
+    </section>
+
+    <section id="flip-rate-panel" class="section flip-rate-panel" hidden>
+      <div class="section-head compact">
+        <p class="eyebrow">Policy clarity / flip rate</p>
+        <h2>Which images make model labels move?</h2>
+        <p>Repeated model runs expose policy ambiguity: stable pairs are clear, flipped pairs are candidates for SME review, stronger examples, or policy-node clarification.</p>
+      </div>
+      <div id="flipRateEmpty" class="empty-state">No flip-rate export found. Run <code>python scripts/compute_flip_rate.py</code> to populate this view.</div>
+      <div id="flipRateCards" class="flip-cards"></div>
+      <div id="flipRateBars" class="flip-model-list"></div>
+      <div id="flipRateTable" class="misalignment-table"></div>
     </section>
 
     <section id="borderline" class="section">
