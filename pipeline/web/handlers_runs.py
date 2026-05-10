@@ -1,10 +1,20 @@
-"""JSON handlers for RUSH local run lifecycle endpoints."""
+"""JSON dispatcher for RUSH local API endpoints.
+
+Dispatches:
+* ``/api/health`` and ``/api/runs*`` (X1 — this module)
+* ``/api/decision-quality`` and ``/api/insights`` (X2 — ``handlers_dq``)
+* ``/api/policy/*`` (X3 — ``handlers_policy``)
+
+Keeping a single dispatcher avoids duplicating the JSON envelope/error
+plumbing per slice; per-feature handlers stay in their own modules.
+"""
 from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
+from . import handlers_dq, handlers_policy
 from ._safety import APIError, read_json_body, validate_start_payload
 from .run_registry import RunRegistry
 
@@ -73,6 +83,67 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             if method == "POST" and action == "score":
                 send_json(handler, 200, registry.score(token))
                 return
+
+        # ----- X2: decision-quality / insights ---------------------------
+        if method == "GET" and path == "/api/decision-quality":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            status, body = handlers_dq.handle_decision_quality(query)
+            send_json(handler, status, body)
+            return
+        if method == "GET" and path == "/api/insights":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            status, body = handlers_dq.handle_insights(query)
+            send_json(handler, status, body)
+            return
+
+        # ----- X3: policy versions / proposals ---------------------------
+        if method == "GET" and path == "/api/policy/versions":
+            status, body = handlers_policy.handle_policy_versions(handler.repo_root)
+            send_json(handler, status, body)
+            return
+        if method == "GET" and path == "/api/policy/proposals":
+            status, body = handlers_policy.handle_list_proposals(handler.repo_root)
+            send_json(handler, status, body)
+            return
+        if method == "POST" and path == "/api/policy/propose-diff":
+            body_in = read_json_body(handler) or {}
+            status, body = handlers_policy.handle_propose_diff(
+                handler.repo_root, body_in
+            )
+            send_json(handler, status, body)
+            return
+        if method == "POST" and path == "/api/policy/build-pdf":
+            body_in = read_json_body(handler) or {}
+            status, body = handlers_policy.handle_build_pdf(
+                handler.repo_root, body_in
+            )
+            send_json(handler, status, body)
+            return
+        # /api/policy/proposals/<id>(/accept|/reject)?
+        if len(parts) >= 5 and parts[:4] == ["", "api", "policy", "proposals"]:
+            proposal_id = parts[4]
+            if not proposal_id:
+                raise _not_found(path)
+            if len(parts) == 5 and method == "GET":
+                status, body = handlers_policy.handle_get_proposal(
+                    handler.repo_root, proposal_id
+                )
+                send_json(handler, status, body)
+                return
+            if len(parts) == 6 and method == "POST":
+                action = parts[5]
+                if action == "accept":
+                    status, body = handlers_policy.handle_accept_proposal(
+                        handler.repo_root, proposal_id
+                    )
+                    send_json(handler, status, body)
+                    return
+                if action == "reject":
+                    status, body = handlers_policy.handle_reject_proposal(
+                        handler.repo_root, proposal_id
+                    )
+                    send_json(handler, status, body)
+                    return
 
         raise _not_found(path)
     except APIError as exc:
