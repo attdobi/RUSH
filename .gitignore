@@ -20,3 +20,11 @@ build/
 
 # Obsidian local workspace state
 policy-graph/**/.obsidian/
+
+# Bulk-labeling run output (X2): per-run artifacts are not committed.
+data/runs/
+
+# Built policy PDFs are build artifacts, not source.
+*.pdf
+!docs/**/*.pdf
+

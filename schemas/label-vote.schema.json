@@ -96,6 +96,40 @@
         "medium",
         "low"
       ]
+    },
+    "prepared_image_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA256 of the downsampled JPEG bytes actually sent to the provider (see pipeline/labeling/image_prep.py)."
+    },
+    "prepared_image_width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Pixel width of the downsampled JPEG."
+    },
+    "prepared_image_height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Pixel height of the downsampled JPEG."
+    },
+    "prepared_image_mime_type": {
+      "type": "string",
+      "description": "MIME type of the downsampled bytes (typically image/jpeg)."
+    },
+    "prepared_image_byte_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Byte length of the downsampled JPEG payload."
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "End-to-end provider call latency including retries (X2 audit field)."
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of provider call attempts (1 if no retry)."
     }
   }
 }
