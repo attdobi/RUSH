@@ -74,6 +74,16 @@
       <div id="samplerStatus" class="status-line" role="status"></div>
 
       <div id="demoStats" class="stat-grid"></div>
+      <div class="gallery-toolbar" aria-label="Sample gallery controls">
+        <div class="gallery-filter-chips" role="group" aria-label="Filter samples">
+          <button type="button" class="filter-chip active" data-gallery-filter="all" aria-pressed="true">All</button>
+          <button type="button" class="filter-chip" data-gallery-filter="ai_generated" aria-pressed="false">AI generated</button>
+          <button type="button" class="filter-chip" data-gallery-filter="not_ai_generated" aria-pressed="false">Not AI generated</button>
+          <button type="button" class="filter-chip" data-gallery-filter="needs_review" aria-pressed="false">Needs review</button>
+        </div>
+        <button id="galleryLoadMore" class="gallery-load-more" type="button" hidden>Load more</button>
+      </div>
+      <div id="galleryStatus" class="gallery-status" role="status"></div>
       <div id="sampleGallery" class="sample-gallery"></div>
     </section>
 

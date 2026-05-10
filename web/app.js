@@ -22,7 +22,9 @@ const policyNodes = [
 const demoState = {
   result: null,
   source: 'loading',
-  overrides: {}
+  overrides: {},
+  galleryFilter: 'all',
+  galleryVisibleCount: 24
 };
 
 function parseCsv(text) {
@@ -186,8 +188,8 @@ function safeImageFallback(label = 'image unavailable', detail = 'local path mis
 function renderThumb(row) {
   const src = imgSrc(row);
   const fallback = `<div class="thumb-fallback"><strong>${esc(row.dataset)}</strong><span>${esc(row.label)}</span></div>`;
-  if (demoState.source.startsWith('local') && src) {
-    return `<img src="${attr(src)}" alt="${attr(row.sample_id)} ${attr(row.label)}" loading="lazy" onerror="this.replaceWith(safeImageFallback())" />`;
+  if (src) {
+    return `<img class="thumb-loading" src="${attr(src)}" alt="${attr(row.sample_id)} ${attr(row.label)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback())" />`;
   }
   return fallback;
 }
@@ -234,16 +236,77 @@ function renderStats() {
   `<div class="wide-note"><strong>Class balance:</strong> ${esc(classText || 'n/a')}<br><strong>Dataset balance:</strong> ${esc(sourceText || 'n/a')}</div>`;
 }
 
+function zipSplits(devGolden = [], holdout = []) {
+  const rows = [];
+  const max = Math.max(devGolden.length, holdout.length);
+  for (let index = 0; index < max; index += 1) {
+    if (devGolden[index]) rows.push(devGolden[index]);
+    if (holdout[index]) rows.push(holdout[index]);
+  }
+  return rows;
+}
+
+function interleaveByLabel(records) {
+  const buckets = {
+    ai_generated: records.filter(row => row.label === 'ai_generated'),
+    not_ai_generated: records.filter(row => row.label === 'not_ai_generated'),
+    other: records.filter(row => row.label !== 'ai_generated' && row.label !== 'not_ai_generated')
+  };
+  const rows = [];
+  const max = Math.max(buckets.ai_generated.length, buckets.not_ai_generated.length);
+  for (let index = 0; index < max; index += 1) {
+    if (buckets.ai_generated[index]) rows.push(buckets.ai_generated[index]);
+    if (buckets.not_ai_generated[index]) rows.push(buckets.not_ai_generated[index]);
+  }
+  return rows.concat(buckets.other);
+}
+
+function isNeedsReview(row) {
+  return overrideFor(row.sample_id).label === 'needs_review' || row.human_override_label === 'needs_review';
+}
+
+function galleryRecords() {
+  const result = demoState.result;
+  if (!result) return [];
+  const ordered = interleaveByLabel(zipSplits(result.devGolden || [], result.holdout || []));
+  const filter = demoState.galleryFilter || 'all';
+  if (filter === 'all') return ordered;
+  if (filter === 'needs_review') return ordered.filter(isNeedsReview);
+  return ordered.filter(row => row.label === filter);
+}
+
+function updateGalleryControls(total, visibleCount) {
+  document.querySelectorAll('[data-gallery-filter]').forEach(button => {
+    const active = button.dataset.galleryFilter === demoState.galleryFilter;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const loadMore = $('#galleryLoadMore');
+  if (loadMore) {
+    const hasMore = visibleCount < total;
+    loadMore.hidden = !hasMore;
+    loadMore.textContent = hasMore ? `Load more (${visibleCount}/${total})` : 'All samples loaded';
+  }
+}
+
 function renderGallery() {
   const result = demoState.result;
   if (!result) return;
-  const visible = [...result.devGolden.slice(0, 12), ...result.holdout.slice(0, 12)];
+  const records = galleryRecords();
+  const visibleCount = Math.min(demoState.galleryVisibleCount || 24, records.length);
+  const visible = records.slice(0, visibleCount);
+  updateGalleryControls(records.length, visible.length);
+  const status = $('#galleryStatus');
+  if (status) {
+    const filter = demoState.galleryFilter === 'all' ? 'balanced mix' : demoState.galleryFilter;
+    status.textContent = `Showing ${visible.length} of ${records.length} ${filter} sample(s).`;
+  }
   $('#sampleGallery').innerHTML = `
     <div class="gallery-head">
-      <div><h3>Visible sample gallery</h3><p>Showing ${visible.length} records from the sampled set. These same records drive the policy loop and decision-quality preview below.</p></div>
+      <div><h3>Visible sample gallery</h3><p>Showing a balanced, split-aware sample order from the sampled set. These same records drive the policy loop and decision-quality preview below.</p></div>
       <span class="quiet-pill">${esc(result.summary.mode || 'cold_start')}</span>
     </div>
-    <div class="sample-grid">${visible.map(row => renderSampleCard(row)).join('')}</div>`;
+    ${visible.length ? `<div class="sample-grid">${visible.map(row => renderSampleCard(row)).join('')}</div>` : '<div class="empty-state">No samples match this filter yet.</div>'}`;
 }
 
 function renderPolicy() {
@@ -307,6 +370,7 @@ async function runSamplerDemo() {
   status.textContent = 'Loading sampled images and labels…';
   status.classList.remove('error');
   demoState.overrides = {};
+  demoState.galleryVisibleCount = 24;
   try {
     demoState.result = await runRealOrSyntheticSampler();
     demoState.source = demoState.result.summary.source || 'browser synthetic fallback';
@@ -696,7 +760,8 @@ function renderMisalignment() {
     '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
   const rows = data.rows.slice(0, 100).map(row => {
     const id = row.image_id || row.sample_id || '';
-    const thumb = row.image_path ? `<img class="row-thumb" src="${attr('../' + row.image_path.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+    const repoRelPath = row.repo_rel_path || '';
+    const thumb = repoRelPath ? `<img class="row-thumb thumb-loading" src="${attr('../' + repoRelPath.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
     const sme = row.sme_truth || row.truth || '—';
     const perModel = models.map(m => {
       const vote = (row.model_labels && row.model_labels[m]) || '—';
@@ -851,6 +916,17 @@ async function refreshRuns(autoSelectMostRecent = true) {
 
 function bindControls() {
   $('#runSampler')?.addEventListener('click', runSamplerDemo);
+  document.querySelectorAll('[data-gallery-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      demoState.galleryFilter = button.dataset.galleryFilter || 'all';
+      demoState.galleryVisibleCount = 24;
+      renderGallery();
+    });
+  });
+  $('#galleryLoadMore')?.addEventListener('click', () => {
+    demoState.galleryVisibleCount = Math.max(24, (demoState.galleryVisibleCount || 24) * 2);
+    renderGallery();
+  });
   $('#randomSamplerSeed')?.addEventListener('click', () => {
     $('#samplerSeed').value = String(Math.floor(100000 + Math.random() * 2140000000));
     runSamplerDemo();
@@ -871,6 +947,7 @@ function bindControls() {
     if (!sampleId || !target.classList.contains('override-label')) return;
     demoState.overrides[sampleId] = { ...overrideFor(sampleId), label: target.value };
     renderQuality();
+    renderGallery();
   });
 }
 
