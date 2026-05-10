@@ -964,9 +964,154 @@ function init() {
   $('#policyNodeList').innerHTML = '';
   bindControls();
   bindRunControls();
+  initApi();
   runSamplerDemo();
   loadFlipRate();
   refreshRuns(true);
 }
 
 init();
+
+// ---------- Local Web API bootstrap (X5) ----------
+function initApi() {
+  if (window.RUSH_API?.ready) return window.RUSH_API.ready;
+  const api = window.RUSH_API || {};
+  window.RUSH_API = api;
+  api.available = false;
+  api.health = null;
+  api.catalog = api.catalog || { runs: [], policyVersions: [], currentPolicyVersion: '' };
+  api.getJson = rushApiGetJson;
+  api.postJson = rushApiPostJson;
+  api.ready = fetch('/api/health', { cache: 'no-store' })
+    .then(async response => {
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      api.health = await response.json();
+      api.available = true;
+      rushApiApplyAvailability(true);
+      return api.health;
+    })
+    .catch(error => {
+      api.health = null;
+      api.available = false;
+      api.error = error;
+      rushApiApplyAvailability(false);
+      return null;
+    });
+  return api.ready;
+}
+
+function rushApiApplyAvailability(available) {
+  document.body.classList.toggle('rush-api-available', !!available);
+  document.body.classList.toggle('rush-api-unavailable', !available);
+  const hint = $('#apiUnavailableHint');
+  if (hint) hint.hidden = !!available;
+  if (!available) {
+    document.querySelectorAll('.api-section').forEach(section => {
+      if (section.id === 'run-trigger') section.hidden = true;
+      else rushApiUnavailable(section);
+    });
+  } else {
+    document.querySelectorAll('.api-section').forEach(section => { section.hidden = false; });
+  }
+  window.dispatchEvent(new CustomEvent('rush-api-ready', { detail: { available: !!available, health: window.RUSH_API?.health || null } }));
+}
+
+function rushApiUnavailable(sectionOrId, message = 'Local API not running — start python scripts/rush_web_server.py to enable this view.') {
+  const section = typeof sectionOrId === 'string' ? $(sectionOrId) : sectionOrId;
+  if (!section) return;
+  const existing = section.querySelector('.api-placeholder');
+  const html = `<div class="api-placeholder empty-state">${esc(message)}</div>`;
+  if (existing) existing.outerHTML = html;
+  else section.insertAdjacentHTML('beforeend', html);
+}
+
+function rushApiOnReady(callback) {
+  const api = window.RUSH_API || (window.RUSH_API = { available: false });
+  if (api.ready) {
+    api.ready.then(() => callback(api));
+  } else {
+    window.addEventListener('rush-api-ready', () => callback(api), { once: true });
+  }
+}
+
+async function rushApiGetJson(path) {
+  const response = await fetch(path, { cache: 'no-store' });
+  return rushApiParseJson(response);
+}
+
+async function rushApiPostJson(path, body = {}) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return rushApiParseJson(response);
+}
+
+async function rushApiParseJson(response) {
+  let payload = null;
+  try { payload = await response.json(); }
+  catch (error) { payload = null; }
+  if (!response.ok) {
+    const errorText = typeof payload?.error === 'string' ? payload.error : payload?.error?.message;
+    const message = errorText || payload?.message || `${response.status} ${response.statusText}`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function rushApiStatus(target, message, isError = false) {
+  const el = typeof target === 'string' ? $(target) : target;
+  if (!el) return;
+  el.classList.toggle('error', !!isError);
+  el.textContent = message || '';
+}
+
+function rushApiOptionHtml(value, label = value, selected = false) {
+  return `<option value="${attr(value)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
+}
+
+async function rushApiLoadCatalog() {
+  if (!window.RUSH_API?.available) return window.RUSH_API?.catalog || { runs: [], policyVersions: [], currentPolicyVersion: '' };
+  const [runsPayload, versionsPayload] = await Promise.all([
+    rushApiGetJson('/api/runs').catch(() => ({ runs: [] })),
+    rushApiGetJson('/api/policy/versions').catch(() => ({ versions: [], current: '' }))
+  ]);
+  const versions = Array.isArray(versionsPayload.versions) ? versionsPayload.versions : [];
+  window.RUSH_API.catalog = {
+    runs: Array.isArray(runsPayload.runs) ? runsPayload.runs : [],
+    policyVersions: versions,
+    currentPolicyVersion: versionsPayload.current || versions[0]?.version || ''
+  };
+  window.dispatchEvent(new CustomEvent('rush-api-catalog', { detail: window.RUSH_API.catalog }));
+  return window.RUSH_API.catalog;
+}
+
+function rushApiRunOptions(selected = '', includeAll = false, allLabel = 'All scored runs') {
+  const runs = window.RUSH_API?.catalog?.runs || [];
+  const prefix = includeAll ? rushApiOptionHtml('', allLabel, !selected) : '';
+  if (!runs.length) return prefix || rushApiOptionHtml('', 'No runs found', true);
+  return prefix + runs.map(run => {
+    const label = [run.run_id, run.started_at].filter(Boolean).join(' · ');
+    return rushApiOptionHtml(run.run_id || '', label || run.run_id || '', selected === run.run_id);
+  }).join('');
+}
+
+function rushApiPolicyVersionOptions(selected = '', includeAll = false, allLabel = 'All policy versions') {
+  const versions = window.RUSH_API?.catalog?.policyVersions || [];
+  const prefix = includeAll ? rushApiOptionHtml('', allLabel, !selected) : '';
+  if (!versions.length) return prefix || rushApiOptionHtml('', 'No policy versions found', true);
+  return prefix + versions.map(item => {
+    const version = item.version || item;
+    return rushApiOptionHtml(version, version, selected === version);
+  }).join('');
+}
+
+function rushApiFormatMetric(value, digits = 1) {
+  return isNumber(value) ? `${(value * 100).toFixed(digits)}%` : '—';
+}
+
+function rushApiShort(value, fallback = '—') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}

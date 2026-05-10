@@ -17,6 +17,10 @@
         <a href="#borderline">Borderline</a>
         <a href="#misalignment">Misalignment</a>
         <a href="#system">System</a>
+        <a href="#run-trigger">Run</a>
+        <a href="#decision-quality-overview">Decision quality</a>
+        <a href="#insights">Insights</a>
+        <a href="#policy-proposals">Proposals</a>
         <a href="#policy">Policy loop</a>
         <a href="#quality">Decision quality</a>
         <a href="#roadmap">Next</a>
@@ -191,6 +195,120 @@
       <div id="misalignmentQueue" class="queue-grid"></div>
     </section>
 
+    <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API not running — start <code>python scripts/rush_web_server.py</code> to enable run controls, decision quality, insights, and policy proposals.</div>
+
+    <section id="run-trigger" class="section api-section" hidden>
+      <div class="section-head compact">
+        <p class="eyebrow">Run trigger</p>
+        <h2>Start a local labeling run.</h2>
+        <p>Launch API-backed bulk labeling from the browser, then watch progress and score the run when it finishes.</p>
+      </div>
+      <div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
+        <label>Models
+          <select id="runTriggerModels" multiple size="6"></select>
+        </label>
+        <label>Split
+          <select id="runTriggerSplit">
+            <option value="dev_golden">dev_golden</option>
+            <option value="holdout">holdout</option>
+            <option value="all">all</option>
+          </select>
+        </label>
+        <label>Limit
+          <input id="runTriggerLimit" type="number" min="1" value="10" />
+        </label>
+        <label>Sample IDs
+          <textarea id="runTriggerSampleIds" rows="3" placeholder="Optional CSV list; leave limit blank when using this"></textarea>
+        </label>
+        <label>Policy version
+          <select id="runTriggerPolicyVersion"></select>
+        </label>
+        <label>Mode
+          <select id="runTriggerMode">
+            <option value="cold_start">cold_start</option>
+            <option value="warm_start">warm_start</option>
+          </select>
+        </label>
+        <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" /> Allow spend</label>
+        <button id="startLabelingRun" class="primary-action" type="button">Start labeling run</button>
+      </div>
+      <div id="runTriggerStatusLine" class="status-line" role="status"></div>
+      <div id="runTriggerStatusPanel" class="api-panel" hidden>
+        <div class="progress-row"><strong id="runTriggerRunId">No run started</strong><span id="runTriggerProgressText">0 / 0 calls</span></div>
+        <div class="progress-track" aria-hidden="true"><span id="runTriggerProgressBar" style="width:0%"></span></div>
+        <pre id="runTriggerLogTail" class="log-tail"></pre>
+        <button id="scoreRunNow" type="button" hidden>Score now</button>
+      </div>
+    </section>
+
+    <section id="decision-quality-overview" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Decision quality overview</p>
+        <h2>Track labeler accuracy across scored runs.</h2>
+        <p>Compare accuracy, F1, FPR, and FNR by labeler, filtered by run or policy version.</p>
+      </div>
+      <div class="run-controls" aria-label="Decision quality filters">
+        <label>Run
+          <select id="decisionQualityRunId"><option value="">All scored runs</option></select>
+        </label>
+        <label>Policy version
+          <select id="decisionQualityPolicyVersion"><option value="">All policy versions</option></select>
+        </label>
+        <button id="refreshDecisionQuality" type="button">Refresh</button>
+        <span id="decisionQualityStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="decisionQualityCards" class="quality-grid"></div>
+      <div id="decisionQualityChart" class="api-panel"></div>
+    </section>
+
+    <section id="insights" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Insights</p>
+        <h2>Find the cases that should change review priorities.</h2>
+        <p>Policy clarity hot spots, majority-wrong rows, model disagreement, boundary concentration, and recurring pair disagreement.</p>
+      </div>
+      <div class="run-controls" aria-label="Insights filters">
+        <label>Run
+          <select id="insightsRunId"><option value="">Select a run</option></select>
+        </label>
+        <button id="refreshInsights" type="button">Refresh</button>
+        <span id="insightsStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="insightsPanels" class="insights-grid"></div>
+    </section>
+
+    <section id="policy-proposals" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Policy proposals</p>
+        <h2>Review, accept, reject, or build policy artifacts.</h2>
+        <p>Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
+      </div>
+      <div class="proposal-controls" aria-label="Policy proposal controls">
+        <label>Proposal
+          <select id="proposalPicker"><option value="">No proposals loaded</option></select>
+        </label>
+        <label>Run
+          <select id="proposalRunId"><option value="">Select a run</option></select>
+        </label>
+        <label>Base version
+          <select id="proposalBaseVersion"><option value="">Select version</option></select>
+        </label>
+        <label>Build version
+          <select id="proposalBuildVersion"><option value="">Select version</option></select>
+        </label>
+      </div>
+      <div class="proposal-actions">
+        <button id="proposeDiff" class="primary-action" type="button">Propose new diff from current run</button>
+        <button id="acceptProposal" type="button">Accept</button>
+        <button id="rejectProposal" type="button">Reject</button>
+        <button id="buildPolicyPdf" type="button">Build PDF</button>
+        <span id="proposalStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="proposalSummary" class="stat-grid"></div>
+      <div id="proposalDiffViewer" class="diff-viewer"></div>
+    </section>
+
+
     <section id="roadmap" class="section roadmap">
       <p class="eyebrow">Next build phase</p>
       <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
@@ -205,5 +323,9 @@
 
   <script src="genai-sampler.js"></script>
   <script src="app.js"></script>
+  <script src="run-trigger.js"></script>
+  <script src="decision-quality.js"></script>
+  <script src="insights.js"></script>
+  <script src="policy-diff.js"></script>
 </body>
 </html>
