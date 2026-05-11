@@ -1058,6 +1058,7 @@ function renderConsensus() {
     '<th>image</th>',
     '<th>flip rate</th>',
     '<th>SME truth</th>',
+    '<th>majority</th>',
     ...voterColumns.map(v => `<th>${esc(voterId(v))}${ensembleSuffix(v)}</th>`),
     '<th>consensus</th>',
     '<th>distribution</th>'
@@ -1079,6 +1080,18 @@ function renderConsensus() {
     const smeBadge = sme
       ? `<span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span>`
       : '<span class="muted">—</span>';
+    const majorityTally = r.majority_label ? null : tallyVotes({ votes: r.voters });
+    const majorityLabel = r.majority_label || majorityTally?.label;
+    const isMajorityTie = !!r.tie || !!majorityTally?.isTie;
+    const tiedLabels = Array.isArray(r.tied_labels) ? r.tied_labels : (majorityTally?.tiedLabels || []);
+    const majorityCell = (() => {
+      if (isMajorityTie) {
+        const tied = tiedLabels.length ? tiedLabels.join(' / ') : (majorityLabel || '—');
+        return `<td><span class="badge dev" title="tie between ${attr(tied)}">tie</span></td>`;
+      }
+      if (!majorityLabel) return '<td><span class="muted">—</span></td>';
+      return `<td><span class="badge ${labelBadgeClass(majorityLabel)}">${esc(majorityLabel)}</span></td>`;
+    })();
     const voterById = {};
     for (const v of (r.voters || [])) voterById[v.labeler_id || v.model_id || 'unknown'] = v;
     const perModel = voterColumns.map(voter => {
@@ -1095,13 +1108,13 @@ function renderConsensus() {
       .sort((a, b) => b[1] - a[1])
       .map(([lbl, cnt]) => `<span class="dist-chip ${labelBadgeClass(lbl)}">${esc(lbl)}: ${cnt}</span>`)
       .join(' ');
-    const mismatch = sme && r.majority_label && r.majority_label !== sme;
+    const mismatch = sme && majorityLabel && majorityLabel !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
     const flipBadge = renderFlipBadgeForImage(r.image_id) || '<span class="muted">—</span>';
     const thumbSrc = thumbnailSrcForPath(r.repo_rel_path || '');
     const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(r.image_id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
-    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${flipBadge}</td><td>${smeBadge}</td>${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
-    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 6);
+    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${flipBadge}</td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 7);
   }).join('');
   tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
