@@ -195,13 +195,26 @@ def _build_request(
     )
 
 
+def _coerce_optional_confidence(value: object) -> float | None:
+    """Schema allows confidence: number | null. Coerce safely so providers
+    that legitimately propagate `None` (e.g. missing/malformed fields) do not
+    crash the runner. Anything that can't become a float is treated as null.
+    """
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _build_llm_output(response: LabelResponse) -> dict:
     """Project a LabelResponse onto the llm-output.schema.json shape."""
     output: dict = {
         "label": response.label,
         "l2_label": response.l2_label,
         "justification": response.justification,
-        "confidence": float(response.confidence),
+        "confidence": _coerce_optional_confidence(response.confidence),
         "difficulty": response.difficulty,
         "is_boundary": bool(response.is_boundary),
     }
@@ -240,7 +253,7 @@ def _build_label_vote(
         "model_id": response.model_id,
         "label": response.label,
         "node_ids": [response.l2_label] if response.l2_label else [],
-        "confidence": float(response.confidence),
+        "confidence": _coerce_optional_confidence(response.confidence),
         "justification": response.justification or "(no justification provided)",
         "policy_graph_version": policy_graph_version,
         "prompt_version": prompt_version,
