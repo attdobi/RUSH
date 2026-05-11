@@ -186,9 +186,15 @@ function overrideFor(sampleId) {
   return demoState.overrides[sampleId] || { label: 'none', note: '' };
 }
 
+function thumbnailSrcForPath(repoRelPath) {
+  const path = String(repoRelPath || '').replace(/^\.\//, '');
+  if (!path) return '';
+  if (window.RUSH_API?.available) return `/api/thumbnail?path=${encodeURIComponent(path)}`;
+  return `../${path}`;
+}
+
 function imgSrc(row) {
-  const path = row.repo_rel_path || row.synthetic_repo_rel_path;
-  return path ? `../${path}` : '';
+  return thumbnailSrcForPath(row.repo_rel_path || row.synthetic_repo_rel_path);
 }
 
 function safeImageFallback(label = 'image unavailable', detail = 'local path missing') {
@@ -398,6 +404,7 @@ const runState = {
   consensus: null,
   consensusFilter: 'all'
 };
+window.runState = runState;
 
 const flipRateState = {
   data: null,
@@ -708,25 +715,34 @@ function preparedMetaLine(prepared) {
   return `<p class="prepared-meta" title="Bytes the providers actually saw"><strong>Prepared image:</strong> ${bits.join(' · ')}</p>`;
 }
 
+function normalizedBorderlineGroups(groups) {
+  if (Array.isArray(groups)) return groups;
+  if (groups && typeof groups === 'object') {
+    return Object.entries(groups).map(([label, items]) => ({ label, items: Array.isArray(items) ? items : [] }));
+  }
+  return [];
+}
+
 function renderBorderline() {
   const empty = $('#borderlineEmpty');
   const target = $('#borderlineGroups');
   if (!target) return;
   const data = runState.borderline;
-  if (!data || !Array.isArray(data.groups) || data.groups.length === 0) {
+  const groups = normalizedBorderlineGroups(data?.groups);
+  if (!data || groups.length === 0) {
     if (empty) empty.hidden = false;
     target.innerHTML = '';
     return;
   }
   if (empty) empty.hidden = true;
-  target.innerHTML = data.groups.map(group => {
+  target.innerHTML = groups.map(group => {
     const items = (group.items || []).slice(0, 12);
     const itemHtml = items.map(item => {
       const id = item.image_id || item.sample_id || '';
-      const reason = item.reason || item.borderline_reason || '';
+      const reason = item.reason || item.borderline_reason || (Array.isArray(item.reasons) ? item.reasons.join(' · ') : '');
       const conf = (typeof item.confidence === 'number') ? `confidence ${item.confidence.toFixed(2)}` : '';
       const diff = item.difficulty ? `difficulty ${esc(item.difficulty)}` : '';
-      return `<li><strong>${esc(id)}</strong>${reason ? ` — ${esc(reason)}` : ''}<span class="row-meta">${[conf, diff].filter(Boolean).join(' · ')}</span>${preparedMetaLine(item.prepared_image)}</li>`;
+      return `<li data-image-id="${attr(id)}"><strong>${esc(id)}</strong>${reason ? ` — ${esc(reason)}` : ''}<span class="row-meta">${[conf, diff].filter(Boolean).join(' · ')}</span>${preparedMetaLine(item.prepared_image)}</li>`;
     }).join('');
     const heading = group.l0 || group.label || group.bucket || 'unbucketed';
     return `<article class="borderline-group"><header><span class="badge ${KNOWN_LABELS.includes(heading) ? heading.replace('_', '-') : 'dev'}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><ul>${itemHtml || '<li class="muted">no items</li>'}</ul></article>`;
@@ -772,7 +788,8 @@ function renderMisalignment() {
   const rows = sourceRows.slice(0, 100).map(row => {
     const id = row.image_id || row.sample_id || '';
     const repoRelPath = row.repo_rel_path || '';
-    const thumb = repoRelPath ? `<img class="row-thumb thumb-loading" src="${attr('../' + repoRelPath.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+    const thumbSrc = thumbnailSrcForPath(repoRelPath);
+    const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
     const sme = row.sme_truth || row.truth || '—';
     const voteById = {};
     for (const vote of (row.votes || [])) voteById[vote.labeler_id || vote.model_id || 'unknown'] = vote;
@@ -790,7 +807,7 @@ function renderMisalignment() {
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
-    return `<tr><td><div class="thumb-wrap">${thumb}<div><strong>${esc(id)}</strong>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    return `<tr data-image-id="${attr(id)}"><td><div class="thumb-wrap">${thumb}<div><strong>${esc(id)}</strong>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
   }).join('');
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -905,7 +922,7 @@ function renderConsensus() {
     const mismatch = sme && r.majority_label && r.majority_label !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
     const flipBadge = renderFlipBadgeForImage(r.image_id) || '<span class="muted">—</span>';
-    return `<tr${rowCls}><td><strong>${esc(r.image_id)}</strong>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</td><td>${flipBadge}</td><td>${smeBadge}</td>${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    return `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td><strong>${esc(r.image_id)}</strong>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</td><td>${flipBadge}</td><td>${smeBadge}</td>${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
   }).join('');
   tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
