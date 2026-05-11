@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
+
+from pipeline.thumbnails import thumbnail_rel_path_for_source, validate_source_repo_path
 
 from . import handlers_dq, handlers_policy
 from ._safety import APIError, read_json_body, validate_start_payload
@@ -37,6 +39,30 @@ def _not_found(path: str) -> APIError:
     return APIError(404, "not_found", f"unknown endpoint: {path}")
 
 
+def _redirect(handler, location: str) -> None:
+    handler.send_response(302)
+    handler.send_header("Location", location)
+    handler.send_header("Content-Length", "0")
+    handler.send_header("Cache-Control", "public, max-age=3600")
+    handler.end_headers()
+
+
+def handle_thumbnail(handler) -> None:
+    query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+    requested = (query.get("path") or [""])[0]
+    if not requested:
+        raise APIError(400, "bad_request", "path query parameter is required")
+    try:
+        source_rel = validate_source_repo_path(handler.repo_root, requested)
+    except ValueError as exc:
+        raise APIError(400, "bad_request", str(exc)) from exc
+
+    thumbnail_rel = thumbnail_rel_path_for_source(source_rel)
+    target_rel = thumbnail_rel if (handler.repo_root / thumbnail_rel).is_file() else source_rel
+    location = "/" + quote(target_rel.as_posix(), safe="/")
+    _redirect(handler, location)
+
+
 def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
     path = urlsplit(handler.path).path.rstrip("/") or "/"
     try:
@@ -55,6 +81,10 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
 
         if method == "GET" and path == "/api/runs":
             send_json(handler, 200, {"runs": registry.list_runs()})
+            return
+
+        if method == "GET" and path == "/api/thumbnail":
+            handle_thumbnail(handler)
             return
 
         if method == "POST" and path == "/api/runs/start":
@@ -79,6 +109,9 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             action = parts[4]
             if method == "GET" and action == "status":
                 send_json(handler, 200, registry.status(token))
+                return
+            if method == "POST" and action == "compute-now":
+                send_json(handler, 200, registry.compute_now(token))
                 return
             if method == "POST" and action == "score":
                 send_json(handler, 200, registry.score(token))

@@ -37,7 +37,7 @@ def test_propose_accept_and_reject_lifecycle(tmp_path: Path) -> None:
     )
 
     assert proposal["status"] == "pending"
-    assert proposal["model_id"] == "anthropic/claude-opus-4-7"
+    assert proposal["model_id"] == "openai/gpt-5.5"
     assert proposal["files_changed"] == ["GA.root.md"]
     assert proposal["files_added"] == ["GA.boundary.over_smoothed_skin.md"]
     assert proposal["files_removed"] == []

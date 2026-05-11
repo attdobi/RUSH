@@ -9,7 +9,7 @@ d-ai-trader; we only mirror the request shape:
 * ``image_url`` carries a ``data:image/jpeg;base64,...`` URL with
   ``detail: "high"`` for the prepared image;
 * ``response_format={"type": "json_object"}`` for deterministic parsing;
-* ``reasoning_effort`` honored when the model accepts it.
+* ``reasoning_effort=...`` honored when the model accepts it.
 
 Image bytes are produced exclusively by
 :func:`pipeline.labeling.image_prep.prepare_image_for_labeling`. The
@@ -28,6 +28,10 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
+from pipeline.providers._prompts import (
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -45,20 +49,9 @@ from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a policy-graph image labeler. Classify the supplied image using "
-    "ONLY the policy document below. Return EXACTLY one JSON object with the "
-    "six fields: label, l2_label, justification, confidence, difficulty, "
-    "is_boundary. No prose, no markdown."
-)
-
-USER_INSTRUCTIONS = (
-    "Classify this image against the policy. Return only the six-field JSON "
-    "object. label must be one of: gen_ai, not_gen_ai, abstain (cold-start) "
-    "or violative, non_violative, abstain (warm-start). justification must "
-    "be at least 10 characters and cite specific policy text. If evidence is "
-    "insufficient, use abstain."
-)
+DEFAULT_SYSTEM_PROMPT = LABELING_SYSTEM_PROMPT
+DEFAULT_USER_PROMPT = LABELING_USER_INSTRUCTIONS
+USER_INSTRUCTIONS = DEFAULT_USER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -67,7 +60,7 @@ class OpenAIClientConfig(ClientConfig):
 
     reasoning_effort: str | None = None
     api_key_env_var: str = auth.OPENAI_API_KEY_VAR
-    max_completion_tokens: int = 6000
+    max_completion_tokens: int = 10000
     image_detail: str = "high"
 
 
@@ -139,6 +132,11 @@ class OpenAIClient(LabelClient):
         *,
         messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
+        if self.config.reasoning_effort and self.config.reasoning_effort not in {"high", "xhigh"}:
+            raise ProviderError(
+                "OpenAI reasoning_effort must be one of: high, xhigh "
+                f"(got {self.config.reasoning_effort!r})"
+            )
         params: dict[str, Any] = {
             "model": self.config.model_name,
             "messages": messages,
@@ -148,7 +146,7 @@ class OpenAIClient(LabelClient):
         if self.config.reasoning_effort:
             params["reasoning_effort"] = self.config.reasoning_effort
         # GPT-5.5 reasoning models do not accept custom temperature; never
-        # forward it for OpenAI while preserving reasoning_effort behavior.
+        # forward it for OpenAI while preserving reasoning behavior.
         for k, v in self.config.extra_params.items():
             if k == "temperature":
                 continue
@@ -299,6 +297,9 @@ class OpenAIClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------
@@ -380,5 +381,6 @@ __all__ = [
     "OpenAIClient",
     "OpenAIClientConfig",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT",
     "USER_INSTRUCTIONS",
 ]

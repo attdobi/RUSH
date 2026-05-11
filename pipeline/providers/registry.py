@@ -9,7 +9,7 @@ pipeline. Adding a new model means:
 
 The five entries below cover the v1 plan:
 
-* phase 1 (canonical pass): ``openai/gpt-5.5`` (reasoning=high),
+* phase 1 (canonical pass): ``openai/gpt-5.5`` (reasoning=xhigh),
   ``google/gemini-3.1-pro-preview``, ``anthropic/claude-opus-4-6``,
   ``anthropic/claude-opus-4-7``.
 * phase 2 (cheaper sweep / fanout): ``openai/gpt-5.4-mini``,
@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS
 from pipeline.providers.base import LabelClient
 
 
@@ -56,8 +57,31 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="gpt-5.5",
         phase=1,
         params={
+            "reasoning_effort": "xhigh",
+            # Chat Completions exposes only max_completion_tokens, which counts
+            # hidden reasoning plus visible JSON. Keep ~8k reasoning headroom
+            # while targeting a ~2k visible-output budget via the shared prompt.
+            "max_completion_tokens": 10000,
+        },
+    ),
+    "openai/gpt-5.5-xhigh": ModelSpec(
+        model_id="openai/gpt-5.5-xhigh",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
+            "reasoning_effort": "xhigh",
+            "max_completion_tokens": 10000,
+        },
+    ),
+    "openai/gpt-5.5-high": ModelSpec(
+        model_id="openai/gpt-5.5-high",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 6000,
+            "max_completion_tokens": 10000,
         },
     ),
     "google/gemini-3.1-pro-preview": ModelSpec(
@@ -65,7 +89,13 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider="gemini",
         provider_model_name="gemini-3.1-pro-preview",
         phase=1,
-        params={},
+        params={
+            # Gemini counts hidden thinking tokens against max_output_tokens;
+            # reserve reasoning headroom while leaving the shared ~2k visible
+            # JSON budget available for the final answer.
+            "thinking_budget_tokens": 8000,
+            "max_output_tokens": 10000,
+        },
     ),
     "anthropic/claude-opus-4-6": ModelSpec(
         model_id="anthropic/claude-opus-4-6",
@@ -73,7 +103,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="claude-opus-4-6",
         phase=1,
         params={
-            "max_tokens": 2048,
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
         },
     ),
     "anthropic/claude-opus-4-7": ModelSpec(
@@ -82,7 +112,8 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="claude-opus-4-7",
         phase=1,
         params={
-            "max_tokens": 4096,
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            "thinking_budget_tokens": 32000,
         },
     ),
     # --- Phase 2: cheaper sweep / consensus fanout -----------------------
@@ -93,6 +124,26 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "max_completion_tokens": 2000,
+        },
+    ),
+    "openai/gpt-5.4-mini-xhigh": ModelSpec(
+        model_id="openai/gpt-5.4-mini-xhigh",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "xhigh",
+            "max_completion_tokens": 10000,
+        },
+    ),
+    "openai/gpt-5.4-mini-high": ModelSpec(
+        model_id="openai/gpt-5.4-mini-high",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "high",
+            "max_completion_tokens": 10000,
         },
     ),
     "google/gemini-3.1-flash-lite-preview": ModelSpec(
@@ -113,7 +164,12 @@ def list_models(*, phase: int | None = None) -> list[ModelSpec]:
     return sorted(specs, key=lambda s: (s.phase, s.model_id))
 
 
-def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
+def build_client(
+    model_id: str,
+    *,
+    client: Any | None = None,
+    reasoning_effort: str | None = None,
+) -> LabelClient:
     """Construct a configured :class:`LabelClient` for ``model_id``.
 
     Imports are lazy and provider-scoped so importing the registry never
@@ -124,6 +180,10 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
         model_id: A key from :data:`MODEL_REGISTRY`.
         client: Optional pre-built SDK client, forwarded to the provider
             constructor. ``None`` lets the client lazy-initialize.
+        reasoning_effort: Optional per-run OpenAI reasoning override for
+            historical ``openai/gpt-5.5``. Variant ids such as
+            ``openai/gpt-5.5-high`` encode their reasoning level in the
+            registry and should not be combined with this override.
 
     Returns:
         A ready-to-call :class:`LabelClient` instance.
@@ -143,11 +203,13 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
             OpenAIClientConfig,
         )
 
-        reasoning_effort = params.pop("reasoning_effort", None)
-        max_completion_tokens = params.pop("max_completion_tokens", 6000)
+        configured_reasoning_effort = params.pop("reasoning_effort", None)
+        if model_id == "openai/gpt-5.5" and reasoning_effort is not None:
+            configured_reasoning_effort = reasoning_effort
+        max_completion_tokens = params.pop("max_completion_tokens", 10000)
         config = OpenAIClientConfig(
             model_name=spec.provider_model_name,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=configured_reasoning_effort,
             max_completion_tokens=max_completion_tokens,
             extra_params=params,
         )
@@ -159,10 +221,12 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
             AnthropicClientConfig,
         )
 
-        max_tokens = params.pop("max_tokens", 2048)
+        max_tokens = params.pop("max_tokens", LABELING_VISIBLE_OUTPUT_TOKENS)
+        thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
         config = AnthropicClientConfig(
             model_name=spec.provider_model_name,
             max_tokens=max_tokens,
+            thinking_budget_tokens=thinking_budget_tokens,
             extra_params=params,
         )
         return AnthropicClient(config=config, client=client)
@@ -173,8 +237,12 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
             GeminiClientConfig,
         )
 
+        thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
+        max_output_tokens = params.pop("max_output_tokens", None)
         config = GeminiClientConfig(
             model_name=spec.provider_model_name,
+            thinking_budget_tokens=thinking_budget_tokens,
+            max_output_tokens=max_output_tokens,
             extra_params=params,
         )
         return GeminiClient(config=config, client=client)

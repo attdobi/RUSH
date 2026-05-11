@@ -283,6 +283,27 @@ def _build_label_vote(
     return vote
 
 
+def _model_runtime_config(
+    models: list[ModelSpec],
+    *,
+    reasoning_effort: str | None = None,
+) -> dict[str, dict]:
+    """Return auditable per-model runtime knobs that affect provider behavior."""
+    out: dict[str, dict] = {}
+    for model in models:
+        params = dict(model.params or {})
+        if model.model_id == "openai/gpt-5.5" and reasoning_effort is not None:
+            params["reasoning_effort"] = reasoning_effort
+        runtime: dict = {}
+        if params.get("reasoning_effort") is not None:
+            runtime["reasoning_effort"] = params["reasoning_effort"]
+        if params.get("thinking_budget_tokens") is not None:
+            runtime["thinking_budget_tokens"] = params["thinking_budget_tokens"]
+        if runtime:
+            out[model.model_id] = runtime
+    return out
+
+
 def _initial_manifest(
     *,
     run_id: str,
@@ -298,6 +319,7 @@ def _initial_manifest(
     concurrency: int,
     expected_calls: int,
     dry_run: bool,
+    reasoning_effort: str | None = None,
 ) -> dict:
     manifest: dict = {
         "run_id": run_id,
@@ -305,6 +327,10 @@ def _initial_manifest(
         "finished_at": None,
         "sample_manifest_path": sample_manifest_rel,
         "sample_ids": sample_ids,
+        "model_runtime_config": _model_runtime_config(
+            models,
+            reasoning_effort=reasoning_effort,
+        ),
         "models": [
             {
                 k: v
@@ -382,6 +408,7 @@ def run_labeling(
     allow_holdout: bool = False,
     run_id: str | None = None,
     dry_run: bool = True,
+    reasoning_effort: str | None = None,
 ) -> RunSummary:
     """Execute one labeling run.
 
@@ -442,6 +469,7 @@ def run_labeling(
         concurrency=concurrency,
         expected_calls=expected,
         dry_run=dry_run,
+        reasoning_effort=reasoning_effort,
     )
     persistence.write_run_manifest(paths, manifest)
 

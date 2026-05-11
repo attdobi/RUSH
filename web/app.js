@@ -186,9 +186,15 @@ function overrideFor(sampleId) {
   return demoState.overrides[sampleId] || { label: 'none', note: '' };
 }
 
+function thumbnailSrcForPath(repoRelPath) {
+  const path = String(repoRelPath || '').replace(/^\.\//, '').replace(/^\/+/, '');
+  if (!path) return '';
+  if (window.RUSH_API?.available) return `/api/thumbnail?path=${encodeURIComponent(path)}`;
+  return `../${path}`;
+}
+
 function imgSrc(row) {
-  const path = row.repo_rel_path || row.synthetic_repo_rel_path;
-  return path ? `../${path}` : '';
+  return thumbnailSrcForPath(row.repo_rel_path || row.synthetic_repo_rel_path);
 }
 
 function safeImageFallback(label = 'image unavailable', detail = 'local path missing') {
@@ -389,6 +395,14 @@ const RUNS_INDEX_URL = '../data/runs/index.json';
 const RUNS_DIR_URL = '../data/runs/';
 const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
 
+// Single source of truth for label → CSS class.
+// IMPORTANT: replaceAll, not replace — `not_gen_ai` has TWO underscores.
+function labelBadgeClass(label) {
+  if (!label || !KNOWN_LABELS.includes(label)) return 'dev';
+  return label.replaceAll('_', '-');
+}
+window.rushLabelBadgeClass = labelBadgeClass;
+
 const runState = {
   available: [],
   selectedRunId: null,
@@ -396,8 +410,10 @@ const runState = {
   borderline: null,
   misalignment: null,
   consensus: null,
-  consensusFilter: 'all'
+  consensusFilter: 'all',
+  expandedRows: {}
 };
+window.runState = runState;
 
 const flipRateState = {
   data: null,
@@ -540,16 +556,16 @@ function renderFlipRate() {
   const cardsTarget = $('#flipRateCards');
   const barsTarget = $('#flipRateBars');
   const tableTarget = $('#flipRateTable');
-  panel.hidden = false;
-
   const data = flipRateState.data;
   if (!data || !Array.isArray(data.records)) {
-    if (empty) empty.hidden = false;
+    panel.hidden = !runState.selectedRunId;
+    showComputeEmpty(empty, 'flip-rate', 'No flip-rate data yet — need ≥2 scored runs of the same images.');
     if (cardsTarget) cardsTarget.innerHTML = '';
     if (barsTarget) barsTarget.innerHTML = '';
     if (tableTarget) tableTarget.innerHTML = '';
     return;
   }
+  panel.hidden = false;
   if (empty) empty.hidden = true;
 
   const summary = data.summary || {};
@@ -605,7 +621,19 @@ function renderFlipRate() {
 }
 
 async function discoverRuns() {
-  // Preferred: an index file produced by the runner / scoring exporter.
+  if (window.RUSH_API?.ready) await window.RUSH_API.ready.catch(() => null);
+  if (window.RUSH_API?.available) {
+    const payload = await rushApiGetJson('/api/runs').catch(() => null);
+    if (payload && Array.isArray(payload.runs)) {
+      return payload.runs.filter(r => r && r.run_id).map(r => ({
+        run_id: r.run_id,
+        label: r.label || r.run_id,
+        started_at: r.started_at || null,
+        scoring_done: !!r.scoring_done
+      })).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+    }
+  }
+  // Fallback: an index file produced by the runner / scoring exporter.
   const index = await fetchJsonOptional(RUNS_INDEX_URL);
   if (index && Array.isArray(index.runs)) {
     return index.runs.filter(r => r && r.run_id).map(r => ({
@@ -638,6 +666,7 @@ async function loadRun(runId) {
     fetchJsonOptional(`${base}/misalignment.json`),
     fetchJsonOptional(`${base}/consensus.json`)
   ]);
+  if (runState.selectedRunId !== runId) runState.expandedRows = {};
   runState.selectedRunId = runId;
   runState.summary = summary;
   runState.borderline = borderline;
@@ -670,7 +699,8 @@ function renderRunPicker() {
   }
   picker.disabled = false;
   picker.innerHTML = runState.available.map(r => {
-    const label = r.started_at ? `${r.run_id} · ${r.started_at}` : r.run_id;
+    const suffix = r.scoring_done === false ? ' · unscored' : '';
+    const label = r.started_at ? `${r.run_id} · ${r.started_at}${suffix}` : `${r.run_id}${suffix}`;
     const selected = r.run_id === runState.selectedRunId ? ' selected' : '';
     return `<option value="${attr(r.run_id)}"${selected}>${esc(label)}</option>`;
   }).join('');
@@ -708,28 +738,188 @@ function preparedMetaLine(prepared) {
   return `<p class="prepared-meta" title="Bytes the providers actually saw"><strong>Prepared image:</strong> ${bits.join(' · ')}</p>`;
 }
 
+function normalizedBorderlineGroups(groups) {
+  if (Array.isArray(groups)) return groups;
+  if (groups && typeof groups === 'object') {
+    return Object.entries(groups).map(([label, items]) => ({ label, items: Array.isArray(items) ? items : [] }));
+  }
+  return [];
+}
+
+function showComputeEmpty(empty, panel, reason) {
+  if (!empty) return;
+  if (!runState.selectedRunId) {
+    empty.hidden = true;
+    return;
+  }
+  empty.hidden = false;
+  empty.innerHTML = `${esc(reason)} <button type="button" data-compute-target="${attr(panel)}" data-run-id="">Compute now</button>`;
+}
+
+function expandedKey(panel, imageId) {
+  return `${panel}:${String(imageId || '')}`;
+}
+
+function isExpanded(panel, imageId) {
+  return !!runState.expandedRows[expandedKey(panel, imageId)];
+}
+
+function expandButton(panel, imageId) {
+  const expanded = isExpanded(panel, imageId);
+  return `<button type="button" class="expand-row" data-expand-row="${attr(panel)}" data-image-id="${attr(imageId)}" aria-expanded="${expanded ? 'true' : 'false'}" title="${expanded ? 'Hide' : 'Show'} model justifications">${expanded ? '▾' : '▸'}</button>`;
+}
+
+function voteNumber(value, digits = 2) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : String(value);
+}
+
+function voteCost(value) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  return Number.isFinite(n) ? `$${n.toFixed(5)}` : String(value);
+}
+
+function voteBool(value) {
+  if (value === true) return 'yes';
+  if (value === false) return 'no';
+  return '—';
+}
+
+function voteToken(vote, key) {
+  const value = vote?.[key];
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString() : String(value);
+}
+
+function votesForInline(row) {
+  if (Array.isArray(row?.votes)) return row.votes;
+  if (Array.isArray(row?.voters)) return row.voters;
+  return [];
+}
+
+// Plurality tally over non-ensemble votes. Returns {label, isTie, counts, total}.
+function tallyVotes(row) {
+  const counts = new Map();
+  let total = 0;
+  for (const vote of (Array.isArray(row.votes) ? row.votes : [])) {
+    if (window.rushIsEnsembleRow(vote)) continue;
+    const label = vote?.label;
+    if (!label) continue;
+    counts.set(label, (counts.get(label) || 0) + 1);
+    total += 1;
+  }
+  if (!counts.size) return { label: null, isTie: false, counts, total };
+  const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const topCount = ranked[0][1];
+  const tied = ranked.filter(([, c]) => c === topCount);
+  if (tied.length > 1) {
+    return { label: null, isTie: true, tiedLabels: tied.map(([l]) => l), counts, total };
+  }
+  return { label: ranked[0][0], isTie: false, counts, total };
+}
+window.rushTallyVotes = tallyVotes;
+
+function majorityPill(row) {
+  const t = tallyVotes(row);
+  if (t.isTie) {
+    const tip = `tie between ${t.tiedLabels.join(' / ')}`;
+    return `<span class="badge dev" title="${attr(tip)}">tie</span>`;
+  }
+  if (!t.label) return '<span class="muted">—</span>';
+  return `<span class="badge ${labelBadgeClass(t.label)}">${esc(t.label)}</span>`;
+}
+
+function policyCitationHtml(citation) {
+  const id = String(citation || '').trim();
+  if (!id) return '';
+  return `<button type="button" class="policy-citation-chip" data-policy-node-id="${attr(id)}" title="Open policy node ${attr(id)}">${esc(id)}</button>`;
+}
+
+function renderInlineJustificationsRow(panel, row, colSpan) {
+  const imageId = row?.image_id || row?.sample_id || '';
+  if (!isExpanded(panel, imageId)) return '';
+  const votes = votesForInline(row);
+  const cards = votes.length ? votes.map(vote => {
+    const model = vote.labeler_id || vote.model_id || 'unknown model';
+    const citations = Array.isArray(vote.policy_citations) ? vote.policy_citations.filter(Boolean) : [];
+    const quotes = Array.isArray(vote.policy_quotes) ? vote.policy_quotes.filter(Boolean) : [];
+    return `<article class="inline-justification-card">
+      <header><code>${esc(model)}</code><span>${voteCost(vote.cost_usd)}</span></header>
+      ${citations.length ? `<div class="policy-citation-row">${citations.map(policyCitationHtml).join('')}</div>` : ''}
+      <dl>
+        <dt>label</dt><dd><span class="badge ${labelBadgeClass(vote.label)}">${esc(vote.label || '—')}</span></dd>
+        <dt>l2_label</dt><dd><code>${esc(vote.l2_label || '—')}</code></dd>
+        <dt>confidence</dt><dd><code>${voteNumber(vote.confidence)}</code></dd>
+        <dt>boundary</dt><dd>${esc(voteBool(vote.is_boundary))}</dd>
+        <dt>difficulty</dt><dd>${esc(vote.difficulty || '—')}${vote.justification_too_long ? ' <span class="mini-chip">too long</span>' : ''}</dd>
+        <dt>input</dt><dd><code>${voteToken(vote, 'input_tokens')}</code></dd>
+        <dt>output</dt><dd><code>${voteToken(vote, 'output_tokens')}</code></dd>
+      </dl>
+      <p>${esc(vote.justification || 'No justification text available for this vote.')}</p>
+      ${quotes.length ? `<div class="policy-quotes">${quotes.map(quote => `<blockquote>${esc(quote)}</blockquote>`).join('')}</div>` : ''}
+    </article>`;
+  }).join('') : '<p class="muted">No per-model vote details available for this row.</p>';
+  return `<tr class="justification-row" data-image-id="${attr(imageId)}"><td colspan="${colSpan}"><div class="inline-justification-grid">${cards}</div></td></tr>`;
+}
+
+function initInlineJustificationStyles() {
+  if (document.getElementById('inlineJustificationStyles')) return;
+  const style = document.createElement('style');
+  style.id = 'inlineJustificationStyles';
+  style.textContent = `
+    .misalignment-table { overflow-x: auto; }
+    .expand-row { border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 999px; background: rgba(15, 23, 42, 0.04); cursor: pointer; width: 1.8rem; height: 1.8rem; }
+    .image-id-button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; font: inherit; text-align: left; }
+    .image-id-button strong { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+    .justification-row td { background: rgba(15, 23, 42, 0.035); }
+    .inline-justification-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 10px 0; }
+    .inline-justification-card { border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 14px; padding: 10px; background: linear-gradient(180deg, rgba(17, 27, 51, .94), rgba(9, 16, 31, .94)); }
+    .inline-justification-card header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+    .inline-justification-card code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82em; }
+    .inline-justification-card dl { display: grid; grid-template-columns: 84px 1fr; gap: 4px 8px; margin: 0; font-size: 0.85rem; }
+    .inline-justification-card dt { color: var(--muted); }
+    .inline-justification-card dd { margin: 0; }
+    .inline-justification-card p { margin: 8px 0 0; line-height: 1.45; white-space: normal; }
+    .policy-citation-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+    .policy-citation-chip { border: 1px solid rgba(37, 99, 235, 0.28); border-radius: 999px; background: rgba(219, 234, 254, 0.78); color: #1e3a8a; cursor: pointer; font: 600 0.75rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 3px 7px; }
+    .policy-quotes { display: grid; gap: 6px; margin-top: 8px; }
+    .policy-quotes blockquote { margin: 0; border-left: 3px solid rgba(59, 130, 246, 0.45); padding-left: 9px; color: var(--muted); font-style: italic; }
+  `;
+  document.head.appendChild(style);
+}
+
 function renderBorderline() {
   const empty = $('#borderlineEmpty');
   const target = $('#borderlineGroups');
   if (!target) return;
   const data = runState.borderline;
-  if (!data || !Array.isArray(data.groups) || data.groups.length === 0) {
-    if (empty) empty.hidden = false;
+  const groups = normalizedBorderlineGroups(data?.groups).filter(group => (group.items || []).length > 0);
+  if (!data || groups.length === 0) {
+    showComputeEmpty(empty, 'borderline', 'No borderline data yet for this run.');
     target.innerHTML = '';
     return;
   }
   if (empty) empty.hidden = true;
-  target.innerHTML = data.groups.map(group => {
+  target.innerHTML = groups.map(group => {
     const items = (group.items || []).slice(0, 12);
-    const itemHtml = items.map(item => {
+    const body = items.map(item => {
       const id = item.image_id || item.sample_id || '';
-      const reason = item.reason || item.borderline_reason || '';
-      const conf = (typeof item.confidence === 'number') ? `confidence ${item.confidence.toFixed(2)}` : '';
-      const diff = item.difficulty ? `difficulty ${esc(item.difficulty)}` : '';
-      return `<li><strong>${esc(id)}</strong>${reason ? ` — ${esc(reason)}` : ''}<span class="row-meta">${[conf, diff].filter(Boolean).join(' · ')}</span>${preparedMetaLine(item.prepared_image)}</li>`;
+      const reason = item.reason || item.borderline_reason || (Array.isArray(item.reasons) ? item.reasons.join(' · ') : '');
+      const thumbSrc = thumbnailSrcForPath(item.repo_rel_path || '');
+      const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+      const votes = votesForInline(item);
+      const confs = votes.map(v => Number(v.confidence)).filter(Number.isFinite);
+      const conf = confs.length ? `avg confidence ${(confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2)}` : '';
+      const diffs = [...new Set(votes.map(v => v.difficulty).filter(Boolean))];
+      const diff = diffs.length ? `difficulty ${diffs.join(', ')}` : '';
+      const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('borderline', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(item.prepared_image)}</div></div></td><td>${esc(reason || '—')}</td><td><span class="row-meta">${esc([conf, diff].filter(Boolean).join(' · ') || '—')}</span></td></tr>`;
+      return primary + renderInlineJustificationsRow('borderline', item, 4);
     }).join('');
     const heading = group.l0 || group.label || group.bucket || 'unbucketed';
-    return `<article class="borderline-group"><header><span class="badge ${KNOWN_LABELS.includes(heading) ? heading.replace('_', '-') : 'dev'}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><ul>${itemHtml || '<li class="muted">no items</li>'}</ul></article>`;
+    return `<article class="borderline-group"><header><span class="badge ${labelBadgeClass(heading)}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><div class="misalignment-table"><table class="misalignment"><thead><tr><th></th><th>image</th><th>reason</th><th>model notes</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
   }).join('');
 }
 
@@ -740,7 +930,7 @@ function renderMisalignment() {
   const data = runState.misalignment;
   const sourceRows = Array.isArray(data?.rows) ? data.rows : (Array.isArray(data?.records) ? data.records : []);
   if (!data || sourceRows.length === 0) {
-    if (empty) empty.hidden = false;
+    showComputeEmpty(empty, 'misalignment', 'No misalignment data yet for this run.');
     target.innerHTML = '';
     return;
   }
@@ -766,13 +956,14 @@ function renderMisalignment() {
     const value = Number(cost);
     return Number.isFinite(value) ? `$${value.toFixed(4)}` : String(cost);
   };
-  const headerCells = ['<th>image</th>', '<th>SME truth</th>',
+  const headerCells = ['<th></th>', '<th>image</th>', '<th>SME truth</th>', '<th>majority</th>',
     ...modelRows.map(model => `<th>${esc(modelId(model))}${ensembleSuffix(model)}</th>`),
     '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
   const rows = sourceRows.slice(0, 100).map(row => {
     const id = row.image_id || row.sample_id || '';
     const repoRelPath = row.repo_rel_path || '';
-    const thumb = repoRelPath ? `<img class="row-thumb thumb-loading" src="${attr('../' + repoRelPath.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+    const thumbSrc = thumbnailSrcForPath(repoRelPath);
+    const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
     const sme = row.sme_truth || row.truth || '—';
     const voteById = {};
     for (const vote of (row.votes || [])) voteById[vote.labeler_id || vote.model_id || 'unknown'] = vote;
@@ -780,7 +971,7 @@ function renderMisalignment() {
       const key = modelId(model);
       const voteRow = voteById[key];
       const vote = voteRow?.label || (row.model_labels && row.model_labels[key]) || '—';
-      const cls = KNOWN_LABELS.includes(vote) ? vote.replace('_', '-') : 'dev';
+      const cls = labelBadgeClass(vote);
       const cost = formatCost(voteRow?.cost_usd);
       const title = cost ? ` title="${attr(cost)}"` : '';
       return `<td${title}><span class="badge ${cls}">${esc(vote)}</span></td>`;
@@ -790,7 +981,8 @@ function renderMisalignment() {
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
-    return `<tr><td><div class="thumb-wrap">${thumb}<div><strong>${esc(id)}</strong>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td><td>${majorityPill(row)}</td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 7);
   }).join('');
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -803,7 +995,7 @@ function renderConsensus() {
   if (!tableTarget) return;
   if (!data || !Array.isArray(data.records) || data.records.length === 0) {
     if (summaryTarget) summaryTarget.innerHTML = '';
-    if (emptyEl) emptyEl.hidden = false;
+    showComputeEmpty(emptyEl, 'consensus', 'No consensus data yet for this run.');
     tableTarget.innerHTML = '';
     return;
   }
@@ -862,9 +1054,11 @@ function renderConsensus() {
   const ensembleSuffix = voter => window.rushIsEnsembleRow(voter) ? ' <small class="muted">· ensemble</small>' : '';
 
   const headerCells = [
+    '<th></th>',
     '<th>image</th>',
     '<th>flip rate</th>',
     '<th>SME truth</th>',
+    '<th>majority</th>',
     ...voterColumns.map(v => `<th>${esc(voterId(v))}${ensembleSuffix(v)}</th>`),
     '<th>consensus</th>',
     '<th>distribution</th>'
@@ -882,16 +1076,28 @@ function renderConsensus() {
   };
 
   const rows = records.slice(0, 200).map(r => {
-    const sme = smeMap[r.image_id];
+    const sme = r.sme_truth || smeMap[r.image_id];
     const smeBadge = sme
-      ? `<span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span>`
+      ? `<span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span>`
       : '<span class="muted">—</span>';
+    const majorityTally = r.majority_label ? null : tallyVotes({ votes: r.voters });
+    const majorityLabel = r.majority_label || majorityTally?.label;
+    const isMajorityTie = !!r.tie || !!majorityTally?.isTie;
+    const tiedLabels = Array.isArray(r.tied_labels) ? r.tied_labels : (majorityTally?.tiedLabels || []);
+    const majorityCell = (() => {
+      if (isMajorityTie) {
+        const tied = tiedLabels.length ? tiedLabels.join(' / ') : (majorityLabel || '—');
+        return `<td><span class="badge dev" title="tie between ${attr(tied)}">tie</span></td>`;
+      }
+      if (!majorityLabel) return '<td><span class="muted">—</span></td>';
+      return `<td><span class="badge ${labelBadgeClass(majorityLabel)}">${esc(majorityLabel)}</span></td>`;
+    })();
     const voterById = {};
     for (const v of (r.voters || [])) voterById[v.labeler_id || v.model_id || 'unknown'] = v;
     const perModel = voterColumns.map(voter => {
       const v = voterById[voterId(voter)];
       if (!v) return '<td><span class="muted">—</span></td>';
-      const cls = KNOWN_LABELS.includes(v.label) ? v.label.replace('_', '-') : 'dev';
+      const cls = labelBadgeClass(v.label);
       const boundary = v.is_boundary ? ' · boundary' : '';
       const conf = isNumber(v.confidence) ? ` (${v.confidence.toFixed(2)})` : '';
       const rawCost = Number(v.cost_usd);
@@ -900,12 +1106,15 @@ function renderConsensus() {
     }).join('');
     const distChips = Object.entries(r.vote_distribution || {})
       .sort((a, b) => b[1] - a[1])
-      .map(([lbl, cnt]) => `<span class="dist-chip ${KNOWN_LABELS.includes(lbl) ? lbl.replace('_', '-') : 'dev'}">${esc(lbl)}: ${cnt}</span>`)
+      .map(([lbl, cnt]) => `<span class="dist-chip ${labelBadgeClass(lbl)}">${esc(lbl)}: ${cnt}</span>`)
       .join(' ');
-    const mismatch = sme && r.majority_label && r.majority_label !== sme;
+    const mismatch = sme && majorityLabel && majorityLabel !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
     const flipBadge = renderFlipBadgeForImage(r.image_id) || '<span class="muted">—</span>';
-    return `<tr${rowCls}><td><strong>${esc(r.image_id)}</strong>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</td><td>${flipBadge}</td><td>${smeBadge}</td>${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    const thumbSrc = thumbnailSrcForPath(r.repo_rel_path || '');
+    const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(r.image_id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
+    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${flipBadge}</td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 7);
   }).join('');
   tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -916,6 +1125,7 @@ function renderRun() {
   renderBorderline();
   renderMisalignment();
   renderConsensus();
+  renderFlipRate();
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
@@ -927,14 +1137,15 @@ async function refreshRuns(autoSelectMostRecent = true) {
   runState.available = await discoverRuns();
   if (status) {
     if (!runState.available.length) {
-      status.textContent = 'No runs found yet. Run scripts/run_bulk_labeling.py to create one.';
+      status.textContent = 'No runs found yet. Use the Run panel above to start one.';
     } else {
       status.textContent = `Found ${runState.available.length} run(s).`;
     }
   }
   renderRunPicker();
   if (autoSelectMostRecent && runState.available.length) {
-    await loadRun(runState.available[0].run_id);
+    const preferred = runState.available.find(run => run.scoring_done !== false) || runState.available[0];
+    await loadRun(preferred.run_id);
   } else {
     renderRun();
   }
@@ -982,6 +1193,45 @@ function bindRunControls() {
     runState.consensusFilter = event.target.value || 'all';
     renderConsensus();
   });
+  document.addEventListener('click', async event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const expand = target.closest('[data-expand-row]');
+    if (expand) {
+      const panel = expand.dataset.expandRow || '';
+      const imageId = expand.dataset.imageId || '';
+      const key = expandedKey(panel, imageId);
+      runState.expandedRows[key] = !runState.expandedRows[key];
+      renderRun();
+      return;
+    }
+    const policyNode = target.closest('[data-policy-node-id]');
+    if (policyNode) {
+      const opened = typeof window.rushOpenPolicyNode === 'function' && window.rushOpenPolicyNode(policyNode.dataset.policyNodeId || '');
+      if (!opened) $('#policyGraphStatus') && ($('#policyGraphStatus').textContent = `Policy node ${policyNode.dataset.policyNodeId || ''} not loaded.`);
+      return;
+    }
+    const computeButton = target.closest('[data-compute-target]');
+    if (!computeButton) return;
+    const runId = computeButton.dataset.runId || $('#runPicker')?.value || runState.selectedRunId || '';
+    if (!runId) return;
+    const status = $('#runStatus');
+    computeButton.disabled = true;
+    if (status) status.textContent = `Computing scoring exports for ${runId}…`;
+    try {
+      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute-now`, {});
+      await loadRun(runId);
+      await loadFlipRate();
+      if (status) status.textContent = `Computed and refreshed ${runId}.`;
+    } catch (error) {
+      if (status) {
+        status.classList.add('error');
+        status.textContent = `Compute failed: ${error.message}`;
+      }
+    } finally {
+      computeButton.disabled = false;
+    }
+  });
 }
 
 function initActiveNav() {
@@ -1002,6 +1252,7 @@ function initActiveNav() {
 
 function init() {
   $('#policyNodeList').innerHTML = '';
+  initInlineJustificationStyles();
   bindControls();
   bindRunControls();
   initActiveNav();
@@ -1023,6 +1274,8 @@ function initApi() {
   api.catalog = api.catalog || { runs: [], policyVersions: [], currentPolicyVersion: '' };
   api.getJson = rushApiGetJson;
   api.postJson = rushApiPostJson;
+  window.rushApiGetJson = rushApiGetJson;
+  window.rushApiPostJson = rushApiPostJson;
   api.ready = fetch('/api/health', { cache: 'no-store' })
     .then(async response => {
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -1057,7 +1310,7 @@ function rushApiApplyAvailability(available) {
   window.dispatchEvent(new CustomEvent('rush-api-ready', { detail: { available: !!available, health: window.RUSH_API?.health || null } }));
 }
 
-function rushApiUnavailable(sectionOrId, message = 'Local API not running — start python scripts/rush_web_server.py to enable this view.') {
+function rushApiUnavailable(sectionOrId, message = 'Local API offline — start the rush web server to enable this view.') {
   const section = typeof sectionOrId === 'string' ? $(sectionOrId) : sectionOrId;
   if (!section) return;
   const existing = section.querySelector('.api-placeholder');

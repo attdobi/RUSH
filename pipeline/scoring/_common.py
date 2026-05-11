@@ -30,7 +30,9 @@ PREP_METADATA_FIELDS = (
     "prepared_image_width",
     "prepared_image_height",
     "prepared_image_mime",
+    "prepared_image_mime_type",
     "prepared_image_bytes",
+    "prepared_image_byte_size",
 )
 
 

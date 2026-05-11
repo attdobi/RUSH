@@ -46,6 +46,12 @@ def _vote_block(vote: dict[str, Any]) -> dict[str, Any]:
         "is_boundary": bool(vote.get("is_boundary", False)),
         "difficulty": vote.get("difficulty", ""),
         "justification": vote.get("justification", ""),
+        "policy_citations": list(vote.get("policy_citations") or []),
+        "policy_quotes": list(vote.get("policy_quotes") or []),
+        "justification_too_long": bool(vote.get("justification_too_long", False)),
+        "input_tokens": vote.get("input_tokens"),
+        "output_tokens": vote.get("output_tokens"),
+        "cost_usd": vote.get("cost_usd"),
     }
     block.update(_common.extract_prep_metadata(vote))
     return block

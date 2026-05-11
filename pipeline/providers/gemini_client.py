@@ -15,6 +15,7 @@ Image bytes come exclusively from
 
 from __future__ import annotations
 
+import copy
 import logging
 import time
 from dataclasses import dataclass
@@ -25,7 +26,12 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
-from pipeline.providers._config import resolve_temperature
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS, resolve_temperature
+from pipeline.providers._prompts import (
+    LABELING_RESPONSE_SCHEMA,
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -43,20 +49,9 @@ from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a policy-graph image labeler. Use ONLY the supplied policy "
-    "document to classify the image. Reply with a single JSON object "
-    "carrying exactly six fields: label, l2_label, justification, "
-    "confidence, difficulty, is_boundary. No prose, no markdown."
-)
-
-USER_INSTRUCTIONS = (
-    "Classify the attached image against the policy. Return only the "
-    "six-field JSON object. label must be one of: gen_ai, not_gen_ai, "
-    "abstain (cold-start) or violative, non_violative, abstain (warm-start). "
-    "justification must be at least 10 characters and cite specific policy "
-    "text. If evidence is insufficient, abstain."
-)
+DEFAULT_SYSTEM_PROMPT = LABELING_SYSTEM_PROMPT
+DEFAULT_USER_PROMPT = LABELING_USER_INSTRUCTIONS
+USER_INSTRUCTIONS = DEFAULT_USER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -65,6 +60,8 @@ class GeminiClientConfig(ClientConfig):
 
     api_key_env_var: str = auth.GEMINI_API_KEY_VAR
     response_mime_type: str = "application/json"
+    thinking_budget_tokens: int | None = None
+    max_output_tokens: int | None = LABELING_VISIBLE_OUTPUT_TOKENS
 
 
 class GeminiClient(LabelClient):
@@ -134,10 +131,17 @@ class GeminiClient(LabelClient):
     ) -> dict[str, Any]:
         config: dict[str, Any] = {
             "response_mime_type": self.config.response_mime_type,
+            "response_schema": copy.deepcopy(LABELING_RESPONSE_SCHEMA),
         }
         temperature = resolve_temperature(self.config.model_name)
         if temperature is not None:
             config["temperature"] = temperature
+        if self.config.thinking_budget_tokens is not None:
+            config["thinking_config"] = {
+                "thinking_budget": int(self.config.thinking_budget_tokens),
+            }
+        if self.config.max_output_tokens is not None:
+            config["max_output_tokens"] = int(self.config.max_output_tokens)
         for k, v in self.config.extra_params.items():
             if k == "temperature":
                 continue
@@ -251,22 +255,24 @@ class GeminiClient(LabelClient):
             logger.info("usage_unknown for %s", request.model_id)
         cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
 
-        try:
-            parsed = parse_label_json(text)
-        except ValueError:
-            return abstain_response(
-                image_id=request.image_id,
-                model_id=request.model_id,
-                error="parse_failed",
-                latency_ms=elapsed,
-                attempts=attempts_holder["n"],
-                prepared=prepared,
-                raw_payload=raw_payload,
-                justification=(
-                    "Gemini returned non-JSON content; abstaining to keep "
-                    "the vote out of consensus until the prompt is fixed."
-                ),
-            )
+        parsed = self._extract_parsed_json(response)
+        if parsed is None:
+            try:
+                parsed = parse_label_json(text)
+            except ValueError:
+                return abstain_response(
+                    image_id=request.image_id,
+                    model_id=request.model_id,
+                    error="parse_failed",
+                    latency_ms=elapsed,
+                    attempts=attempts_holder["n"],
+                    prepared=prepared,
+                    raw_payload=raw_payload,
+                    justification=(
+                        "Gemini returned non-JSON content; abstaining to keep "
+                        "the vote out of consensus until the prompt is fixed."
+                    ),
+                )
 
         fields = coerce_label_fields(parsed)
         return LabelResponse(
@@ -290,6 +296,9 @@ class GeminiClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------
@@ -321,6 +330,24 @@ class GeminiClient(LabelClient):
             get_field("prompt_token_count", "input_token_count", "prompt_tokens"),
             get_field("candidates_token_count", "output_token_count", "completion_tokens"),
         )
+
+    @staticmethod
+    def _extract_parsed_json(response: Any) -> dict[str, Any] | None:
+        """Return SDK-parsed structured output when google-genai provides it."""
+        parsed = getattr(response, "parsed", None)
+        if parsed is None and isinstance(response, dict):
+            parsed = response.get("parsed")
+        if parsed is None:
+            return None
+        if isinstance(parsed, dict):
+            return parsed
+        if hasattr(parsed, "model_dump"):
+            try:
+                dumped = parsed.model_dump()
+            except Exception:  # pragma: no cover
+                return None
+            return dumped if isinstance(dumped, dict) else None
+        return None
 
     @staticmethod
     def _extract_text(response: Any) -> str:
@@ -386,5 +413,6 @@ __all__ = [
     "GeminiClient",
     "GeminiClientConfig",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT",
     "USER_INSTRUCTIONS",
 ]

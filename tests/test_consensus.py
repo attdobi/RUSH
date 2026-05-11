@@ -24,7 +24,15 @@ def _vote(image_id, labeler, label, *, confidence=0.8, is_boundary=False, run_id
         "label": label,
         "node_ids": [],
         "confidence": confidence,
+        "l2_label": "GA.surface_texture.plastic_skin",
+        "difficulty": "medium",
         "justification": "x",
+        "policy_citations": ["GA.surface_texture.plastic_skin"],
+        "policy_quotes": ["Waxy or over-smoothed surfaces can be positive evidence."],
+        "justification_too_long": False,
+        "input_tokens": 101,
+        "output_tokens": 17,
+        "cost_usd": 0.0123,
         "policy_graph_version": "Generative_AI.v0.1",
         "is_boundary": is_boundary,
     }
@@ -148,7 +156,20 @@ def test_consensus_voter_audit_shape_and_ordering():
     assert [v["labeler_id"] for v in voters] == ["alpha", "zeta"]
     assert voters[0]["confidence"] == 0.9
     assert voters[0]["is_boundary"] is False
-    assert "justification" not in voters[0]  # audit-only, no body text leaked
+    # v2 (X2 wave-2): voter audit carries the per-call evidence inline so the
+    # web layer can render justifications/citations/cost without a separate
+    # fetch. Pass-through is best-effort: only keys present on the source vote
+    # are echoed onto the voter block.
+    assert voters[0]["justification"] == "x"
+    assert voters[0]["l2_label"] == "GA.surface_texture.plastic_skin"
+    assert voters[0]["difficulty"] == "medium"
+    assert voters[0]["policy_citations"] == ["GA.surface_texture.plastic_skin"]
+    assert voters[0]["policy_quotes"] == ["Waxy or over-smoothed surfaces can be positive evidence."]
+    assert voters[0]["justification_too_long"] is False
+    assert voters[0]["input_tokens"] == 101
+    assert voters[0]["output_tokens"] == 17
+    assert voters[0]["cost_usd"] == 0.0123
+    assert voters[0]["label"] == "gen_ai"
 
 
 # ---------------------------------------------------------------------------

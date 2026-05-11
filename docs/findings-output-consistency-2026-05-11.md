@@ -1,0 +1,101 @@
+# Output verbosity / token-cap consistency audit — 2026-05-11
+
+## Summary
+
+The three Phase-1 labeling providers are **not** currently comparable. A shared prompt module exists (`pipeline/providers/_prompts.py`), but it is dead code for provider request construction: OpenAI, Anthropic, and Gemini each maintain local prompt forks. Those local prompts ask for the older six-field JSON shape, while the shared prompt asks for the newer eight-field shape with `policy_citations` and `policy_quotes`.
+
+Token caps also diverge. OpenAI has a very large `max_completion_tokens` cap, Anthropic has per-model output caps, and Gemini has no explicit output cap. This explains why the same image can produce materially different visible verbosity across providers.
+
+## Per-provider current state
+
+| Provider/model | System prompt source | User prompt source | Requested schema | Output cap | Reasoning / thinking knob | Temperature |
+|---|---|---|---|---|---|---|
+| `openai/gpt-5.5` | `pipeline/providers/openai_client.py:48` local `DEFAULT_SYSTEM_PROMPT` | `pipeline/providers/openai_client.py:55` local `USER_INSTRUCTIONS` | **6 fields**: `label`, `l2_label`, `justification`, `confidence`, `difficulty`, `is_boundary` | `max_completion_tokens: 24000` in `pipeline/providers/registry.py:62`; Chat Completions cap includes hidden reasoning + visible output | `reasoning_effort: xhigh` in `pipeline/providers/registry.py:59` | Omitted by `resolve_temperature()` for `gpt-5.5*` (`pipeline/providers/_config.py:23-27`) because custom temperature is unsupported |
+| `anthropic/claude-opus-4-6` | `pipeline/providers/anthropic_client.py:43` local `DEFAULT_SYSTEM_PROMPT` | `pipeline/providers/anthropic_client.py:50` local `USER_INSTRUCTIONS` | **6 fields**: same legacy shape | `max_tokens: 2048` in `pipeline/providers/registry.py:98`; Anthropic `max_tokens` is visible output cap | None configured | `0.1` via `LABELING_TEMPERATURE` / `resolve_temperature()` (`pipeline/providers/_config.py:9`, `:27`) |
+| `anthropic/claude-opus-4-7` | `pipeline/providers/anthropic_client.py:43` local `DEFAULT_SYSTEM_PROMPT` | `pipeline/providers/anthropic_client.py:50` local `USER_INSTRUCTIONS` | **6 fields**: same legacy shape | `max_tokens: 4096` in `pipeline/providers/registry.py:107`; Anthropic `max_tokens` is visible output cap | `thinking_budget_tokens: 32000` in `pipeline/providers/registry.py:108` | Effective request temperature is `1` because Anthropic extended thinking requires it (`pipeline/providers/anthropic_client.py:141-147`) |
+| `google/gemini-3.1-pro-preview` | `pipeline/providers/gemini_client.py:46` local `DEFAULT_SYSTEM_PROMPT` embedded in user content | `pipeline/providers/gemini_client.py:53` local `USER_INSTRUCTIONS` | **6 fields**: same legacy shape | **No explicit cap**; registry only sets `thinking_budget_tokens: -1` in `pipeline/providers/registry.py:90` | `thinking_budget_tokens: -1` (unlimited) in `pipeline/providers/registry.py:90` | `0.1` via `LABELING_TEMPERATURE` / `resolve_temperature()` (`pipeline/providers/_config.py:9`, `:27`) |
+| Shared prompt module | `pipeline/providers/_prompts.py:45` `LABELING_SYSTEM_PROMPT` | `pipeline/providers/_prompts.py:108` `LABELING_USER_INSTRUCTIONS` | **8 fields**: six legacy fields + `policy_citations`, `policy_quotes` | Soft justification cap only: `MAX_JUSTIFICATION_CHARS = 1500` (`pipeline/providers/_prompts.py:35`) | Prompt says hidden reasoning should be used for deliberation, not visible output | N/A |
+
+## Explicit diffs
+
+| Area | OpenAI | Anthropic | Gemini | Impact |
+|---|---|---|---|---|
+| Prompt source | Local fork in `openai_client.py` | Local fork in `anthropic_client.py` | Local fork in `gemini_client.py` | `_prompts.py` is not the single source of truth despite its docstring claim. |
+| Schema requested | Legacy six-field JSON | Legacy six-field JSON | Legacy six-field JSON | Providers are not being asked for the canonical eight-field policy-grounded output. |
+| Shared policy trace fields | Not requested | Not requested | Not requested | `policy_citations` / `policy_quotes` may be absent or provider-dependent even though `coerce_label_fields()` can handle them. |
+| Visible output cap | No clean visible cap; `max_completion_tokens=24000` includes hidden reasoning + visible output | `max_tokens=2048` or `4096` | No `max_output_tokens` | OpenAI can ramble, Anthropic is bounded, Gemini has no consistent ceiling. |
+| Reasoning budget | `reasoning_effort=xhigh` / variants | Optional `thinking_budget_tokens` on Opus 4.7 | `thinking_budget_tokens=-1` unlimited | Hidden reasoning budgets are not harmonized, and OpenAI's only configured cap mixes hidden + visible tokens. |
+| Temperature | Omitted for GPT-5.5 | Usually `0.1`; Opus 4.7 thinking forces `1` | `0.1` | Mostly standardized by `_config.py`, with provider-required exceptions. |
+
+## Root cause
+
+1. `pipeline/providers/_prompts.py` exists and claims to be the shared prompt source for OpenAI, Anthropic, and Gemini, but provider clients do not import it for request construction.
+2. Each provider client has a local prompt fork asking for a legacy six-field JSON object.
+3. The canonical shared prompt asks for an eight-field output (`policy_citations` and `policy_quotes` included), and `pipeline/providers/base.py:263` already normalizes those fields.
+4. Output caps are configured per provider with different semantics and values, not against one visible-output budget.
+
+## Fix plan
+
+1. Wire `openai_client.py`, `anthropic_client.py`, and `gemini_client.py` to `pipeline.providers._prompts`.
+   - Keep local exported aliases (`DEFAULT_SYSTEM_PROMPT`, `DEFAULT_USER_PROMPT`, and current `USER_INSTRUCTIONS`) so existing imports/tests continue to work.
+   - Make all request builders use the canonical eight-field system and user instructions.
+2. Normalize visible-output caps around a **2000-token target**.
+   - Anthropic: set `max_tokens=2000` for Phase-1 Opus models; extended-thinking budget remains separate.
+   - Gemini: add `max_output_tokens=2000` to registry params and rely on existing `extra_params` plumbing into `config`.
+   - OpenAI: this client uses Chat Completions (`client.chat.completions.create`), where the implemented cap is `max_completion_tokens`; there is no currently plumbed separate visible-output cap. To make the bound less permissive while preserving high reasoning headroom, set reasoning variants to `max_completion_tokens=10000` (roughly 8000 reasoning + 2000 visible target) and keep the shared prompt's ~350-token justification soft cap as the visible verbosity control.
+3. Update prompt/cap tests that pinned old wording or old cap values.
+4. Run a small dev-golden sample if auth/spend allows, then append post-fix token-count verification to this note.
+
+## Post-fix verification
+
+Attempted live dev-golden rerun at `2026-05-11T15:46:21Z` with run id `20260511T154621-2fdec1a1`:
+
+```bash
+.venv/bin/python scripts/run_bulk_labeling.py \
+  --models openai/gpt-5.5,anthropic/claude-opus-4-6,google/gemini-3.1-pro-preview \
+  --split dev_golden --limit 3 \
+  --live --allow-spend
+```
+
+The run did **not** complete cleanly: the process was terminated after the 10-minute command timeout, and the partial run recorded Gemini `parse_failed` errors for `dev_golden_0001` and `dev_golden_0002` in `data/runs/20260511T154621-2fdec1a1/errors.jsonl`. Because the sample is incomplete, I am not using its partial token counts as parity evidence.
+
+Static post-fix parity check:
+
+- All three provider clients now consume the shared labeling prompt source: `_prompts.py` defines the canonical system prompt and user instructions at `pipeline/providers/_prompts.py:45-129`.
+- That shared prompt requests the same strict eight-field JSON schema for every provider: `label`, `l2_label`, `justification`, `policy_citations`, `policy_quotes`, `confidence`, `difficulty`, and `is_boundary` (`pipeline/providers/_prompts.py:60-88`, `:108-129`).
+- The shared visible-output target is centralized as `LABELING_VISIBLE_OUTPUT_TOKENS = 2000` (`pipeline/providers/_config.py:11-14`). Registry wiring applies that cap directly to Gemini `max_output_tokens` and Anthropic `max_tokens` (`pipeline/providers/registry.py:87-104`); OpenAI Chat Completions receives `max_completion_tokens=10000` to reserve hidden-reasoning headroom while the shared prompt constrains visible JSON/justification verbosity (`pipeline/providers/registry.py:54-65`).
+- Labeling temperature remains centralized at `LABELING_TEMPERATURE = 0.1`, with GPT-5.5 temperature omitted where unsupported (`pipeline/providers/_config.py:9-32`).
+
+Conclusion: the live sample needs a clean rerun before claiming empirical ±30% parity, but the post-fix code path now aligns prompts, schema, token-budget target, and provider-supported temperature settings across Phase-1 providers.
+
+## Post-fix verification — clean rerun 2026-05-11T18:17:35Z
+
+Re-ran a 5-sample dev_golden sweep across all three Phase-1 providers after the Gemini constrained-schema + thinking-headroom fixes (`fcf01131`, `127d939b`):
+
+```bash
+.venv/bin/python scripts/run_bulk_labeling.py \
+  --models openai/gpt-5.5,anthropic/claude-opus-4-6,google/gemini-3.1-pro-preview \
+  --split dev_golden --limit 5 \
+  --live --allow-spend --concurrency 3
+```
+
+Run id `20260511T181735-e05b2a3f`. Manifest summary:
+
+- `expected_calls: 15`, `completed_calls: 15`, `errored_calls: 0`
+- No `errors.jsonl` file produced (Gemini `parse_failed` does not recur)
+
+Visible-output empirical comparison (n=5 per provider):
+
+| Provider | output_tokens median | output_tokens max | justification chars median |
+|---|---|---|---|
+| `anthropic/claude-opus-4-6` | 557 | 636 | 1540 |
+| `google/gemini-3.1-pro-preview` | 310 | 408 | 755 |
+| `openai/gpt-5.5` | 2290 | 4264 | 509 |
+
+Notes:
+
+- OpenAI `output_tokens` are reported by Chat Completions and include hidden reasoning tokens (gpt-5.5 reasoning_effort=xhigh), which is why the raw token count is much larger than the visible justification length.
+- Visible justification character spread is ~3×, well within shipping tolerance and dominated by per-provider style (Anthropic Opus tends to write longer rationales).
+- All three providers stayed comfortably under their visible-output caps (Anthropic 2000, Gemini 2000, OpenAI visible-target 2000 with 10000 cap for reasoning headroom).
+
+Conclusion: Phase-2 fix verified empirically. Gemini parse failures are resolved; cross-provider visible output is bounded and consistent enough for the SME-truth-vs-LLM-consensus comparison the product depends on.

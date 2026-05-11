@@ -9,9 +9,11 @@ from pathlib import Path
 import secrets
 import subprocess
 import threading
+import traceback
 from typing import Any
 
 from pipeline.io_paths import RUN_ID_PATTERN
+from pipeline.scoring import run_scoring
 
 from ._safety import APIError, utcnow_iso
 
@@ -94,6 +96,17 @@ def _manifest_models(manifest: dict[str, Any]) -> list[str]:
     return models
 
 
+def _manifest_is_completed(manifest: dict[str, Any]) -> bool:
+    status = str(manifest.get("status") or "").lower()
+    if status == "completed":
+        return True
+    totals = manifest.get("totals", {}) if isinstance(manifest.get("totals"), dict) else {}
+    expected = int(totals.get("expected_calls") or 0)
+    completed = int(totals.get("completed_calls") or 0)
+    errored = int(totals.get("errored_calls") or 0)
+    return bool(manifest.get("finished_at")) and errored == 0 and (expected == 0 or completed >= expected)
+
+
 class RunRegistry:
     """Discovers completed runs and tracks subprocess-backed live jobs."""
 
@@ -133,6 +146,8 @@ class RunRegistry:
             "--concurrency",
             str(request["concurrency"]),
         ]
+        if request.get("reasoning_effort") is not None:
+            argv.extend(["--reasoning-effort", request["reasoning_effort"]])
         if request.get("limit") is not None:
             argv.extend(["--limit", str(request["limit"])])
         if request.get("sample_ids"):
@@ -151,6 +166,9 @@ class RunRegistry:
             "models": list(request["models"]),
             "split": request["split"],
             "mode": request["mode"],
+            # New picker flow encodes reasoning in model ids; keep this nullable
+            # and let per-model ids/runtime config be the source of truth.
+            "reasoning_effort": request.get("reasoning_effort"),
             "policy_version": request["policy_version"],
             "allow_spend": bool(request["allow_spend"]),
         }
@@ -211,7 +229,37 @@ class RunRegistry:
             state["run_id"] = run_id
         state["finished_at"] = utcnow_iso()
         state["returncode"] = returncode
+        state["status"] = "finished" if returncode == 0 else "failed"
         self._write_state(state)
+
+        if returncode == 0 and isinstance(run_id, str):
+            run_dir = self.runs_root / run_id
+            manifest = _read_json(run_dir / "run_manifest.json")
+            if _manifest_is_completed(manifest):
+                state["status"] = "scoring"
+                state["scoring_started_at"] = utcnow_iso()
+                self._write_state(state)
+                with log_path.open("a", encoding="utf-8") as log:
+                    log.write(f"\n[web] auto-scoring run {run_id}\n")
+                    log.flush()
+                    try:
+                        score_result = self.compute_now(run_id)
+                        state["status"] = "completed"
+                        state["scoring_finished_at"] = utcnow_iso()
+                        state["scoring_result"] = score_result
+                        flip = score_result.get("flip_rate", {}) if isinstance(score_result, dict) else {}
+                        if flip.get("skipped"):
+                            log.write(f"[web] skipped: {flip.get('reason', 'flip-rate needs ≥2 runs')}\n")
+                        else:
+                            log.write("[web] auto-scoring completed\n")
+                    except Exception as exc:  # pragma: no cover - defensive job monitor path
+                        state["status"] = "scoring_failed"
+                        state["scoring_finished_at"] = utcnow_iso()
+                        state["scoring_error"] = str(exc)
+                        log.write("[web] auto-scoring failed:\n")
+                        log.write(traceback.format_exc())
+                    log.flush()
+                self._write_state(state)
         with self._lock:
             self._processes.pop(job_id, None)
 
@@ -380,31 +428,20 @@ class RunRegistry:
             "log_tail": self.log_tail(token),
         }
 
-    def score(self, token: str) -> dict[str, Any]:
+    def compute_now(self, token: str) -> dict[str, Any]:
         run_id = self.resolve_run_id(token)
         if not run_id:
             raise APIError(404, "run_not_found", f"unknown run or unresolved job id: {token}")
         run_dir = self.runs_root / run_id
         if not (run_dir / "run_manifest.json").exists():
             raise APIError(404, "run_not_found", f"run not found: {run_id}")
-        scoring_path = run_dir / "scoring" / "decision_quality.json"
-        if scoring_path.exists():
-            raise APIError(409, "already_scored", f"run already scored: {run_id}")
-        result = subprocess.run(
-            [".venv/bin/python", "scripts/score_labels.py", "--run-id", run_id],
-            cwd=str(self.repo_root),
-            env=os.environ.copy(),
-            shell=False,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise APIError(
-                500,
-                "score_failed",
-                f"score_labels.py exited with {result.returncode}",
-                details={"output": result.stdout[-4000:] if result.stdout else ""},
-            )
-        return {"ok": True, "scoring_done": True}
+        try:
+            return run_scoring(run_id, self.repo_root, runs_root=self.runs_root)
+        except FileNotFoundError as exc:
+            raise APIError(404, "run_not_found", str(exc)) from exc
+        except Exception as exc:
+            raise APIError(500, "score_failed", str(exc)) from exc
+
+    def score(self, token: str) -> dict[str, Any]:
+        """Backward-compatible alias for older Score now buttons."""
+        return self.compute_now(token)

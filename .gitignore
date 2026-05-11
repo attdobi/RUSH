@@ -20,9 +20,17 @@ build/
 
 # Obsidian local workspace state
 policy-graph/**/.obsidian/
+policy-graph/**/*.canvas
+policy-graph/Generative_AI/[0-9]*.md
 
 # Bulk-labeling run output (X2): per-run artifacts are not committed.
 data/runs/
+
+# Policy proposal staging (per-proposal verification artifacts).
+data/policy_proposals/
+
+# Attila's local notes drop-box for routing context between sessions.
+.attila-notes/
 
 # Built policy PDFs are build artifacts, not source.
 *.pdf

@@ -105,6 +105,13 @@ class LabelResponse:
     input_tokens: int | None = None
     output_tokens: int | None = None
     cost_usd: float | None = None
+    # Policy-grounded provenance (v2 prompt): which policy nodes the
+    # labeler invoked and the exact policy clauses it leaned on. Empty
+    # defaults preserve backwards compatibility for callers/tests built
+    # against the old six-field schema.
+    policy_citations: list[str] = field(default_factory=list)
+    policy_quotes: list[str] = field(default_factory=list)
+    justification_too_long: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serializable shape for downstream persistence."""
@@ -224,16 +231,57 @@ def _coerce_bool(value: Any, *, default: bool = False) -> bool:
     return default
 
 
+def _coerce_str_list(value: Any, *, cap: int | None = None) -> list[str]:
+    """Best-effort coerce a value to ``list[str]``.
+
+    Accepts a list, a single string (wrapped), or anything stringifiable. Drops
+    empties and de-dupes while preserving order. Truncates to ``cap`` entries
+    when supplied. Used for the v2 ``policy_citations`` / ``policy_quotes``
+    fields so partial provider output still round-trips cleanly.
+    """
+    items: list[str] = []
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            items.append(cleaned)
+    elif isinstance(value, list):
+        for entry in value:
+            text = str(entry).strip() if entry is not None else ""
+            if text and text not in items:
+                items.append(text)
+    elif value is None:
+        return []
+    else:
+        text = str(value).strip()
+        if text:
+            items.append(text)
+    if cap is not None and cap >= 0:
+        return items[:cap]
+    return items
+
+
 def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
-    """Normalize a parsed label dict to the six canonical fields.
+    """Normalize a parsed label dict to the canonical label fields.
 
     Missing fields fall back to safe defaults (``label="abstain"``,
     ``confidence=None`` for unknown confidence, etc.). Numeric confidence is
     clamped to ``[0, 1]``; missing/malformed confidence remains ``None`` so
     downstream scoring can treat it as unknown rather than zero-confidence.
-    Callers should still validate against ``schemas/llm-output.schema.json``
-    before persistence.
+
+    v2 (policy-grounded prompt) adds three derived fields:
+      * ``policy_citations``: list of policy node ids the labeler invoked.
+      * ``policy_quotes``: list of verbatim policy snippets the labeler cited.
+      * ``justification_too_long``: True when the justification exceeds the
+        soft upper bound from :mod:`pipeline.providers._prompts` (the prompt
+        asks for ≤~350 tokens; runaway output triggers this flag). Callers
+        should still validate against ``schemas/llm-output.schema.json``
+        before persistence; the flag is informational only.
     """
+    from pipeline.providers._prompts import (
+        MAX_JUSTIFICATION_CHARS,
+        MAX_POLICY_QUOTES,
+    )
+
     label = str(parsed.get("label", "abstain")).strip().lower()
     l2_label = str(parsed.get("l2_label", "")).strip()
     justification = str(parsed.get("justification", "")).strip()
@@ -243,6 +291,11 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
     if difficulty not in {"high", "medium", "low"}:
         difficulty = "medium"
     is_boundary = _coerce_bool(parsed.get("is_boundary"), default=False)
+    policy_citations = _coerce_str_list(parsed.get("policy_citations"))
+    policy_quotes = _coerce_str_list(
+        parsed.get("policy_quotes"), cap=MAX_POLICY_QUOTES
+    )
+    justification_too_long = len(justification) > MAX_JUSTIFICATION_CHARS
     return {
         "label": label,
         "l2_label": l2_label,
@@ -250,6 +303,9 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
         "confidence": confidence,
         "difficulty": difficulty,
         "is_boundary": is_boundary,
+        "policy_citations": policy_citations,
+        "policy_quotes": policy_quotes,
+        "justification_too_long": justification_too_long,
     }
 
 

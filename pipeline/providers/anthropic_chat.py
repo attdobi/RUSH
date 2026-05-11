@@ -9,10 +9,11 @@ import logging
 from typing import Any, Callable
 
 from pipeline.policy_iterator import ChatCallable
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS
 from pipeline.providers.registry import MODEL_REGISTRY
 
 
-_DEFAULT_MAX_TOKENS = 4096
+_DEFAULT_MAX_TOKENS = LABELING_VISIBLE_OUTPUT_TOKENS
 logger = logging.getLogger(__name__)
 
 

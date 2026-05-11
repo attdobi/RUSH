@@ -1,5 +1,5 @@
 (() => {
-  const DEFAULT_POLICY_MODEL = 'anthropic/claude-opus-4-7';
+  const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
   const state = { proposals: [], selected: '' };
 
   function status(message, isError = false) {
@@ -76,6 +76,7 @@
     const cards = [
       ['Proposal', payload.proposal_id || '—', payload.status || '—'],
       ['Base version', payload.base_version || '—', payload.model_id || DEFAULT_POLICY_MODEL],
+      ['Draft model', payload.model_id || DEFAULT_POLICY_MODEL, `Drafted by ${payload.model_id || DEFAULT_POLICY_MODEL} (high reasoning)`],
       ['Changed', payload.files_changed?.length ?? diffs.filter(d => d.change === 'modified').length, (payload.files_changed || []).join(' · ')],
       ['Added / removed', `${payload.files_added?.length ?? 0} / ${payload.files_removed?.length ?? 0}`, [...(payload.files_added || []), ...(payload.files_removed || [])].join(' · ')]
     ];

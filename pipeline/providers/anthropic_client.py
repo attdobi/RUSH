@@ -2,7 +2,7 @@
 
 Uses the ``anthropic`` SDK Messages API with a single user message
 containing an ``image`` block (base64 source) and a ``text`` block. The
-prompt instructs Claude to emit the same six-field JSON object every
+prompt instructs Claude to emit the shared policy-grounded JSON object every
 provider returns; we parse the assistant's text reply.
 
 Image bytes come exclusively from
@@ -22,7 +22,11 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
-from pipeline.providers._config import resolve_temperature
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS, resolve_temperature
+from pipeline.providers._prompts import (
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -40,20 +44,9 @@ from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a policy-graph image labeler. Use ONLY the supplied policy "
-    "document to classify the image. Reply with a single JSON object "
-    "carrying the six fields: label, l2_label, justification, confidence, "
-    "difficulty, is_boundary. No prose, no markdown fences."
-)
-
-USER_INSTRUCTIONS = (
-    "Classify the attached image against the policy below. Return only the "
-    "six-field JSON object. label must be one of: gen_ai, not_gen_ai, "
-    "abstain (cold-start) or violative, non_violative, abstain (warm-start). "
-    "justification must be at least 10 characters and cite specific policy "
-    "text. If evidence is insufficient, abstain."
-)
+DEFAULT_SYSTEM_PROMPT = LABELING_SYSTEM_PROMPT
+DEFAULT_USER_PROMPT = LABELING_USER_INSTRUCTIONS
+USER_INSTRUCTIONS = DEFAULT_USER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -61,7 +54,8 @@ class AnthropicClientConfig(ClientConfig):
     """Anthropic-specific config."""
 
     api_key_env_var: str = auth.ANTHROPIC_API_KEY_VAR
-    max_tokens: int = 2048
+    max_tokens: int = LABELING_VISIBLE_OUTPUT_TOKENS
+    thinking_budget_tokens: int | None = None
 
 
 class AnthropicClient(LabelClient):
@@ -137,7 +131,14 @@ class AnthropicClient(LabelClient):
             "messages": messages,
         }
         temperature = resolve_temperature(self.config.model_name)
-        if temperature is not None:
+        if self.config.thinking_budget_tokens is not None and self.config.thinking_budget_tokens > 0:
+            params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": int(self.config.thinking_budget_tokens),
+            }
+            # Anthropic requires temperature=1 when extended thinking is enabled.
+            params["temperature"] = 1
+        elif temperature is not None:
             params["temperature"] = temperature
         for k, v in self.config.extra_params.items():
             if k == "temperature":
@@ -281,6 +282,9 @@ class AnthropicClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------
@@ -352,5 +356,6 @@ __all__ = [
     "AnthropicClient",
     "AnthropicClientConfig",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT",
     "USER_INSTRUCTIONS",
 ]

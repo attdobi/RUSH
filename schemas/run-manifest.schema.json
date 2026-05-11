@@ -32,6 +32,18 @@
       "minItems": 1,
       "description": "Sorted list of sample_ids included in this run."
     },
+    "model_runtime_config": {
+      "type": "object",
+      "description": "Per-model provider runtime knobs used for auditability.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "reasoning_effort": {"type": "string", "enum": ["high", "xhigh"]},
+          "thinking_budget_tokens": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
     "models": {
       "type": "array",
       "minItems": 1,
