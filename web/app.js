@@ -395,6 +395,14 @@ const RUNS_INDEX_URL = '../data/runs/index.json';
 const RUNS_DIR_URL = '../data/runs/';
 const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
 
+// Single source of truth for label → CSS class.
+// IMPORTANT: replaceAll, not replace — `not_gen_ai` has TWO underscores.
+function labelBadgeClass(label) {
+  if (!label || !KNOWN_LABELS.includes(label)) return 'dev';
+  return label.replaceAll('_', '-');
+}
+window.rushLabelBadgeClass = labelBadgeClass;
+
 const runState = {
   available: [],
   selectedRunId: null,
@@ -810,7 +818,7 @@ function renderInlineJustificationsRow(panel, row, colSpan) {
       <header><code>${esc(model)}</code><span>${voteCost(vote.cost_usd)}</span></header>
       ${citations.length ? `<div class="policy-citation-row">${citations.map(policyCitationHtml).join('')}</div>` : ''}
       <dl>
-        <dt>label</dt><dd><span class="badge ${KNOWN_LABELS.includes(vote.label) ? String(vote.label).replace('_', '-') : 'dev'}">${esc(vote.label || '—')}</span></dd>
+        <dt>label</dt><dd><span class="badge ${labelBadgeClass(vote.label)}">${esc(vote.label || '—')}</span></dd>
         <dt>l2_label</dt><dd><code>${esc(vote.l2_label || '—')}</code></dd>
         <dt>confidence</dt><dd><code>${voteNumber(vote.confidence)}</code></dd>
         <dt>boundary</dt><dd>${esc(voteBool(vote.is_boundary))}</dd>
@@ -879,7 +887,7 @@ function renderBorderline() {
       return primary + renderInlineJustificationsRow('borderline', item, 4);
     }).join('');
     const heading = group.l0 || group.label || group.bucket || 'unbucketed';
-    return `<article class="borderline-group"><header><span class="badge ${KNOWN_LABELS.includes(heading) ? heading.replace('_', '-') : 'dev'}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><div class="misalignment-table"><table class="misalignment"><thead><tr><th></th><th>image</th><th>reason</th><th>model notes</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
+    return `<article class="borderline-group"><header><span class="badge ${labelBadgeClass(heading)}">${esc(heading)}</span><strong>${(group.items || []).length} case(s)</strong></header><div class="misalignment-table"><table class="misalignment"><thead><tr><th></th><th>image</th><th>reason</th><th>model notes</th></tr></thead><tbody>${body}</tbody></table></div></article>`;
   }).join('');
 }
 
@@ -931,7 +939,7 @@ function renderMisalignment() {
       return '<span class="badge dev" title="tie">tie</span>';
     }
     const label = ranked[0][0];
-    const cls = KNOWN_LABELS.includes(label) ? label.replace('_', '-') : 'dev';
+    const cls = labelBadgeClass(label);
     return `<span class="badge ${cls}">${esc(label)}</span>`;
   };
   const headerCells = ['<th></th>', '<th>image</th>', '<th>SME truth</th>', '<th>majority</th>',
@@ -949,7 +957,7 @@ function renderMisalignment() {
       const key = modelId(model);
       const voteRow = voteById[key];
       const vote = voteRow?.label || (row.model_labels && row.model_labels[key]) || '—';
-      const cls = KNOWN_LABELS.includes(vote) ? vote.replace('_', '-') : 'dev';
+      const cls = labelBadgeClass(vote);
       const cost = formatCost(voteRow?.cost_usd);
       const title = cost ? ` title="${attr(cost)}"` : '';
       return `<td${title}><span class="badge ${cls}">${esc(vote)}</span></td>`;
@@ -959,7 +967,7 @@ function renderMisalignment() {
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
-    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td><td>${majorityBadge(row)}</td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td><td>${majorityBadge(row)}</td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
     return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 7);
   }).join('');
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -1055,14 +1063,14 @@ function renderConsensus() {
   const rows = records.slice(0, 200).map(r => {
     const sme = r.sme_truth || smeMap[r.image_id];
     const smeBadge = sme
-      ? `<span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span>`
+      ? `<span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span>`
       : '<span class="muted">—</span>';
     const voterById = {};
     for (const v of (r.voters || [])) voterById[v.labeler_id || v.model_id || 'unknown'] = v;
     const perModel = voterColumns.map(voter => {
       const v = voterById[voterId(voter)];
       if (!v) return '<td><span class="muted">—</span></td>';
-      const cls = KNOWN_LABELS.includes(v.label) ? v.label.replace('_', '-') : 'dev';
+      const cls = labelBadgeClass(v.label);
       const boundary = v.is_boundary ? ' · boundary' : '';
       const conf = isNumber(v.confidence) ? ` (${v.confidence.toFixed(2)})` : '';
       const rawCost = Number(v.cost_usd);
@@ -1071,7 +1079,7 @@ function renderConsensus() {
     }).join('');
     const distChips = Object.entries(r.vote_distribution || {})
       .sort((a, b) => b[1] - a[1])
-      .map(([lbl, cnt]) => `<span class="dist-chip ${KNOWN_LABELS.includes(lbl) ? lbl.replace('_', '-') : 'dev'}">${esc(lbl)}: ${cnt}</span>`)
+      .map(([lbl, cnt]) => `<span class="dist-chip ${labelBadgeClass(lbl)}">${esc(lbl)}: ${cnt}</span>`)
       .join(' ');
     const mismatch = sme && r.majority_label && r.majority_label !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
