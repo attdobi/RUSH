@@ -1,4 +1,6 @@
 (() => {
+  const WIDTH = 720;
+  const HEIGHT = 460;
   const COLORS = {
     root: '#4d9bff',
     positive: '#4de0a6',
@@ -8,15 +10,32 @@
     provenance: '#4dd0e1',
     fallback: '#888'
   };
-  const VIEWBOX = { width: 720, height: 480, cx: 360, cy: 240, radius: 180 };
+
+  let currentPayload = null;
+  let currentVersion = '';
+  let currentFocus = null;
+
+  function qs(selector) {
+    return document.querySelector(selector);
+  }
+
+  function esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+  }
 
   function status(message, isError = false) {
     rushApiStatus('#policyGraphStatus', message, isError);
   }
 
-  function setUnavailable() {
-    const wrap = $('#policyGraphSvgWrap');
-    if (wrap) wrap.innerHTML = '<div class="empty-state">Local API not running — start <code>python scripts/rush_web_server.py</code> to load the policy graph.</div>';
+  function setUnavailable(message = 'Local API not running — start <code>python scripts/rush_web_server.py</code> to load the policy graph.') {
+    const wrap = qs('#policyGraphSvgWrap');
+    if (wrap) wrap.innerHTML = `<div class="empty-state">${message}</div>`;
     status('Policy graph unavailable.', true);
   }
 
@@ -29,48 +48,52 @@
     if (id.includes('.exception.')) return COLORS.exception;
     if (id.includes('.negative.') || polarity === 'negative') return COLORS.negative;
     if (id.includes('.provenance.')) return COLORS.provenance;
-    if (
-      type === 'category' ||
-      polarity === 'positive' ||
-      id.includes('.visual_artifacts.') ||
-      id.includes('.surface_texture.') ||
-      id.includes('.scene_geometry.')
-    ) return COLORS.positive;
+    if (type === 'category' || polarity === 'positive') return COLORS.positive;
     return COLORS.fallback;
   }
 
-  function truncate(text, max = 30) {
+  function edgeSource(edge) {
+    return String(edge.source || edge.source_node_id || '');
+  }
+
+  function edgeTarget(edge) {
+    return String(edge.target || edge.target_node_id || edge.to || '');
+  }
+
+  function familyOf(id) {
+    const parts = String(id || '').split('.');
+    if (parts.length <= 2) return id;
+    return `${parts[0]}.${parts[1]}`;
+  }
+
+  function depthOf(id) {
+    const value = String(id || '');
+    if (value === 'GA.root') return 0;
+    return Math.max(1, value.split('.').length - 1);
+  }
+
+  function childrenFor(id, nodes) {
+    if (!id) return [];
+    return nodes.filter(node => node.id !== id && (node.parent === id || String(node.id).startsWith(`${id}.`)));
+  }
+
+  function hasChildren(node, nodes) {
+    return childrenFor(node.id, nodes).length > 0;
+  }
+
+  function nodeRadius(node, nodes) {
+    if (node.id === 'GA.root' || String(node.node_type).toLowerCase() === 'root') return 14;
+    if (hasChildren(node, nodes) || depthOf(node.id) <= 2) return 10;
+    return 7;
+  }
+
+  function truncate(text, max = 26) {
     const value = String(text || '');
     return value.length > max ? `${value.slice(0, max - 1)}…` : value;
   }
 
-  function edgeSource(edge) {
-    return edge.source || edge.source_node_id;
-  }
-
-  function edgeTarget(edge) {
-    return edge.target || edge.target_node_id || edge.to;
-  }
-
-  function layoutNodes(nodes) {
-    const root = nodes.find(node => node.id === 'GA.root') || nodes.find(node => node.node_type === 'root');
-    const rest = nodes.filter(node => node !== root).sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
-    const positions = new Map();
-    if (root) positions.set(root.id, { x: VIEWBOX.cx, y: VIEWBOX.cy, r: 24 });
-    const count = Math.max(1, rest.length);
-    rest.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / count - Math.PI / 2;
-      positions.set(node.id, {
-        x: VIEWBOX.cx + Math.cos(angle) * VIEWBOX.radius,
-        y: VIEWBOX.cy + Math.sin(angle) * VIEWBOX.radius,
-        r: 16
-      });
-    });
-    return positions;
-  }
-
   function populateVersions(versions, selected) {
-    const select = $('#policyGraphVersion');
+    const select = qs('#policyGraphVersion');
     if (!select) return;
     const list = Array.isArray(versions) ? versions : [];
     if (!list.length) {
@@ -81,28 +104,122 @@
     select.value = selected || list[list.length - 1];
   }
 
-  function renderGraph(payload) {
-    const wrap = $('#policyGraphSvgWrap');
+  function stripFrontmatter(markdown) {
+    return String(markdown || '').replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim();
+  }
+
+  function inlineMarkdown(text) {
+    return esc(text)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[\[([^\]]+)\]\]/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  }
+
+  function renderMarkdown(markdown) {
+    const lines = stripFrontmatter(markdown).split(/\r?\n/);
+    const html = [];
+    let listType = null;
+    const closeList = () => {
+      if (listType) html.push(`</${listType}>`);
+      listType = null;
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        closeList();
+        continue;
+      }
+      const heading = /^(#{1,4})\s+(.+)$/.exec(trimmed);
+      if (heading) {
+        closeList();
+        const level = Math.min(5, heading[1].length + 2);
+        html.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+        continue;
+      }
+      const unordered = /^[-*]\s+(.+)$/.exec(trimmed);
+      const ordered = /^\d+\.\s+(.+)$/.exec(trimmed);
+      if (unordered || ordered) {
+        const desired = ordered ? 'ol' : 'ul';
+        if (listType !== desired) {
+          closeList();
+          listType = desired;
+          html.push(`<${desired}>`);
+        }
+        html.push(`<li>${inlineMarkdown((unordered || ordered)[1])}</li>`);
+        continue;
+      }
+      closeList();
+      html.push(`<p>${inlineMarkdown(trimmed)}</p>`);
+    }
+    closeList();
+    return html.join('') || '<p class="muted">No markdown body found.</p>';
+  }
+
+  function panelShell(node, markdownHtml = '<p class="muted">Loading node markdown…</p>') {
+    const color = nodeColor(node);
+    const backButton = currentFocus ? '<button id="policyGraphBack" type="button">Back to full graph</button>' : '';
+    return `${backButton}
+      <div class="policy-node-kicker" style="--node-color:${color}">${esc(node.id)}</div>
+      <h3>${esc(node.title || node.id)}</h3>
+      <dl class="policy-node-meta">
+        <div><dt>Type</dt><dd>${esc(node.node_type || 'unknown')}</dd></div>
+        <div><dt>Polarity</dt><dd>${esc(node.polarity || 'mixed')}</dd></div>
+        <div><dt>Parent</dt><dd>${esc(node.parent || '—')}</dd></div>
+      </dl>
+      <div id="policyNodeMarkdown" class="policy-node-markdown">${markdownHtml}</div>`;
+  }
+
+  async function openPanel(node) {
+    const panel = qs('#policyGraphPanel');
+    if (!panel || !node) return;
+    panel.innerHTML = panelShell(node);
+    qs('#policyGraphBack')?.addEventListener('click', () => renderGraph(currentPayload, null));
+
+    try {
+      const version = currentVersion || currentPayload?.version || '';
+      const path = `/policy-graph/Generative_AI/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Markdown not found (${response.status})`);
+      const markdown = await response.text();
+      const body = qs('#policyNodeMarkdown');
+      if (body) body.innerHTML = renderMarkdown(markdown);
+    } catch (error) {
+      const body = qs('#policyNodeMarkdown');
+      if (body) body.innerHTML = `<p class="muted">${esc(error.message)}</p>`;
+    }
+  }
+
+  function graphSubset(payload, focusId) {
+    const allNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+    if (!focusId) return allNodes;
+    const keep = new Set([focusId]);
+    allNodes.forEach(node => {
+      if (node.id === focusId || node.parent === focusId || String(node.id).startsWith(`${focusId}.`)) keep.add(node.id);
+    });
+    return allNodes.filter(node => keep.has(node.id));
+  }
+
+  function renderGraph(payload, focusId = currentFocus) {
+    currentPayload = payload;
+    currentVersion = payload.version || currentVersion;
+    currentFocus = focusId;
+
+    const wrap = qs('#policyGraphSvgWrap');
     if (!wrap) return;
-    const nodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-    const edges = Array.isArray(payload.edges) ? payload.edges : [];
-    const positions = layoutNodes(nodes);
-    const edgesHtml = edges.map(edge => {
-      const source = positions.get(edgeSource(edge));
-      const target = positions.get(edgeTarget(edge));
-      if (!source || !target) return '';
-      return `<line x1="${source.x.toFixed(1)}" y1="${source.y.toFixed(1)}" x2="${target.x.toFixed(1)}" y2="${target.y.toFixed(1)}" stroke="#ffffff55" stroke-width="1.2"><title>${esc(edge.edge_type || 'edge')}</title></line>`;
-    }).join('');
-    const nodesHtml = nodes.map(node => {
-      const pos = positions.get(node.id);
-      if (!pos) return '';
-      const color = nodeColor(node);
-      const label = truncate(node.title || node.id);
-      return `<g class="policy-graph-node" transform="translate(${pos.x.toFixed(1)} ${pos.y.toFixed(1)})">
-        <circle r="${pos.r}" fill="#111927" stroke="${color}" stroke-width="3"><title>${esc(node.id)} · ${esc(node.node_type)} · ${esc(node.polarity)}</title></circle>
-        <text y="${pos.r + 16}" text-anchor="middle">${esc(label)}</text>
-      </g>`;
-    }).join('');
+    if (!window.d3) {
+      setUnavailable('D3 failed to load from the CDN; policy graph cannot render.');
+      return;
+    }
+
+    const allNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+    const nodeSet = new Set(graphSubset(payload, focusId).map(node => node.id));
+    const nodes = allNodes.filter(node => nodeSet.has(node.id)).map(node => ({ ...node }));
+    const links = (Array.isArray(payload.edges) ? payload.edges : [])
+      .map(edge => ({ ...edge, source: edgeSource(edge), target: edgeTarget(edge), sourceId: edgeSource(edge), targetId: edgeTarget(edge) }))
+      .filter(edge => nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId));
+
     const legendItems = [
       ['root', COLORS.root],
       ['positive', COLORS.positive],
@@ -111,14 +228,139 @@
       ['negative', COLORS.negative],
       ['provenance', COLORS.provenance]
     ].map(([label, color]) => `<span><i style="background:${color}"></i>${esc(label)}</span>`).join('');
-    wrap.innerHTML = `<h3>${esc(payload.title || `Cold-start GenAI policy ${payload.version || ''}`)}</h3>
-      <svg viewBox="0 0 ${VIEWBOX.width} ${VIEWBOX.height}" role="img" aria-label="Policy graph ${esc(payload.version || '')}">
-        <rect width="${VIEWBOX.width}" height="${VIEWBOX.height}" rx="18" fill="#0e1219"></rect>
-        ${edgesHtml}
-        ${nodesHtml}
-      </svg>
+
+    wrap.innerHTML = `<div class="policy-graph-layout">
+        <div class="policy-graph-canvas" aria-label="Interactive policy force graph">
+          <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Policy graph ${esc(payload.version || '')}"></svg>
+        </div>
+        <aside id="policyGraphPanel" class="policy-graph-panel" aria-live="polite">
+          <h3>Policy node details</h3>
+          <p class="muted">Hover a node to trace its neighbors. Click a node to read its Markdown and drill into its subtree when one exists.</p>
+        </aside>
+      </div>
       <div class="policy-graph-legend">${legendItems}</div>`;
-    $('#policyGraphTitle').textContent = payload.title || 'Cold-start GenAI policy';
+
+    qs('#policyGraphTitle').textContent = payload.title || 'Cold-start GenAI policy';
+
+    const svg = d3.select('#policyGraphSvg');
+    const viewport = svg.append('g').attr('class', 'policy-graph-viewport');
+    svg.call(d3.zoom().scaleExtent([0.55, 4]).on('zoom', event => viewport.attr('transform', event.transform)));
+
+    viewport.append('rect')
+      .attr('width', WIDTH)
+      .attr('height', HEIGHT)
+      .attr('rx', 16)
+      .attr('fill', '#0e1219');
+
+    const neighborMap = new Map();
+    nodes.forEach(node => neighborMap.set(node.id, new Set([node.id])));
+    links.forEach(link => {
+      neighborMap.get(link.sourceId)?.add(link.targetId);
+      neighborMap.get(link.targetId)?.add(link.sourceId);
+    });
+
+    function linkClass(edge) {
+      const sourceFamily = familyOf(edge.sourceId);
+      const targetFamily = familyOf(edge.targetId);
+      if (edge.sourceId === 'GA.root' || edge.targetId === 'GA.root') return 'root-link';
+      return sourceFamily === targetFamily ? 'same-family' : 'cross-family';
+    }
+
+    const link = viewport.append('g')
+      .attr('class', 'policy-links')
+      .selectAll('line')
+      .data(links)
+      .join('line')
+      .attr('class', edge => `policy-link ${linkClass(edge)}`)
+      .attr('stroke-width', edge => linkClass(edge) === 'same-family' ? 1.8 : 1.2);
+
+    const node = viewport.append('g')
+      .attr('class', 'policy-nodes')
+      .selectAll('g')
+      .data(nodes)
+      .join('g')
+      .attr('class', d => `policy-node ${d.id === 'GA.root' || hasChildren(d, allNodes) ? 'parent-node' : 'leaf-node'}`)
+      .attr('tabindex', 0)
+      .attr('role', 'button')
+      .attr('aria-label', d => `${d.id}: ${d.title || d.id}`)
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended));
+
+    node.append('circle')
+      .attr('r', d => nodeRadius(d, allNodes))
+      .attr('fill', '#111927')
+      .attr('stroke', d => nodeColor(d))
+      .attr('stroke-width', d => d.id === focusId ? 4 : 2.4);
+
+    node.append('text')
+      .attr('y', d => nodeRadius(d, allNodes) + 13)
+      .attr('text-anchor', 'middle')
+      .text(d => truncate(d.title || d.id));
+
+    node.on('mouseover', (_, d) => highlight(d.id))
+      .on('mouseout', clearHighlight)
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        if (hasChildren(d, allNodes) && d.id !== currentFocus) {
+          renderGraph(payload, d.id);
+          window.requestAnimationFrame(() => openPanel(d));
+        } else {
+          openPanel(d);
+        }
+      })
+      .on('keydown', (event, d) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPanel(d);
+        }
+      });
+
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(80).strength(0.58))
+      .force('charge', d3.forceManyBody().strength(-200))
+      .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
+      .force('collision', d3.forceCollide().radius(d => nodeRadius(d, allNodes) + (hasChildren(d, allNodes) ? 42 : 28)));
+
+    simulation.on('tick', () => {
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+      node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+    function highlight(id) {
+      const neighbors = neighborMap.get(id) || new Set([id]);
+      node.classed('dimmed', d => !neighbors.has(d.id))
+        .classed('highlighted', d => neighbors.has(d.id));
+      link.classed('dimmed', d => d.sourceId !== id && d.targetId !== id)
+        .classed('highlighted', d => d.sourceId === id || d.targetId === id);
+    }
+
+    function clearHighlight() {
+      node.classed('dimmed highlighted', false);
+      link.classed('dimmed highlighted', false);
+    }
+
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
   }
 
   async function loadGraph(version = '') {
@@ -130,11 +372,14 @@
       const query = version ? `?version=${encodeURIComponent(version)}` : '';
       status('Loading policy graph…');
       const payload = await rushApiGetJson(`/api/policy/graph${query}`);
+      currentFocus = null;
+      currentVersion = payload.version || version;
       populateVersions(payload.available_versions, payload.version);
-      renderGraph(payload);
+      renderGraph(payload, null);
       status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s).`);
     } catch (error) {
-      $('#policyGraphSvgWrap').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+      const wrap = qs('#policyGraphSvgWrap');
+      if (wrap) wrap.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Policy graph failed: ${error.message}`, true);
     }
   }
@@ -145,8 +390,8 @@
       return;
     }
     await rushApiLoadCatalog();
-    const selected = $('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || '';
-    $('#policyGraphVersion')?.addEventListener('change', event => loadGraph(event.target.value));
+    const selected = qs('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || '';
+    qs('#policyGraphVersion')?.addEventListener('change', event => loadGraph(event.target.value));
     await loadGraph(selected);
   }
 
@@ -154,6 +399,6 @@
   window.addEventListener('rush-api-catalog', event => {
     const versions = event.detail?.policyVersions || [];
     const latest = event.detail?.currentPolicyVersion || versions[versions.length - 1]?.version || '';
-    if (latest) loadGraph(latest);
+    if (latest && latest !== currentVersion) loadGraph(latest);
   });
 })();

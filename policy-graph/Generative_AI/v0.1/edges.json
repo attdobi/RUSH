@@ -158,5 +158,85 @@
     "confidence": 0.7,
     "provenance": "hardening_v1",
     "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.anatomy.hands",
+    "target_node_id": "GA.visual_artifacts",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.text_symbols",
+    "target_node_id": "GA.visual_artifacts",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.repeated_details",
+    "target_node_id": "GA.visual_artifacts",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.eyes",
+    "target_node_id": "GA.visual_artifacts",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.visual_artifacts.eyes",
+    "target_node_id": "GA.boundary.photo_editing",
+    "edge_type": "boundary_with",
+    "confidence": 0.6,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture",
+    "target_node_id": "GA.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture.plastic_skin",
+    "target_node_id": "GA.surface_texture",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture.over_smoothed",
+    "target_node_id": "GA.surface_texture",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
+  },
+  {
+    "source_node_id": "GA.surface_texture.over_smoothed",
+    "target_node_id": "GA.boundary.photo_editing",
+    "edge_type": "confused_with",
+    "confidence": 0.65,
+    "provenance": "ux_cleanup_d3_graph",
+    "version": "Generative_AI.v0.1"
   }
 ]

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=bulk-labeling-v1" />
+  <link rel="stylesheet" href="styles.css?v=web-ux-cleanup-d3" />
 </head>
 <body>
   <header class="hero">
@@ -13,17 +13,18 @@
       <div class="nav-pills" aria-label="Page sections">
         <a href="#demo">Demo</a>
         <a href="#policy-graph">Policy graph</a>
-        <a href="#runs">Runs</a>
         <a href="#run-trigger">Run</a>
+        <a href="#runs">Runs</a>
         <a href="#consensus">Consensus</a>
-        <a href="#decision-quality-overview">Decision quality</a>
-        <a href="#insights">Insights</a>
         <a href="#misalignment">Misalignment</a>
         <a href="#borderline">Borderline</a>
+        <a href="#decision-quality-overview">Decision quality</a>
+        <a href="#insights">Insights</a>
         <a href="#flip-rate-panel">Flip rate</a>
         <a href="#policy-proposals">Proposals</a>
         <a href="#policy">Policy loop</a>
         <a href="#system">System</a>
+        <a href="#theory">Theory</a>
         <a href="#roadmap">Next</a>
       </div>
     </nav>
@@ -34,9 +35,8 @@
         <h1>Turn expert judgment into a living policy graph, then use LLMs to find the cases humans should re-check.</h1>
         <p class="lede">RUSH cold-starts a policy graph, runs multiple LLMs over the same images, and surfaces consensus, disagreement, decision quality, and cost in one place.</p>
         <div class="hero-actions">
-          <a class="primary-action" href="#demo">Start GenAI demo</a>
-          <a id="policyPdfLink" class="primary-action ghost" href="policy.pdf" target="_blank" rel="noopener">Download bound policy (PDF)</a>
-          <span class="quiet-pill">Provider images: longest edge ≤1024 · JPEG q≈85</span>
+          <a class="primary-action" href="#policy-graph">Explore policy graph</a>
+          <a class="primary-action ghost" href="#demo">Start GenAI demo</a>
         </div>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
@@ -49,6 +49,22 @@
   </header>
 
   <main>
+    <section id="policy-graph" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Interactive policy graph</p>
+        <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
+        <p>Force-directed view of policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code> + <code>edges.json</code>. Hover to trace neighbors, click to read a node, and drill into subtrees.</p>
+      </div>
+      <div class="run-controls" aria-label="Policy graph version picker">
+        <label>Policy version
+          <select id="policyGraphVersion"></select>
+        </label>
+        <span id="policyGraphStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
+    </section>
+
     <section id="demo" class="section demo-shell">
       <div class="section-head compact">
         <p class="eyebrow">Cold-start GenAI image demo</p>
@@ -87,116 +103,6 @@
       </div>
       <div id="galleryStatus" class="gallery-status" role="status"></div>
       <div id="sampleGallery" class="sample-gallery"></div>
-    </section>
-
-    <section id="policy-graph" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Obsidian graph</p>
-        <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
-        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code> + <code>edges.json</code>. Colors mark node roles; positions are deterministic.</p>
-      </div>
-      <div class="run-controls" aria-label="Policy graph version picker">
-        <label>Policy version
-          <select id="policyGraphVersion"></select>
-        </label>
-        <span id="policyGraphStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-      <p class="fineprint">Graph positions are static mock UI; policy truth lives in Markdown nodes and edges.json.</p>
-    </section>
-
-    <section id="runs" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Bulk labeling runs</p>
-        <h2>Pick a run, inspect what the models said.</h2>
-        <p>Each run writes its outputs to <code>data/runs/&lt;run_id&gt;/web/</code>. Select one below to populate the Borderline Inspector and Misalignment Worklist. Provider calls are made against downsampled images (longest edge ≤1024, JPEG quality≈85); original bytes are never embedded in JSON outputs — only optional audit metadata (downsampled sha256, width, height, byte size, mime type).</p>
-      </div>
-      <div class="run-controls" aria-label="Run picker">
-        <label>Run
-          <select id="runPicker"><option value="">— no runs found —</option></select>
-        </label>
-        <button id="refreshRuns" type="button">Refresh</button>
-        <span id="runStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="runSummary" class="stat-grid"></div>
-    </section>
-
-    <section id="consensus" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Consensus / majority vote</p>
-        <h2>What did the panel decide — together?</h2>
-        <p>For each image, every model casts a vote; this view shows how the panel agreed (or didn’t). Unanimous calls are green, plain majorities are blue, and ties are amber. Rows where the majority disagrees with the SME ground truth are highlighted for review.</p>
-      </div>
-      <div class="run-controls" aria-label="Consensus filter">
-        <label>Filter
-          <select id="consensusFilter">
-            <option value="all">All images</option>
-            <option value="unanimous">Unanimous only</option>
-            <option value="split">Split only</option>
-            <option value="boundary">Boundary-flagged</option>
-          </select>
-        </label>
-        <span id="consensusStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="consensusSummary" class="stat-grid"></div>
-      <div id="consensusEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> to populate this view.</div>
-      <div id="consensusTable" class="misalignment-table"></div>
-    </section>
-
-    <section id="flip-rate-panel" class="section flip-rate-panel" hidden>
-      <div class="section-head compact">
-        <p class="eyebrow">Policy clarity / flip rate</p>
-        <h2>Which images make model labels move?</h2>
-        <p>Repeated model runs expose policy ambiguity: stable pairs are clear, flipped pairs are candidates for SME review, stronger examples, or policy-node clarification.</p>
-      </div>
-      <div id="flipRateEmpty" class="empty-state">No flip-rate export found. Run <code>python scripts/compute_flip_rate.py</code> to populate this view.</div>
-      <div id="flipRateCards" class="flip-cards"></div>
-      <div id="flipRateBars" class="flip-model-list"></div>
-      <div id="flipRateTable" class="misalignment-table"></div>
-    </section>
-
-    <section id="borderline" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Borderline inspector</p>
-        <h2>Where models hedge, SMEs decide.</h2>
-        <p>Cold start groups boundary cases by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). As the policy graph grows, this view will fan out to L2 nodes per label.</p>
-      </div>
-      <div id="borderlineEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/run_bulk_labeling.py --models &lt;ids&gt;</code> to populate this view.</div>
-      <div id="borderlineGroups" class="borderline-groups"></div>
-    </section>
-
-    <section id="misalignment" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Misalignment worklist</p>
-        <h2>Model vs SME disagreement, ranked for review.</h2>
-        <p>Per-image table of SME truth vs model labels. Disagreement reasons and any proposed policy-patch IDs link out to the patch record. Thumbnails reference local image paths — no embedded image bytes. When a run carries prepared-image audit metadata, the downsampled sha256, dimensions, byte size, and mime type are surfaced inline so reviewers can verify the exact bytes the providers saw.</p>
-      </div>
-      <div id="misalignmentEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> after a labeling pass to populate this view.</div>
-      <div id="misalignmentTable" class="misalignment-table"></div>
-    </section>
-
-    <section id="system" class="section system-section">
-      <div class="section-head compact">
-        <p class="eyebrow">System view</p>
-        <h2>The RUSH loop at scale.</h2>
-        <p>Same architecture from the foundation view: policy data and golden examples feed the policy graph, labeling, audit, metrics, and graph diffs.</p>
-      </div>
-      <div class="system-card">
-        <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
-      </div>
-    </section>
-
-    <section id="policy" class="section split-section">
-      <div>
-        <p class="eyebrow">Policy graph</p>
-        <h2>Policy is the product, not a prompt blob.</h2>
-        <p class="body-copy">Every label should point to a policy node: positive evidence, boundary negative, exception, or uncertainty. SMEs approve policy diffs; LLMs provide pressure tests and candidate ambiguities.</p>
-        <div id="policyNodeList" class="node-list"></div>
-      </div>
-      <div class="panel-card">
-        <h3>Current demo loop</h3>
-        <div id="policyLoop" class="timeline"></div>
-      </div>
     </section>
 
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API not running — start <code>python scripts/rush_web_server.py</code> to enable run controls, decision quality, insights, and policy proposals.</div>
@@ -246,6 +152,64 @@
       </div>
     </section>
 
+    <section id="runs" class="section runs-strip">
+      <div class="section-head compact">
+        <p class="eyebrow">Bulk labeling runs</p>
+        <h2>Pick an existing run.</h2>
+        <p>Select a completed export to populate consensus, misalignment, borderline, decision-quality, and insights views.</p>
+      </div>
+      <div class="run-controls" aria-label="Run picker">
+        <label>Run
+          <select id="runPicker"><option value="">— no runs found —</option></select>
+        </label>
+        <button id="refreshRuns" type="button">Refresh</button>
+        <span id="runStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="runSummary" class="stat-grid"></div>
+    </section>
+
+    <section id="consensus" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Consensus / majority vote</p>
+        <h2>What did the panel decide — together?</h2>
+        <p>For each image, every model casts a vote; this view shows how the panel agreed (or didn’t). Unanimous calls are green, plain majorities are blue, and ties are amber. Rows where the majority disagrees with the SME ground truth are highlighted for review.</p>
+      </div>
+      <div class="run-controls" aria-label="Consensus filter">
+        <label>Filter
+          <select id="consensusFilter">
+            <option value="all">All images</option>
+            <option value="unanimous">Unanimous only</option>
+            <option value="split">Split only</option>
+            <option value="boundary">Boundary-flagged</option>
+          </select>
+        </label>
+        <span id="consensusStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="consensusSummary" class="stat-grid"></div>
+      <div id="consensusEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> to populate this view.</div>
+      <div id="consensusTable" class="misalignment-table"></div>
+    </section>
+
+    <section id="misalignment" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Misalignment worklist</p>
+        <h2>Model vs SME disagreement, ranked for review.</h2>
+        <p>Per-image table of SME truth vs model labels. Disagreement reasons and any proposed policy-patch IDs link out to the patch record. Thumbnails reference local image paths — no embedded image bytes. When a run carries prepared-image audit metadata, the downsampled sha256, dimensions, byte size, and mime type are surfaced inline so reviewers can verify the exact bytes the providers saw.</p>
+      </div>
+      <div id="misalignmentEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> after a labeling pass to populate this view.</div>
+      <div id="misalignmentTable" class="misalignment-table"></div>
+    </section>
+
+    <section id="borderline" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Borderline inspector</p>
+        <h2>Where models hedge, SMEs decide.</h2>
+        <p>Cold start groups boundary cases by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). As the policy graph grows, this view will fan out to L2 nodes per label.</p>
+      </div>
+      <div id="borderlineEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/run_bulk_labeling.py --models &lt;ids&gt;</code> to populate this view.</div>
+      <div id="borderlineGroups" class="borderline-groups"></div>
+    </section>
+
     <section id="decision-quality-overview" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">Decision quality overview</p>
@@ -284,6 +248,18 @@
       <div id="insightsPanels" class="insights-grid"></div>
     </section>
 
+    <section id="flip-rate-panel" class="section flip-rate-panel" hidden>
+      <div class="section-head compact">
+        <p class="eyebrow">Policy clarity / flip rate</p>
+        <h2>Which images make model labels move?</h2>
+        <p>Repeated model runs expose policy ambiguity: stable pairs are clear, flipped pairs are candidates for SME review, stronger examples, or policy-node clarification.</p>
+      </div>
+      <div id="flipRateEmpty" class="empty-state">No flip-rate export found. Run <code>python scripts/compute_flip_rate.py</code> to populate this view.</div>
+      <div id="flipRateCards" class="flip-cards"></div>
+      <div id="flipRateBars" class="flip-model-list"></div>
+      <div id="flipRateTable" class="misalignment-table"></div>
+    </section>
+
     <section id="policy-proposals" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">Policy proposals</p>
@@ -315,9 +291,58 @@
       <div id="proposalDiffViewer" class="diff-viewer"></div>
     </section>
 
+    <section id="policy" class="section split-section">
+      <div>
+        <p class="eyebrow">Policy graph</p>
+        <h2>Policy is the product, not a prompt blob.</h2>
+        <p class="body-copy">Every label should point to a policy node: positive evidence, boundary negative, exception, or uncertainty. SMEs approve policy diffs; LLMs provide pressure tests and candidate ambiguities.</p>
+        <div id="policyNodeList" class="node-list"></div>
+      </div>
+      <div class="panel-card">
+        <h3>Current demo loop</h3>
+        <div id="policyLoop" class="timeline"></div>
+      </div>
+    </section>
+
+    <section id="system" class="section system-section">
+      <div class="section-head compact">
+        <p class="eyebrow">System view</p>
+        <h2>The RUSH loop at scale.</h2>
+        <p>Same architecture from the foundation view: policy data and golden examples feed the policy graph, labeling, audit, metrics, and graph diffs.</p>
+      </div>
+      <div class="system-card">
+        <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
+      </div>
+    </section>
+
+    <section id="theory" class="section theory-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Theory</p>
+        <h2>RUSH turns review judgment into a measurable policy loop.</h2>
+      </div>
+      <div class="theory-prose">
+        <p><strong>RUSH</strong> is used here as a working acronym: <strong>Review, Update, SME-feedback, Hone</strong>. Treat that expansion as a placeholder until the project adopts a canonical name, but it captures the operating loop: human review creates evidence, the policy graph updates, subject-matter experts approve or reject the change, and the system hones future labels.</p>
+        <h3>Methodology</h3>
+        <p>The system starts with a cold-start policy graph rather than a free-form prompt blob. Bulk LLM labeling then asks multiple models to classify the same images while citing policy nodes. Scoring compares model output to SME truth, mines misalignments, and turns repeated ambiguity into proposed policy diffs. Accepted diffs become new graph versions; rejected diffs become memory about what not to change.</p>
+        <h3>Cost and quality frame</h3>
+        <div class="theory-table-wrap">
+          <table class="theory-table">
+            <thead><tr><th>Dimension</th><th>Working assumption</th><th>Implication</th></tr></thead>
+            <tbody>
+              <tr><td>Synthesis cost</td><td>Anthropic ≈ $42 / 1k images vs OpenAI ≈ $5 / 1k images</td><td>Use expensive synthesis only where it buys better policy patches or audit explanations.</td></tr>
+              <tr><td>Label quality</td><td>Reasoning-tier models can improve boundary handling and policy-node citation quality.</td><td>Measure by scored runs, not vibes: accuracy, F1, false positives, false negatives, abstains, and review burden.</td></tr>
+              <tr><td>Review allocation</td><td>Consensus rows are cheaper to accept; split or majority-wrong rows deserve SME attention.</td><td>Route scarce human time to the highest expected policy-learning value.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>SME-feedback loop</h3>
+        <p>SMEs are not asked to rubber-stamp model labels. They adjudicate evidence, clarify boundary cases, and approve policy diffs. The useful output is therefore not merely a label; it is a durable graph change with examples, exceptions, and provenance that future runs can cite.</p>
+        <p class="fineprint">Related framing: active learning, human-in-the-loop annotation, weak supervision, model auditing, and dataset governance. RUSH adapts those ideas to policy-versioned visual classification with explicit cost and review-burden accounting.</p>
+      </div>
+    </section>
 
     <section id="roadmap" class="section roadmap">
-      <p class="eyebrow">Next build phase</p>
+      <p class="eyebrow">Future work</p>
       <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
       <div class="roadmap-grid">
         <article><span>01</span><h3>Bulk model labeling</h3><p>Run multiple API-backed models over sampled images with structured outputs, confidence, policy-node citations, and abstain support.</p></article>
@@ -334,6 +359,7 @@
   <script src="decision-quality.js"></script>
   <script src="insights.js"></script>
   <script src="policy-diff.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
   <script src="policy-graph.js"></script>
 </body>
 </html>
