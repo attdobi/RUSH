@@ -36,8 +36,8 @@ def test_openai_api_params_never_send_temperature() -> None:
     params = client._build_api_params(messages=[])
 
     assert params["model"] == "gpt-5.5"
-    assert params["reasoning"] == {"effort": "high"}
-    assert "reasoning_effort" not in params
+    assert params["reasoning_effort"] == "high"
+    assert "reasoning" not in params
     assert params["seed"] == 123
     assert "temperature" not in params
 
