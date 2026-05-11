@@ -916,7 +916,25 @@ function renderMisalignment() {
     const value = Number(cost);
     return Number.isFinite(value) ? `$${value.toFixed(4)}` : String(cost);
   };
-  const headerCells = ['<th></th>', '<th>image</th>', '<th>SME truth</th>',
+  const majorityBadge = row => {
+    const counts = new Map();
+    for (const vote of (Array.isArray(row.votes) ? row.votes : [])) {
+      if (window.rushIsEnsembleRow(vote)) continue;
+      const label = vote?.label;
+      if (!label) continue;
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+    if (!counts.size) return '<span class="muted">—</span>';
+    const ranked = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    const topCount = ranked[0][1];
+    if (ranked.filter(([, count]) => count === topCount).length > 1) {
+      return '<span class="badge dev" title="tie">tie</span>';
+    }
+    const label = ranked[0][0];
+    const cls = KNOWN_LABELS.includes(label) ? label.replace('_', '-') : 'dev';
+    return `<span class="badge ${cls}">${esc(label)}</span>`;
+  };
+  const headerCells = ['<th></th>', '<th>image</th>', '<th>SME truth</th>', '<th>majority</th>',
     ...modelRows.map(model => `<th>${esc(modelId(model))}${ensembleSuffix(model)}</th>`),
     '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
   const rows = sourceRows.slice(0, 100).map(row => {
@@ -941,8 +959,8 @@ function renderMisalignment() {
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
-    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
-    return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 6);
+    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${KNOWN_LABELS.includes(sme) ? sme.replace('_', '-') : 'dev'}">${esc(sme)}</span></td><td>${majorityBadge(row)}</td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 7);
   }).join('');
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
