@@ -193,6 +193,14 @@ function thumbnailSrcForPath(repoRelPath) {
   return `../${path}`;
 }
 
+function thumbnailSrcForImageId(imageId) {
+  if (!imageId) return null;
+  const path = `data/images/genai-classification/thumbnails/${imageId}.jpg`;
+  return `/api/thumbnail?path=${encodeURIComponent(path)}`;
+}
+
+window.thumbnailSrcForImageId = thumbnailSrcForImageId;
+
 function imgSrc(row) {
   return thumbnailSrcForPath(row.repo_rel_path || row.synthetic_repo_rel_path);
 }
@@ -229,7 +237,7 @@ function renderSampleCard(row, compact = false) {
         <span class="badge ${labelBadge(row)}">${esc(row.label)}</span>
       </div>
       <h3>${esc(row.sample_id)}</h3>
-      <p>${esc(row.dataset)} · ${esc(row.original_filename || 'demo image')}</p>
+      <p>${esc(row.dataset)} · ${esc(row.split || 'sample')}</p>
       <p><strong>Directory label:</strong> ${esc(row.source_label_dir || 'synthetic')} → ${esc(row.label)}<br><strong>Policy cue:</strong> ${esc(policyCue)}<br><strong>LLM status:</strong> pending bulk labeling</p>
       ${compact ? '' : `<div class="override-controls">
         <label>SME/human override
