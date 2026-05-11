@@ -26,10 +26,13 @@
 
   function votesHtml(votes) {
     if (!Array.isArray(votes) || !votes.length) return '<span class="muted">—</span>';
-    return votes.slice(0, 6).map(vote => {
+    return window.rushSortEnsembleLast(votes, (a, b) =>
+      String(a.model_id || a.labeler_id || '').localeCompare(String(b.model_id || b.labeler_id || ''))
+    ).slice(0, 6).map(vote => {
       const id = vote.labeler_id || vote.model_id || 'unknown';
       const label = vote.label || vote.vote || '—';
-      return `<span class="mini-chip">${esc(id)}: ${esc(label)}</span>`;
+      const suffix = window.rushIsEnsembleRow(vote) ? ' <small class="muted">· ensemble</small>' : '';
+      return `<span class="mini-chip">${esc(id)}${suffix}: ${esc(label)}</span>`;
     }).join(' ');
   }
 

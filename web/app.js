@@ -3,6 +3,23 @@ const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp
 const attr = esc;
 const isNumber = value => typeof value === 'number' && Number.isFinite(value);
 
+window.rushIsEnsembleRow = function(row) {
+  if (!row) return false;
+  const id = String(row.labeler_id || row.model_id || '').toLowerCase();
+  const type = String(row.labeler_type || '').toLowerCase();
+  return id === 'majority_vote' || type === 'ensemble';
+};
+
+window.rushSortEnsembleLast = function(rows, primaryCompare) {
+  const cmp = primaryCompare || (() => 0);
+  return rows.slice().sort((a, b) => {
+    const ae = window.rushIsEnsembleRow(a) ? 1 : 0;
+    const be = window.rushIsEnsembleRow(b) ? 1 : 0;
+    if (ae !== be) return ae - be;
+    return cmp(a, b);
+  });
+};
+
 const MANIFESTS = {
   dev: '../data/images/genai-classification/manifests/dev_golden_labels.csv',
   holdout: '../data/images/genai-classification/manifests/holdout_labels.csv',
@@ -721,28 +738,55 @@ function renderMisalignment() {
   const target = $('#misalignmentTable');
   if (!target) return;
   const data = runState.misalignment;
-  if (!data || !Array.isArray(data.rows) || data.rows.length === 0) {
+  const sourceRows = Array.isArray(data?.rows) ? data.rows : (Array.isArray(data?.records) ? data.records : []);
+  if (!data || sourceRows.length === 0) {
     if (empty) empty.hidden = false;
     target.innerHTML = '';
     return;
   }
   if (empty) empty.hidden = true;
-  const models = Array.isArray(data.models) ? data.models : [];
+  const modelMap = new Map();
+  for (const m of (Array.isArray(data.models) ? data.models : [])) modelMap.set(String(m), { labeler_id: String(m), model_id: String(m) });
+  for (const row of sourceRows) {
+    for (const vote of (row.votes || [])) {
+      const key = vote.labeler_id || vote.model_id || 'unknown';
+      if (!modelMap.has(key)) modelMap.set(key, vote);
+    }
+    for (const key of Object.keys(row.model_labels || {})) {
+      if (!modelMap.has(key)) modelMap.set(key, { labeler_id: key, model_id: key });
+    }
+  }
+  const modelRows = window.rushSortEnsembleLast(Array.from(modelMap.values()), (a, b) =>
+    String(a.model_id || a.labeler_id || '').localeCompare(String(b.model_id || b.labeler_id || ''))
+  );
+  const modelId = model => model.labeler_id || model.model_id || 'unknown';
+  const ensembleSuffix = model => window.rushIsEnsembleRow(model) ? ' <small class="muted">· ensemble</small>' : '';
+  const formatCost = cost => {
+    if (cost == null) return '';
+    const value = Number(cost);
+    return Number.isFinite(value) ? `$${value.toFixed(4)}` : String(cost);
+  };
   const headerCells = ['<th>image</th>', '<th>SME truth</th>',
-    ...models.map(m => `<th>${esc(m)}</th>`),
+    ...modelRows.map(model => `<th>${esc(modelId(model))}${ensembleSuffix(model)}</th>`),
     '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
-  const rows = data.rows.slice(0, 100).map(row => {
+  const rows = sourceRows.slice(0, 100).map(row => {
     const id = row.image_id || row.sample_id || '';
     const repoRelPath = row.repo_rel_path || '';
     const thumb = repoRelPath ? `<img class="row-thumb thumb-loading" src="${attr('../' + repoRelPath.replace(/^\.\//, ''))}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
     const sme = row.sme_truth || row.truth || '—';
-    const perModel = models.map(m => {
-      const vote = (row.model_labels && row.model_labels[m]) || '—';
+    const voteById = {};
+    for (const vote of (row.votes || [])) voteById[vote.labeler_id || vote.model_id || 'unknown'] = vote;
+    const perModel = modelRows.map(model => {
+      const key = modelId(model);
+      const voteRow = voteById[key];
+      const vote = voteRow?.label || (row.model_labels && row.model_labels[key]) || '—';
       const cls = KNOWN_LABELS.includes(vote) ? vote.replace('_', '-') : 'dev';
-      return `<td><span class="badge ${cls}">${esc(vote)}</span></td>`;
+      const cost = formatCost(voteRow?.cost_usd);
+      const title = cost ? ` title="${attr(cost)}"` : '';
+      return `<td${title}><span class="badge ${cls}">${esc(vote)}</span></td>`;
     }).join('');
-    const agreement = row.agreement || (row.unanimous ? 'unanimous' : 'split');
-    const reason = row.disagreement_reason || '';
+    const agreement = row.agreement || (row.unanimous ? 'unanimous' : (row.misalignment_type || 'split'));
+    const reason = row.disagreement_reason || row.reason || '';
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
@@ -803,18 +847,25 @@ function renderConsensus() {
     return;
   }
 
-  // Determine column order of models across the dataset (stable, sorted).
-  const modelSet = new Set();
+  // Determine column order of voters across the dataset (stable, sorted; synthetic ensemble last).
+  const voterMap = new Map();
   for (const r of data.records) {
-    for (const v of (r.voters || [])) modelSet.add(v.labeler_id || v.model_id || 'unknown');
+    for (const v of (r.voters || [])) {
+      const key = v.labeler_id || v.model_id || 'unknown';
+      if (!voterMap.has(key)) voterMap.set(key, v);
+    }
   }
-  const models = Array.from(modelSet).sort();
+  const voterColumns = window.rushSortEnsembleLast(Array.from(voterMap.values()), (a, b) =>
+    String(a.model_id || a.labeler_id || '').localeCompare(String(b.model_id || b.labeler_id || ''))
+  );
+  const voterId = voter => voter.labeler_id || voter.model_id || 'unknown';
+  const ensembleSuffix = voter => window.rushIsEnsembleRow(voter) ? ' <small class="muted">· ensemble</small>' : '';
 
   const headerCells = [
     '<th>image</th>',
     '<th>flip rate</th>',
     '<th>SME truth</th>',
-    ...models.map(m => `<th>${esc(m)}</th>`),
+    ...voterColumns.map(v => `<th>${esc(voterId(v))}${ensembleSuffix(v)}</th>`),
     '<th>consensus</th>',
     '<th>distribution</th>'
   ].join('');
@@ -837,13 +888,15 @@ function renderConsensus() {
       : '<span class="muted">—</span>';
     const voterById = {};
     for (const v of (r.voters || [])) voterById[v.labeler_id || v.model_id || 'unknown'] = v;
-    const perModel = models.map(m => {
-      const v = voterById[m];
+    const perModel = voterColumns.map(voter => {
+      const v = voterById[voterId(voter)];
       if (!v) return '<td><span class="muted">—</span></td>';
       const cls = KNOWN_LABELS.includes(v.label) ? v.label.replace('_', '-') : 'dev';
       const boundary = v.is_boundary ? ' · boundary' : '';
       const conf = isNumber(v.confidence) ? ` (${v.confidence.toFixed(2)})` : '';
-      return `<td><span class="badge ${cls}" title="confidence${conf}${boundary}">${esc(v.label)}</span></td>`;
+      const rawCost = Number(v.cost_usd);
+      const cost = v.cost_usd != null && Number.isFinite(rawCost) ? ` · cost $${rawCost.toFixed(4)}` : '';
+      return `<td><span class="badge ${cls}" title="confidence${conf}${boundary}${cost}">${esc(v.label)}</span></td>`;
     }).join('');
     const distChips = Object.entries(r.vote_distribution || {})
       .sort((a, b) => b[1] - a[1])
