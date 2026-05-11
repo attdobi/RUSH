@@ -1,11 +1,13 @@
 (() => {
   const PANELS = [
-    ['policy_clarity_hot_spots', 'Policy clarity hot spots'],
-    ['majority_wrong', 'Majority wrong'],
     ['model_disagreement', 'Model disagreement'],
     ['boundary_concentration', 'Boundary concentration'],
-    ['consistent_pair_disagreement', 'Consistent pair disagreement']
+    ['consistent_pair_disagreement', 'Consistent pair disagreement'],
+    ['majority_wrong', 'Majority wrong'],
+    ['policy_clarity_hot_spots', 'Policy clarity hot spots']
   ];
+
+  const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
 
   function status(message, isError = false) {
     rushApiStatus('#insightsStatus', message, isError);
@@ -24,6 +26,28 @@
     if (selected) select.value = selected;
   }
 
+  function labelBadgeClass(label) {
+    const globalClass = window.labelBadgeClass || window.rushLabelBadgeClass;
+    if (typeof globalClass === 'function') return globalClass(label);
+    if (!label || !KNOWN_LABELS.includes(label)) return 'dev';
+    return String(label).replaceAll('_', '-');
+  }
+
+  function labelBadge(label) {
+    return `<span class="badge ${labelBadgeClass(label)}">${esc(label || '—')}</span>`;
+  }
+
+  function imgIdThumb(imageId) {
+    const id = imageId || '';
+    if (!id) return '<span class="muted">—</span>';
+    const fn = (typeof window !== 'undefined' && window.thumbnailSrcForImageId)
+      ? window.thumbnailSrcForImageId
+      : (imgId) => `/api/thumbnail?path=${encodeURIComponent(`data/images/genai-classification/thumbnails/${imgId}.jpg`)}`;
+    const src = fn(id);
+    const fallbackSrc = `../data/images/genai-classification/thumbnails/${encodeURIComponent(id)}.jpg`;
+    return `<img class="row-thumb thumb-loading" src="${esc(src)}" data-fallback-src="${esc(fallbackSrc)}" alt="${esc(id)}" title="${esc(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="if(this.dataset.fallbackSrc){this.src=this.dataset.fallbackSrc;this.dataset.fallbackSrc='';}else{this.outerHTML='<span class=&quot;muted&quot;>'+this.alt+'</span>'}" />`;
+  }
+
   function votesHtml(votes) {
     if (!Array.isArray(votes) || !votes.length) return '<span class="muted">—</span>';
     return window.rushSortEnsembleLast(votes, (a, b) =>
@@ -32,18 +56,20 @@
       const id = vote.labeler_id || vote.model_id || 'unknown';
       const label = vote.label || vote.vote || '—';
       const suffix = window.rushIsEnsembleRow(vote) ? ' <small class="muted">· ensemble</small>' : '';
-      return `<span class="mini-chip">${esc(id)}${suffix}: ${esc(label)}</span>`;
+      return `<span class="mini-chip">${esc(id)}${suffix}: ${labelBadge(label)}</span>`;
     }).join(' ');
   }
 
   function labelsHtml(labels) {
     if (!Array.isArray(labels) || !labels.length) return '<span class="muted">—</span>';
-    return labels.slice(0, 6).map(label => `<span class="mini-chip">${esc(label)}</span>`).join(' ');
+    return labels.slice(0, 6).map(label => labelBadge(label)).join(' ');
   }
 
   function renderHotSpots(rows) {
-    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], rows.map(row => [
-      `<strong>${esc(row.image_id || '—')}</strong>`,
+    const filteredRows = rows.filter(row => Number(row.flip_rate || 0) >= 0.05);
+    if (!filteredRows.length) return '<div class="empty-state compact-empty">No policy clarity hot spots yet — needs ≥2 scored runs of the same images with flip-rate ≥ 0.05.</div>';
+    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], filteredRows.map(row => [
+      imgIdThumb(row.image_id),
       isNumber(row.flip_rate) ? row.flip_rate.toFixed(2) : '—',
       esc(row.n_runs ?? '—'),
       labelsHtml(row.labels_observed)
@@ -52,16 +78,16 @@
 
   function renderMajorityWrong(rows) {
     return table(['Image', 'SME truth', 'Majority label', 'Votes'], rows.map(row => [
-      `<strong>${esc(row.image_id || '—')}</strong>`,
-      esc(row.sme_truth || '—'),
-      esc(row.majority_label || '—'),
+      imgIdThumb(row.image_id),
+      labelBadge(row.sme_truth),
+      labelBadge(row.majority_label),
       votesHtml(row.votes)
     ]));
   }
 
   function renderDisagreement(rows) {
     return table(['Image', 'Votes'], rows.map(row => [
-      `<strong>${esc(row.image_id || '—')}</strong>`,
+      imgIdThumb(row.image_id),
       votesHtml(row.votes)
     ]));
   }
@@ -90,9 +116,10 @@
   }
 
   function renderPanel(key, title, rows) {
-    const safeRows = Array.isArray(rows) ? rows.slice(0, 10) : [];
+    const sourceRows = Array.isArray(rows) ? rows : [];
+    const safeRows = sourceRows.slice(0, 10);
     let body = '';
-    if (key === 'policy_clarity_hot_spots') body = safeRows.length ? renderHotSpots(safeRows) : table(['Image', 'Flip rate', 'Runs', 'Labels observed'], [], 'No policy clarity hot spots yet — flip-rate data needs ≥2 scored runs of the same images.');
+    if (key === 'policy_clarity_hot_spots') body = renderHotSpots(sourceRows);
     else if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
     else if (key === 'model_disagreement') body = renderDisagreement(safeRows);
     else if (key === 'boundary_concentration') body = renderBoundary(safeRows);
