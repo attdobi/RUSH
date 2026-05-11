@@ -533,3 +533,59 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
   .policy-graph-wrap svg { max-width: 100%; }
   .policy-graph-panel { min-height: 0; max-height: none; }
 }
+
+/* ----- X4 Pass 3: focus-visible rings, hover/focus, mobile sanity ----- */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.nav-pills a:focus-visible,
+.filter-chip:focus-visible,
+.gallery-load-more:focus-visible,
+.primary-action:focus-visible,
+.flip-label-pill:focus-visible {
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+.primary-action { transition: filter .14s ease, transform .08s ease; }
+.primary-action:active { transform: translateY(1px); }
+.primary-action.ghost:hover { filter: brightness(1.08); }
+.filter-chip:focus-visible,
+.nav-pills a:focus-visible {
+  color: var(--text);
+  border-color: var(--green);
+}
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline-offset: 0;
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(77, 224, 166, .35);
+}
+.empty-state button:focus-visible {
+  outline-offset: 2px;
+}
+.empty-state button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #13254a;
+  color: var(--text);
+  padding: 6px 12px;
+  margin-left: 4px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.empty-state button:hover { filter: brightness(1.12); border-color: var(--blue); }
+.lede { color: #c4d3ef; }
+.nav-pills::-webkit-scrollbar { height: 6px; }
+.nav-pills::-webkit-scrollbar-thumb { background: rgba(170,184,211,.25); border-radius: 999px; }
+
+@media (max-width: 720px) {
+  .nav-pills { padding-bottom: 2px; }
+  .hero-actions { width: 100%; }
+  .hero-actions .primary-action { flex: 1 1 auto; text-align: center; }
+  .gallery-toolbar { flex-direction: column; align-items: stretch; }
+  .gallery-filter-chips { justify-content: flex-start; }
+}
