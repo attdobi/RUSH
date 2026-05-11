@@ -1148,6 +1148,12 @@ function bindRunControls() {
       renderRun();
       return;
     }
+    const policyNode = target.closest('[data-policy-node-id]');
+    if (policyNode) {
+      const opened = typeof window.rushOpenPolicyNode === 'function' && window.rushOpenPolicyNode(policyNode.dataset.policyNodeId || '');
+      if (!opened) $('#policyGraphStatus') && ($('#policyGraphStatus').textContent = `Policy node ${policyNode.dataset.policyNodeId || ''} not loaded.`);
+      return;
+    }
     const computeButton = target.closest('[data-compute-target]');
     if (!computeButton) return;
     const runId = computeButton.dataset.runId || $('#runPicker')?.value || runState.selectedRunId || '';

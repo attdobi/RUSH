@@ -363,6 +363,18 @@
     }
   }
 
+  function openPolicyNodeById(id) {
+    const nodeId = String(id || '');
+    if (!nodeId || !currentPayload) return false;
+    const node = (currentPayload.nodes || []).find(item => item.id === nodeId);
+    if (!node) return false;
+    openPanel(node);
+    qs('#policy-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
+  }
+
+  window.rushOpenPolicyNode = openPolicyNodeById;
+
   async function loadGraph(version = '') {
     if (!window.RUSH_API?.available) {
       setUnavailable();
