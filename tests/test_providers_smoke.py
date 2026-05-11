@@ -562,8 +562,8 @@ class TestOpenAIClient:
         kwargs = fake.calls[0]
         assert kwargs["model"] == "gpt-5.5"
         assert kwargs["response_format"] == {"type": "json_object"}
-        assert kwargs["reasoning"] == {"effort": "xhigh"}
-        assert "reasoning_effort" not in kwargs
+        assert kwargs["reasoning_effort"] == "xhigh"
+        assert "reasoning" not in kwargs
         # GPT-5 family: no temperature in the standard shape.
         assert "temperature" not in kwargs
         assert kwargs["max_completion_tokens"] == 1024

@@ -9,7 +9,7 @@ d-ai-trader; we only mirror the request shape:
 * ``image_url`` carries a ``data:image/jpeg;base64,...`` URL with
   ``detail: "high"`` for the prepared image;
 * ``response_format={"type": "json_object"}`` for deterministic parsing;
-* ``reasoning={"effort": ...}`` honored when the model accepts it.
+* ``reasoning_effort=...`` honored when the model accepts it.
 
 Image bytes are produced exclusively by
 :func:`pipeline.labeling.image_prep.prepare_image_for_labeling`. The
@@ -144,7 +144,7 @@ class OpenAIClient(LabelClient):
             "response_format": {"type": "json_object"},
         }
         if self.config.reasoning_effort:
-            params["reasoning"] = {"effort": self.config.reasoning_effort}
+            params["reasoning_effort"] = self.config.reasoning_effort
         # GPT-5.5 reasoning models do not accept custom temperature; never
         # forward it for OpenAI while preserving reasoning behavior.
         for k, v in self.config.extra_params.items():
