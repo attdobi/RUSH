@@ -836,17 +836,17 @@ function initInlineJustificationStyles() {
     .image-id-button strong { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
     .justification-row td { background: rgba(15, 23, 42, 0.035); }
     .inline-justification-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 10px 0; }
-    .inline-justification-card { border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; padding: 10px; background: rgba(255, 255, 255, 0.72); }
+    .inline-justification-card { border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 14px; padding: 10px; background: linear-gradient(180deg, rgba(17, 27, 51, .94), rgba(9, 16, 31, .94)); }
     .inline-justification-card header { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 8px; }
     .inline-justification-card code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82em; }
     .inline-justification-card dl { display: grid; grid-template-columns: 84px 1fr; gap: 4px 8px; margin: 0; font-size: 0.85rem; }
-    .inline-justification-card dt { color: #64748b; }
+    .inline-justification-card dt { color: var(--muted); }
     .inline-justification-card dd { margin: 0; }
     .inline-justification-card p { margin: 8px 0 0; line-height: 1.45; white-space: normal; }
     .policy-citation-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
     .policy-citation-chip { border: 1px solid rgba(37, 99, 235, 0.28); border-radius: 999px; background: rgba(219, 234, 254, 0.78); color: #1e3a8a; cursor: pointer; font: 600 0.75rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 3px 7px; }
     .policy-quotes { display: grid; gap: 6px; margin-top: 8px; }
-    .policy-quotes blockquote { margin: 0; border-left: 3px solid rgba(59, 130, 246, 0.45); padding-left: 9px; color: #475569; font-style: italic; }
+    .policy-quotes blockquote { margin: 0; border-left: 3px solid rgba(59, 130, 246, 0.45); padding-left: 9px; color: var(--muted); font-style: italic; }
   `;
   document.head.appendChild(style);
 }
