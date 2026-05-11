@@ -1,5 +1,103 @@
 # Batch API architecture for RUSH labeling
 
+Executive summary:
+- **C.1 prompt caching**: 50–90% input-token discount on the stable policy/system block with no async lifecycle changes.
+- **C.2 provider Batch APIs**: 50% off input and output tokens, traded for asynchronous execution and a provider 24h SLA.
+- **Combined**: typical 200-image, 3-model runs project from **$21.64 baseline → $4.46 caching-only → $2.23 caching+batch** (about 79% and 90% savings respectively).
+- **Recommendation**: ship C.1 first because it is independent and low-risk; ship C.2 after Attila approves the async lifecycle tradeoff.
+
+## Sub-PR C.1: Prompt caching (ship immediately, independent of batch)
+
+Attila's quote: "I need to utilize the prompt-caching to save money (since the policy input tokens don't change only the image)"
+
+The policy block + system prompt is identical across all calls for a given policy version. Only the image bytes vary. Prompt caching gives 50–90% input-token discount on cache hits with no async lifecycle changes — ship it first.
+
+### Provider mechanics
+
+**Anthropic Messages API**
+- Add `"cache_control": {"type": "ephemeral"}` to the last content block you want cached (system prompt and/or policy block, NOT the image block).
+- Min cacheable tokens: 1024 (Opus), 2048 (Sonnet), 4096 (Haiku).
+- TTL: 5 min default; 1 hour via beta header `anthropic-beta: extended-cache-ttl-2025-04-11`.
+- Pricing: cache writes 1.25× standard input; cache hits 0.1× standard input (90% discount).
+- Hit verification: response `usage.cache_creation_input_tokens` + `usage.cache_read_input_tokens`.
+- Implementation site: `pipeline/providers/anthropic_chat.py` — wrap the system + policy in cached blocks; image block stays uncached.
+- Snippet:
+  ```python
+  system_blocks = [
+      {"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}},
+  ]
+  user_blocks = [
+      {"type": "text", "text": policy_text, "cache_control": {"type": "ephemeral"}},
+      {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
+  ]
+  ```
+
+**OpenAI (Chat Completions / Responses)**
+- Automatic for prefixes ≥1024 tokens. Use `prompt_cache_key` (Responses API) for stable cache pinning.
+- Pricing: cache hits 50% off input generically; the current GPT-5.5 pricing page lists cached input at `$0.50 / 1M` vs `$5.00 / 1M` input, so use the model page when calculating realized savings.
+- Hit verification: `usage.prompt_tokens_details.cached_tokens`.
+- Implementation site: `pipeline/providers/openai_chat.py` — pass `prompt_cache_key=f"rush-policy-{policy_version}"` per request.
+
+**Google Gemini**
+- Two paths:
+  - **Implicit caching** (Gemini 2.5+): automatic for prefixes ≥4096 tokens, no code change beyond stable prompt prefix order. ~75% discount.
+  - **Explicit Caches API**: create `cachedContent` once per policy version, reference in each `generate_content`. More work, longer TTL, guaranteed.
+- Hit verification: `usage_metadata.cached_content_token_count`.
+- Recommendation: start with implicit; if measured hit rate < 80%, escalate to explicit.
+- Implementation site: `pipeline/providers/gemini_client.py`.
+
+### Stable cache-key derivation
+
+Cache requires byte-identical prefix. Recommend a new module `pipeline/providers/_cache.py`:
+
+```python
+def build_cached_prefix(policy_version: str) -> tuple[str, str]:
+    """Returns (system_prompt, policy_text) — deterministic, byte-stable per policy_version."""
+    # canonical assembly: sorted keys, fixed whitespace
+    ...
+
+def policy_cache_key(policy_version: str, prompt_version: str) -> str:
+    return hashlib.sha256(f"rush|{prompt_version}|{policy_version}".encode()).hexdigest()[:32]
+```
+
+### Cost projection — 200-image, 3-model run
+
+Assumptions: policy + system ≈ 8000 input tokens; per-call output ≈ 200 tokens; 200 imgs × 3 models = 600 calls. Image-token costs are excluded from this projection because the stable policy/system prefix is the portion prompt caching discounts; include image token accounting in the implementation cost report once providers expose it consistently.
+
+Current provider rates used here:
+- Anthropic Claude Opus 4.6: `$5 / MTok` input, `$25 / MTok` output, `$6.25 / MTok` 5m cache write, `$0.50 / MTok` cache hit. Source: <https://platform.claude.com/docs/en/about-claude/pricing>.
+- OpenAI GPT-5.5: `$5.00 / 1M tokens` input, `$0.50 / 1M tokens` cached input, `$30.00 / 1M tokens` output. Source: <https://openai.com/api/pricing/>.
+- Gemini 3.1 Pro Preview (Standard): `$2.00 / 1M tokens` input for prompts ≤200k tokens, `$6.00 / 1M tokens` output, `$0.20 / 1M tokens` context caching. Source: <https://ai.google.dev/gemini-api/docs/pricing>.
+
+Compute: one warmup/cache-write call per model plus 199 cache hits per model. Batch is modeled as 50% off all input/output charges; caching + batch assumes provider discounts stack, matching Anthropic's documented stacking behavior and to be verified for OpenAI/Gemini before launch.
+
+| Scenario | Total cost (200×3 = 600 calls) | Savings vs baseline |
+|---|---:|---:|
+| Baseline (no cache, no batch) | `$21.64` | — |
+| Caching only (1 warmup per model, 199 hits) | `$4.46` | `79.4%` |
+| Batch only (50% off all calls) | `$10.82` | `50.0%` |
+| Caching + batch combined | `$2.23` | `89.7%` |
+
+Per-model contribution: Anthropic `$9.00 → $1.85 → $0.92` (baseline → caching → caching+batch), OpenAI `$9.20 → $2.04 → $1.02`, Gemini `$3.44 → $0.57 → $0.29`.
+
+### Verification plan
+
+- Add cache-hit assertions in tests: mock provider responses to include cache metadata; tests confirm we log it to manifests.
+- Smoke script `scripts/verify_prompt_caching.py`: fire 3 sequential live calls per provider against the same policy version; assert ≥2 cache hits.
+
+### Implementation phases (C.1 only)
+
+- Phase 1 (1 day): Anthropic caching + tests.
+- Phase 2 (1 day): OpenAI cache_key + tests.
+- Phase 3 (1 day): Gemini implicit + verification; explicit if hit rate too low.
+- Phase 4 (0.5 day): smoke script + cost-report surfacing in `run_manifest.json` usage block.
+
+### Open questions
+
+- Anthropic 1-hour TTL beta — opt in? (cost stability vs beta-flag risk)
+- Gemini implicit vs explicit — start implicit, measure?
+- Should `run_manifest.json` `totals` include cache-hit-rate per provider? (yes — surfaces savings)
+
 ## 1. Current state
 
 RUSH currently does synchronous, per-image calls. The web registry starts `scripts/run_bulk_labeling.py` as a subprocess (`pipeline/web/run_registry.py:134-203`), which resolves live clients through `_resolve_factory(use_live)` -> `build_client(spec.model_id, reasoning_effort=...)` (`scripts/run_bulk_labeling.py:84-105`; `pipeline/providers/registry.py:167-215`). `run_labeling(...)` builds deterministic `(sample, model)` pairs (`pipeline/runner.py:393-479`), then `_process(pair)` builds exactly one `LabelRequest` and calls `response = client.label(request)` (`pipeline/runner.py:508-522`). With `concurrency > 1`, the same one-request function is submitted to a `ThreadPoolExecutor` (`pipeline/runner.py:573-590`). Provider clients implement only `LabelClient.label(request) -> LabelResponse` (`pipeline/providers/base.py:371-394`): OpenAI calls `client.chat.completions.create(**api_params)` (`pipeline/providers/openai_client.py:205-222`), Anthropic calls `client.messages.create(**api_params)` (`pipeline/providers/anthropic_client.py:192-209`), and Gemini calls `client.models.generate_content(**api_params)` (`pipeline/providers/gemini_client.py:204-221`). So a 15-image run is 15 independent sync API calls per selected model, not one provider batch.
