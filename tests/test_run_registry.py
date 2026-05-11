@@ -146,3 +146,45 @@ def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_pa
     assert status["completed_calls"] == 3
     assert status["progress"] == 1.0
     assert any(run_id in line for line in status["log_tail"])
+
+
+def test_start_job_omits_reasoning_arg_when_variant_carries_effort(monkeypatch, tmp_path: Path) -> None:
+    created: list["FakePopen"] = []
+
+    class EmptyStdout:
+        def __iter__(self):
+            return iter(())
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            self.argv = argv
+            self.pid = 23456
+            self.stdout = EmptyStdout()
+            created.append(self)
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(run_registry_mod.subprocess, "Popen", FakePopen)
+    registry = RunRegistry(tmp_path)
+    state = registry.start_job(
+        {
+            "models": ["openai/gpt-5.5-xhigh", "openai/gpt-5.5-high"],
+            "split": "dev_golden",
+            "limit": 3,
+            "sample_ids": None,
+            "policy_version": "v0.1",
+            "mode": "cold_start",
+            "reasoning_effort": None,
+            "allow_spend": True,
+            "allow_holdout": False,
+            "concurrency": 1,
+        }
+    )
+
+    assert created
+    assert "--reasoning-effort" not in created[0].argv
+    assert state["reasoning_effort"] is None

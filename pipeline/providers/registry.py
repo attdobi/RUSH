@@ -62,6 +62,26 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "max_completion_tokens": 24000,
         },
     ),
+    "openai/gpt-5.5-xhigh": ModelSpec(
+        model_id="openai/gpt-5.5-xhigh",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
+            "reasoning_effort": "xhigh",
+            "max_completion_tokens": 24000,
+        },
+    ),
+    "openai/gpt-5.5-high": ModelSpec(
+        model_id="openai/gpt-5.5-high",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
+            "reasoning_effort": "high",
+            "max_completion_tokens": 24000,
+        },
+    ),
     "google/gemini-3.1-pro-preview": ModelSpec(
         model_id="google/gemini-3.1-pro-preview",
         provider="gemini",
@@ -95,6 +115,26 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="gpt-5.4-mini",
         phase=2,
         params={
+            "max_completion_tokens": 2000,
+        },
+    ),
+    "openai/gpt-5.4-mini-xhigh": ModelSpec(
+        model_id="openai/gpt-5.4-mini-xhigh",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "xhigh",
+            "max_completion_tokens": 2000,
+        },
+    ),
+    "openai/gpt-5.4-mini-high": ModelSpec(
+        model_id="openai/gpt-5.4-mini-high",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "high",
             "max_completion_tokens": 2000,
         },
     ),
@@ -133,7 +173,9 @@ def build_client(
         client: Optional pre-built SDK client, forwarded to the provider
             constructor. ``None`` lets the client lazy-initialize.
         reasoning_effort: Optional per-run OpenAI reasoning override for
-            ``openai/gpt-5.5``.
+            historical ``openai/gpt-5.5``. Variant ids such as
+            ``openai/gpt-5.5-high`` encode their reasoning level in the
+            registry and should not be combined with this override.
 
     Returns:
         A ready-to-call :class:`LabelClient` instance.

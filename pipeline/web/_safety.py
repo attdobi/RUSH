@@ -126,8 +126,11 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
             details={"field": "mode"},
         )
 
-    reasoning_effort = payload.get("reasoning_effort", "xhigh")
-    if reasoning_effort not in _ALLOWED_REASONING_EFFORTS:
+    reasoning_effort = payload.get("reasoning_effort")
+    if reasoning_effort is not None and (
+        not isinstance(reasoning_effort, str)
+        or reasoning_effort not in _ALLOWED_REASONING_EFFORTS
+    ):
         raise APIError(
             400,
             "validation_error",

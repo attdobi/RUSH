@@ -6,7 +6,7 @@ area: Generative_AI
 node_type: category
 parent: GA.visual_artifacts
 polarity: positive
-status: stub
+status: draft
 coverage_weight: 1.0
 coverage_target:
   easy_positive: 0

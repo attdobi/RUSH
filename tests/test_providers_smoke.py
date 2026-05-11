@@ -854,6 +854,32 @@ class TestRegistry:
         assert isinstance(gemini, GeminiClient)
         assert gemini.config.thinking_budget_tokens == -1
 
+    @pytest.mark.parametrize(
+        ("model_id", "vendor_model", "reasoning_effort", "max_completion_tokens"),
+        [
+            ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 24000),
+            ("openai/gpt-5.5-high", "gpt-5.5", "high", 24000),
+            ("openai/gpt-5.4-mini-xhigh", "gpt-5.4-mini", "xhigh", 2000),
+            ("openai/gpt-5.4-mini-high", "gpt-5.4-mini", "high", 2000),
+        ],
+    )
+    def test_openai_reasoning_variants_build_client_config(
+        self,
+        model_id: str,
+        vendor_model: str,
+        reasoning_effort: str,
+        max_completion_tokens: int,
+    ) -> None:
+        client = build_client(
+            model_id,
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+
+        assert isinstance(client, OpenAIClient)
+        assert client.config.model_name == vendor_model
+        assert client.config.reasoning_effort == reasoning_effort
+        assert client.config.max_completion_tokens == max_completion_tokens
+
     def test_build_client_unknown_model_raises(self) -> None:
         with pytest.raises(KeyError):
             build_client("nope/nope")

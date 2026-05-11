@@ -145,9 +145,9 @@ class RunRegistry:
             "--allow-spend",
             "--concurrency",
             str(request["concurrency"]),
-            "--reasoning-effort",
-            request.get("reasoning_effort", "xhigh"),
         ]
+        if request.get("reasoning_effort") is not None:
+            argv.extend(["--reasoning-effort", request["reasoning_effort"]])
         if request.get("limit") is not None:
             argv.extend(["--limit", str(request["limit"])])
         if request.get("sample_ids"):
@@ -166,7 +166,9 @@ class RunRegistry:
             "models": list(request["models"]),
             "split": request["split"],
             "mode": request["mode"],
-            "reasoning_effort": request.get("reasoning_effort", "xhigh"),
+            # New picker flow encodes reasoning in model ids; keep this nullable
+            # and let per-model ids/runtime config be the source of truth.
+            "reasoning_effort": request.get("reasoning_effort"),
             "policy_version": request["policy_version"],
             "allow_spend": bool(request["allow_spend"]),
         }
