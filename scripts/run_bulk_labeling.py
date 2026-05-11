@@ -78,6 +78,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Confirms intentional spend; required alongside --live.")
     parser.add_argument("--plan-only", action="store_true",
                         help="Print the dispatch plan and exit without touching disk.")
+    parser.add_argument("--no-score", action="store_true",
+                        help="Skip automatic scoring after a successful labeling run.")
     return parser.parse_args(argv)
 
 
@@ -183,6 +185,19 @@ def main(argv: list[str] | None = None) -> int:
         reasoning_effort=args.reasoning_effort,
     )
 
+    scoring_result = None
+    if not args.no_score and summary.errored_calls == 0:
+        try:
+            from pipeline.scoring.run_scoring import run_scoring  # noqa: PLC0415
+
+            scoring_result = run_scoring(summary.run_id, ROOT, runs_root=args.runs_root)
+        except Exception as exc:  # noqa: BLE001 - keep successful labeling runs successful
+            print(
+                f"[X2] warning: automatic scoring failed for run {summary.run_id}: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+
     payload = {
         "run_id": summary.run_id,
         "run_dir": str(summary.paths.root),
@@ -192,6 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         "started_at": summary.started_at,
         "finished_at": summary.finished_at,
         "dry_run": summary.dry_run,
+        "scoring": scoring_result,
     }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")

@@ -21,7 +21,7 @@ import io
 import json
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -461,6 +461,26 @@ class TestPlanOnlyCli(unittest.TestCase):
         self.assertEqual(plan["n_calls"], 8)
         self.assertEqual(plan["models"], ["openai/gpt-5.5", "anthropic/claude-opus-4-6"])
         self.assertTrue(plan["dry_run"])
+
+    def test_cli_auto_scores_successful_dry_run(self):
+        from scripts.run_bulk_labeling import main
+
+        with TemporaryDirectory() as tmp:
+            buf = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(buf), redirect_stderr(err):
+                rc = main([
+                    "--models", "openai/gpt-5.5",
+                    "--split", "dev_golden",
+                    "--limit", "2",
+                    "--runs-root", tmp,
+                ])
+            self.assertEqual(rc, 0, err.getvalue())
+            payload = json.loads(buf.getvalue())
+            run_dir = Path(payload["run_dir"])
+            self.assertIsNotNone(payload["scoring"])
+            self.assertTrue((run_dir / "scoring" / "consensus.json").exists())
+            self.assertTrue((run_dir / "scoring" / "misalignment.json").exists())
 
 
 if __name__ == "__main__":  # pragma: no cover
