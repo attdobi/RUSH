@@ -12,34 +12,32 @@
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="nav-pills" aria-label="Page sections">
         <a href="#demo">Demo</a>
+        <a href="#policy-graph">Policy graph</a>
         <a href="#runs">Runs</a>
-        <a href="#flip-rate-panel">Policy clarity</a>
-        <a href="#borderline">Borderline</a>
-        <a href="#misalignment">Misalignment</a>
-        <a href="#system">System</a>
         <a href="#run-trigger">Run</a>
+        <a href="#consensus">Consensus</a>
         <a href="#decision-quality-overview">Decision quality</a>
         <a href="#insights">Insights</a>
+        <a href="#misalignment">Misalignment</a>
+        <a href="#borderline">Borderline</a>
+        <a href="#flip-rate-panel">Flip rate</a>
         <a href="#policy-proposals">Proposals</a>
         <a href="#policy">Policy loop</a>
-        <a href="#quality">Decision quality</a>
+        <a href="#system">System</a>
         <a href="#roadmap">Next</a>
       </div>
     </nav>
 
     <section class="hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">SME-in-the-loop policy intelligence</p>
+        <p class="eyebrow">Policy-aware bulk LLM image labeling</p>
         <h1>Turn expert judgment into a living policy graph, then use LLMs to find the cases humans should re-check.</h1>
-        <p class="lede">RUSH starts with SME-quality examples, builds a versioned policy graph, and treats high-reasoning LLMs as misalignment detectors — not ground truth. This demo cold-starts GenAI image classification and sets up bulk model labeling as the next step.</p>
+        <p class="lede">RUSH cold-starts a policy graph, runs multiple LLMs over the same images, and surfaces consensus, disagreement, decision quality, and cost in one place.</p>
         <div class="hero-actions">
           <a class="primary-action" href="#demo">Start GenAI demo</a>
           <a id="policyPdfLink" class="primary-action ghost" href="policy.pdf" target="_blank" rel="noopener">Download bound policy (PDF)</a>
-          <span class="quiet-pill">Consensus ≠ truth</span>
-          <span class="quiet-pill">Gold/platinum SME labels win</span>
           <span class="quiet-pill">Provider images: longest edge ≤1024 · JPEG q≈85</span>
         </div>
-        <p class="fineprint">PDF is built on demand from <code>policy-graph/Generative_AI/v0.1/*.md</code> via <code>scripts/build_policy_pdf.py</code>; it is not committed. If the link 404s, run the script locally first.</p>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
         <div class="loop-step active"><strong>1</strong><span>Sample candidate images</span></div>
@@ -201,16 +199,6 @@
       </div>
     </section>
 
-    <section id="quality" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Decision quality</p>
-        <h2>Assume SME quality in the demo. Use LLMs to surface what might be wrong.</h2>
-        <p>For the VC story, the sampled labels are treated as SME-quality candidates. Bulk LLM labeling will compare models against that truth, then prioritize misalignments, hard negatives, and policy gaps for SME review.</p>
-      </div>
-      <div id="qualityCards" class="quality-grid"></div>
-      <div id="misalignmentQueue" class="queue-grid"></div>
-    </section>
-
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API not running — start <code>python scripts/rush_web_server.py</code> to enable run controls, decision quality, insights, and policy proposals.</div>
 
     <section id="run-trigger" class="section api-section" hidden>
@@ -220,9 +208,10 @@
         <p>Launch API-backed bulk labeling from the browser, then watch progress and score the run when it finishes.</p>
       </div>
       <div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
-        <label>Models
-          <select id="runTriggerModels" multiple size="6"></select>
-        </label>
+        <fieldset class="model-picker" aria-label="Models">
+          <legend>Models</legend>
+          <div id="runTriggerModels" class="model-picker-list"></div>
+        </fieldset>
         <label>Split
           <select id="runTriggerSplit">
             <option value="dev_golden">dev_golden</option>
@@ -250,7 +239,7 @@
       </div>
       <div id="runTriggerStatusLine" class="status-line" role="status"></div>
       <div id="runTriggerStatusPanel" class="api-panel" hidden>
-        <div class="progress-row"><strong id="runTriggerRunId">No run started</strong><span id="runTriggerProgressText">0 / 0 calls</span></div>
+        <div class="progress-row"><strong id="runTriggerRunId">No run started</strong><span id="runTriggerProgressText">0 / 0 calls</span><span id="runTriggerCostBadge" class="cost-badge" hidden>$0.00 spent</span></div>
         <div class="progress-track" aria-hidden="true"><span id="runTriggerProgressBar" style="width:0%"></span></div>
         <pre id="runTriggerLogTail" class="log-tail"></pre>
         <button id="scoreRunNow" type="button" hidden>Score now</button>

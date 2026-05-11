@@ -1,27 +1,66 @@
 (() => {
   const POLL_MS = 2000;
   const MAX_POLL_MS = 30 * 60 * 1000;
-  // TODO: Source this list from a future /api/models endpoint.
-  const MODEL_IDS = [
-    'openai/gpt-5.5',
-    'anthropic/claude-opus-4-6',
-    'anthropic/claude-opus-4-7',
-    'google/gemini-3.1-pro-preview',
-    'openai/gpt-5.4-mini',
-    'google/gemini-3.1-flash-lite-preview'
+
+  const MODEL_GROUPS = [
+    {
+      phase: 'Phase 1 · defaults',
+      checked: true,
+      models: [
+        'openai/gpt-5.5',
+        'anthropic/claude-opus-4-6',
+        'google/gemini-3.1-pro-preview'
+      ]
+    },
+    {
+      phase: 'Phase 2 · optional sweep',
+      checked: false,
+      models: [
+        'anthropic/claude-opus-4-7',
+        'openai/gpt-5.4-mini',
+        'google/gemini-3.1-flash-lite-preview'
+      ]
+    }
   ];
+
+  // Mirror of pipeline/providers/pricing.py — keep in sync.
+  const PRICING_PER_MTOK = {
+    'openai/gpt-5.5': { input: 1.25, output: 10.0 },
+    'google/gemini-3.1-pro-preview': { input: 1.25, output: 5.0 },
+    'anthropic/claude-opus-4-6': { input: 15.0, output: 75.0 },
+    'anthropic/claude-opus-4-7': { input: 15.0, output: 75.0 },
+    'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
+    'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 }
+  };
 
   const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false };
 
+  function estimatePerThousandLabels(model) {
+    const pricing = PRICING_PER_MTOK[model];
+    if (!pricing) return null;
+    return ((pricing.input * 800 + pricing.output * 400) / 1_000_000) * 1000;
+  }
+
   function selectedModels() {
-    const select = $('#runTriggerModels');
-    return Array.from(select?.selectedOptions || []).map(option => option.value).filter(Boolean);
+    const picker = $('#runTriggerModels');
+    return Array.from(picker?.querySelectorAll('input[type="checkbox"]:checked') || [])
+      .map(input => input.value)
+      .filter(Boolean);
+  }
+
+  function renderModelPick(model, checked) {
+    const estimate = estimatePerThousandLabels(model);
+    const estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (rough estimate)`;
+    return `<label class="model-pick"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span></label>`;
   }
 
   function populateModels() {
-    const select = $('#runTriggerModels');
-    if (!select) return;
-    select.innerHTML = MODEL_IDS.map((model, index) => rushApiOptionHtml(model, model, index < 2)).join('');
+    const picker = $('#runTriggerModels');
+    if (!picker) return;
+    picker.innerHTML = MODEL_GROUPS.map(group => `
+      <div class="model-picker-phase">${esc(group.phase)}</div>
+      ${group.models.map(model => renderModelPick(model, group.checked)).join('')}
+    `).join('');
   }
 
   function populatePolicies() {
@@ -86,6 +125,15 @@
     if (runIdEl) runIdEl.textContent = runId ? `Run ${runId}` : 'Run status';
     const progressEl = $('#runTriggerProgressText');
     if (progressEl) progressEl.textContent = `${completed} / ${expected || '—'} calls${errored ? ` · ${errored} errored` : ''}`;
+    const costBadge = $('#runTriggerCostBadge');
+    if (costBadge) {
+      if (isNumber(payload.running_cost_usd_estimate)) {
+        costBadge.textContent = `$${payload.running_cost_usd_estimate.toFixed(4)} spent`;
+        costBadge.hidden = false;
+      } else {
+        costBadge.hidden = true;
+      }
+    }
     const bar = $('#runTriggerProgressBar');
     if (bar) bar.style.width = `${width.toFixed(1)}%`;
     const log = $('#runTriggerLogTail');

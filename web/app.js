@@ -321,37 +321,10 @@ function renderPolicy() {
   ].map(([k, v, d]) => `<div class="timeline-row"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(d)}</p></div>`).join('');
 }
 
-function overrideCounts() {
-  const values = Object.values(demoState.overrides).filter(item => item.label !== 'none' || item.note.trim());
-  return { total: values.length, labels: values.filter(item => item.label !== 'none').length };
-}
-
-function renderQuality() {
-  const result = demoState.result;
-  if (!result) return;
-  const overrides = overrideCounts();
-  const ai = result.combined.filter(row => row.label === 'ai_generated').length;
-  const notAi = result.combined.length - ai;
-  $('#qualityCards').innerHTML = [
-    ['SME truth baseline', 'assumed ready', 'Demo labels are treated as SME-quality candidates until actual review tiers are wired.'],
-    ['Model outputs', 'not started', 'Next phase runs multiple models with API keys and structured policy-node evidence.'],
-    ['Review pressure', `${overrides.total} notes`, `${overrides.labels} explicit SME label overrides captured in this browser session.`],
-    ['Class mix', `${ai} / ${notAi}`, 'AI-generated vs not-AI candidates in the active sample.']
-  ].map(([label, value, note]) => `<article class="quality-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note)}</p></article>`).join('');
-
-  const queue = [
-    { title: 'Consensus failure audit', body: 'Even 3/3 LLM agreement gets sampled for SME audit to catch correlated failure.', rows: result.devGolden.slice(0, 2) },
-    { title: 'Boundary hard negatives', body: 'Real edits, CGI/game renders, and low-quality uncertain cases are routed separately from positives.', rows: result.combined.filter(r => r.label === 'not_ai_generated').slice(0, 2) },
-    { title: 'Policy gap finder', body: 'Repeated LLM/SME disagreement clusters become candidate Markdown graph diffs.', rows: result.combined.slice(2, 4) }
-  ];
-  $('#misalignmentQueue').innerHTML = queue.map(item => `<article class="queue-card"><h3>${esc(item.title)}</h3><p>${esc(item.body)}</p>${item.rows.map(row => renderSampleCard(row, true)).join('')}</article>`).join('');
-}
-
 function renderAll() {
   renderStats();
   renderGallery();
   renderPolicy();
-  renderQuality();
 }
 
 function setSamplerLoading(isLoading) {
@@ -939,14 +912,12 @@ function bindControls() {
     if (target.classList.contains('override-note')) current.note = target.value;
     if (target.classList.contains('override-label')) current.label = target.value;
     demoState.overrides[sampleId] = current;
-    renderQuality();
   });
   document.body.addEventListener('change', event => {
     const target = event.target;
     const sampleId = target?.dataset?.sampleId;
     if (!sampleId || !target.classList.contains('override-label')) return;
     demoState.overrides[sampleId] = { ...overrideFor(sampleId), label: target.value };
-    renderQuality();
     renderGallery();
   });
 }
@@ -960,10 +931,27 @@ function bindRunControls() {
   });
 }
 
+function initActiveNav() {
+  const links = Array.from(document.querySelectorAll('.nav-pills a[href^="#"]'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map(link => [link.getAttribute('href').slice(1), link]));
+  const observer = new IntersectionObserver(entries => {
+    const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    links.forEach(link => link.classList.remove('active'));
+    byId.get(visible.target.id)?.classList.add('active');
+  }, { rootMargin: '-18% 0px -65% 0px', threshold: [0.01, 0.25, 0.5] });
+  byId.forEach((link, id) => {
+    const section = document.getElementById(id);
+    if (section) observer.observe(section);
+  });
+}
+
 function init() {
   $('#policyNodeList').innerHTML = '';
   bindControls();
   bindRunControls();
+  initActiveNav();
   initApi();
   runSamplerDemo();
   loadFlipRate();
