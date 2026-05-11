@@ -25,11 +25,12 @@ sys.path.insert(0, str(ROOT))
 from pipeline.scoring import (  # noqa: E402
     borderline as borderline_mod,
     consensus as consensus_mod,
+    cost as cost_mod,
     decision_quality as dq_mod,
     exporters as exporters_mod,
     misalignment as mis_mod,
 )
-from pipeline.scoring._common import load_ground_truth, load_label_votes  # noqa: E402
+from pipeline.scoring._common import load_ground_truth, load_label_votes, try_validate  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -110,6 +111,14 @@ def main() -> int:
 
     # Consensus / majority-vote layer (additive; pure function on the raw votes).
     votes_raw = load_label_votes(votes_path)
+    cost_summary = cost_mod.aggregate_per_call_costs(votes_raw)
+    dq = cost_mod.attach_cost_to_labelers(dq, cost_summary)
+    if schemas_dir is not None:
+        errs = try_validate(
+            dq, schemas_dir / "decision-quality.schema.json", label="decision-quality"
+        )
+        if errs:
+            raise ValueError("decision-quality validation failed after cost attach: " + "; ".join(errs))
     consensus_records = consensus_mod.build_consensus_records(
         votes_raw, run_id=args.run_id
     )
@@ -130,6 +139,7 @@ def main() -> int:
 
     scoring_dir = run_dir / "scoring"
     _atomic_write_json(scoring_dir / "decision_quality.json", dq)
+    _atomic_write_json(scoring_dir / "cost.json", cost_summary)
     _atomic_write_json(scoring_dir / "misalignment.json", mis)
     _atomic_write_json(scoring_dir / "borderline.json", bord)
     _atomic_write_json(scoring_dir / "consensus.json", consensus_summary)
@@ -164,7 +174,9 @@ def main() -> int:
         f"DQ: {len(dq.get('labelers', []))} labelers | "
         f"misalignment: {mis['summary']} | "
         f"borderline: {bord['summary']} | "
-        f"consensus: {consensus_rollup}"
+        f"consensus: {consensus_rollup} | "
+        f"total_cost_usd: {cost_summary['total_cost_usd']:.6f} | "
+        f"cost_per_1000_labels: {cost_summary['cost_per_1000_labels']}"
     )
     return 0
 

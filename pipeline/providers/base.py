@@ -102,6 +102,9 @@ class LabelResponse:
     prepared_image_height: int = 0
     prepared_image_mime_type: str = ""
     prepared_image_byte_size: int = 0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serializable shape for downstream persistence."""

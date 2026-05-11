@@ -40,6 +40,7 @@ from pipeline.providers.base import (
     parse_label_json,
     strip_image_bytes,
 )
+from pipeline.providers.pricing import compute_call_cost
 from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
@@ -254,6 +255,10 @@ class OpenAIClient(LabelClient):
         elapsed = int((time.monotonic() - start) * 1000)
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
+        input_tokens, output_tokens = self._extract_usage_tokens(response)
+        if input_tokens is None and output_tokens is None:
+            logger.info("usage_unknown for %s", request.model_id)
+        cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
 
         try:
             parsed = parse_label_json(text)
@@ -291,11 +296,36 @@ class OpenAIClient(LabelClient):
             prepared_image_height=prepared.height,
             prepared_image_mime_type=prepared.mime_type,
             prepared_image_byte_size=prepared.byte_size,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
         )
 
     # ------------------------------------------------------------------
     # Response helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
+        usage = getattr(response, "usage", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage")
+        if usage is None:
+            return None, None
+        prompt = getattr(usage, "prompt_tokens", None)
+        completion = getattr(usage, "completion_tokens", None)
+        if isinstance(usage, dict):
+            prompt = usage.get("prompt_tokens", prompt)
+            completion = usage.get("completion_tokens", completion)
+        try:
+            input_tokens = int(prompt) if prompt is not None else None
+        except (TypeError, ValueError):
+            input_tokens = None
+        try:
+            output_tokens = int(completion) if completion is not None else None
+        except (TypeError, ValueError):
+            output_tokens = None
+        return input_tokens, output_tokens
 
     @staticmethod
     def _extract_text(response: Any) -> str:

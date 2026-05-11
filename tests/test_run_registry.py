@@ -50,6 +50,22 @@ def test_list_runs_ignores_internal_dirs(tmp_path: Path) -> None:
     assert all(not r["run_id"].startswith("_") for r in runs)
 
 
+def test_status_includes_running_cost_estimate(tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T230000-aaaaaaaa"
+    _make_run(runs_root, run_id, started_at="2026-05-10T23:00:00Z")
+    run_dir = runs_root / run_id
+    (run_dir / "label_votes.jsonl").write_text(
+        '{"cost_usd": 0.10}\n{"cost_usd": null}\n{"cost_usd": 0.25}\n',
+        encoding="utf-8",
+    )
+
+    status = RunRegistry(tmp_path).status(run_id)
+
+    assert status["completed_calls"] == 3
+    assert status["running_cost_usd_estimate"] == 0.35
+
+
 def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_path: Path) -> None:
     run_id = "20260510T232000-cccccccc"
     done = threading.Event()

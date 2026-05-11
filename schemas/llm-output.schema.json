@@ -13,15 +13,39 @@
   ],
   "properties": {
     "label": {
-      "enum": ["violative", "non_violative", "abstain", "gen_ai", "not_gen_ai"]
+      "enum": [
+        "violative",
+        "non_violative",
+        "abstain",
+        "gen_ai",
+        "not_gen_ai"
+      ]
     },
-    "l2_label": {"type": "string"},
-    "justification": {"type": "string", "minLength": 10},
-    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "l2_label": {
+      "type": "string"
+    },
+    "justification": {
+      "type": "string",
+      "minLength": 10
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
     "difficulty": {
-      "enum": ["high", "medium", "low"]
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
     },
-    "is_boundary": {"type": "boolean"},
+    "is_boundary": {
+      "type": "boolean"
+    },
     "prepared_image_sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
@@ -45,6 +69,27 @@
       "type": "integer",
       "minimum": 1,
       "description": "Byte length of the downsampled JPEG payload."
+    },
+    "input_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "output_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "cost_usd": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
     }
   },
   "additionalProperties": false

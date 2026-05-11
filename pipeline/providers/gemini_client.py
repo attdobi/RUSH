@@ -38,6 +38,7 @@ from pipeline.providers.base import (
     parse_label_json,
     strip_image_bytes,
 )
+from pipeline.providers.pricing import compute_call_cost
 from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
@@ -245,6 +246,10 @@ class GeminiClient(LabelClient):
         elapsed = int((time.monotonic() - start) * 1000)
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
+        input_tokens, output_tokens = self._extract_usage_tokens(response)
+        if input_tokens is None and output_tokens is None:
+            logger.info("usage_unknown for %s", request.model_id)
+        cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
 
         try:
             parsed = parse_label_json(text)
@@ -282,11 +287,40 @@ class GeminiClient(LabelClient):
             prepared_image_height=prepared.height,
             prepared_image_mime_type=prepared.mime_type,
             prepared_image_byte_size=prepared.byte_size,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
         )
 
     # ------------------------------------------------------------------
     # Response helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
+        usage = getattr(response, "usage_metadata", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage_metadata") or response.get("usage")
+        if usage is None:
+            return None, None
+
+        def get_field(*names: str) -> int | None:
+            for name in names:
+                value = getattr(usage, name, None)
+                if value is None and isinstance(usage, dict):
+                    value = usage.get(name)
+                if value is None:
+                    continue
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    continue
+            return None
+
+        return (
+            get_field("prompt_token_count", "input_token_count", "prompt_tokens"),
+            get_field("candidates_token_count", "output_token_count", "completion_tokens"),
+        )
 
     @staticmethod
     def _extract_text(response: Any) -> str:

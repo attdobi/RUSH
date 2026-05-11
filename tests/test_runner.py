@@ -322,6 +322,9 @@ class TestDeterministicFakeClient(unittest.TestCase):
         self.assertEqual(resp.prepared_image_mime_type, "image/jpeg")
         self.assertEqual(resp.prepared_image_width, IMAGE_PREP_LONGEST_EDGE_PX)
         self.assertGreater(resp.prepared_image_byte_size, 0)
+        self.assertIsNone(resp.input_tokens)
+        self.assertIsNone(resp.output_tokens)
+        self.assertIsNone(resp.cost_usd)
         self.assertIn(resp.label, {"gen_ai", "not_gen_ai", "abstain"})
 
 
@@ -379,10 +382,16 @@ class TestRunLabelingE2E(unittest.TestCase):
             self.assertEqual(v["prepared_image_width"], 1024)
             self.assertEqual(v["prepared_image_mime_type"], "image/jpeg")
             self.assertGreater(v["prepared_image_byte_size"], 0)
+            self.assertNotIn("input_tokens", v)
+            self.assertNotIn("output_tokens", v)
+            self.assertNotIn("cost_usd", v)
         for envelope in outputs:
             out = envelope["output"]
             self.assertIn("prepared_image_sha256", out)
             self.assertEqual(len(out["prepared_image_sha256"]), 64)
+            self.assertNotIn("input_tokens", out)
+            self.assertNotIn("output_tokens", out)
+            self.assertNotIn("cost_usd", out)
 
     def test_run_is_byte_stable_across_repeats(self):
         s1 = self._run(models=["openai/gpt-5.5"], limit=2)

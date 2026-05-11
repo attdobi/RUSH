@@ -41,6 +41,29 @@ def _count_jsonl_lines(path: Path) -> int:
         return sum(1 for line in fh if line.strip())
 
 
+def _sum_jsonl_cost(path: Path) -> float:
+    if not path.exists():
+        return 0.0
+    total = 0.0
+    with path.open("r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            value = row.get("cost_usd")
+            if value is None or isinstance(value, bool):
+                continue
+            try:
+                total += float(value)
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
 def _job_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     return f"job-{stamp}-{secrets.token_hex(4)}"
@@ -332,7 +355,9 @@ class RunRegistry:
 
         totals = manifest.get("totals", {}) if manifest else {}
         expected = int(totals.get("expected_calls") or 0)
-        completed = _count_jsonl_lines(run_dir / "label_votes.jsonl") if run_dir else 0
+        votes_path = run_dir / "label_votes.jsonl" if run_dir else None
+        completed = _count_jsonl_lines(votes_path) if votes_path else 0
+        running_cost_usd_estimate = _sum_jsonl_cost(votes_path) if votes_path else 0.0
         errored = int(totals.get("errored_calls") or 0)
         running = self.is_job_running(token) or (bool(run_id) and self.is_job_running(run_id))
         finished_at = manifest.get("finished_at") or (state or {}).get("finished_at")
@@ -349,6 +374,7 @@ class RunRegistry:
             "completed_calls": completed,
             "errored_calls": errored,
             "progress": progress,
+            "running_cost_usd_estimate": running_cost_usd_estimate,
             "scoring_done": bool(run_dir and (run_dir / "scoring" / "decision_quality.json").exists()),
             "returncode": (state or {}).get("returncode"),
             "log_tail": self.log_tail(token),

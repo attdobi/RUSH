@@ -34,6 +34,7 @@ from typing import Callable, Iterable
 from . import persistence
 from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
+from .providers.pricing import compute_call_cost
 from .io_paths import (
     DEFAULT_POLICY_GRAPH_DIR,
     DEFAULT_POLICY_GRAPH_VERSION,
@@ -214,6 +215,12 @@ def _build_llm_output(response: LabelResponse) -> dict:
         output["prepared_image_mime_type"] = response.prepared_image_mime_type
     if response.prepared_image_byte_size:
         output["prepared_image_byte_size"] = int(response.prepared_image_byte_size)
+    if response.input_tokens is not None:
+        output["input_tokens"] = int(response.input_tokens)
+    if response.output_tokens is not None:
+        output["output_tokens"] = int(response.output_tokens)
+    if response.cost_usd is not None:
+        output["cost_usd"] = float(response.cost_usd)
     return output
 
 
@@ -254,6 +261,12 @@ def _build_label_vote(
         vote["prepared_image_mime_type"] = response.prepared_image_mime_type
     if response.prepared_image_byte_size:
         vote["prepared_image_byte_size"] = int(response.prepared_image_byte_size)
+    if response.input_tokens is not None:
+        vote["input_tokens"] = int(response.input_tokens)
+    if response.output_tokens is not None:
+        vote["output_tokens"] = int(response.output_tokens)
+    if response.cost_usd is not None:
+        vote["cost_usd"] = float(response.cost_usd)
     return vote
 
 
@@ -465,6 +478,13 @@ def run_labeling(
                     prompt_version=prompt_version,
                 )
                 response = client.label(request)
+                if response.cost_usd is None:
+                    response.cost_usd = compute_call_cost(
+                        response.model_id,
+                        response.input_tokens,
+                        response.output_tokens,
+                        image_count=1,
+                    )
             except Exception as exc:  # client raised; treat as a hard error.
                 with write_lock:
                     persistence.append_error(

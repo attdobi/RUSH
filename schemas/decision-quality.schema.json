@@ -8,20 +8,41 @@
     "labelers"
   ],
   "properties": {
-    "policy_graph_version": {"type": "string"},
+    "policy_graph_version": {
+      "type": "string"
+    },
     "ground_truth_tier": {
       "type": "array",
-      "items": {"enum": ["gold", "platinum"]}
+      "items": {
+        "enum": [
+          "gold",
+          "platinum"
+        ]
+      }
     },
     "labelers": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["labeler_id", "labeler_type", "metrics"],
+        "required": [
+          "labeler_id",
+          "labeler_type",
+          "metrics"
+        ],
         "properties": {
-          "labeler_id": {"type": "string"},
-          "labeler_type": {"enum": ["llm", "ensemble", "human"]},
-          "metrics": {"$ref": "#/$defs/decision_quality_metrics"}
+          "labeler_id": {
+            "type": "string"
+          },
+          "labeler_type": {
+            "enum": [
+              "llm",
+              "ensemble",
+              "human"
+            ]
+          },
+          "metrics": {
+            "$ref": "#/$defs/decision_quality_metrics"
+          }
         },
         "additionalProperties": false
       }
@@ -30,16 +51,32 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["version", "labeler_id", "metrics"],
+        "required": [
+          "version",
+          "labeler_id",
+          "metrics"
+        ],
         "properties": {
-          "version": {"type": "string"},
-          "labeler_id": {"type": "string"},
-          "metrics": {"$ref": "#/$defs/decision_quality_metrics"}
+          "version": {
+            "type": "string"
+          },
+          "labeler_id": {
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/$defs/decision_quality_metrics"
+          }
         },
         "additionalProperties": false
       }
     },
-    "warning": {"type": "string"}
+    "warning": {
+      "type": "string"
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": true
+    }
   },
   "$defs": {
     "decision_quality_metrics": {
@@ -56,15 +93,81 @@
         "informedness"
       ],
       "properties": {
-        "accuracy": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "f1": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "precision": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "recall": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "fpr": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "fnr": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "positive_proportion": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
-        "n": {"type": "integer", "minimum": 0},
-        "informedness": {"type": ["number", "null"], "minimum": -1, "maximum": 1}
+        "accuracy": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "f1": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "precision": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recall": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fpr": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "fnr": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "positive_proportion": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "informedness": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "cost_per_1000_labels": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
       },
       "additionalProperties": false
     }

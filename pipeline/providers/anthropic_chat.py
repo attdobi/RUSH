@@ -5,6 +5,7 @@ so importing this module never performs authentication or network setup.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from pipeline.policy_iterator import ChatCallable
@@ -12,6 +13,7 @@ from pipeline.providers.registry import MODEL_REGISTRY
 
 
 _DEFAULT_MAX_TOKENS = 4096
+logger = logging.getLogger(__name__)
 
 
 def _content_to_text(content: Any) -> str:
@@ -29,6 +31,28 @@ def _content_to_text(content: Any) -> str:
                 parts.append(str(block))
         return "\n".join(parts)
     return "" if content is None else str(content)
+
+
+def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+    if usage is None:
+        return None, None
+    input_raw = getattr(usage, "input_tokens", None)
+    output_raw = getattr(usage, "output_tokens", None)
+    if isinstance(usage, dict):
+        input_raw = usage.get("input_tokens", input_raw)
+        output_raw = usage.get("output_tokens", output_raw)
+    try:
+        input_tokens = int(input_raw) if input_raw is not None else None
+    except (TypeError, ValueError):
+        input_tokens = None
+    try:
+        output_tokens = int(output_raw) if output_raw is not None else None
+    except (TypeError, ValueError):
+        output_tokens = None
+    return input_tokens, output_tokens
 
 
 def _extract_text(response: Any) -> str:
@@ -112,6 +136,9 @@ def policy_chat_callable(model_id: str) -> ChatCallable:
         if system is not None:
             params["system"] = system
         response = _ensure_client().messages.create(**params)
+        input_tokens, output_tokens = _extract_usage_tokens(response)
+        if input_tokens is None and output_tokens is None:
+            logger.info("usage_unknown for %s", model_id)
         return _extract_text(response)
 
     policy_chat_callable_model_id = model_id
