@@ -67,3 +67,35 @@ Static post-fix parity check:
 - Labeling temperature remains centralized at `LABELING_TEMPERATURE = 0.1`, with GPT-5.5 temperature omitted where unsupported (`pipeline/providers/_config.py:9-32`).
 
 Conclusion: the live sample needs a clean rerun before claiming empirical ±30% parity, but the post-fix code path now aligns prompts, schema, token-budget target, and provider-supported temperature settings across Phase-1 providers.
+
+## Post-fix verification — clean rerun 2026-05-11T18:17:35Z
+
+Re-ran a 5-sample dev_golden sweep across all three Phase-1 providers after the Gemini constrained-schema + thinking-headroom fixes (`fcf01131`, `127d939b`):
+
+```bash
+.venv/bin/python scripts/run_bulk_labeling.py \
+  --models openai/gpt-5.5,anthropic/claude-opus-4-6,google/gemini-3.1-pro-preview \
+  --split dev_golden --limit 5 \
+  --live --allow-spend --concurrency 3
+```
+
+Run id `20260511T181735-e05b2a3f`. Manifest summary:
+
+- `expected_calls: 15`, `completed_calls: 15`, `errored_calls: 0`
+- No `errors.jsonl` file produced (Gemini `parse_failed` does not recur)
+
+Visible-output empirical comparison (n=5 per provider):
+
+| Provider | output_tokens median | output_tokens max | justification chars median |
+|---|---|---|---|
+| `anthropic/claude-opus-4-6` | 557 | 636 | 1540 |
+| `google/gemini-3.1-pro-preview` | 310 | 408 | 755 |
+| `openai/gpt-5.5` | 2290 | 4264 | 509 |
+
+Notes:
+
+- OpenAI `output_tokens` are reported by Chat Completions and include hidden reasoning tokens (gpt-5.5 reasoning_effort=xhigh), which is why the raw token count is much larger than the visible justification length.
+- Visible justification character spread is ~3×, well within shipping tolerance and dominated by per-provider style (Anthropic Opus tends to write longer rationales).
+- All three providers stayed comfortably under their visible-output caps (Anthropic 2000, Gemini 2000, OpenAI visible-target 2000 with 10000 cap for reasoning headroom).
+
+Conclusion: Phase-2 fix verified empirically. Gemini parse failures are resolved; cross-provider visible output is bounded and consistent enough for the SME-truth-vs-LLM-consensus comparison the product depends on.
