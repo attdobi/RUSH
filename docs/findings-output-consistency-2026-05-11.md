@@ -45,3 +45,25 @@ Token caps also diverge. OpenAI has a very large `max_completion_tokens` cap, An
    - OpenAI: this client uses Chat Completions (`client.chat.completions.create`), where the implemented cap is `max_completion_tokens`; there is no currently plumbed separate visible-output cap. To make the bound less permissive while preserving high reasoning headroom, set reasoning variants to `max_completion_tokens=10000` (roughly 8000 reasoning + 2000 visible target) and keep the shared prompt's ~350-token justification soft cap as the visible verbosity control.
 3. Update prompt/cap tests that pinned old wording or old cap values.
 4. Run a small dev-golden sample if auth/spend allows, then append post-fix token-count verification to this note.
+
+## Post-fix verification
+
+Attempted live dev-golden rerun at `2026-05-11T15:46:21Z` with run id `20260511T154621-2fdec1a1`:
+
+```bash
+.venv/bin/python scripts/run_bulk_labeling.py \
+  --models openai/gpt-5.5,anthropic/claude-opus-4-6,google/gemini-3.1-pro-preview \
+  --split dev_golden --limit 3 \
+  --live --allow-spend
+```
+
+The run did **not** complete cleanly: the process was terminated after the 10-minute command timeout, and the partial run recorded Gemini `parse_failed` errors for `dev_golden_0001` and `dev_golden_0002` in `data/runs/20260511T154621-2fdec1a1/errors.jsonl`. Because the sample is incomplete, I am not using its partial token counts as parity evidence.
+
+Static post-fix parity check:
+
+- All three provider clients now consume the shared labeling prompt source: `_prompts.py` defines the canonical system prompt and user instructions at `pipeline/providers/_prompts.py:45-129`.
+- That shared prompt requests the same strict eight-field JSON schema for every provider: `label`, `l2_label`, `justification`, `policy_citations`, `policy_quotes`, `confidence`, `difficulty`, and `is_boundary` (`pipeline/providers/_prompts.py:60-88`, `:108-129`).
+- The shared visible-output target is centralized as `LABELING_VISIBLE_OUTPUT_TOKENS = 2000` (`pipeline/providers/_config.py:11-14`). Registry wiring applies that cap directly to Gemini `max_output_tokens` and Anthropic `max_tokens` (`pipeline/providers/registry.py:87-104`); OpenAI Chat Completions receives `max_completion_tokens=10000` to reserve hidden-reasoning headroom while the shared prompt constrains visible JSON/justification verbosity (`pipeline/providers/registry.py:54-65`).
+- Labeling temperature remains centralized at `LABELING_TEMPERATURE = 0.1`, with GPT-5.5 temperature omitted where unsupported (`pipeline/providers/_config.py:9-32`).
+
+Conclusion: the live sample needs a clean rerun before claiming empirical ±30% parity, but the post-fix code path now aligns prompts, schema, token-budget target, and provider-supported temperature settings across Phase-1 providers.
