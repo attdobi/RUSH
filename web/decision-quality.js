@@ -7,6 +7,13 @@
 
   function setUnavailable() {
     rushApiUnavailable('#decision-quality-overview');
+    const summary = $('#decisionQualitySummary');
+    if (summary) summary.innerHTML = '';
+    const warning = $('#decisionQualityWarning');
+    if (warning) {
+      warning.hidden = true;
+      warning.textContent = '';
+    }
     $('#decisionQualityCards').innerHTML = '';
     $('#decisionQualityChart').innerHTML = '';
   }
@@ -29,41 +36,115 @@
 
   function aggregateLabelers(runs) {
     const grouped = new Map();
+    const metricKeys = ['accuracy', 'f1', 'precision', 'recall', 'fpr', 'fnr', 'positive_proportion', 'informedness'];
     for (const run of runs) {
       for (const labeler of (Array.isArray(run.labelers) ? run.labelers : [])) {
         const id = labeler.labeler_id || 'unknown';
         const metrics = labeler.metrics || {};
-        if (!grouped.has(id)) grouped.set(id, { labeler_id: id, labeler_type: labeler.labeler_type || 'llm', count: 0, n: 0, accuracy: 0, f1: 0, fpr: 0, fnr: 0 });
+        if (!grouped.has(id)) {
+          grouped.set(id, {
+            labeler_id: id,
+            labeler_type: labeler.labeler_type || 'llm',
+            count: 0,
+            n: 0,
+            sums: Object.fromEntries(metricKeys.map(key => [key, 0])),
+            costSum: 0,
+            costCount: 0
+          });
+        }
         const row = grouped.get(id);
         row.count += 1;
         row.n += Number(metrics.n || 0);
-        for (const key of ['accuracy', 'f1', 'fpr', 'fnr']) {
-          if (isNumber(metrics[key])) row[key] += metrics[key];
+        for (const key of metricKeys) {
+          if (isNumber(metrics[key])) row.sums[key] += metrics[key];
+        }
+        if (isNumber(metrics.cost_per_1000_labels)) {
+          row.costSum += metrics.cost_per_1000_labels;
+          row.costCount += 1;
         }
       }
     }
-    return Array.from(grouped.values()).map(row => ({
-      ...row,
-      accuracy: row.count ? row.accuracy / row.count : null,
-      f1: row.count ? row.f1 / row.count : null,
-      fpr: row.count ? row.fpr / row.count : null,
-      fnr: row.count ? row.fnr / row.count : null
-    })).sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0));
+    return sortLabelerRows(Array.from(grouped.values()).map(row => {
+      const out = {
+        labeler_id: row.labeler_id,
+        labeler_type: row.labeler_type,
+        count: row.count,
+        n: row.n,
+        cost_per_1000_labels: row.costCount ? row.costSum / row.costCount : null
+      };
+      for (const key of metricKeys) out[key] = row.count ? row.sums[key] / row.count : null;
+      return out;
+    }));
+  }
+
+  function isEnsembleRow(row) {
+    return row.labeler_id === 'majority_vote' || row.labeler_type === 'ensemble';
+  }
+
+  function sortLabelerRows(rows) {
+    return rows.sort((a, b) => {
+      const aEnsemble = isEnsembleRow(a);
+      const bEnsemble = isEnsembleRow(b);
+      if (aEnsemble !== bEnsemble) return aEnsemble ? 1 : -1;
+      return (b.accuracy || 0) - (a.accuracy || 0);
+    });
+  }
+
+  function formatCostPerThousand(value) {
+    return isNumber(value) ? `$${value.toFixed(4)}` : '—';
+  }
+
+  function renderSummary(runs, rows) {
+    const target = $('#decisionQualitySummary');
+    if (!target) return;
+    const totalCost = runs.reduce((sum, run) => {
+      const value = run.cost?.total_cost_usd;
+      return isNumber(value) ? sum + value : sum;
+    }, 0);
+    const ensemble = rows.find(row => row.labeler_id === 'majority_vote') || rows.find(isEnsembleRow);
+    target.innerHTML = [
+      ['Total runs filtered', String(runs.length)],
+      ['Total cost (USD)', `$${totalCost.toFixed(4)}`],
+      ['Ensemble accuracy', ensemble ? rushApiFormatMetric(ensemble.accuracy) : '—']
+    ].map(([label, value]) => `<div class="dq-summary-card"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
+  }
+
+  function renderSmallNWarning(rows) {
+    const target = $('#decisionQualityWarning');
+    if (!target) return;
+    const hasSmallN = rows.some(row => !isEnsembleRow(row) && Number(row.n || 0) < 30);
+    target.hidden = !hasSmallN;
+    target.textContent = hasSmallN ? 'Sample sizes are small (N < 30); metrics are indicative, not statistical.' : '';
   }
 
   function renderCards(runs) {
     const target = $('#decisionQualityCards');
     if (!target) return;
     const rows = aggregateLabelers(runs);
+    target.classList.add('dq-table-wrap');
+    renderSummary(runs, rows);
+    renderSmallNWarning(rows);
     if (!rows.length) {
       target.innerHTML = '<div class="empty-state">No labeler metrics found for the current filters.</div>';
       return;
     }
-    target.innerHTML = rows.map(row => `<article class="quality-card">
-      <span>${esc(row.labeler_type)}</span>
-      <strong>${esc(row.labeler_id)}</strong>
-      <p>Accuracy ${rushApiFormatMetric(row.accuracy)} · F1 ${rushApiFormatMetric(row.f1)}<br>FPR ${rushApiFormatMetric(row.fpr)} · FNR ${rushApiFormatMetric(row.fnr)}<br>${esc(row.n)} images across ${esc(row.count)} run(s)</p>
-    </article>`).join('');
+    const columns = [
+      ['Labeler', row => esc(row.labeler_id), false],
+      ['Type', row => esc(row.labeler_type), false],
+      ['Accuracy', row => rushApiFormatMetric(row.accuracy), true],
+      ['F1', row => rushApiFormatMetric(row.f1), true],
+      ['Precision', row => rushApiFormatMetric(row.precision), true],
+      ['Recall', row => rushApiFormatMetric(row.recall), true],
+      ['FPR', row => rushApiFormatMetric(row.fpr), true],
+      ['FNR', row => rushApiFormatMetric(row.fnr), true],
+      ['Pos. Prop.', row => rushApiFormatMetric(row.positive_proportion), true],
+      ['N', row => esc(row.n), true],
+      ['Informedness', row => rushApiFormatMetric(row.informedness), true],
+      ['Cost / 1k labels', row => formatCostPerThousand(row.cost_per_1000_labels), true]
+    ];
+    const header = columns.map(([label]) => `<th scope="col">${esc(label)}</th>`).join('');
+    const body = rows.map(row => `<tr class="${isEnsembleRow(row) ? 'dq-row-ensemble' : ''}">${columns.map(([, render, numeric]) => `<td class="${numeric ? 'dq-cell-num' : ''}">${render(row)}</td>`).join('')}</tr>`).join('');
+    target.innerHTML = `<table class="dq-table"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
   }
 
   function collectSeries(runs) {
@@ -90,8 +171,8 @@
       return;
     }
     const width = 760;
-    const height = 260;
-    const pad = { left: 46, right: 18, top: 18, bottom: 48 };
+    const height = 200;
+    const pad = { left: 46, right: 18, top: 14, bottom: 38 };
     const innerW = width - pad.left - pad.right;
     const innerH = height - pad.top - pad.bottom;
     const denom = Math.max(1, sortedRuns.length - 1);
@@ -132,6 +213,13 @@
       renderChart(runs);
       status(`Loaded ${runs.length} scored run(s).`);
     } catch (error) {
+      const summary = $('#decisionQualitySummary');
+      if (summary) summary.innerHTML = '';
+      const warning = $('#decisionQualityWarning');
+      if (warning) {
+        warning.hidden = true;
+        warning.textContent = '';
+      }
       $('#decisionQualityCards').innerHTML = '';
       $('#decisionQualityChart').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Decision quality failed: ${error.message}`, true);

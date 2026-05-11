@@ -194,6 +194,7 @@ def aggregate_decision_quality(
                 "n_images": _n_images(manifest, consensus, borderline),
                 "labelers": labelers,
                 "majority_vote": majority_vote,
+                "cost": dq.get("cost") if isinstance(dq.get("cost"), dict) else None,
                 "consensus_summary": (consensus or {}).get("summary", {}),
                 "boundary_rate": _boundary_rate(consensus, borderline),
                 "flip_rate_summary": flip_summary,

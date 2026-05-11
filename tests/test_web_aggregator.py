@@ -24,6 +24,7 @@ def _make_run(
     started_at: str,
     policy_version: str,
     majority_label: str = "not_gen_ai",
+    cost: dict | None = None,
 ) -> Path:
     run_dir = runs_root / run_id
     _write_json(
@@ -35,18 +36,18 @@ def _make_run(
             "sample_ids": ["img-1", "img-2"],
         },
     )
-    _write_json(
-        run_dir / "scoring" / "decision_quality.json",
-        {
-            "policy_graph_version": policy_version,
-            "ground_truth_tier": ["gold"],
-            "labelers": [
-                {"labeler_id": "model-a", "labeler_type": "llm", "metrics": {"accuracy": 1.0, "n": 2}},
-                {"labeler_id": "model-b", "labeler_type": "llm", "metrics": {"accuracy": 0.5, "n": 2}},
-                {"labeler_id": "majority_vote", "labeler_type": "ensemble", "metrics": {"accuracy": 0.5, "n": 2}},
-            ],
-        },
-    )
+    dq_payload = {
+        "policy_graph_version": policy_version,
+        "ground_truth_tier": ["gold"],
+        "labelers": [
+            {"labeler_id": "model-a", "labeler_type": "llm", "metrics": {"accuracy": 1.0, "n": 2}},
+            {"labeler_id": "model-b", "labeler_type": "llm", "metrics": {"accuracy": 0.5, "n": 2}},
+            {"labeler_id": "majority_vote", "labeler_type": "ensemble", "metrics": {"accuracy": 0.5, "n": 2}},
+        ],
+    }
+    if cost is not None:
+        dq_payload["cost"] = cost
+    _write_json(run_dir / "scoring" / "decision_quality.json", dq_payload)
     _write_json(
         run_dir / "scoring" / "consensus.json",
         {
@@ -148,7 +149,13 @@ def _make_run(
 def _runs_fixture(tmp_path: Path) -> Path:
     runs_root = tmp_path / "runs"
     _make_run(runs_root, "run-late", started_at="2026-05-10T02:00:00Z", policy_version="Generative_AI.v0.2")
-    _make_run(runs_root, "run-early", started_at="2026-05-10T01:00:00Z", policy_version="Generative_AI.v0.1")
+    _make_run(
+        runs_root,
+        "run-early",
+        started_at="2026-05-10T01:00:00Z",
+        policy_version="Generative_AI.v0.1",
+        cost={"total_cost_usd": 0.0123, "per_model": {"model-a": {"cost_per_1000_labels": 1.23}}},
+    )
     flip_dir = runs_root / "_flip_rate" / "2026-05-10T03:00:00Z"
     _write_json(
         flip_dir / "flip_rate_summary.json",
@@ -192,6 +199,7 @@ def test_aggregate_decision_quality_returns_runs_sorted_by_started_at(tmp_path: 
     assert [run["run_id"] for run in payload["runs"]] == ["run-early", "run-late"]
     assert payload["policy_versions"] == ["Generative_AI.v0.1", "Generative_AI.v0.2"]
     assert payload["runs"][0]["majority_vote"] == {"accuracy": 0.5, "n": 2}
+    assert payload["runs"][0]["cost"] == {"total_cost_usd": 0.0123, "per_model": {"model-a": {"cost_per_1000_labels": 1.23}}}
     assert payload["runs"][0]["boundary_rate"] == 0.5
     assert payload["runs"][0]["flip_rate_summary"]["mean_flip_rate"] == 0.5
 

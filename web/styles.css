@@ -399,3 +399,17 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .model-pick em { display:block; color:#7d8694; font-style:normal; font-size:11px; }
 .model-picker-phase { margin-top:4px; color:#aab2bf; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
 .nav-pills.active a, .nav-pills a.active { color:#4de0a6; }
+
+/* X2 DQ table */
+.dq-table-wrap { display:block; overflow-x:auto; }
+.dq-table { width:100%; border-collapse:collapse; font-size:13px; }
+.dq-table thead th { position: sticky; top: 0; background:#0e1219; color:#aab2bf; text-align:left; padding:8px 10px; border-bottom:1px solid #1f2733; font-weight:600; }
+.dq-table tbody td { padding:8px 10px; border-bottom:1px solid #14191f; color:#d8dee9; }
+.dq-table tbody tr:nth-child(even) td { background:#10151c; }
+.dq-table tbody tr.dq-row-ensemble td { border-top:2px solid #1f2733; background:#0e1219; font-weight:600; }
+.dq-table tbody td.dq-cell-num { font-variant-numeric: tabular-nums; }
+.dq-summary-strip { display:flex; gap:14px; margin:10px 0 14px; flex-wrap:wrap; }
+.dq-summary-card { background:#0e1219; border:1px solid #1f2733; border-radius:10px; padding:10px 14px; min-width:160px; }
+.dq-summary-card span { display:block; color:#7d8694; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+.dq-summary-card strong { display:block; color:#4de0a6; font-size:18px; margin-top:4px; }
+.dq-warning-banner { background:#3a2a05; color:#ffd166; border:1px solid #5a3f08; padding:10px 14px; border-radius:8px; margin:10px 0; font-size:13px; }
