@@ -45,10 +45,18 @@
     const polarity = String(node.polarity || '').toLowerCase();
     if (type === 'root' || id === 'GA.root') return COLORS.root;
     if (id.includes('.boundary.') || type === 'boundary') return COLORS.boundary;
-    if (id.includes('.exception.')) return COLORS.exception;
+    if (id.includes('.exception.') || type === 'exception') return COLORS.exception;
     if (id.includes('.negative.') || polarity === 'negative') return COLORS.negative;
-    if (id.includes('.provenance.')) return COLORS.provenance;
-    if (type === 'category' || polarity === 'positive') return COLORS.positive;
+    if (id.includes('.provenance.') || type === 'provenance') return COLORS.provenance;
+    if (
+      type === 'category' ||
+      polarity === 'positive' ||
+      id.includes('.scene_geometry.') ||
+      id === 'GA.surface_texture' ||
+      id.includes('.surface_texture.') ||
+      id === 'GA.visual_artifacts' ||
+      id.includes('.visual_artifacts.')
+    ) return COLORS.positive;
     return COLORS.fallback;
   }
 
@@ -226,7 +234,8 @@
       ['boundary', COLORS.boundary],
       ['exception', COLORS.exception],
       ['negative', COLORS.negative],
-      ['provenance', COLORS.provenance]
+      ['provenance', COLORS.provenance],
+      ['other', COLORS.fallback]
     ].map(([label, color]) => `<span><i style="background:${color}"></i>${esc(label)}</span>`).join('');
 
     wrap.innerHTML = `<div class="policy-graph-layout">
@@ -297,7 +306,9 @@
     node.append('text')
       .attr('y', d => nodeRadius(d, allNodes) + 13)
       .attr('text-anchor', 'middle')
-      .text(d => truncate(d.title || d.id));
+      .attr('font-size', 9.5)
+      .style('opacity', 1)
+      .text(d => d.id || d.title || '?');
 
     node.on('mouseover', (_, d) => highlight(d.id))
       .on('mouseout', clearHighlight)
