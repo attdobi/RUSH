@@ -65,6 +65,7 @@ class GeminiClientConfig(ClientConfig):
 
     api_key_env_var: str = auth.GEMINI_API_KEY_VAR
     response_mime_type: str = "application/json"
+    thinking_budget_tokens: int | None = None
 
 
 class GeminiClient(LabelClient):
@@ -138,6 +139,10 @@ class GeminiClient(LabelClient):
         temperature = resolve_temperature(self.config.model_name)
         if temperature is not None:
             config["temperature"] = temperature
+        if self.config.thinking_budget_tokens is not None:
+            config["thinking_config"] = {
+                "thinking_budget": int(self.config.thinking_budget_tokens),
+            }
         for k, v in self.config.extra_params.items():
             if k == "temperature":
                 continue
@@ -290,6 +295,9 @@ class GeminiClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------

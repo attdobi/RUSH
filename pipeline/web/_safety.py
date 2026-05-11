@@ -12,6 +12,7 @@ from pipeline.providers.registry import MODEL_REGISTRY
 
 _ALLOWED_SPLITS = {"dev_golden", "holdout", "all"}
 _ALLOWED_MODES = {"cold_start", "warm_start"}
+_ALLOWED_REASONING_EFFORTS = {"high", "xhigh"}
 _POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
 
 
@@ -125,6 +126,15 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
             details={"field": "mode"},
         )
 
+    reasoning_effort = payload.get("reasoning_effort", "xhigh")
+    if reasoning_effort not in _ALLOWED_REASONING_EFFORTS:
+        raise APIError(
+            400,
+            "validation_error",
+            "reasoning_effort must be one of: high, xhigh",
+            details={"field": "reasoning_effort"},
+        )
+
     policy_version = payload.get("policy_version", "v0.1")
     if not isinstance(policy_version, str) or not _POLICY_VERSION_RE.match(policy_version):
         raise APIError(
@@ -209,6 +219,7 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "sample_ids": sample_ids,
         "policy_version": policy_version,
         "mode": mode,
+        "reasoning_effort": reasoning_effort,
         "allow_spend": True,
         "allow_holdout": payload.get("allow_holdout") is True,
         "concurrency": concurrency,

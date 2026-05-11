@@ -36,7 +36,8 @@ def test_openai_api_params_never_send_temperature() -> None:
     params = client._build_api_params(messages=[])
 
     assert params["model"] == "gpt-5.5"
-    assert params["reasoning_effort"] == "high"
+    assert params["reasoning"] == {"effort": "high"}
+    assert "reasoning_effort" not in params
     assert params["seed"] == 123
     assert "temperature" not in params
 
@@ -103,6 +104,7 @@ def test_run_manifest_records_resolved_temperature_per_model() -> None:
         concurrency=1,
         expected_calls=2,
         dry_run=True,
+        reasoning_effort="xhigh",
     )
 
     by_model = {m["model_id"]: m for m in manifest["models"]}
@@ -110,4 +112,7 @@ def test_run_manifest_records_resolved_temperature_per_model() -> None:
     assert by_model["anthropic/claude-opus-4-6"]["resolved_temperature"] == pytest.approx(
         LABELING_TEMPERATURE
     )
+    assert manifest["model_runtime_config"] == {
+        "openai/gpt-5.5": {"reasoning_effort": "xhigh"}
+    }
     assert validate_record(manifest, RUN_MANIFEST_SCHEMA) == []

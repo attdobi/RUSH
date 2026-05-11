@@ -9,7 +9,7 @@ pipeline. Adding a new model means:
 
 The five entries below cover the v1 plan:
 
-* phase 1 (canonical pass): ``openai/gpt-5.5`` (reasoning=high),
+* phase 1 (canonical pass): ``openai/gpt-5.5`` (reasoning=xhigh),
   ``google/gemini-3.1-pro-preview``, ``anthropic/claude-opus-4-6``,
   ``anthropic/claude-opus-4-7``.
 * phase 2 (cheaper sweep / fanout): ``openai/gpt-5.4-mini``,
@@ -56,7 +56,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="gpt-5.5",
         phase=1,
         params={
-            "reasoning_effort": "high",
+            "reasoning_effort": "xhigh",
             # High reasoning can consume well over 6k internal tokens before
             # emitting JSON; keep the cap roomy enough to avoid empty outputs.
             "max_completion_tokens": 24000,
@@ -67,7 +67,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider="gemini",
         provider_model_name="gemini-3.1-pro-preview",
         phase=1,
-        params={},
+        params={"thinking_budget_tokens": -1},
     ),
     "anthropic/claude-opus-4-6": ModelSpec(
         model_id="anthropic/claude-opus-4-6",
@@ -85,6 +85,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "max_tokens": 4096,
+            "thinking_budget_tokens": 32000,
         },
     ),
     # --- Phase 2: cheaper sweep / consensus fanout -----------------------
@@ -115,7 +116,12 @@ def list_models(*, phase: int | None = None) -> list[ModelSpec]:
     return sorted(specs, key=lambda s: (s.phase, s.model_id))
 
 
-def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
+def build_client(
+    model_id: str,
+    *,
+    client: Any | None = None,
+    reasoning_effort: str | None = None,
+) -> LabelClient:
     """Construct a configured :class:`LabelClient` for ``model_id``.
 
     Imports are lazy and provider-scoped so importing the registry never
@@ -126,6 +132,8 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
         model_id: A key from :data:`MODEL_REGISTRY`.
         client: Optional pre-built SDK client, forwarded to the provider
             constructor. ``None`` lets the client lazy-initialize.
+        reasoning_effort: Optional per-run OpenAI reasoning override for
+            ``openai/gpt-5.5``.
 
     Returns:
         A ready-to-call :class:`LabelClient` instance.
@@ -145,11 +153,13 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
             OpenAIClientConfig,
         )
 
-        reasoning_effort = params.pop("reasoning_effort", None)
+        configured_reasoning_effort = params.pop("reasoning_effort", None)
+        if model_id == "openai/gpt-5.5" and reasoning_effort is not None:
+            configured_reasoning_effort = reasoning_effort
         max_completion_tokens = params.pop("max_completion_tokens", 6000)
         config = OpenAIClientConfig(
             model_name=spec.provider_model_name,
-            reasoning_effort=reasoning_effort,
+            reasoning_effort=configured_reasoning_effort,
             max_completion_tokens=max_completion_tokens,
             extra_params=params,
         )
@@ -162,9 +172,11 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
         )
 
         max_tokens = params.pop("max_tokens", 2048)
+        thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
         config = AnthropicClientConfig(
             model_name=spec.provider_model_name,
             max_tokens=max_tokens,
+            thinking_budget_tokens=thinking_budget_tokens,
             extra_params=params,
         )
         return AnthropicClient(config=config, client=client)
@@ -175,8 +187,10 @@ def build_client(model_id: str, *, client: Any | None = None) -> LabelClient:
             GeminiClientConfig,
         )
 
+        thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
         config = GeminiClientConfig(
             model_name=spec.provider_model_name,
+            thinking_budget_tokens=thinking_budget_tokens,
             extra_params=params,
         )
         return GeminiClient(config=config, client=client)

@@ -102,6 +102,7 @@ def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_pa
             "sample_ids": None,
             "policy_version": "v0.1",
             "mode": "cold_start",
+            "reasoning_effort": "high",
             "allow_spend": True,
             "allow_holdout": False,
             "concurrency": 1,
@@ -110,6 +111,9 @@ def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_pa
 
     assert created
     assert created[0].argv[:4] == [".venv/bin/python", "-u", "scripts/run_bulk_labeling.py", "--models"]
+    assert "--reasoning-effort" in created[0].argv
+    assert created[0].argv[created[0].argv.index("--reasoning-effort") + 1] == "high"
+    assert state["reasoning_effort"] == "high"
     running = registry.status(state["job_id"])
     assert running["running"] is True
     assert running["run_id"] == state["job_id"]

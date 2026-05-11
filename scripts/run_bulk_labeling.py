@@ -68,6 +68,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION)
     parser.add_argument("--concurrency", type=int, default=1,
                         help="In-flight provider calls per provider (default 1; max recommended: 4).")
+    parser.add_argument("--reasoning-effort", choices=["high", "xhigh"], default="xhigh",
+                        help="OpenAI gpt-5.5 reasoning effort for this run (default: xhigh).")
     parser.add_argument("--allow-holdout", action="store_true",
                         help="Required to dispatch against the holdout split.")
     parser.add_argument("--live", action="store_true",
@@ -79,7 +81,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_factory(use_live: bool):
+def _resolve_factory(use_live: bool, *, reasoning_effort: str | None = None):
     """Return a client factory.
 
     In dry-run mode we use the deterministic fake. In live mode we lazy-import
@@ -98,7 +100,7 @@ def _resolve_factory(use_live: bool):
         )
 
     def _factory(spec: ModelSpec):
-        return build_client(spec.model_id)
+        return build_client(spec.model_id, reasoning_effort=reasoning_effort)
 
     return _factory
 
@@ -129,7 +131,14 @@ def main(argv: list[str] | None = None) -> int:
                 ModelSpec(
                     model_id=mid,
                     phase=f"phase-{reg_spec.phase}",
-                    params=dict(reg_spec.params) if reg_spec.params else None,
+                    params=(
+                        {
+                            **dict(reg_spec.params),
+                            **({"reasoning_effort": args.reasoning_effort} if mid == "openai/gpt-5.5" else {}),
+                        }
+                        if reg_spec.params or mid == "openai/gpt-5.5"
+                        else None
+                    ),
                     resolved_temperature=resolve_temperature(reg_spec.provider_model_name),
                 )
             )
@@ -158,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
         return 0
 
-    factory = _resolve_factory(use_live=args.live)
+    factory = _resolve_factory(use_live=args.live, reasoning_effort=args.reasoning_effort)
     summary = run_labeling(
         models=model_specs,
         sample_manifest_path=args.manifest,
@@ -171,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         concurrency=args.concurrency,
         allow_holdout=args.allow_holdout,
         dry_run=not args.live,
+        reasoning_effort=args.reasoning_effort,
     )
 
     payload = {

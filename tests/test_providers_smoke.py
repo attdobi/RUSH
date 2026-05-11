@@ -525,7 +525,7 @@ class TestOpenAIClient:
         fake = _RecordingOpenAIClient(_fake_openai_response())
         config = OpenAIClientConfig(
             model_name="gpt-5.5",
-            reasoning_effort="medium",
+            reasoning_effort="xhigh",
             max_completion_tokens=1024,
         )
         client = OpenAIClient(config=config, client=fake)
@@ -546,7 +546,8 @@ class TestOpenAIClient:
         kwargs = fake.calls[0]
         assert kwargs["model"] == "gpt-5.5"
         assert kwargs["response_format"] == {"type": "json_object"}
-        assert kwargs["reasoning_effort"] == "medium"
+        assert kwargs["reasoning"] == {"effort": "xhigh"}
+        assert "reasoning_effort" not in kwargs
         # GPT-5 family: no temperature in the standard shape.
         assert "temperature" not in kwargs
         assert kwargs["max_completion_tokens"] == 1024
@@ -567,6 +568,15 @@ class TestOpenAIClient:
         decoded = base64.b64decode(body)
         # Sha256 of the bytes that went on the wire matches the audit field.
         assert hashlib.sha256(decoded).hexdigest() == resp.prepared_image_sha256
+
+    def test_invalid_reasoning_effort_raises_provider_error(self) -> None:
+        client = OpenAIClient(
+            config=OpenAIClientConfig(model_name="gpt-5.5", reasoning_effort="medium"),
+            client=object(),
+        )
+
+        with pytest.raises(ProviderError):
+            client._build_api_params(messages=[])
 
     def test_raw_payload_omits_image_messages(
         self, label_request: LabelRequest
@@ -668,6 +678,21 @@ class TestAnthropicClient:
         decoded = base64.b64decode(src["data"])
         assert hashlib.sha256(decoded).hexdigest() == resp.prepared_image_sha256
 
+    def test_thinking_budget_enables_extended_thinking(self) -> None:
+        client = AnthropicClient(
+            config=AnthropicClientConfig(
+                model_name="claude-opus-4-7",
+                max_tokens=4096,
+                thinking_budget_tokens=32000,
+            ),
+            client=object(),
+        )
+
+        params = client._build_api_params(messages=[])
+
+        assert params["thinking"] == {"type": "enabled", "budget_tokens": 32000}
+        assert params["temperature"] == 1
+
     def test_raw_payload_scrubs_image_data(
         self, label_request: LabelRequest
     ) -> None:
@@ -742,6 +767,19 @@ class TestGeminiClient:
         decoded = base64.b64decode(idata["data"])
         assert hashlib.sha256(decoded).hexdigest() == resp.prepared_image_sha256
 
+    def test_thinking_budget_is_added_to_generation_config(self) -> None:
+        client = GeminiClient(
+            config=GeminiClientConfig(
+                model_name="gemini-3.1-pro-preview",
+                thinking_budget_tokens=-1,
+            ),
+            client=object(),
+        )
+
+        params = client._build_api_params(contents=[])
+
+        assert params["config"]["thinking_config"] == {"thinking_budget": -1}
+
     def test_raw_payload_scrubs_inline_data(
         self, label_request: LabelRequest
     ) -> None:
@@ -785,6 +823,36 @@ class TestRegistry:
         assert isinstance(c1, OpenAIClient)
         assert isinstance(c2, AnthropicClient)
         assert isinstance(c3, GeminiClient)
+
+    def test_registry_runtime_defaults_and_overrides(self) -> None:
+        openai = build_client(
+            "openai/gpt-5.5",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+        assert isinstance(openai, OpenAIClient)
+        assert openai.config.reasoning_effort == "xhigh"
+
+        openai_override = build_client(
+            "openai/gpt-5.5",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+            reasoning_effort="high",
+        )
+        assert isinstance(openai_override, OpenAIClient)
+        assert openai_override.config.reasoning_effort == "high"
+
+        anthropic = build_client(
+            "anthropic/claude-opus-4-7",
+            client=_RecordingAnthropicClient(_fake_anthropic_response()),
+        )
+        assert isinstance(anthropic, AnthropicClient)
+        assert anthropic.config.thinking_budget_tokens == 32000
+
+        gemini = build_client(
+            "google/gemini-3.1-pro-preview",
+            client=_RecordingGeminiClient(_fake_gemini_response()),
+        )
+        assert isinstance(gemini, GeminiClient)
+        assert gemini.config.thinking_budget_tokens == -1
 
     def test_build_client_unknown_model_raises(self) -> None:
         with pytest.raises(KeyError):

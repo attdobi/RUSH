@@ -62,6 +62,7 @@ class AnthropicClientConfig(ClientConfig):
 
     api_key_env_var: str = auth.ANTHROPIC_API_KEY_VAR
     max_tokens: int = 2048
+    thinking_budget_tokens: int | None = None
 
 
 class AnthropicClient(LabelClient):
@@ -137,7 +138,14 @@ class AnthropicClient(LabelClient):
             "messages": messages,
         }
         temperature = resolve_temperature(self.config.model_name)
-        if temperature is not None:
+        if self.config.thinking_budget_tokens is not None and self.config.thinking_budget_tokens > 0:
+            params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": int(self.config.thinking_budget_tokens),
+            }
+            # Anthropic requires temperature=1 when extended thinking is enabled.
+            params["temperature"] = 1
+        elif temperature is not None:
             params["temperature"] = temperature
         for k, v in self.config.extra_params.items():
             if k == "temperature":
@@ -281,6 +289,9 @@ class AnthropicClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------

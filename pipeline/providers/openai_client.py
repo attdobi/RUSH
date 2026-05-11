@@ -9,7 +9,7 @@ d-ai-trader; we only mirror the request shape:
 * ``image_url`` carries a ``data:image/jpeg;base64,...`` URL with
   ``detail: "high"`` for the prepared image;
 * ``response_format={"type": "json_object"}`` for deterministic parsing;
-* ``reasoning_effort`` honored when the model accepts it.
+* ``reasoning={"effort": ...}`` honored when the model accepts it.
 
 Image bytes are produced exclusively by
 :func:`pipeline.labeling.image_prep.prepare_image_for_labeling`. The
@@ -139,6 +139,11 @@ class OpenAIClient(LabelClient):
         *,
         messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
+        if self.config.reasoning_effort and self.config.reasoning_effort not in {"high", "xhigh"}:
+            raise ProviderError(
+                "OpenAI reasoning_effort must be one of: high, xhigh "
+                f"(got {self.config.reasoning_effort!r})"
+            )
         params: dict[str, Any] = {
             "model": self.config.model_name,
             "messages": messages,
@@ -146,9 +151,9 @@ class OpenAIClient(LabelClient):
             "response_format": {"type": "json_object"},
         }
         if self.config.reasoning_effort:
-            params["reasoning_effort"] = self.config.reasoning_effort
+            params["reasoning"] = {"effort": self.config.reasoning_effort}
         # GPT-5.5 reasoning models do not accept custom temperature; never
-        # forward it for OpenAI while preserving reasoning_effort behavior.
+        # forward it for OpenAI while preserving reasoning behavior.
         for k, v in self.config.extra_params.items():
             if k == "temperature":
                 continue
@@ -299,6 +304,9 @@ class OpenAIClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            policy_citations=fields["policy_citations"],
+            policy_quotes=fields["policy_quotes"],
+            justification_too_long=fields["justification_too_long"],
         )
 
     # ------------------------------------------------------------------

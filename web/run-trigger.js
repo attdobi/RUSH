@@ -69,6 +69,19 @@
     if (select) select.innerHTML = rushApiPolicyVersionOptions(current, false);
   }
 
+  function ensureReasoningSelector() {
+    if ($('#runTriggerReasoning')) return;
+    const mode = $('#runTriggerMode');
+    if (!mode?.parentElement) return;
+    const label = document.createElement('label');
+    label.textContent = 'Reasoning ';
+    const select = document.createElement('select');
+    select.id = 'runTriggerReasoning';
+    select.innerHTML = '<option value="xhigh" selected>xhigh (default)</option><option value="high">high</option>';
+    label.appendChild(select);
+    mode.parentElement.insertAdjacentElement('afterend', label);
+  }
+
   function status(message, isError = false) {
     rushApiStatus('#runTriggerStatusLine', message, isError);
   }
@@ -91,6 +104,7 @@
       sample_ids: sampleIds || null,
       policy_version: $('#runTriggerPolicyVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1',
       mode: $('#runTriggerMode')?.value || 'cold_start',
+      reasoning_effort: $('#runTriggerReasoning')?.value || 'xhigh',
       allow_spend: allowSpend,
       allow_holdout: split === 'holdout' && allowSpend,
       concurrency: 1
@@ -212,6 +226,7 @@
     if (section) section.hidden = false;
     if (hint) hint.hidden = true;
     populateModels();
+    ensureReasoningSelector();
     bind();
     await rushApiLoadCatalog();
     populatePolicies();

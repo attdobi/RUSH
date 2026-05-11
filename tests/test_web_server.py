@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.web._safety import APIError, safe_static_path
+from pipeline.web._safety import APIError, safe_static_path, validate_start_payload
 from pipeline.web.server import create_server
 
 
@@ -69,6 +69,33 @@ def test_post_start_rejects_invalid_payloads(web_server, mutate, code: str) -> N
     status, data = _post_json(web_server, "/api/runs/start", payload)
     assert status == 400
     assert data["error"]["code"] == code
+
+
+def test_validate_start_payload_defaults_reasoning_effort() -> None:
+    normalized = validate_start_payload(dict(_VALID))
+
+    assert normalized["reasoning_effort"] == "xhigh"
+
+
+def test_validate_start_payload_accepts_high_reasoning_effort() -> None:
+    payload = dict(_VALID)
+    payload["reasoning_effort"] = "high"
+
+    normalized = validate_start_payload(payload)
+
+    assert normalized["reasoning_effort"] == "high"
+
+
+def test_validate_start_payload_rejects_invalid_reasoning_effort() -> None:
+    payload = dict(_VALID)
+    payload["reasoning_effort"] = "medium"
+
+    with pytest.raises(APIError) as excinfo:
+        validate_start_payload(payload)
+
+    assert excinfo.value.status == 400
+    assert excinfo.value.code == "validation_error"
+    assert excinfo.value.details == {"field": "reasoning_effort"}
 
 
 def test_static_path_validation_rejects_dotdot(tmp_path: Path) -> None:
