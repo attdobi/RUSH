@@ -892,8 +892,8 @@ class TestRegistry:
             client=_RecordingGeminiClient(_fake_gemini_response()),
         )
         assert isinstance(gemini, GeminiClient)
-        assert gemini.config.thinking_budget_tokens == -1
-        assert gemini.config.max_output_tokens == 2000
+        assert gemini.config.thinking_budget_tokens == 8000
+        assert gemini.config.max_output_tokens == 10000
 
     @pytest.mark.parametrize(
         ("model_id", "vendor_model", "reasoning_effort", "max_completion_tokens"),

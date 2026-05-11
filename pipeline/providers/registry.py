@@ -90,8 +90,11 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="gemini-3.1-pro-preview",
         phase=1,
         params={
-            "thinking_budget_tokens": -1,
-            "max_output_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            # Gemini counts hidden thinking tokens against max_output_tokens;
+            # reserve reasoning headroom while leaving the shared ~2k visible
+            # JSON budget available for the final answer.
+            "thinking_budget_tokens": 8000,
+            "max_output_tokens": 10000,
         },
     ),
     "anthropic/claude-opus-4-6": ModelSpec(
