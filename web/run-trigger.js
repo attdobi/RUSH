@@ -5,31 +5,35 @@
   const MODEL_GROUPS = [
     {
       phase: 'Phase 1 · defaults',
-      checked: true,
       models: [
-        'openai/gpt-5.5',
-        'anthropic/claude-opus-4-6',
-        'google/gemini-3.1-pro-preview'
+        { id: 'openai/gpt-5.5-xhigh', checked: true },
+        { id: 'openai/gpt-5.5-high', checked: false },
+        { id: 'anthropic/claude-opus-4-6', checked: true },
+        { id: 'google/gemini-3.1-pro-preview', checked: true }
       ]
     },
     {
       phase: 'Phase 2 · optional sweep',
-      checked: false,
       models: [
-        'anthropic/claude-opus-4-7',
-        'openai/gpt-5.4-mini',
-        'google/gemini-3.1-flash-lite-preview'
+        { id: 'anthropic/claude-opus-4-7', checked: false },
+        { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
+        { id: 'openai/gpt-5.4-mini-high', checked: false },
+        { id: 'google/gemini-3.1-flash-lite-preview', checked: false }
       ]
     }
   ];
 
-  // Mirror of pipeline/providers/pricing.py — keep in sync.
+  // Mirror of pipeline/providers/pricing.py — keep in sync. GPT reasoning variants mirror their base model prices.
   const PRICING_PER_MTOK = {
     'openai/gpt-5.5': { input: 1.25, output: 10.0 },
+    'openai/gpt-5.5-xhigh': { input: 1.25, output: 10.0 },
+    'openai/gpt-5.5-high': { input: 1.25, output: 10.0 },
     'google/gemini-3.1-pro-preview': { input: 1.25, output: 5.0 },
     'anthropic/claude-opus-4-6': { input: 15.0, output: 75.0 },
     'anthropic/claude-opus-4-7': { input: 15.0, output: 75.0 },
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
+    'openai/gpt-5.4-mini-xhigh': { input: 0.15, output: 0.60 },
+    'openai/gpt-5.4-mini-high': { input: 0.15, output: 0.60 },
     'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 }
   };
 
@@ -59,7 +63,7 @@
     if (!picker) return;
     picker.innerHTML = MODEL_GROUPS.map(group => `
       <div class="model-picker-phase">${esc(group.phase)}</div>
-      ${group.models.map(model => renderModelPick(model, group.checked)).join('')}
+      ${group.models.map(model => renderModelPick(model.id || model, model.checked ?? group.checked)).join('')}
     `).join('');
   }
 
@@ -67,19 +71,6 @@
     const current = window.RUSH_API?.catalog?.currentPolicyVersion || '';
     const select = $('#runTriggerPolicyVersion');
     if (select) select.innerHTML = rushApiPolicyVersionOptions(current, false);
-  }
-
-  function ensureReasoningSelector() {
-    if ($('#runTriggerReasoning')) return;
-    const mode = $('#runTriggerMode');
-    if (!mode?.parentElement) return;
-    const label = document.createElement('label');
-    label.textContent = 'Reasoning ';
-    const select = document.createElement('select');
-    select.id = 'runTriggerReasoning';
-    select.innerHTML = '<option value="xhigh" selected>xhigh (default)</option><option value="high">high</option>';
-    label.appendChild(select);
-    mode.parentElement.insertAdjacentElement('afterend', label);
   }
 
   function status(message, isError = false) {
@@ -104,7 +95,6 @@
       sample_ids: sampleIds || null,
       policy_version: $('#runTriggerPolicyVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1',
       mode: $('#runTriggerMode')?.value || 'cold_start',
-      reasoning_effort: $('#runTriggerReasoning')?.value || 'xhigh',
       allow_spend: allowSpend,
       allow_holdout: split === 'holdout' && allowSpend,
       concurrency: 1
@@ -226,7 +216,6 @@
     if (section) section.hidden = false;
     if (hint) hint.hidden = true;
     populateModels();
-    ensureReasoningSelector();
     bind();
     await rushApiLoadCatalog();
     populatePolicies();
