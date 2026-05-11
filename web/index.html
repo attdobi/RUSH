@@ -65,26 +65,29 @@
         <p>Local sampling — uses real image manifests when present, deterministic synthetics otherwise. No LLM calls yet.</p>
       </div>
 
-      <div class="demo-controls" aria-label="Sampler controls">
-        <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
-        <label>Mode
-          <select id="samplerMode">
-            <option value="cold_start">cold start</option>
-            <option value="warm_start">warm start</option>
-          </select>
-        </label>
-        <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
-        <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
-        <button id="runSampler" class="primary-action" type="button">Run sample</button>
-        <button id="randomSamplerSeed" type="button">Randomize</button>
-      </div>
+      <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
+      <details class="sampling-settings">
+        <summary>Sampling settings <span class="muted">(seed, N, mode, leakage)</span></summary>
+        <div class="demo-controls" aria-label="Sampler controls">
+          <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
+          <label>Mode
+            <select id="samplerMode">
+              <option value="cold_start">cold start</option>
+              <option value="warm_start">warm start</option>
+            </select>
+          </label>
+          <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
+          <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
+          <button id="runSampler" class="primary-action" type="button">Run sample</button>
+          <button id="randomSamplerSeed" type="button">Randomize</button>
+        </div>
+        <div id="demoStats" class="stat-grid"></div>
+      </details>
       <div id="samplerLoading" class="loading-indicator" hidden aria-live="polite">
         <span class="spinner" aria-hidden="true"></span>
         <span>Loading sampled images and labels…</span>
       </div>
       <div id="samplerStatus" class="status-line" role="status"></div>
-
-      <div id="demoStats" class="stat-grid"></div>
       <div class="gallery-toolbar" aria-label="Sample gallery controls">
         <div class="gallery-filter-chips" role="group" aria-label="Filter samples">
           <button type="button" class="filter-chip active" data-gallery-filter="all" aria-pressed="true">All</button>

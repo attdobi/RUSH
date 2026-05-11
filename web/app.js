@@ -97,7 +97,6 @@ function normalizeManifestRow(row, split) {
     sha256: row.sha256 || '',
     repo_rel_path: repoPath,
     synthetic_repo_rel_path: repoPath,
-    original_filename: row.original_filename || repoPath.split('/').pop(),
     truth_tier: row.truth_tier || 'gold_candidate',
     policy_use: row.policy_use || (split === 'holdout' ? 'locked_holdout_decision_quality' : 'develop_policy'),
     llm_status: 'pending_bulk_llm_labeling',
@@ -229,16 +228,17 @@ function renderSampleCard(row, compact = false) {
   const override = overrideFor(row.sample_id);
   const locked = row.split === 'holdout';
   const policyCue = row.label === 'ai_generated' ? 'positive evidence search' : 'boundary / hard-negative check';
-  return `<article class="sample-card ${locked ? 'locked' : ''} ${compact ? 'compact' : ''}" data-sample-id="${attr(row.sample_id)}">
+  return `<article class="sample-card ${locked ? 'locked' : ''} ${compact ? 'compact' : ''}" data-sample-id="${attr(row.sample_id)}" title="${attr(row.sample_id)}">
     <div class="sample-image">${renderThumb(row)}</div>
     <div class="sample-meta">
       <div class="sample-badges">
         <span class="badge ${locked ? 'holdout' : 'dev'}">${locked ? 'locked holdout' : 'dev golden'}</span>
         <span class="badge ${labelBadge(row)}">${esc(row.label)}</span>
       </div>
-      <h3>${esc(row.sample_id)}</h3>
-      <p>${esc(row.dataset)} · ${esc(row.split || 'sample')}</p>
-      <p><strong>Directory label:</strong> ${esc(row.source_label_dir || 'synthetic')} → ${esc(row.label)}<br><strong>Policy cue:</strong> ${esc(policyCue)}<br><strong>LLM status:</strong> pending bulk labeling</p>
+      <details class="sample-details">
+        <summary>Details</summary>
+        <p><strong>Directory label:</strong> ${esc(row.source_label_dir || 'synthetic')} → ${esc(row.label)}<br><strong>Policy cue:</strong> ${esc(policyCue)}<br><strong>LLM status:</strong> pending bulk labeling</p>
+      </details>
       ${compact ? '' : `<div class="override-controls">
         <label>SME/human override
           <select class="override-label" data-sample-id="${attr(row.sample_id)}">
@@ -253,9 +253,46 @@ function renderSampleCard(row, compact = false) {
   </article>`;
 }
 
-function renderStats() {
+function gcd(a, b) {
+  let x = Math.abs(Number(a) || 0);
+  let y = Math.abs(Number(b) || 0);
+  while (y) [x, y] = [y, x % y];
+  return x || 1;
+}
+
+function classRatio(summary) {
+  const counts = Object.values(summary.byClass || {}).map(value => Number(value) || 0).filter(value => value > 0);
+  if (!counts.length) return 'n/a';
+  if (counts.length !== 2) return counts.join(':');
+  const divisor = gcd(counts[0], counts[1]);
+  return `${counts[0] / divisor}:${counts[1] / divisor}`;
+}
+
+function renderSummaryStrip() {
+  const strip = $('#demoSummaryStrip');
+  if (!strip) return;
   const summary = demoState.result?.summary;
-  if (!summary) return;
+  if (!summary) {
+    strip.hidden = true;
+    strip.textContent = '';
+    return;
+  }
+  const total = summary.total ?? ((summary.n_dev_golden || 0) + (summary.n_holdout || 0));
+  const dev = summary.n_dev_golden ?? summary.bySplit?.dev_golden ?? 0;
+  const holdout = summary.n_holdout ?? summary.bySplit?.holdout ?? 0;
+  const leakage = demoState.result?.leakageChecks?.ok ? '✓' : 'review';
+  strip.textContent = `${total} records · ${dev} dev / ${holdout} holdout · class ${classRatio(summary)} · seed ${summary.seed || readSamplerOptions().seed} · leakage ${leakage}`;
+  strip.hidden = false;
+}
+
+function renderStats() {
+  renderSummaryStrip();
+  const summary = demoState.result?.summary;
+  if (!summary) {
+    const stats = $('#demoStats');
+    if (stats) stats.innerHTML = '';
+    return;
+  }
   const classText = Object.entries(summary.byClass || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
   const sourceText = Object.entries(summary.byDataset || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
   $('#demoStats').innerHTML = [
