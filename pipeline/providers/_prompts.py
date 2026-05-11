@@ -39,6 +39,53 @@ MAX_JUSTIFICATION_CHARS: int = 1500
 # the policy book).
 MAX_POLICY_QUOTES: int = 6
 
+LABELING_RESPONSE_KEYS: tuple[str, ...] = (
+    "label",
+    "l2_label",
+    "justification",
+    "policy_citations",
+    "policy_quotes",
+    "confidence",
+    "difficulty",
+    "is_boundary",
+)
+
+# Provider-facing JSON schema for APIs that support constrained JSON output.
+# Keep this aligned with the eight fields required by LABELING_SYSTEM_PROMPT.
+# It intentionally excludes server-populated audit fields such as token counts
+# and prepared_image_* metadata.
+LABELING_RESPONSE_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "label": {
+            "type": "string",
+            "enum": [
+                "gen_ai",
+                "not_gen_ai",
+                "abstain",
+                "violative",
+                "non_violative",
+            ],
+        },
+        "l2_label": {"type": "string"},
+        "justification": {"type": "string", "min_length": 10},
+        "policy_citations": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "policy_quotes": {
+            "type": "array",
+            "items": {"type": "string", "max_length": 600},
+            "max_items": MAX_POLICY_QUOTES,
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "difficulty": {"type": "string", "enum": ["high", "medium", "low"]},
+        "is_boundary": {"type": "boolean"},
+    },
+    "required": list(LABELING_RESPONSE_KEYS),
+    "property_ordering": list(LABELING_RESPONSE_KEYS),
+}
+
 
 # --- Prompt strings ---------------------------------------------------------
 
@@ -133,6 +180,8 @@ LABELING_USER_INSTRUCTIONS: str = (
 __all__ = [
     "LABELING_SYSTEM_PROMPT",
     "LABELING_USER_INSTRUCTIONS",
+    "LABELING_RESPONSE_KEYS",
+    "LABELING_RESPONSE_SCHEMA",
     "MAX_JUSTIFICATION_CHARS",
     "MAX_POLICY_QUOTES",
 ]

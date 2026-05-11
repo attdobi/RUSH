@@ -15,6 +15,7 @@ Image bytes come exclusively from
 
 from __future__ import annotations
 
+import copy
 import logging
 import time
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from pipeline.labeling.image_prep import (
 from pipeline.providers import auth
 from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS, resolve_temperature
 from pipeline.providers._prompts import (
+    LABELING_RESPONSE_SCHEMA,
     LABELING_SYSTEM_PROMPT,
     LABELING_USER_INSTRUCTIONS,
 )
@@ -129,6 +131,7 @@ class GeminiClient(LabelClient):
     ) -> dict[str, Any]:
         config: dict[str, Any] = {
             "response_mime_type": self.config.response_mime_type,
+            "response_schema": copy.deepcopy(LABELING_RESPONSE_SCHEMA),
         }
         temperature = resolve_temperature(self.config.model_name)
         if temperature is not None:
@@ -252,22 +255,24 @@ class GeminiClient(LabelClient):
             logger.info("usage_unknown for %s", request.model_id)
         cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
 
-        try:
-            parsed = parse_label_json(text)
-        except ValueError:
-            return abstain_response(
-                image_id=request.image_id,
-                model_id=request.model_id,
-                error="parse_failed",
-                latency_ms=elapsed,
-                attempts=attempts_holder["n"],
-                prepared=prepared,
-                raw_payload=raw_payload,
-                justification=(
-                    "Gemini returned non-JSON content; abstaining to keep "
-                    "the vote out of consensus until the prompt is fixed."
-                ),
-            )
+        parsed = self._extract_parsed_json(response)
+        if parsed is None:
+            try:
+                parsed = parse_label_json(text)
+            except ValueError:
+                return abstain_response(
+                    image_id=request.image_id,
+                    model_id=request.model_id,
+                    error="parse_failed",
+                    latency_ms=elapsed,
+                    attempts=attempts_holder["n"],
+                    prepared=prepared,
+                    raw_payload=raw_payload,
+                    justification=(
+                        "Gemini returned non-JSON content; abstaining to keep "
+                        "the vote out of consensus until the prompt is fixed."
+                    ),
+                )
 
         fields = coerce_label_fields(parsed)
         return LabelResponse(
@@ -325,6 +330,24 @@ class GeminiClient(LabelClient):
             get_field("prompt_token_count", "input_token_count", "prompt_tokens"),
             get_field("candidates_token_count", "output_token_count", "completion_tokens"),
         )
+
+    @staticmethod
+    def _extract_parsed_json(response: Any) -> dict[str, Any] | None:
+        """Return SDK-parsed structured output when google-genai provides it."""
+        parsed = getattr(response, "parsed", None)
+        if parsed is None and isinstance(response, dict):
+            parsed = response.get("parsed")
+        if parsed is None:
+            return None
+        if isinstance(parsed, dict):
+            return parsed
+        if hasattr(parsed, "model_dump"):
+            try:
+                dumped = parsed.model_dump()
+            except Exception:  # pragma: no cover
+                return None
+            return dumped if isinstance(dumped, dict) else None
+        return None
 
     @staticmethod
     def _extract_text(response: Any) -> str:

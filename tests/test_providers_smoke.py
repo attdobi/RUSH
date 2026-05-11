@@ -78,6 +78,7 @@ from pipeline.providers.base import (
     strip_image_bytes,
 )
 from pipeline.providers._prompts import (
+    LABELING_RESPONSE_KEYS,
     LABELING_SYSTEM_PROMPT,
     LABELING_USER_INSTRUCTIONS,
 )
@@ -797,6 +798,27 @@ class TestGeminiClient:
 
         assert params["config"]["thinking_config"] == {"thinking_budget": -1}
         assert params["config"]["max_output_tokens"] == 2000
+
+    def test_json_schema_is_added_to_generation_config(self) -> None:
+        client = GeminiClient(
+            config=GeminiClientConfig(model_name="gemini-3.1-pro-preview"),
+            client=object(),
+        )
+
+        params = client._build_api_params(contents=[])
+        schema = params["config"]["response_schema"]
+
+        assert params["config"]["response_mime_type"] == "application/json"
+        assert schema["type"] == "object"
+        assert schema["required"] == list(LABELING_RESPONSE_KEYS)
+        assert schema["property_ordering"] == list(LABELING_RESPONSE_KEYS)
+        assert schema["properties"]["label"]["enum"] == [
+            "gen_ai",
+            "not_gen_ai",
+            "abstain",
+            "violative",
+            "non_violative",
+        ]
 
     def test_raw_payload_scrubs_inline_data(
         self, label_request: LabelRequest
