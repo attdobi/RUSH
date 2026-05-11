@@ -53,7 +53,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Interactive policy graph</p>
         <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
-        <p>Force-directed view of policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code> + <code>edges.json</code>. Hover to trace neighbors, click to read a node, and drill into subtrees.</p>
+        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors, click to read, drill into subtrees.</p>
       </div>
       <div class="run-controls" aria-label="Policy graph version picker">
         <label>Policy version
@@ -69,7 +69,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Cold-start GenAI image demo</p>
         <h2>Sample first, then turn edge cases into policy.</h2>
-        <p>The local demo uses ignored image manifests when present; otherwise it falls back to deterministic synthetic records. No LLM calls happen yet — that comes next with the API keys.</p>
+        <p>Local sampling — uses real image manifests when present, deterministic synthetics otherwise. No LLM calls yet.</p>
       </div>
 
       <div class="demo-controls" aria-label="Sampler controls">
@@ -111,7 +111,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Run trigger</p>
         <h2>Start a local labeling run.</h2>
-        <p>Launch API-backed bulk labeling from the browser, then watch progress and score the run when it finishes.</p>
+        <p>Launch a labeling run, watch progress, score it on completion.</p>
       </div>
       <div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
         <fieldset class="model-picker" aria-label="Models">
@@ -156,7 +156,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Bulk labeling runs</p>
         <h2>Pick an existing run.</h2>
-        <p>Select a completed export to populate consensus, misalignment, borderline, decision-quality, and insights views.</p>
+        <p>Pick a completed export to populate every panel below.</p>
       </div>
       <div class="run-controls" aria-label="Run picker">
         <label>Run
@@ -172,7 +172,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Consensus / majority vote</p>
         <h2>What did the panel decide — together?</h2>
-        <p>For each image, every model casts a vote; this view shows how the panel agreed (or didn’t). Unanimous calls are green, plain majorities are blue, and ties are amber. Rows where the majority disagrees with the SME ground truth are highlighted for review.</p>
+        <p>Every model votes per image. Green = unanimous, blue = majority, amber = tie. Rows where the majority disagrees with SME truth are flagged.</p>
       </div>
       <div class="run-controls" aria-label="Consensus filter">
         <label>Filter
@@ -194,7 +194,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Misalignment worklist</p>
         <h2>Model vs SME disagreement, ranked for review.</h2>
-        <p>Per-image table of SME truth vs model labels. Disagreement reasons and any proposed policy-patch IDs link out to the patch record. Thumbnails reference local image paths — no embedded image bytes. When a run carries prepared-image audit metadata, the downsampled sha256, dimensions, byte size, and mime type are surfaced inline so reviewers can verify the exact bytes the providers saw.</p>
+        <p>Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
       </div>
       <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
@@ -204,7 +204,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Borderline inspector</p>
         <h2>Where models hedge, SMEs decide.</h2>
-        <p>Cold start groups boundary cases by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). As the policy graph grows, this view will fan out to L2 nodes per label.</p>
+        <p>Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
       </div>
       <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
@@ -252,7 +252,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Policy clarity / flip rate</p>
         <h2>Which images make model labels move?</h2>
-        <p>Repeated model runs expose policy ambiguity: stable pairs are clear, flipped pairs are candidates for SME review, stronger examples, or policy-node clarification.</p>
+        <p>Repeated runs expose policy ambiguity. Stable pairs are clear; flipped pairs need SME review or a sharper policy node.</p>
       </div>
       <div id="flipRateEmpty" class="empty-state">No flip-rate data yet — need ≥2 scored runs of the same images. <button type="button" data-compute-target="flip-rate" data-run-id="">Compute now</button></div>
       <div id="flipRateCards" class="flip-cards"></div>
@@ -295,7 +295,7 @@
       <div>
         <p class="eyebrow">Policy graph</p>
         <h2>Policy is the product, not a prompt blob.</h2>
-        <p class="body-copy">Every label should point to a policy node: positive evidence, boundary negative, exception, or uncertainty. SMEs approve policy diffs; LLMs provide pressure tests and candidate ambiguities.</p>
+        <p class="body-copy">Every label cites a policy node — evidence, boundary, exception, or uncertainty. SMEs approve diffs; LLMs surface candidates.</p>
         <div id="policyNodeList" class="node-list"></div>
       </div>
       <div class="panel-card">
@@ -308,7 +308,7 @@
       <div class="section-head compact">
         <p class="eyebrow">System view</p>
         <h2>The RUSH loop at scale.</h2>
-        <p>Same architecture from the foundation view: policy data and golden examples feed the policy graph, labeling, audit, metrics, and graph diffs.</p>
+        <p>Policy data and golden examples feed the graph, labeling, audit, metrics, and diffs.</p>
       </div>
       <div class="system-card">
         <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
@@ -345,10 +345,10 @@
       <p class="eyebrow">Future work</p>
       <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
       <div class="roadmap-grid">
-        <article><span>01</span><h3>Bulk model labeling</h3><p>Run multiple API-backed models over sampled images with structured outputs, confidence, policy-node citations, and abstain support.</p></article>
-        <article><span>02</span><h3>Misalignment mining</h3><p>Compare LLM labels to SME truth, highlight disagreement clusters, and separate correlated model failure from useful consensus.</p></article>
-        <article><span>03</span><h3>Policy diffs</h3><p>Convert repeated ambiguities into graph patches: new nodes, examples, exceptions, clarifications, or rejected-change memory.</p></article>
-        <article><span>04</span><h3>Decision quality</h3><p>Report per-model accuracy, F1, FPR/FNR, positive rate, coverage, confidence intervals, and review burden by policy version.</p></article>
+        <article><span>01</span><h3>Bulk model labeling</h3><p>Multiple models, structured outputs, confidence, policy-node citations, abstain support.</p></article>
+        <article><span>02</span><h3>Misalignment mining</h3><p>Compare LLM labels to SME truth; separate correlated failure from useful consensus.</p></article>
+        <article><span>03</span><h3>Policy diffs</h3><p>Turn repeated ambiguity into graph patches: nodes, examples, exceptions, rejected memory.</p></article>
+        <article><span>04</span><h3>Decision quality</h3><p>Per-model accuracy, F1, FPR/FNR, coverage, CIs, and review burden by policy version.</p></article>
       </div>
     </section>
   </main>
