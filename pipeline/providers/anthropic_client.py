@@ -2,7 +2,7 @@
 
 Uses the ``anthropic`` SDK Messages API with a single user message
 containing an ``image`` block (base64 source) and a ``text`` block. The
-prompt instructs Claude to emit the same six-field JSON object every
+prompt instructs Claude to emit the shared policy-grounded JSON object every
 provider returns; we parse the assistant's text reply.
 
 Image bytes come exclusively from
@@ -23,6 +23,10 @@ from pipeline.labeling.image_prep import (
 )
 from pipeline.providers import auth
 from pipeline.providers._config import resolve_temperature
+from pipeline.providers._prompts import (
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -40,20 +44,9 @@ from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a policy-graph image labeler. Use ONLY the supplied policy "
-    "document to classify the image. Reply with a single JSON object "
-    "carrying the six fields: label, l2_label, justification, confidence, "
-    "difficulty, is_boundary. No prose, no markdown fences."
-)
-
-USER_INSTRUCTIONS = (
-    "Classify the attached image against the policy below. Return only the "
-    "six-field JSON object. label must be one of: gen_ai, not_gen_ai, "
-    "abstain (cold-start) or violative, non_violative, abstain (warm-start). "
-    "justification must be at least 10 characters and cite specific policy "
-    "text. If evidence is insufficient, abstain."
-)
+DEFAULT_SYSTEM_PROMPT = LABELING_SYSTEM_PROMPT
+DEFAULT_USER_PROMPT = LABELING_USER_INSTRUCTIONS
+USER_INSTRUCTIONS = DEFAULT_USER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -363,5 +356,6 @@ __all__ = [
     "AnthropicClient",
     "AnthropicClientConfig",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT",
     "USER_INSTRUCTIONS",
 ]

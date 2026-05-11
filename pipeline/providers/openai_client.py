@@ -28,6 +28,10 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
+from pipeline.providers._prompts import (
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
 from pipeline.providers.base import (
     ClientConfig,
     LabelClient,
@@ -45,20 +49,9 @@ from pipeline.providers.retries import retry_call
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a policy-graph image labeler. Classify the supplied image using "
-    "ONLY the policy document below. Return EXACTLY one JSON object with the "
-    "six fields: label, l2_label, justification, confidence, difficulty, "
-    "is_boundary. No prose, no markdown."
-)
-
-USER_INSTRUCTIONS = (
-    "Classify this image against the policy. Return only the six-field JSON "
-    "object. label must be one of: gen_ai, not_gen_ai, abstain (cold-start) "
-    "or violative, non_violative, abstain (warm-start). justification must "
-    "be at least 10 characters and cite specific policy text. If evidence is "
-    "insufficient, use abstain."
-)
+DEFAULT_SYSTEM_PROMPT = LABELING_SYSTEM_PROMPT
+DEFAULT_USER_PROMPT = LABELING_USER_INSTRUCTIONS
+USER_INSTRUCTIONS = DEFAULT_USER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -388,5 +381,6 @@ __all__ = [
     "OpenAIClient",
     "OpenAIClientConfig",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_USER_PROMPT",
     "USER_INSTRUCTIONS",
 ]
