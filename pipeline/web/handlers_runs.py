@@ -110,6 +110,9 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             if method == "GET" and action == "status":
                 send_json(handler, 200, registry.status(token))
                 return
+            if method == "POST" and action == "compute-now":
+                send_json(handler, 200, registry.compute_now(token))
+                return
             if method == "POST" and action == "score":
                 send_json(handler, 200, registry.score(token))
                 return

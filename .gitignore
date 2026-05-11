@@ -29,6 +29,9 @@ data/runs/
 # Policy proposal staging (per-proposal verification artifacts).
 data/policy_proposals/
 
+# Attila's local notes drop-box for routing context between sessions.
+.attila-notes/
+
 # Built policy PDFs are build artifacts, not source.
 *.pdf
 !docs/**/*.pdf

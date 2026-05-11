@@ -105,7 +105,7 @@
       <div id="sampleGallery" class="sample-gallery"></div>
     </section>
 
-    <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API not running — start <code>python scripts/rush_web_server.py</code> to enable run controls, decision quality, insights, and policy proposals.</div>
+    <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
 
     <section id="run-trigger" class="section api-section" hidden>
       <div class="section-head compact">
@@ -186,7 +186,7 @@
         <span id="consensusStatus" class="status-line" role="status"></span>
       </div>
       <div id="consensusSummary" class="stat-grid"></div>
-      <div id="consensusEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> to populate this view.</div>
+      <div id="consensusEmpty" class="empty-state">No consensus data yet for this run. <button type="button" data-compute-target="consensus" data-run-id="">Compute now</button></div>
       <div id="consensusTable" class="misalignment-table"></div>
     </section>
 
@@ -196,7 +196,7 @@
         <h2>Model vs SME disagreement, ranked for review.</h2>
         <p>Per-image table of SME truth vs model labels. Disagreement reasons and any proposed policy-patch IDs link out to the patch record. Thumbnails reference local image paths — no embedded image bytes. When a run carries prepared-image audit metadata, the downsampled sha256, dimensions, byte size, and mime type are surfaced inline so reviewers can verify the exact bytes the providers saw.</p>
       </div>
-      <div id="misalignmentEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/score_labels.py --run-id &lt;run_id&gt;</code> after a labeling pass to populate this view.</div>
+      <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
     </section>
 
@@ -206,7 +206,7 @@
         <h2>Where models hedge, SMEs decide.</h2>
         <p>Cold start groups boundary cases by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). As the policy graph grows, this view will fan out to L2 nodes per label.</p>
       </div>
-      <div id="borderlineEmpty" class="empty-state">No run loaded yet. Run <code>python scripts/run_bulk_labeling.py --models &lt;ids&gt;</code> to populate this view.</div>
+      <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
     </section>
 
@@ -254,7 +254,7 @@
         <h2>Which images make model labels move?</h2>
         <p>Repeated model runs expose policy ambiguity: stable pairs are clear, flipped pairs are candidates for SME review, stronger examples, or policy-node clarification.</p>
       </div>
-      <div id="flipRateEmpty" class="empty-state">No flip-rate export found. Run <code>python scripts/compute_flip_rate.py</code> to populate this view.</div>
+      <div id="flipRateEmpty" class="empty-state">No flip-rate data yet — need ≥2 scored runs of the same images. <button type="button" data-compute-target="flip-rate" data-run-id="">Compute now</button></div>
       <div id="flipRateCards" class="flip-cards"></div>
       <div id="flipRateBars" class="flip-model-list"></div>
       <div id="flipRateTable" class="misalignment-table"></div>

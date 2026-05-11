@@ -82,8 +82,8 @@
     ]));
   }
 
-  function table(headers, rows) {
-    if (!rows.length) return '<div class="empty-state compact-empty">No rows for this insight yet.</div>';
+  function table(headers, rows, emptyMessage = 'No rows for this insight yet.') {
+    if (!rows.length) return `<div class="empty-state compact-empty">${esc(emptyMessage)}</div>`;
     const head = headers.map(header => `<th>${esc(header)}</th>`).join('');
     const body = rows.slice(0, 10).map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
     return `<div class="compact-table"><table class="misalignment"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -92,7 +92,7 @@
   function renderPanel(key, title, rows) {
     const safeRows = Array.isArray(rows) ? rows.slice(0, 10) : [];
     let body = '';
-    if (key === 'policy_clarity_hot_spots') body = renderHotSpots(safeRows);
+    if (key === 'policy_clarity_hot_spots') body = safeRows.length ? renderHotSpots(safeRows) : table(['Image', 'Flip rate', 'Runs', 'Labels observed'], [], 'No policy clarity hot spots yet — flip-rate data needs ≥2 scored runs of the same images.');
     else if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
     else if (key === 'model_disagreement') body = renderDisagreement(safeRows);
     else if (key === 'boundary_concentration') body = renderBoundary(safeRows);

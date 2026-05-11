@@ -51,6 +51,20 @@ def _voter_audit(vote: dict[str, Any]) -> dict[str, Any]:
     }
     out["confidence"] = _common.optional_confidence(vote.get("confidence"))
     out["is_boundary"] = bool(vote.get("is_boundary", False))
+    for key in (
+        "l2_label",
+        "difficulty",
+        "justification",
+        "policy_citations",
+        "policy_quotes",
+        "justification_too_long",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "cost_usd",
+    ):
+        if key in vote:
+            out[key] = vote.get(key)
     return out
 
 

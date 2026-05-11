@@ -72,8 +72,9 @@
   }
 
   function sourceImageSrc(record) {
-    const path = String(record.repo_rel_path || record.synthetic_repo_rel_path || '').replace(/^\.\//, '');
-    return path ? `../${path}` : '';
+    const path = String(record.repo_rel_path || record.synthetic_repo_rel_path || '').replace(/^\.\//, '').replace(/^\/+/, '');
+    if (!path) return '';
+    return window.RUSH_API?.available ? `/api/thumbnail?path=${encodeURIComponent(path)}` : `../${path}`;
   }
 
   function tokenValue(vote, ...keys) {
@@ -222,6 +223,11 @@
     const proposeButton = target.closest('[data-propose-row-diff]');
     if (proposeButton) {
       proposeDiffFromRow(proposeButton);
+      return;
+    }
+    const explicitOpen = target.closest('[data-open-justifications]');
+    if (explicitOpen) {
+      renderDrawer(findRecord(explicitOpen.dataset.openJustifications));
       return;
     }
     if (target.closest('a, button, input, select, textarea')) return;

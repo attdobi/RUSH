@@ -38,6 +38,13 @@ _VOTE_WEB_FIELDS = (
     "is_boundary",
     "difficulty",
     "justification",
+    "policy_citations",
+    "policy_quotes",
+    "justification_too_long",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cost_usd",
 )
 
 

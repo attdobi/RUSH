@@ -1,36 +1,21 @@
 #!/usr/bin/env python3
 """Score a bulk-labeling run.
 
-Reads ``data/runs/<run_id>/label_votes.jsonl`` plus the SME manifest, writes:
-
-    data/runs/<run_id>/scoring/decision_quality.json
-    data/runs/<run_id>/scoring/misalignment.json
-    data/runs/<run_id>/scoring/borderline.json
-    data/runs/<run_id>/scoring/consensus.json    (cohort rollups)
-    data/runs/<run_id>/consensus.jsonl           (per-image records)
-    data/runs/<run_id>/web/{summary,misalignment,borderline,consensus}.json
-
-Stdlib-only; no network. Determinism: outputs are stable for a given input.
+Writes canonical scoring artifacts under ``data/runs/<run_id>/scoring/`` plus
+browser exports under ``data/runs/<run_id>/web/``. The implementation lives in
+``pipeline.scoring.run_scoring`` so the local web API can invoke the same chain
+in-process when a run completes.
 """
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pipeline.scoring import (  # noqa: E402
-    borderline as borderline_mod,
-    consensus as consensus_mod,
-    cost as cost_mod,
-    decision_quality as dq_mod,
-    exporters as exporters_mod,
-    misalignment as mis_mod,
-)
-from pipeline.scoring._common import load_ground_truth, load_label_votes, try_validate  # noqa: E402
+from pipeline.scoring import run_scoring  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,20 +33,13 @@ def parse_args() -> argparse.Namespace:
         ),
         help="SME ground-truth manifest path",
     )
-    p.add_argument(
-        "--policy-graph-version",
-        default="Generative_AI.v0.1",
-    )
+    p.add_argument("--policy-graph-version", default="Generative_AI.v0.1")
     p.add_argument(
         "--ground-truth-tier",
         default="gold,platinum,gold_candidate",
         help="comma-separated truth tiers to count as ground truth",
     )
-    p.add_argument(
-        "--low-confidence-threshold",
-        type=float,
-        default=0.6,
-    )
+    p.add_argument("--low-confidence-threshold", type=float, default=0.6)
     p.add_argument(
         "--validate-schemas",
         action="store_true",
@@ -70,114 +48,47 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _atomic_write_json(path: Path, data) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=False), encoding="utf-8")
-    tmp.replace(path)
-
-
 def main() -> int:
     args = parse_args()
-    run_dir = Path(args.runs_root) / args.run_id
-    votes_path = run_dir / "label_votes.jsonl"
-    if not votes_path.exists():
-        print(f"ERROR: missing {votes_path}", file=sys.stderr)
+    tiers = tuple(t.strip() for t in args.ground_truth_tier.split(",") if t.strip())
+    try:
+        result = run_scoring(
+            args.run_id,
+            ROOT,
+            runs_root=Path(args.runs_root),
+            manifest=Path(args.manifest),
+            policy_graph_version=args.policy_graph_version,
+            ground_truth_tier=tiers,
+            low_confidence_threshold=args.low_confidence_threshold,
+            validate_schemas=args.validate_schemas,
+        )
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    tiers = tuple(t.strip() for t in args.ground_truth_tier.split(",") if t.strip())
-    schemas_dir = ROOT / "schemas" if args.validate_schemas else None
-
-    dq = dq_mod.compute_decision_quality(
-        votes_path,
-        Path(args.manifest),
-        policy_graph_version=args.policy_graph_version,
-        ground_truth_tier=tiers,
-        schemas_dir=schemas_dir,
-    )
-    mis = mis_mod.compute_misalignment(
-        votes_path,
-        Path(args.manifest),
-        policy_graph_version=args.policy_graph_version,
-        ground_truth_tier=tiers,
-    )
-    bord = borderline_mod.compute_borderline(
-        votes_path,
-        Path(args.manifest),
-        policy_graph_version=args.policy_graph_version,
-        ground_truth_tier=tiers,
-        low_confidence_threshold=args.low_confidence_threshold,
-    )
-
-    # Consensus / majority-vote layer (additive; pure function on the raw votes).
-    votes_raw = load_label_votes(votes_path)
-    cost_summary = cost_mod.aggregate_per_call_costs(votes_raw)
-    dq = cost_mod.attach_cost_to_labelers(dq, cost_summary)
-    if schemas_dir is not None:
-        errs = try_validate(
-            dq, schemas_dir / "decision-quality.schema.json", label="decision-quality"
-        )
-        if errs:
-            raise ValueError("decision-quality validation failed after cost attach: " + "; ".join(errs))
-    consensus_records = consensus_mod.build_consensus_records(
-        votes_raw, run_id=args.run_id
-    )
-    try:
-        truth = load_ground_truth(Path(args.manifest), truth_tiers=tiers)
-    except FileNotFoundError:
-        truth = {}
-    consensus_rollup = consensus_mod.build_cohort_rollups(
-        consensus_records, ground_truth=truth
-    )
-    consensus_summary = {
-        "run_id": args.run_id,
-        "policy_graph_version": args.policy_graph_version,
-        "ground_truth_tier": [t for t in tiers if t in {"gold", "platinum"}] or list(tiers),
-        "summary": consensus_rollup,
-        "records": consensus_records,
-    }
-
-    scoring_dir = run_dir / "scoring"
-    _atomic_write_json(scoring_dir / "decision_quality.json", dq)
-    _atomic_write_json(scoring_dir / "cost.json", cost_summary)
-    _atomic_write_json(scoring_dir / "misalignment.json", mis)
-    _atomic_write_json(scoring_dir / "borderline.json", bord)
-    _atomic_write_json(scoring_dir / "consensus.json", consensus_summary)
-
-    # Per-image JSONL alongside label_votes.jsonl for downstream tooling.
-    consensus_jsonl = run_dir / "consensus.jsonl"
-    consensus_jsonl.parent.mkdir(parents=True, exist_ok=True)
-    tmp_jsonl = consensus_jsonl.with_suffix(consensus_jsonl.suffix + ".tmp")
-    tmp_jsonl.write_text(
-        "".join(
-            json.dumps(r, sort_keys=False) + "\n" for r in consensus_records
-        ),
-        encoding="utf-8",
-    )
-    tmp_jsonl.replace(consensus_jsonl)
-
-    written = exporters_mod.write_web_exports(
-        run_dir,
-        decision_quality=dq,
-        misalignment=mis,
-        borderline=bord,
-        consensus=consensus_summary,
-        run_id=args.run_id,
-    )
-    for name, path in written.items():
+    for name, path_text in result.get("written", {}).items():
+        path = Path(path_text)
         try:
             display = path.relative_to(ROOT)
         except ValueError:
             display = path
         print(f"wrote {name}: {display}")
+
+    mis = result.get("misalignment_summary", {})
+    bord = result.get("borderline_summary", {})
+    consensus = result.get("consensus_summary", {})
+    cost = result.get("cost_summary", {})
     print(
-        f"DQ: {len(dq.get('labelers', []))} labelers | "
-        f"misalignment: {mis['summary']} | "
-        f"borderline: {bord['summary']} | "
-        f"consensus: {consensus_rollup} | "
-        f"total_cost_usd: {cost_summary['total_cost_usd']:.6f} | "
-        f"cost_per_1000_labels: {cost_summary['cost_per_1000_labels']}"
+        f"DQ: {result.get('decision_quality', {}).get('n_labelers', 0)} labelers | "
+        f"misalignment: {mis} | borderline: {bord} | consensus: {consensus} | "
+        f"total_cost_usd: {float(cost.get('total_cost_usd') or 0):.6f} | "
+        f"cost_per_1000_labels: {cost.get('cost_per_1000_labels')}"
     )
+    flip = result.get("flip_rate", {})
+    if flip.get("skipped"):
+        print(f"flip-rate skipped: {flip.get('reason')}")
+    else:
+        print(f"flip-rate wrote: {flip.get('output_dir')}")
     return 0
 
 

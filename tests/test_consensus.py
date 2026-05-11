@@ -148,7 +148,12 @@ def test_consensus_voter_audit_shape_and_ordering():
     assert [v["labeler_id"] for v in voters] == ["alpha", "zeta"]
     assert voters[0]["confidence"] == 0.9
     assert voters[0]["is_boundary"] is False
-    assert "justification" not in voters[0]  # audit-only, no body text leaked
+    # v2 (X2 wave-2): voter audit carries the per-call evidence inline so the
+    # web layer can render justifications/citations/cost without a separate
+    # fetch. Pass-through is best-effort: only keys present on the source vote
+    # are echoed onto the voter block.
+    assert voters[0]["justification"] == "x"
+    assert voters[0]["label"] == "gen_ai"
 
 
 # ---------------------------------------------------------------------------
