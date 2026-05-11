@@ -166,10 +166,6 @@ main { padding: 0 clamp(18px, 4vw, 58px) 70px; }
 .roadmap article h3 { margin: 10px 0 8px; }
 
 /* ----- Bulk-labeling additions (X4) ----- */
-.primary-action.ghost {
-  background: rgba(125, 176, 255, .14);
-  border-color: rgba(125, 176, 255, .55);
-}
 .fineprint { color: var(--muted); font-size: 13px; line-height: 1.45; max-width: 760px; margin-top: 14px; }
 .fineprint code { background: rgba(7, 16, 31, .6); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 6px; font-size: 12px; }
 
@@ -551,7 +547,6 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 }
 .primary-action { transition: filter .14s ease, transform .08s ease; }
 .primary-action:active { transform: translateY(1px); }
-.primary-action.ghost:hover { filter: brightness(1.08); }
 .filter-chip:focus-visible,
 .nav-pills a:focus-visible {
   color: var(--text);
@@ -578,12 +573,34 @@ textarea:focus-visible {
   cursor: pointer;
 }
 .empty-state button:hover { filter: brightness(1.12); border-color: var(--blue); }
+.misalignment-table .expand-row {
+  background: rgba(125, 176, 255, .12);
+  color: var(--text);
+}
+.misalignment-table .expand-row:hover,
+.misalignment-table .image-id-button:hover,
+.policy-citation-chip:hover,
+table.misalignment a:hover {
+  color: var(--green);
+  border-color: var(--green);
+  filter: brightness(1.12);
+}
+.misalignment-table .image-id-button:focus-visible,
+.misalignment-table .expand-row:focus-visible,
+.policy-citation-chip:focus-visible,
+table.misalignment a:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.misalignment-table .inline-justification-card { color: #dce8ff; }
+.misalignment-table .inline-justification-card dt,
+.misalignment-table .policy-quotes blockquote { color: #c4d3ef; }
 .lede { color: #c4d3ef; }
 .nav-pills::-webkit-scrollbar { height: 6px; }
 .nav-pills::-webkit-scrollbar-thumb { background: rgba(170,184,211,.25); border-radius: 999px; }
 
 @media (max-width: 720px) {
-  .nav-pills { padding-bottom: 2px; }
+  .nav-pills { flex-wrap: wrap; overflow-x: visible; white-space: normal; padding-bottom: 2px; }
   .hero-actions { width: 100%; }
   .hero-actions .primary-action { flex: 1 1 auto; text-align: center; }
   .gallery-toolbar { flex-direction: column; align-items: stretch; }

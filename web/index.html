@@ -14,17 +14,11 @@
         <a href="#demo">Demo</a>
         <a href="#policy-graph">Graph</a>
         <a href="#run-trigger">Run</a>
-        <a href="#runs">Runs</a>
         <a href="#consensus">Consensus</a>
         <a href="#misalignment">Misalignment</a>
-        <a href="#borderline">Borderline</a>
         <a href="#decision-quality-overview">Quality</a>
-        <a href="#insights">Insights</a>
-        <a href="#flip-rate-panel">Flip rate</a>
         <a href="#policy-proposals">Proposals</a>
-        <a href="#policy">Loop</a>
         <a href="#system">System</a>
-        <a href="#theory">Theory</a>
         <a href="#roadmap">Next</a>
       </div>
     </nav>
@@ -36,7 +30,6 @@
         <p class="lede">Multiple LLMs label the same images. Consensus is the audit signal; disagreement is where you look.</p>
         <div class="hero-actions">
           <a class="primary-action" href="#demo">Start GenAI demo</a>
-          <a class="primary-action ghost" href="#policy-graph">Explore policy graph</a>
         </div>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
@@ -53,7 +46,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Interactive policy graph</p>
         <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
-        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors, click to read, drill into subtrees.</p>
+        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
       </div>
       <div class="run-controls" aria-label="Policy graph version picker">
         <label>Policy version
@@ -172,7 +165,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Consensus / majority vote</p>
         <h2>What did the panel decide — together?</h2>
-        <p>Every model votes per image. Green = unanimous, blue = majority, amber = tie. Rows where the majority disagrees with SME truth are flagged.</p>
+        <p>Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
       </div>
       <div class="run-controls" aria-label="Consensus filter">
         <label>Filter
@@ -323,7 +316,7 @@
       <div class="theory-prose">
         <p><strong>RUSH</strong> is used here as a working acronym: <strong>Review, Update, SME-feedback, Hone</strong>. Treat that expansion as a placeholder until the project adopts a canonical name, but it captures the operating loop: human review creates evidence, the policy graph updates, subject-matter experts approve or reject the change, and the system hones future labels.</p>
         <h3>Methodology</h3>
-        <p>The system starts with a cold-start policy graph rather than a free-form prompt blob. Bulk LLM labeling then asks multiple models to classify the same images while citing policy nodes. Scoring compares model output to SME truth, mines misalignments, and turns repeated ambiguity into proposed policy diffs. Accepted diffs become new graph versions; rejected diffs become memory about what not to change.</p>
+        <p>The system starts with a cold-start policy graph, not a free-form prompt blob. Bulk LLM labeling cites policy nodes, compares against SME truth, and turns repeated ambiguity into proposed graph diffs.</p>
         <h3>Cost and quality frame</h3>
         <div class="theory-table-wrap">
           <table class="theory-table">
@@ -336,7 +329,7 @@
           </table>
         </div>
         <h3>SME-feedback loop</h3>
-        <p>SMEs are not asked to rubber-stamp model labels. They adjudicate evidence, clarify boundary cases, and approve policy diffs. The useful output is therefore not merely a label; it is a durable graph change with examples, exceptions, and provenance that future runs can cite.</p>
+        <p>SMEs do not rubber-stamp model labels. They adjudicate evidence, clarify boundaries, and approve durable graph changes that future runs can cite.</p>
         <p class="fineprint">Related framing: active learning, human-in-the-loop annotation, weak supervision, model auditing, and dataset governance. RUSH adapts those ideas to policy-versioned visual classification with explicit cost and review-burden accounting.</p>
       </div>
     </section>
