@@ -691,7 +691,8 @@ function renderRunPicker() {
   }
   picker.disabled = false;
   picker.innerHTML = runState.available.map(r => {
-    const label = r.started_at ? `${r.run_id} · ${r.started_at}` : r.run_id;
+    const suffix = r.scoring_done === false ? ' · unscored' : '';
+    const label = r.started_at ? `${r.run_id} · ${r.started_at}${suffix}` : `${r.run_id}${suffix}`;
     const selected = r.run_id === runState.selectedRunId ? ' selected' : '';
     return `<option value="${attr(r.run_id)}"${selected}>${esc(label)}</option>`;
   }).join('');
@@ -1088,7 +1089,8 @@ async function refreshRuns(autoSelectMostRecent = true) {
   }
   renderRunPicker();
   if (autoSelectMostRecent && runState.available.length) {
-    await loadRun(runState.available[0].run_id);
+    const preferred = runState.available.find(run => run.scoring_done !== false) || runState.available[0];
+    await loadRun(preferred.run_id);
   } else {
     renderRun();
   }
