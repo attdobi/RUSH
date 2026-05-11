@@ -23,9 +23,9 @@ from pipeline.policy_iterator import (
 )
 
 DOMAIN = "Generative_AI"
-DEFAULT_POLICY_MODEL = "anthropic/claude-opus-4-7"
-EXPLICIT_OPENAI_POLICY_MODEL = "openai/gpt-5.5"
-ALLOWED_POLICY_MODELS = {DEFAULT_POLICY_MODEL, EXPLICIT_OPENAI_POLICY_MODEL}
+DEFAULT_POLICY_MODEL = "openai/gpt-5.5"
+ANTHROPIC_POLICY_MODEL = "anthropic/claude-opus-4-7"
+ALLOWED_POLICY_MODELS = {DEFAULT_POLICY_MODEL, ANTHROPIC_POLICY_MODEL}
 _VERSION_RE = re.compile(r"^v(\d+)\.(\d+)$")
 
 ChatCallable = Callable[..., str]
@@ -244,7 +244,7 @@ def propose_diff(
     """Create a policy proposal without modifying ``policy-graph``.
 
     Tests and internal callers may pass ``proposed_files`` directly to avoid an
-    LLM call. Production callers omit it; the default model is Claude Opus 4.7.
+    LLM call. Production callers omit it; the default model is GPT-5.5.
     Parse failures are persisted as ``status: parse_error`` with the raw text.
     """
     root = _repo_root(repo_root)
@@ -260,11 +260,13 @@ def propose_diff(
     if proposed_files is None:
         if chat_callable is None:
             if effective_model == DEFAULT_POLICY_MODEL:
+                from pipeline.providers.openai_chat import policy_chat_callable
+            elif effective_model == ANTHROPIC_POLICY_MODEL:
                 from pipeline.providers.anthropic_chat import policy_chat_callable
+            else:  # guarded by ALLOWED_POLICY_MODELS above
+                raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
 
-                chat_callable = policy_chat_callable(effective_model)
-            else:
-                raise ValueError("openai/gpt-5.5 policy proposals require an explicit chat_callable")
+            chat_callable = policy_chat_callable(effective_model)
         inputs = _load_run_inputs(root, run_id, base_version)
         user_payload = build_user_prompt(inputs)
         prompt = {
@@ -544,7 +546,7 @@ def reject_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
 __all__ = [
     "ALLOWED_POLICY_MODELS",
     "DEFAULT_POLICY_MODEL",
-    "EXPLICIT_OPENAI_POLICY_MODEL",
+    "ANTHROPIC_POLICY_MODEL",
     "accept_proposal",
     "get_proposal",
     "list_policy_versions",

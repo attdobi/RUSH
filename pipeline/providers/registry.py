@@ -57,7 +57,9 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 6000,
+            # High reasoning can consume well over 6k internal tokens before
+            # emitting JSON; keep the cap roomy enough to avoid empty outputs.
+            "max_completion_tokens": 24000,
         },
     ),
     "google/gemini-3.1-pro-preview": ModelSpec(
