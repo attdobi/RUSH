@@ -27,12 +27,9 @@
       if (currentRun) runSelect.value = currentRun;
     }
     const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '';
-    for (const id of ['proposalBaseVersion', 'proposalBuildVersion']) {
-      const select = $(`#${id}`);
-      if (!select) continue;
-      const selected = select.value || currentVersion;
-      select.innerHTML = rushApiPolicyVersionOptions(selected, false);
-      if (selected) select.value = selected;
+    for (const id of ['proposalBaseVersionChip', 'proposalBuildVersionChip']) {
+      const chip = $(`#${id}`);
+      if (chip) chip.textContent = `${currentVersion} · current`;
     }
   }
 
@@ -127,7 +124,7 @@
 
   async function proposeDiff() {
     const runId = $('#proposalRunId')?.value || '';
-    const baseVersion = $('#proposalBaseVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
+    const baseVersion = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
     if (!runId) {
       status('Select a run before proposing a diff.', true);
       return;
@@ -186,7 +183,7 @@
   }
 
   async function buildPdf() {
-    const version = $('#proposalBuildVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
+    const version = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
     try {
       status(`Building policy PDF for ${version}…`);
       $('#buildPolicyPdf').disabled = true;
