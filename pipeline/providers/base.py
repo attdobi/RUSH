@@ -111,7 +111,7 @@ class LabelResponse:
     # against the old six-field schema.
     policy_citations: list[str] = field(default_factory=list)
     policy_quotes: list[str] = field(default_factory=list)
-    justification_too_short: bool = False
+    justification_too_long: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serializable shape for downstream persistence."""
@@ -271,14 +271,15 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
     v2 (policy-grounded prompt) adds three derived fields:
       * ``policy_citations``: list of policy node ids the labeler invoked.
       * ``policy_quotes``: list of verbatim policy snippets the labeler cited.
-      * ``justification_too_short``: True when the justification is below the
-        soft minimum length set in :mod:`pipeline.providers._prompts`. Callers
+      * ``justification_too_long``: True when the justification exceeds the
+        soft upper bound from :mod:`pipeline.providers._prompts` (the prompt
+        asks for ≤~350 tokens; runaway output triggers this flag). Callers
         should still validate against ``schemas/llm-output.schema.json``
         before persistence; the flag is informational only.
     """
     from pipeline.providers._prompts import (
+        MAX_JUSTIFICATION_CHARS,
         MAX_POLICY_QUOTES,
-        MIN_JUSTIFICATION_CHARS,
     )
 
     label = str(parsed.get("label", "abstain")).strip().lower()
@@ -294,9 +295,7 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
     policy_quotes = _coerce_str_list(
         parsed.get("policy_quotes"), cap=MAX_POLICY_QUOTES
     )
-    justification_too_short = (
-        label != "abstain" and len(justification) < MIN_JUSTIFICATION_CHARS
-    )
+    justification_too_long = len(justification) > MAX_JUSTIFICATION_CHARS
     return {
         "label": label,
         "l2_label": l2_label,
@@ -306,7 +305,7 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
         "is_boundary": is_boundary,
         "policy_citations": policy_citations,
         "policy_quotes": policy_quotes,
-        "justification_too_short": justification_too_short,
+        "justification_too_long": justification_too_long,
     }
 
 

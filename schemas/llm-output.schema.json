@@ -27,7 +27,7 @@
     "justification": {
       "type": "string",
       "minLength": 10,
-      "description": "Policy-grounded argument. The v1.2 prompt asks the labeler for ~350 tokens (~1500+ chars); shorter justifications still validate but get flagged in the run record as justification_too_short."
+      "description": "Policy-grounded argument. The v1.2 prompt caps justification at ~350 tokens (~1500 chars); longer responses still validate but get flagged in the run record as justification_too_long."
     },
     "policy_citations": {
       "type": "array",
@@ -45,9 +45,9 @@
       "maxItems": 6,
       "description": "Verbatim short snippets lifted from the supplied policy markdown."
     },
-    "justification_too_short": {
+    "justification_too_long": {
       "type": "boolean",
-      "description": "Server-set flag (not labeler-set): true when justification is below the policy-grounded floor."
+      "description": "Server-set flag (not labeler-set): true when justification exceeds the policy-grounded cap (~350 tokens / ~1500 chars)."
     },
     "confidence": {
       "type": [

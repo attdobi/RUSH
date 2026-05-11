@@ -14,11 +14,13 @@ in :func:`pipeline.providers.base.coerce_label_fields` and persisted on
 :class:`pipeline.providers.base.LabelResponse` so reviewers can trace
 **why** a label happened, not just what it was.
 
-The minimum justification length (1500 characters / roughly 350 tokens)
-is enforced as a *soft* request in the prompt and as a *hard* validation
-hook in :func:`coerce_label_fields`. Models that under-deliver still
-parse successfully — but the run record flags ``justification_too_short``
-so downstream scoring can downweight them.
+Justification length is treated as a CAP, not a floor: ~350 tokens
+(≈1500 characters) is the soft upper bound. The prompt instructs models
+to stay under it; :func:`coerce_label_fields` flags responses that
+exceed it via ``justification_too_long`` so downstream scoring can spot
+models that ignored the cap. Substance trumps length — a tight 200-token
+justification that cites the right policy nodes is preferred over a
+padded 350-token one.
 """
 
 from __future__ import annotations
@@ -26,10 +28,12 @@ from __future__ import annotations
 
 # --- Tunables ---------------------------------------------------------------
 
-# Roughly 350 tokens at ~4.3 chars/token. We enforce a character floor
-# because token counts vary per tokenizer and we don't want to embed a
-# provider-specific tokenizer here.
-MIN_JUSTIFICATION_CHARS: int = 1500
+# Soft *upper* bound on justification length. ~350 tokens × ~4 chars/token.
+# This is a cap, not a floor: we want dense, precise reasoning, not padding.
+# Models may go under; the ≥10-char sanity check in coerce_label_fields is
+# the only hard minimum. ``justification_too_long`` flags runaway output so
+# scoring/reviewers can spot models that ignored the cap.
+MAX_JUSTIFICATION_CHARS: int = 1500
 
 # Soft cap on policy_quotes (we want exact citations, not a re-writing of
 # the policy book).
@@ -48,6 +52,11 @@ LABELING_SYSTEM_PROMPT: str = (
     "filenames. If the supplied policy is silent on something you observe, "
     "say so explicitly and abstain.\n"
     "\n"
+    "REASONING vs OUTPUT.\n"
+    "Think hard internally. Your VISIBLE output is short and dense. The "
+    "reasoning effort / thinking budget your runtime gives you is for the "
+    "hidden deliberation pass; the JSON you return is the receipt.\n"
+    "\n"
     "OUTPUT FORMAT — STRICT.\n"
     "Return EXACTLY one JSON object. No prose, no markdown fences. The "
     "object MUST contain these keys:\n"
@@ -56,13 +65,12 @@ LABELING_SYSTEM_PROMPT: str = (
     "  l2_label          the policy node id you applied as the primary "
     "                    classification (e.g. \"GA.visual_artifacts."
     "anatomy.hands\"); empty string only if label=abstain\n"
-    "  justification     a coherent argument grounded in the policy. MUST "
-    "                    be at least ~350 tokens (≈1500+ characters). MUST "
-    "                    name the policy nodes you invoked and quote the "
-    "                    exact policy clauses you leaned on. Walk the "
-    "                    reader through what you see in the image, why the "
-    "                    policy applies (or does not), and how alternative "
-    "                    policy nodes were considered and rejected.\n"
+    "  justification     a precise, dense argument grounded in the policy. "
+    "                    Keep it UNDER ~350 tokens (≈1500 characters). No "
+    "                    padding, no restating the image, no narrative "
+    "                    flourishes. Name the policy nodes you invoked "
+    "                    inline and reference the clauses you leaned on. "
+    "                    Substance over length.\n"
     "  policy_citations  array of policy node ids referenced (e.g. "
     "                    [\"GA.surface_texture.plastic_skin\", "
     "                    \"GA.visual_artifacts.text_symbols\"]). MUST "
@@ -80,14 +88,14 @@ LABELING_SYSTEM_PROMPT: str = (
     "                    photo, low-quality uncertain).\n"
     "\n"
     "QUALITY BAR.\n"
-    "- A justification under ~1500 characters is a failure. If you are "
-    "  about to emit a one-sentence justification, you are wrong. Re-read "
-    "  the policy, find the relevant nodes, cite them.\n"
+    "- Substance, not word count. A 200-token justification that names the "
+    "  right nodes and quotes the right clauses beats a 350-token "
+    "  justification that meanders.\n"
     "- Quote, do not paraphrase, when populating policy_quotes.\n"
     "- Cite at least one positive-evidence node (or one boundary/exception "
     "  node when abstaining). Never cite a node you didn't actually use.\n"
-    "- If the evidence is mixed, walk through both sides in the "
-    "  justification before committing to a label.\n"
+    "- If the evidence is mixed, name the competing nodes in the "
+    "  justification and explain why one wins.\n"
     "\n"
     "FAILURE MODE — ABSTAIN.\n"
     "If the image is unreadable, ambiguous, off-policy, or the supplied "
@@ -100,21 +108,22 @@ LABELING_SYSTEM_PROMPT: str = (
 LABELING_USER_INSTRUCTIONS: str = (
     "Classify this image against the policy document below.\n"
     "\n"
-    "Return ONE JSON object matching the schema in the system prompt. The "
-    "justification must run at least ~350 tokens, must cite specific "
-    "policy nodes by id (policy_citations), and must include verbatim "
-    "policy quotes (policy_quotes) lifted from the markdown.\n"
+    "Return ONE JSON object matching the schema in the system prompt. "
+    "Keep justification under ~350 tokens; cite specific policy nodes by "
+    "id (policy_citations); include verbatim policy quotes (policy_quotes) "
+    "lifted from the markdown.\n"
     "\n"
-    "Workflow you must follow inside your reasoning:\n"
+    "Workflow to follow inside your reasoning (this part is hidden — only "
+    "the final JSON is returned):\n"
     "  1. Inspect the image. Note observable features (anatomy, surface "
     "     texture, scene geometry, text/symbols, provenance hints).\n"
     "  2. For each observation, locate the policy node that governs it. "
     "     Record the node id verbatim.\n"
-    "  3. Quote the exact policy clause that applies.\n"
+    "  3. Identify the exact policy clause that applies.\n"
     "  4. Test the leading hypothesis against boundary and exception "
-    "     nodes; rule them in or out explicitly.\n"
-    "  5. Commit to a label only after that walkthrough. If the policy "
-    "     does not cover what you see, abstain.\n"
+    "     nodes; rule them in or out.\n"
+    "  5. Commit to a label. If the policy does not cover what you see, "
+    "     abstain.\n"
     "\n"
     "Do NOT include any text outside the JSON object. Do NOT wrap the "
     "JSON in markdown fences."
@@ -124,6 +133,6 @@ LABELING_USER_INSTRUCTIONS: str = (
 __all__ = [
     "LABELING_SYSTEM_PROMPT",
     "LABELING_USER_INSTRUCTIONS",
-    "MIN_JUSTIFICATION_CHARS",
+    "MAX_JUSTIFICATION_CHARS",
     "MAX_POLICY_QUOTES",
 ]
