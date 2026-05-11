@@ -868,12 +868,14 @@ function renderBorderline() {
     const body = items.map(item => {
       const id = item.image_id || item.sample_id || '';
       const reason = item.reason || item.borderline_reason || (Array.isArray(item.reasons) ? item.reasons.join(' · ') : '');
+      const thumbSrc = thumbnailSrcForPath(item.repo_rel_path || '');
+      const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
       const votes = votesForInline(item);
       const confs = votes.map(v => Number(v.confidence)).filter(Number.isFinite);
       const conf = confs.length ? `avg confidence ${(confs.reduce((a, b) => a + b, 0) / confs.length).toFixed(2)}` : '';
       const diffs = [...new Set(votes.map(v => v.difficulty).filter(Boolean))];
       const diff = diffs.length ? `difficulty ${diffs.join(', ')}` : '';
-      const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('borderline', id)}</td><td><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(item.prepared_image)}</td><td>${esc(reason || '—')}</td><td><span class="row-meta">${esc([conf, diff].filter(Boolean).join(' · ') || '—')}</span></td></tr>`;
+      const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('borderline', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(item.prepared_image)}</div></div></td><td>${esc(reason || '—')}</td><td><span class="row-meta">${esc([conf, diff].filter(Boolean).join(' · ') || '—')}</span></td></tr>`;
       return primary + renderInlineJustificationsRow('borderline', item, 4);
     }).join('');
     const heading = group.l0 || group.label || group.bucket || 'unbucketed';
