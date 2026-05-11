@@ -60,7 +60,7 @@ class OpenAIClientConfig(ClientConfig):
 
     reasoning_effort: str | None = None
     api_key_env_var: str = auth.OPENAI_API_KEY_VAR
-    max_completion_tokens: int = 6000
+    max_completion_tokens: int = 10000
     image_detail: str = "high"
 
 

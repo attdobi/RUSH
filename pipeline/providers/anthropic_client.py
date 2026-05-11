@@ -22,7 +22,7 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
-from pipeline.providers._config import resolve_temperature
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS, resolve_temperature
 from pipeline.providers._prompts import (
     LABELING_SYSTEM_PROMPT,
     LABELING_USER_INSTRUCTIONS,
@@ -54,7 +54,7 @@ class AnthropicClientConfig(ClientConfig):
     """Anthropic-specific config."""
 
     api_key_env_var: str = auth.ANTHROPIC_API_KEY_VAR
-    max_tokens: int = 2048
+    max_tokens: int = LABELING_VISIBLE_OUTPUT_TOKENS
     thinking_budget_tokens: int | None = None
 
 

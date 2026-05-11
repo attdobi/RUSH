@@ -58,4 +58,4 @@ def test_openai_policy_chat_callable_maps_json_request_without_live_call(monkeyp
     assert call["messages"] == messages
     assert call["response_format"] == {"type": "json_object"}
     assert call["reasoning_effort"] == "high"
-    assert call["max_completion_tokens"] == 24000
+    assert call["max_completion_tokens"] == 10000

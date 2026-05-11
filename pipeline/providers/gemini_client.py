@@ -25,7 +25,7 @@ from pipeline.labeling.image_prep import (
     prepare_image_for_labeling,
 )
 from pipeline.providers import auth
-from pipeline.providers._config import resolve_temperature
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS, resolve_temperature
 from pipeline.providers._prompts import (
     LABELING_SYSTEM_PROMPT,
     LABELING_USER_INSTRUCTIONS,
@@ -59,6 +59,7 @@ class GeminiClientConfig(ClientConfig):
     api_key_env_var: str = auth.GEMINI_API_KEY_VAR
     response_mime_type: str = "application/json"
     thinking_budget_tokens: int | None = None
+    max_output_tokens: int | None = LABELING_VISIBLE_OUTPUT_TOKENS
 
 
 class GeminiClient(LabelClient):
@@ -136,6 +137,8 @@ class GeminiClient(LabelClient):
             config["thinking_config"] = {
                 "thinking_budget": int(self.config.thinking_budget_tokens),
             }
+        if self.config.max_output_tokens is not None:
+            config["max_output_tokens"] = int(self.config.max_output_tokens)
         for k, v in self.config.extra_params.items():
             if k == "temperature":
                 continue

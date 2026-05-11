@@ -13,7 +13,7 @@ from pipeline.providers import auth
 from pipeline.providers.registry import MODEL_REGISTRY
 
 
-_DEFAULT_MAX_COMPLETION_TOKENS = 6000
+_DEFAULT_MAX_COMPLETION_TOKENS = 10000
 logger = logging.getLogger(__name__)
 
 

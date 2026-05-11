@@ -8,6 +8,11 @@ from __future__ import annotations
 
 LABELING_TEMPERATURE: float = 0.1
 
+# Target visible-output ceiling for provider APIs that expose a clean output cap.
+# OpenAI Chat Completions only exposes max_completion_tokens, which includes
+# hidden reasoning, so registry entries reserve additional headroom there.
+LABELING_VISIBLE_OUTPUT_TOKENS: int = 2000
+
 
 def resolve_temperature(model_id: str, override: float | None = None) -> float | None:
     """Return the temperature to use for a labeling request.
@@ -27,4 +32,4 @@ def resolve_temperature(model_id: str, override: float | None = None) -> float |
     return LABELING_TEMPERATURE
 
 
-__all__ = ["LABELING_TEMPERATURE", "resolve_temperature"]
+__all__ = ["LABELING_TEMPERATURE", "LABELING_VISIBLE_OUTPUT_TOKENS", "resolve_temperature"]

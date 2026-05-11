@@ -24,6 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Final
 
+from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS
 from pipeline.providers.base import LabelClient
 
 
@@ -57,9 +58,10 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "xhigh",
-            # High reasoning can consume well over 6k internal tokens before
-            # emitting JSON; keep the cap roomy enough to avoid empty outputs.
-            "max_completion_tokens": 24000,
+            # Chat Completions exposes only max_completion_tokens, which counts
+            # hidden reasoning plus visible JSON. Keep ~8k reasoning headroom
+            # while targeting a ~2k visible-output budget via the shared prompt.
+            "max_completion_tokens": 10000,
         },
     ),
     "openai/gpt-5.5-xhigh": ModelSpec(
@@ -69,7 +71,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "xhigh",
-            "max_completion_tokens": 24000,
+            "max_completion_tokens": 10000,
         },
     ),
     "openai/gpt-5.5-high": ModelSpec(
@@ -79,7 +81,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 24000,
+            "max_completion_tokens": 10000,
         },
     ),
     "google/gemini-3.1-pro-preview": ModelSpec(
@@ -87,7 +89,10 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider="gemini",
         provider_model_name="gemini-3.1-pro-preview",
         phase=1,
-        params={"thinking_budget_tokens": -1},
+        params={
+            "thinking_budget_tokens": -1,
+            "max_output_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+        },
     ),
     "anthropic/claude-opus-4-6": ModelSpec(
         model_id="anthropic/claude-opus-4-6",
@@ -95,7 +100,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="claude-opus-4-6",
         phase=1,
         params={
-            "max_tokens": 2048,
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
         },
     ),
     "anthropic/claude-opus-4-7": ModelSpec(
@@ -104,7 +109,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="claude-opus-4-7",
         phase=1,
         params={
-            "max_tokens": 4096,
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
             "thinking_budget_tokens": 32000,
         },
     ),
@@ -125,7 +130,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "xhigh",
-            "max_completion_tokens": 2000,
+            "max_completion_tokens": 10000,
         },
     ),
     "openai/gpt-5.4-mini-high": ModelSpec(
@@ -135,7 +140,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 2000,
+            "max_completion_tokens": 10000,
         },
     ),
     "google/gemini-3.1-flash-lite-preview": ModelSpec(
@@ -198,7 +203,7 @@ def build_client(
         configured_reasoning_effort = params.pop("reasoning_effort", None)
         if model_id == "openai/gpt-5.5" and reasoning_effort is not None:
             configured_reasoning_effort = reasoning_effort
-        max_completion_tokens = params.pop("max_completion_tokens", 6000)
+        max_completion_tokens = params.pop("max_completion_tokens", 10000)
         config = OpenAIClientConfig(
             model_name=spec.provider_model_name,
             reasoning_effort=configured_reasoning_effort,
@@ -213,7 +218,7 @@ def build_client(
             AnthropicClientConfig,
         )
 
-        max_tokens = params.pop("max_tokens", 2048)
+        max_tokens = params.pop("max_tokens", LABELING_VISIBLE_OUTPUT_TOKENS)
         thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
         config = AnthropicClientConfig(
             model_name=spec.provider_model_name,
@@ -230,9 +235,11 @@ def build_client(
         )
 
         thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
+        max_output_tokens = params.pop("max_output_tokens", None)
         config = GeminiClientConfig(
             model_name=spec.provider_model_name,
             thinking_budget_tokens=thinking_budget_tokens,
+            max_output_tokens=max_output_tokens,
             extra_params=params,
         )
         return GeminiClient(config=config, client=client)

@@ -53,6 +53,8 @@ from pipeline.labeling.image_prep import (
 )
 from pipeline.providers import build_client
 from pipeline.providers.anthropic_client import (
+    DEFAULT_SYSTEM_PROMPT as ANTHROPIC_SYSTEM_PROMPT,
+    DEFAULT_USER_PROMPT as ANTHROPIC_USER_PROMPT,
     AnthropicClient,
     AnthropicClientConfig,
 )
@@ -75,8 +77,22 @@ from pipeline.providers.base import (
     parse_label_json,
     strip_image_bytes,
 )
-from pipeline.providers.gemini_client import GeminiClient, GeminiClientConfig
-from pipeline.providers.openai_client import OpenAIClient, OpenAIClientConfig
+from pipeline.providers._prompts import (
+    LABELING_SYSTEM_PROMPT,
+    LABELING_USER_INSTRUCTIONS,
+)
+from pipeline.providers.gemini_client import (
+    DEFAULT_SYSTEM_PROMPT as GEMINI_SYSTEM_PROMPT,
+    DEFAULT_USER_PROMPT as GEMINI_USER_PROMPT,
+    GeminiClient,
+    GeminiClientConfig,
+)
+from pipeline.providers.openai_client import (
+    DEFAULT_SYSTEM_PROMPT as OPENAI_SYSTEM_PROMPT,
+    DEFAULT_USER_PROMPT as OPENAI_USER_PROMPT,
+    OpenAIClient,
+    OpenAIClientConfig,
+)
 from pipeline.providers.registry import MODEL_REGISTRY, build_client, list_models
 from pipeline.providers.retries import RetryPolicy, retry_call
 
@@ -682,7 +698,7 @@ class TestAnthropicClient:
         client = AnthropicClient(
             config=AnthropicClientConfig(
                 model_name="claude-opus-4-7",
-                max_tokens=4096,
+                max_tokens=2000,
                 thinking_budget_tokens=32000,
             ),
             client=object(),
@@ -767,11 +783,12 @@ class TestGeminiClient:
         decoded = base64.b64decode(idata["data"])
         assert hashlib.sha256(decoded).hexdigest() == resp.prepared_image_sha256
 
-    def test_thinking_budget_is_added_to_generation_config(self) -> None:
+    def test_thinking_budget_and_output_cap_are_added_to_generation_config(self) -> None:
         client = GeminiClient(
             config=GeminiClientConfig(
                 model_name="gemini-3.1-pro-preview",
                 thinking_budget_tokens=-1,
+                max_output_tokens=2000,
             ),
             client=object(),
         )
@@ -779,6 +796,7 @@ class TestGeminiClient:
         params = client._build_api_params(contents=[])
 
         assert params["config"]["thinking_config"] == {"thinking_budget": -1}
+        assert params["config"]["max_output_tokens"] == 2000
 
     def test_raw_payload_scrubs_inline_data(
         self, label_request: LabelRequest
@@ -853,14 +871,15 @@ class TestRegistry:
         )
         assert isinstance(gemini, GeminiClient)
         assert gemini.config.thinking_budget_tokens == -1
+        assert gemini.config.max_output_tokens == 2000
 
     @pytest.mark.parametrize(
         ("model_id", "vendor_model", "reasoning_effort", "max_completion_tokens"),
         [
-            ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 24000),
-            ("openai/gpt-5.5-high", "gpt-5.5", "high", 24000),
-            ("openai/gpt-5.4-mini-xhigh", "gpt-5.4-mini", "xhigh", 2000),
-            ("openai/gpt-5.4-mini-high", "gpt-5.4-mini", "high", 2000),
+            ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 10000),
+            ("openai/gpt-5.5-high", "gpt-5.5", "high", 10000),
+            ("openai/gpt-5.4-mini-xhigh", "gpt-5.4-mini", "xhigh", 10000),
+            ("openai/gpt-5.4-mini-high", "gpt-5.4-mini", "high", 10000),
         ],
     )
     def test_openai_reasoning_variants_build_client_config(
@@ -891,6 +910,17 @@ class TestRegistry:
 
 
 class TestProviderInvariants:
+
+    def test_provider_prompt_aliases_use_shared_policy_grounded_prompt(self) -> None:
+        assert OPENAI_SYSTEM_PROMPT == LABELING_SYSTEM_PROMPT
+        assert ANTHROPIC_SYSTEM_PROMPT == LABELING_SYSTEM_PROMPT
+        assert GEMINI_SYSTEM_PROMPT == LABELING_SYSTEM_PROMPT
+        assert OPENAI_USER_PROMPT == LABELING_USER_INSTRUCTIONS
+        assert ANTHROPIC_USER_PROMPT == LABELING_USER_INSTRUCTIONS
+        assert GEMINI_USER_PROMPT == LABELING_USER_INSTRUCTIONS
+        assert "policy_citations" in LABELING_SYSTEM_PROMPT
+        assert "policy_quotes" in LABELING_SYSTEM_PROMPT
+
     @pytest.mark.parametrize(
         "make_client",
         [
