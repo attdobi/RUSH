@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from pipeline.web.handlers_policy import handle_policy_graph
+
+
+def _write_node(path: Path, *, node_id: str, title: str, node_type: str, polarity: str, parent: str = "GA.root") -> None:
+    path.write_text(
+        f"""---
+id: {node_id}
+title: {title}
+node_type: {node_type}
+parent: {parent}
+polarity: {polarity}
+status: draft
+edges:
+  - {{type: subtype_of, to: GA.root}}
+---
+# {title}
+""",
+        encoding="utf-8",
+    )
+
+
+def test_handle_policy_graph_reads_nodes_edges_and_versions(tmp_path: Path) -> None:
+    graph_dir = tmp_path / "policy-graph" / "Generative_AI"
+    v01 = graph_dir / "v0.1"
+    v02 = graph_dir / "v0.2"
+    v01.mkdir(parents=True)
+    v02.mkdir()
+    _write_node(v01 / "GA.root.md", node_id="GA.root", title="Root title", node_type="root", polarity="mixed", parent="null")
+    _write_node(v01 / "GA.visual_artifacts.text_symbols.md", node_id="GA.visual_artifacts.text_symbols", title="Garbled text", node_type="category", polarity="positive")
+    _write_node(v01 / "GA.boundary.photo_editing.md", node_id="GA.boundary.photo_editing", title="Photo editing", node_type="boundary", polarity="negative")
+    _write_node(v02 / "GA.root.md", node_id="GA.root", title="Root v2", node_type="root", polarity="mixed", parent="null")
+    (v02 / "edges.json").write_text("[]\n", encoding="utf-8")
+    (v01 / "edges.json").write_text(
+        json.dumps([
+            {
+                "source_node_id": "GA.visual_artifacts.text_symbols",
+                "target_node_id": "GA.root",
+                "edge_type": "subtype_of",
+                "confidence": 1.0,
+            }
+        ]),
+        encoding="utf-8",
+    )
+
+    status, payload = handle_policy_graph(tmp_path, "v0.1")
+
+    assert status == 200
+    assert payload["version"] == "v0.1"
+    assert payload["title"] == "Cold-start GenAI policy v0.1"
+    assert payload["available_versions"] == ["v0.1", "v0.2"]
+    assert [node["id"] for node in payload["nodes"]][:1] == ["GA.root"]
+    root = payload["nodes"][0]
+    assert root["node_type"] == "root"
+    assert root["polarity"] == "mixed"
+    assert root["parent"] is None
+    boundary = next(node for node in payload["nodes"] if node["id"] == "GA.boundary.photo_editing")
+    assert boundary["node_type"] == "boundary"
+    assert boundary["status"] == "draft"
+    assert payload["edges"] == [
+        {
+            "source_node_id": "GA.visual_artifacts.text_symbols",
+            "target_node_id": "GA.root",
+            "edge_type": "subtype_of",
+            "confidence": 1.0,
+            "source": "GA.visual_artifacts.text_symbols",
+            "target": "GA.root",
+        }
+    ]
+
+
+def test_handle_policy_graph_defaults_to_current_version(tmp_path: Path) -> None:
+    graph_dir = tmp_path / "policy-graph" / "Generative_AI"
+    v01 = graph_dir / "v0.1"
+    v02 = graph_dir / "v0.2"
+    v01.mkdir(parents=True)
+    v02.mkdir()
+    _write_node(v01 / "GA.root.md", node_id="GA.root", title="Root v1", node_type="root", polarity="mixed", parent="null")
+    _write_node(v02 / "GA.root.md", node_id="GA.root", title="Root v2", node_type="root", polarity="mixed", parent="null")
+
+    status, payload = handle_policy_graph(tmp_path, None)
+
+    assert status == 200
+    assert payload["version"] == "v0.2"
+    assert payload["nodes"][0]["title"] == "Root v2"
+
+
+def test_handle_policy_graph_rejects_unknown_version(tmp_path: Path) -> None:
+    graph_dir = tmp_path / "policy-graph" / "Generative_AI" / "v0.1"
+    graph_dir.mkdir(parents=True)
+    _write_node(graph_dir / "GA.root.md", node_id="GA.root", title="Root", node_type="root", polarity="mixed", parent="null")
+
+    status, payload = handle_policy_graph(tmp_path, "../../etc")
+
+    assert status == 404
+    assert "unknown policy version" in payload["error"]

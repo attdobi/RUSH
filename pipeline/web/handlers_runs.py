@@ -101,6 +101,14 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             status, body = handlers_policy.handle_policy_versions(handler.repo_root)
             send_json(handler, status, body)
             return
+        if method == "GET" and path == "/api/policy/graph":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            version = (query.get("version") or [None])[0]
+            status, body = handlers_policy.handle_policy_graph(
+                handler.repo_root, version
+            )
+            send_json(handler, status, body)
+            return
         if method == "GET" and path == "/api/policy/proposals":
             status, body = handlers_policy.handle_list_proposals(handler.repo_root)
             send_json(handler, status, body)

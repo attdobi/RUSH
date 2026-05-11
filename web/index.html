@@ -91,6 +91,22 @@
       <div id="sampleGallery" class="sample-gallery"></div>
     </section>
 
+    <section id="policy-graph" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">Obsidian graph</p>
+        <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
+        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code> + <code>edges.json</code>. Colors mark node roles; positions are deterministic.</p>
+      </div>
+      <div class="run-controls" aria-label="Policy graph version picker">
+        <label>Policy version
+          <select id="policyGraphVersion"></select>
+        </label>
+        <span id="policyGraphStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+      <p class="fineprint">Graph positions are static mock UI; policy truth lives in Markdown nodes and edges.json.</p>
+    </section>
+
     <section id="runs" class="section">
       <div class="section-head compact">
         <p class="eyebrow">Bulk labeling runs</p>
@@ -327,5 +343,6 @@
   <script src="decision-quality.js"></script>
   <script src="insights.js"></script>
   <script src="policy-diff.js"></script>
+  <script src="policy-graph.js"></script>
 </body>
 </html>

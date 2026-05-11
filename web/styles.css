@@ -362,3 +362,11 @@ table.misalignment .muted { color: var(--muted); }
   .proposal-actions button, #scoreRunNow { width: 100%; }
 }
 body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none; }
+
+/* Policy graph view (X3) */
+.policy-graph-wrap { background:#0e1219; border:1px solid #1f2733; border-radius:12px; padding:16px; }
+.policy-graph-wrap h3 { margin: 0 0 12px; }
+.policy-graph-wrap svg { width:100%; height:auto; display:block; }
+.policy-graph-node text { font-size:11px; fill:#d8dee9; pointer-events:none; }
+.policy-graph-legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:#aab2bf; }
+.policy-graph-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }

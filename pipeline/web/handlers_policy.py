@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 from typing import Any
@@ -32,6 +33,124 @@ def _error(status: int, exc: Exception) -> tuple[int, dict[str, Any]]:
 
 def _bad_request(exc: Exception) -> tuple[int, dict[str, Any]]:
     return _error(400, exc)
+
+
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    """Extract a small YAML-frontmatter scalar map using stdlib only."""
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
+        return {}, text
+    meta: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if line.startswith((" ", "\t")) or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        meta[key] = value
+    return meta, text[match.end() :]
+
+
+def _nullish(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized or normalized.lower() in {"null", "none", "~"}:
+        return None
+    return normalized
+
+
+def _heading_title(body: str, fallback: str) -> str:
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            return stripped.lstrip("#").strip() or fallback
+    return fallback
+
+
+def _policy_version_names(repo_root: Path | str) -> tuple[list[str], str | None]:
+    payload = list_policy_versions(repo_root=repo_root)
+    versions = [str(item["version"]) for item in payload.get("versions", [])]
+    current = payload.get("current")
+    return versions, str(current) if current else None
+
+
+def _normalize_edge(edge: Any) -> dict[str, Any] | None:
+    if not isinstance(edge, dict):
+        return None
+    source = edge.get("source") or edge.get("source_node_id")
+    target = edge.get("target") or edge.get("target_node_id") or edge.get("to")
+    if not source or not target:
+        return None
+    normalized = dict(edge)
+    normalized["source"] = str(source)
+    normalized["target"] = str(target)
+    normalized["edge_type"] = str(
+        edge.get("edge_type") or edge.get("type") or "related_to"
+    )
+    return normalized
+
+
+def handle_policy_graph(
+    repo_root: Path | str,
+    version: str | None,
+) -> tuple[int, dict[str, Any]]:
+    """Return policy graph nodes and edges for the browser graph view."""
+    try:
+        versions, current = _policy_version_names(repo_root)
+        if not versions or not current:
+            return 404, {"error": "no policy versions found"}
+        selected = (version or current).strip() or current
+        if selected not in versions:
+            return 404, {"error": f"unknown policy version: {selected}"}
+
+        root = _root(repo_root)
+        source = root / "policy-graph" / "Generative_AI" / selected
+        nodes: list[dict[str, Any]] = []
+        for path in sorted(
+            source.glob("*.md"), key=lambda p: (p.name != "GA.root.md", p.name)
+        ):
+            meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
+            node_id = meta.get("id") or path.stem
+            title = meta.get("title") or _heading_title(body, node_id)
+            nodes.append(
+                {
+                    "id": node_id,
+                    "node_type": meta.get("node_type") or "unknown",
+                    "polarity": meta.get("polarity") or "mixed",
+                    "title": title,
+                    "parent": _nullish(meta.get("parent")),
+                    "status": meta.get("status") or "unknown",
+                }
+            )
+
+        edges_path = source / "edges.json"
+        raw_edges = (
+            json.loads(edges_path.read_text(encoding="utf-8"))
+            if edges_path.exists()
+            else []
+        )
+        if not isinstance(raw_edges, list):
+            raw_edges = []
+        edges = [edge for edge in (_normalize_edge(item) for item in raw_edges) if edge]
+        return 200, {
+            "version": selected,
+            "title": f"Cold-start GenAI policy {selected}",
+            "nodes": nodes,
+            "edges": edges,
+            "available_versions": versions,
+        }
+    except Exception as exc:  # noqa: BLE001 - surface to local web UI
+        return _error(500, exc)
 
 
 def handle_policy_versions(repo_root: Path | str) -> tuple[int, dict[str, Any]]:
@@ -179,6 +298,7 @@ __all__ = [
     "handle_build_pdf",
     "handle_get_proposal",
     "handle_list_proposals",
+    "handle_policy_graph",
     "handle_policy_versions",
     "handle_propose_diff",
     "handle_reject_proposal",
