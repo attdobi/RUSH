@@ -32,6 +32,9 @@
       .justifications-vote h3 { margin: 0; font-size: 0.95rem; color: #f8fafc; }
       .justifications-vote p { margin: 8px 0 0; line-height: 1.45; color: #dbeafe; }
       .justifications-vote dl { display: grid; grid-template-columns: 92px 1fr; gap: 4px 8px; margin: 0; font-size: 0.85rem; }
+      .justifications-citations { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+      .justifications-citation { border: 1px solid rgba(147, 197, 253, 0.35); border-radius: 999px; background: rgba(30, 64, 175, 0.32); color: #bfdbfe; cursor: pointer; padding: 3px 7px; font: 600 0.75rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .justifications-quote { margin: 8px 0 0; border-left: 3px solid rgba(147, 197, 253, 0.45); padding-left: 9px; color: #bfdbfe; font-style: italic; }
       .justifications-vote dt { color: #94a3b8; }
       .justifications-vote dd { margin: 0; color: #e5edf8; }
       .justifications-actions { display: flex; gap: 8px; align-items: center; margin: 14px 0; flex-wrap: wrap; }
@@ -104,8 +107,11 @@
     const model = vote.labeler_id || vote.model_id || 'unknown model';
     const conf = isNumber(vote.confidence) ? vote.confidence.toFixed(2) : '—';
     const boundary = vote.is_boundary ? 'yes' : (vote.is_boundary === false ? 'no' : '—');
+    const citations = Array.isArray(vote.policy_citations) ? vote.policy_citations.filter(Boolean) : [];
+    const quotes = Array.isArray(vote.policy_quotes) ? vote.policy_quotes.filter(Boolean) : [];
     return `<article class="justifications-vote">
       <header><h3>${esc(model)}</h3><span>${formatCost(stats.cost)}</span></header>
+      ${citations.length ? `<div class="justifications-citations">${citations.map(id => `<button type="button" class="justifications-citation" data-policy-node-id="${attr(id)}">${esc(id)}</button>`).join('')}</div>` : ''}
       <dl>
         <dt>label</dt><dd>${esc(vote.label || '—')}</dd>
         <dt>confidence</dt><dd>${esc(conf)}</dd>
@@ -114,6 +120,7 @@
         <dt>tokens</dt><dd>${esc(stats.total ?? '—')} total (${esc(stats.input ?? '—')} in / ${esc(stats.output ?? '—')} out)</dd>
       </dl>
       <p>${esc(vote.justification || 'No justification text available for this vote.')}</p>
+      ${quotes.map(quote => `<blockquote class="justifications-quote">${esc(quote)}</blockquote>`).join('')}
     </article>`;
   }
 
@@ -218,6 +225,12 @@
     const close = target.closest('[data-justifications-close]');
     if (close) {
       closeDrawer();
+      return;
+    }
+    const policyNode = target.closest('[data-policy-node-id]');
+    if (policyNode) {
+      const opened = typeof window.rushOpenPolicyNode === 'function' && window.rushOpenPolicyNode(policyNode.dataset.policyNodeId || '');
+      if (opened) closeDrawer();
       return;
     }
     const proposeButton = target.closest('[data-propose-row-diff]');
