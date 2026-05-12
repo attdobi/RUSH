@@ -198,6 +198,7 @@ function thumbnailSrcForImageId(imageId) {
   return `/api/thumbnail?path=${encodeURIComponent(path)}`;
 }
 
+window.thumbnailSrcForPath = thumbnailSrcForPath;
 window.thumbnailSrcForImageId = thumbnailSrcForImageId;
 
 function imgSrc(row) {
@@ -214,6 +215,8 @@ function safeImageFallback(label = 'image unavailable', detail = 'local path mis
   fallback.append(strong, span);
   return fallback;
 }
+
+window.safeImageFallback = safeImageFallback;
 
 function renderThumb(row) {
   const src = imgSrc(row);

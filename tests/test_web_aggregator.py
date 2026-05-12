@@ -327,7 +327,10 @@ def test_compute_insights_returns_documented_capped_lists(tmp_path: Path) -> Non
         assert isinstance(payload[key], list)
         assert len(payload[key]) <= 50
     assert payload["majority_wrong"][0]["image_id"] == "img-1"
+    assert payload["majority_wrong"][0]["repo_rel_path"] == "images/img-1.png"
     assert payload["model_disagreement"][0]["image_id"] == "img-1"
+    assert payload["model_disagreement"][0]["repo_rel_path"] == "images/img-1.png"
+    assert payload["policy_clarity_hot_spots"][0]["repo_rel_path"] == "images/img-1.png"
     assert payload["consistent_pair_disagreement"][0]["n_disagreements"] == 1
 
 

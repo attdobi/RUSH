@@ -72,9 +72,10 @@
           <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
           <label>Mode
             <select id="samplerMode">
-              <option value="cold_start">cold start</option>
-              <option value="warm_start">warm start</option>
+              <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
+              <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
             </select>
+            <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
           </label>
           <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
           <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
@@ -132,9 +133,10 @@
         </label>
         <label>Mode
           <select id="runTriggerMode">
-            <option value="cold_start">cold_start</option>
-            <option value="warm_start">warm_start</option>
+            <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
+            <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
           </select>
+          <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
         </label>
         <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" /> Allow spend</label>
         <button id="startLabelingRun" class="primary-action" type="button">Start labeling run</button>
@@ -358,5 +360,6 @@
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
   <script src="policy-graph.js"></script>
   <script src="justifications.js"></script>
+  <script src="policy-mode-labels.js"></script>
 </body>
 </html>

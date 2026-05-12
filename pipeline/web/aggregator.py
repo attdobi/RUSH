@@ -218,7 +218,59 @@ def _to_vote_list(voters: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _policy_clarity_hot_spots(run_id: str, runs_root: Path) -> list[dict[str, Any]]:
+def _add_repo_rel_path(row: dict[str, Any], image_paths: dict[str, str]) -> dict[str, Any]:
+    image_id = row.get("image_id")
+    if image_id is None:
+        return row
+    repo_rel_path = image_paths.get(str(image_id))
+    if repo_rel_path:
+        row["repo_rel_path"] = repo_rel_path
+    return row
+
+
+def _borderline_group_records(borderline: dict[str, Any]) -> list[dict[str, Any]]:
+    groups = borderline.get("groups", {})
+    if isinstance(groups, dict):
+        buckets = groups.values()
+    elif isinstance(groups, list):
+        buckets = groups
+    else:
+        return []
+
+    records: list[dict[str, Any]] = []
+    for bucket in buckets:
+        if isinstance(bucket, list):
+            records.extend(record for record in bucket if isinstance(record, dict))
+        elif isinstance(bucket, dict):
+            if bucket.get("image_id") is not None:
+                records.append(bucket)
+            else:
+                for value in bucket.values():
+                    if isinstance(value, list):
+                        records.extend(record for record in value if isinstance(record, dict))
+    return records
+
+
+def _image_repo_rel_paths(misalignment: dict[str, Any], borderline: dict[str, Any]) -> dict[str, str]:
+    image_paths: dict[str, str] = {}
+
+    def remember(record: dict[str, Any]) -> None:
+        image_id = record.get("image_id")
+        repo_rel_path = record.get("repo_rel_path")
+        if image_id is not None and repo_rel_path:
+            image_paths.setdefault(str(image_id), str(repo_rel_path))
+
+    records = misalignment.get("records", [])
+    if isinstance(records, list):
+        for record in records:
+            if isinstance(record, dict):
+                remember(record)
+    for record in _borderline_group_records(borderline):
+        remember(record)
+    return image_paths
+
+
+def _policy_clarity_hot_spots(run_id: str, runs_root: Path, image_paths: dict[str, str]) -> list[dict[str, Any]]:
     rows = []
     for record in _latest_flip_rate_records(runs_root):
         run_ids = record.get("run_ids")
@@ -226,14 +278,17 @@ def _policy_clarity_hot_spots(run_id: str, runs_root: Path) -> list[dict[str, An
             continue
         if isinstance(run_ids, list) or record.get("first_seen_run_id") == run_id or record.get("last_seen_run_id") == run_id:
             rows.append(
-                {
-                    "image_id": record.get("image_id"),
-                    "model_id": record.get("model_id"),
-                    "flip_rate": record.get("flip_rate"),
-                    "flip_count": record.get("flip_count"),
-                    "n_runs": record.get("n_runs"),
-                    "labels_observed": record.get("labels_observed", []),
-                }
+                _add_repo_rel_path(
+                    {
+                        "image_id": record.get("image_id"),
+                        "model_id": record.get("model_id"),
+                        "flip_rate": record.get("flip_rate"),
+                        "flip_count": record.get("flip_count"),
+                        "n_runs": record.get("n_runs"),
+                        "labels_observed": record.get("labels_observed", []),
+                    },
+                    image_paths,
+                )
             )
     rows.sort(
         key=lambda row: (
@@ -246,7 +301,7 @@ def _policy_clarity_hot_spots(run_id: str, runs_root: Path) -> list[dict[str, An
     return rows[:_MAX_ITEMS]
 
 
-def _majority_wrong(consensus: dict[str, Any], misalignment: dict[str, Any]) -> list[dict[str, Any]]:
+def _majority_wrong(consensus: dict[str, Any], misalignment: dict[str, Any], image_paths: dict[str, str]) -> list[dict[str, Any]]:
     by_image = {row.get("image_id"): row for row in misalignment.get("records", [])}
     rows: list[dict[str, Any]] = []
     for record in consensus.get("records", []):
@@ -258,29 +313,35 @@ def _majority_wrong(consensus: dict[str, Any], misalignment: dict[str, Any]) -> 
         if sme_truth is None or majority_label == sme_truth:
             continue
         rows.append(
-            {
-                "image_id": record.get("image_id"),
-                "sme_truth": sme_truth,
-                "majority_label": majority_label,
-                "majority_count": record.get("majority_count"),
-                "majority_fraction": record.get("majority_fraction"),
-                "votes": joined.get("votes") or _to_vote_list(record.get("voters", [])),
-            }
+            _add_repo_rel_path(
+                {
+                    "image_id": record.get("image_id"),
+                    "sme_truth": sme_truth,
+                    "majority_label": majority_label,
+                    "majority_count": record.get("majority_count"),
+                    "majority_fraction": record.get("majority_fraction"),
+                    "votes": joined.get("votes") or _to_vote_list(record.get("voters", [])),
+                },
+                image_paths,
+            )
         )
     return rows[:_MAX_ITEMS]
 
 
-def _model_disagreement(consensus: dict[str, Any]) -> list[dict[str, Any]]:
+def _model_disagreement(consensus: dict[str, Any], image_paths: dict[str, str]) -> list[dict[str, Any]]:
     rows = []
     for record in consensus.get("records", []):
         if not record.get("is_split"):
             continue
         rows.append(
-            {
-                "image_id": record.get("image_id"),
-                "vote_distribution": record.get("vote_distribution", {}),
-                "votes": _to_vote_list(record.get("voters", [])),
-            }
+            _add_repo_rel_path(
+                {
+                    "image_id": record.get("image_id"),
+                    "vote_distribution": record.get("vote_distribution", {}),
+                    "votes": _to_vote_list(record.get("voters", [])),
+                },
+                image_paths,
+            )
         )
     return rows[:_MAX_ITEMS]
 
@@ -357,11 +418,13 @@ def compute_insights(run_dir: Path) -> dict[str, Any]:
     misalignment = _read_json(resolved_run_dir / "scoring" / "misalignment.json", runs_root)
     borderline = _read_json(resolved_run_dir / "scoring" / "borderline.json", runs_root)
 
+    image_paths = _image_repo_rel_paths(misalignment, borderline)
+
     return {
         "run_id": run_id,
-        "policy_clarity_hot_spots": _policy_clarity_hot_spots(run_id, runs_root),
-        "majority_wrong": _majority_wrong(consensus, misalignment),
-        "model_disagreement": _model_disagreement(consensus),
+        "policy_clarity_hot_spots": _policy_clarity_hot_spots(run_id, runs_root, image_paths),
+        "majority_wrong": _majority_wrong(consensus, misalignment, image_paths),
+        "model_disagreement": _model_disagreement(consensus, image_paths),
         "boundary_concentration": _boundary_concentration(borderline),
         "consistent_pair_disagreement": _consistent_pair_disagreement(consensus),
     }
