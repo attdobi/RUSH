@@ -115,6 +115,7 @@ main { padding: 0 clamp(18px, 4vw, 58px) 70px; }
 .sampling-settings summary::before { content: '▸'; color: var(--green); font-size: 11px; }
 .sampling-settings[open] summary::before { content: '▾'; }
 .muted { color: var(--muted); }
+.policy-mode-help, label .policy-mode-help { display: block; text-transform: none; letter-spacing: 0; line-height: 1.35; font-weight: 400; font-size: 11px; color: var(--muted); margin-top: 4px; }
 .demo-controls { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto auto; gap: 10px; align-items: end; margin: 10px 0; }
 .demo-controls label { display: grid; gap: 6px; color: #dce8ff; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; }
 .demo-controls input, .demo-controls select, .override-controls input, .override-controls select {
