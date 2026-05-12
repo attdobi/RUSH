@@ -15,6 +15,21 @@ _ALLOWED_MODES = {"cold_start", "warm_start"}
 _ALLOWED_REASONING_EFFORTS = {"high", "xhigh"}
 _POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
 
+_STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
+    (
+        "/data/images/genai-classification/thumbnails/",
+        "data/images/genai-classification/thumbnails",
+    ),
+    (
+        "/data/images/genai-classification/manifests/",
+        "data/images/genai-classification/manifests",
+    ),
+    ("/data/runs/", "data/runs"),
+    ("/policy-graph/", "policy-graph"),
+    ("/docs/visuals/", "docs/visuals"),
+    ("/schemas/", "schemas"),
+)
+
 
 class APIError(Exception):
     """Exception that maps cleanly onto the JSON error envelope."""
@@ -53,16 +68,67 @@ def ensure_repo_relative(repo_root: Path, candidate: Path) -> Path:
     return resolved
 
 
-def safe_static_path(repo_root: Path, request_path: str) -> Path:
-    """Translate a URL path to a repo-root-relative static file path safely."""
+def _ensure_under_root(root: Path, candidate: Path) -> Path:
+    """Resolve ``candidate`` and require it to remain under ``root``."""
+    resolved_root = root.resolve()
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(resolved_root):
+        raise APIError(404, "not_found", "path is outside the allowed static root")
+    return resolved
+
+
+def _normalized_url_path(request_path: str) -> tuple[str, list[str]]:
     parsed_path = unquote(urlsplit(request_path).path)
     if "\x00" in parsed_path:
         raise APIError(400, "bad_path", "path contains a NUL byte")
     parts = [part for part in parsed_path.split("/") if part]
-    if any(part == ".." for part in parts):
-        raise APIError(404, "not_found", "path traversal is not allowed")
+    if any(part.startswith(".") for part in parts):
+        raise APIError(404, "not_found", "dotfile access is not allowed")
+    normalized = "/" + "/".join(parts)
+    if parsed_path.endswith("/") and normalized != "/":
+        normalized += "/"
+    return normalized, parts
+
+
+def whitelisted_static_prefix(request_path: str) -> str | None:
+    """Return the URL whitelist prefix matching ``request_path``, if any."""
+    normalized, _parts = _normalized_url_path(request_path)
+    for url_prefix, _repo_rel in _STATIC_PREFIXES:
+        if normalized.startswith(url_prefix):
+            return url_prefix
+    return None
+
+
+def safe_static_path(
+    repo_root: Path,
+    web_root_or_request_path: Path | str,
+    request_path: str | None = None,
+) -> Path:
+    """Translate a URL path to an allowed read-only static file path safely.
+
+    Generic static URLs are rooted at ``web_root``. Only explicit read-only URL
+    prefixes may resolve to repository directories outside ``web_root``.
+    """
+    if request_path is None:
+        web_root = Path(repo_root) / "web"
+        request_path = str(web_root_or_request_path)
+    else:
+        web_root = Path(web_root_or_request_path)
+
+    repo = repo_root.resolve()
+    web = web_root.resolve()
+    normalized, parts = _normalized_url_path(request_path)
+
+    for url_prefix, repo_rel in _STATIC_PREFIXES:
+        if normalized.startswith(url_prefix):
+            suffix = normalized.removeprefix(url_prefix).strip("/")
+            suffix_parts = [part for part in suffix.split("/") if part]
+            allowed_root = (repo / repo_rel).resolve()
+            candidate = allowed_root.joinpath(*suffix_parts) if suffix_parts else allowed_root
+            return _ensure_under_root(allowed_root, candidate)
+
     rel = Path(*parts) if parts else Path(".")
-    return ensure_repo_relative(repo_root, repo_root / rel)
+    return _ensure_under_root(web, web / rel)
 
 
 def read_json_body(handler, *, max_bytes: int = 64 * 1024) -> dict[str, Any]:

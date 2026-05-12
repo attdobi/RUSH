@@ -6,7 +6,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from ._safety import APIError, safe_static_path, utcnow_iso
+from ._safety import APIError, safe_static_path, utcnow_iso, whitelisted_static_prefix
 from .handlers_runs import handle_api, send_api_error
 from .run_registry import RunRegistry
 
@@ -14,7 +14,7 @@ SERVER_VERSION = "rush-web-server-v1"
 
 
 class RushWebRequestHandler(SimpleHTTPRequestHandler):
-    """Serve repo-root static files and dispatch ``/api/*`` to JSON handlers."""
+    """Serve web-root static files and dispatch ``/api/*`` to JSON handlers."""
 
     server_version_name = SERVER_VERSION
 
@@ -27,17 +27,47 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
         **kwargs: Any,
     ) -> None:
         self.repo_root = repo_root.resolve()
+        self.web_root = self.repo_root / "web"
         self.registry = registry
         self.started_at = started_at
-        super().__init__(*args, directory=str(self.repo_root), **kwargs)
+        super().__init__(*args, directory=str(self.web_root), **kwargs)
 
     def version_string(self) -> str:  # pragma: no cover - cosmetic header only
         return self.server_version_name
 
     def translate_path(self, path: str) -> str:
-        return str(safe_static_path(self.repo_root, path))
+        return str(safe_static_path(self.repo_root, self.web_root, path))
+
+    def list_directory(self, path: str):  # noqa: ANN001 - inherited API
+        self.send_error(404, "not_found")
+        return None
+
+    def end_headers(self) -> None:
+        if not self.path.startswith("/api/") and not self.path.startswith("/download"):
+            try:
+                is_whitelisted = whitelisted_static_prefix(self.path) is not None
+            except APIError:
+                is_whitelisted = True
+            cache_control = "no-store" if is_whitelisted else "public, max-age=300"
+            self.send_header("Cache-Control", cache_control)
+        super().end_headers()
+
+    def _handle_download(self, *, method: str) -> bool:
+        if not (self.path.startswith("/download/") or self.path == "/download"):
+            return False
+        try:
+            from .download import handle_download_request
+        except ImportError:
+            pass
+        else:
+            if handle_download_request(self, method=method):
+                return True
+        self.send_error(404)
+        return True
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self._handle_download(method="GET"):
+            return
         if self.path.startswith("/api/"):
             handle_api(self, self.registry, method="GET")
             return
@@ -53,6 +83,8 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
         self.send_error(405, "Method not allowed")
 
     def do_HEAD(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self._handle_download(method="HEAD"):
+            return
         if self.path.startswith("/api/"):
             self.send_error(405, "Method not allowed")
             return
