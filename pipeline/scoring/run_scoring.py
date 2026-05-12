@@ -131,6 +131,7 @@ def _flip_rate_summary(records: list[dict[str, Any]], *, computed_at: str) -> di
             "flip_count": r.get("flip_count"),
             "n_runs": r.get("n_runs"),
             "labels_observed": r.get("labels_observed", []),
+            "repo_rel_path": r.get("repo_rel_path"),
         }
         for r in top
     ]

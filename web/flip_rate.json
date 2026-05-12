@@ -38,7 +38,8 @@
           "abstain",
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2901.png"
       },
       {
         "image_id": "dev_golden_0015",
@@ -50,7 +51,8 @@
           "abstain",
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_712.png"
       },
       {
         "image_id": "dev_golden_0011",
@@ -61,7 +63,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2332.png"
       },
       {
         "image_id": "dev_golden_0012",
@@ -72,7 +75,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2765.png"
       },
       {
         "image_id": "dev_golden_0016",
@@ -83,7 +87,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_816.png"
       },
       {
         "image_id": "dev_golden_0017",
@@ -94,7 +99,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_983.png"
       },
       {
         "image_id": "dev_golden_0005",
@@ -106,7 +112,8 @@
           "abstain",
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1708.png"
       },
       {
         "image_id": "dev_golden_0001",
@@ -118,7 +125,8 @@
           "abstain",
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1047.png"
       },
       {
         "image_id": "dev_golden_0007",
@@ -129,7 +137,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2026.png"
       },
       {
         "image_id": "dev_golden_0007",
@@ -140,7 +149,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2026.png"
       },
       {
         "image_id": "dev_golden_0008",
@@ -151,7 +161,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2242.png"
       },
       {
         "image_id": "dev_golden_0009",
@@ -162,7 +173,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2244.png"
       },
       {
         "image_id": "dev_golden_0010",
@@ -173,7 +185,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_2290.png"
       },
       {
         "image_id": "dev_golden_0018",
@@ -184,7 +197,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/not_ai_generated/06043.png"
       },
       {
         "image_id": "dev_golden_0004",
@@ -195,7 +209,8 @@
         "labels_observed": [
           "gen_ai",
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_160.png"
       },
       {
         "image_id": "dev_golden_0001",
@@ -205,7 +220,8 @@
         "n_runs": 9,
         "labels_observed": [
           "gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1047.png"
       },
       {
         "image_id": "dev_golden_0001",
@@ -215,7 +231,8 @@
         "n_runs": 5,
         "labels_observed": [
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1047.png"
       },
       {
         "image_id": "dev_golden_0001",
@@ -225,7 +242,8 @@
         "n_runs": 3,
         "labels_observed": [
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1047.png"
       },
       {
         "image_id": "dev_golden_0001",
@@ -235,7 +253,8 @@
         "n_runs": 1,
         "labels_observed": [
           "not_gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1047.png"
       },
       {
         "image_id": "dev_golden_0002",
@@ -245,10 +264,11 @@
         "n_runs": 8,
         "labels_observed": [
           "gen_ai"
-        ]
+        ],
+        "repo_rel_path": "data/images/genai-classification/source-datasets/midjourney/ai_generated/image_1399.png"
       }
     ],
-    "computed_at": "2026-05-12T18:55:27Z"
+    "computed_at": "2026-05-12T19:07:33Z"
   },
   "records": [
     {
