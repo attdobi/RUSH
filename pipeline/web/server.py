@@ -4,13 +4,53 @@ from __future__ import annotations
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import re
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from ._safety import APIError, safe_static_path, utcnow_iso, whitelisted_static_prefix
+from .build_id import get_build_id
 from .handlers_runs import handle_api, send_api_error
 from .run_registry import RunRegistry
 
 SERVER_VERSION = "rush-web-server-v1"
+
+
+_LOCAL_ASSET_RE = re.compile(
+    r"(<(?:script|link)\b[^>]*?\b(?:src|href)=)([\"'])([^\"']+)(\2)",
+    re.IGNORECASE,
+)
+
+
+def _with_build_version(url: str, build_id: str) -> str:
+    if not url or "://" in url or url.startswith("//") or url.startswith("#"):
+        return url
+    parts = urlsplit(url)
+    query_pairs = [
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if key != "v"
+    ]
+    query_pairs.append(("v", build_id))
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query_pairs), parts.fragment)
+    )
+
+
+def _rewrite_index_html(raw: bytes, build_id: str) -> bytes:
+    """Inject build metadata and version local script/link asset references."""
+    html = raw.decode("utf-8")
+    meta = f'<meta name="build-id" content="{build_id}">'
+    if 'name="build-id"' not in html and "name='build-id'" not in html:
+        charset = '<meta charset="utf-8" />'
+        if charset in html:
+            html = html.replace(charset, f"{charset}\n  {meta}", 1)
+
+    def replace(match: re.Match[str]) -> str:
+        prefix, quote, url, suffix = match.groups()
+        return f"{prefix}{quote}{_with_build_version(url, build_id)}{suffix}"
+
+    return _LOCAL_ASSET_RE.sub(replace, html).encode("utf-8")
 
 
 class RushWebRequestHandler(SimpleHTTPRequestHandler):
@@ -44,11 +84,13 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:
         if not self.path.startswith("/api/") and not self.path.startswith("/download"):
-            try:
-                is_whitelisted = whitelisted_static_prefix(self.path) is not None
-            except APIError:
-                is_whitelisted = True
-            cache_control = "no-store" if is_whitelisted else "public, max-age=300"
+            cache_control = getattr(self, "_cache_control_override", None)
+            if cache_control is None:
+                try:
+                    is_whitelisted = whitelisted_static_prefix(self.path) is not None
+                except APIError:
+                    is_whitelisted = True
+                cache_control = "no-store" if is_whitelisted else "public, max-age=300"
             self.send_header("Cache-Control", cache_control)
         super().end_headers()
 
@@ -65,11 +107,36 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
         self.send_error(404)
         return True
 
+    def _is_index_request(self) -> bool:
+        request_path = urlsplit(self.path).path
+        return request_path in {"/", "/index.html", "/web/", "/web/index.html"}
+
+    def _send_rewritten_index(self, *, head_only: bool = False) -> None:
+        index_path = self.web_root / "index.html"
+        if not index_path.is_file():
+            self.send_error(404, "not_found")
+            return
+        raw = _rewrite_index_html(index_path.read_bytes(), get_build_id())
+        self._cache_control_override = "no-cache, must-revalidate"
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            if not head_only:
+                self.wfile.write(raw)
+        finally:
+            if hasattr(self, "_cache_control_override"):
+                delattr(self, "_cache_control_override")
+
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         if self._handle_download(method="GET"):
             return
         if self.path.startswith("/api/"):
             handle_api(self, self.registry, method="GET")
+            return
+        if self._is_index_request():
+            self._send_rewritten_index()
             return
         try:
             super().do_GET()
@@ -87,6 +154,9 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
             return
         if self.path.startswith("/api/"):
             self.send_error(405, "Method not allowed")
+            return
+        if self._is_index_request():
+            self._send_rewritten_index(head_only=True)
             return
         try:
             super().do_HEAD()

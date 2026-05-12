@@ -2,6 +2,14 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const attr = esc;
 const isNumber = value => typeof value === 'number' && Number.isFinite(value);
+const BUILD_ID = (document.querySelector('meta[name="build-id"]')?.content) || '';
+function cacheBust(url) {
+  if (!BUILD_ID) return url;
+  if (/^https?:\/\//i.test(url) || url.startsWith('//')) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return url + sep + 'v=' + encodeURIComponent(BUILD_ID);
+}
+window.cacheBust = cacheBust;
 
 window.rushIsEnsembleRow = function(row) {
   if (!row) return false;
@@ -68,7 +76,7 @@ function parseCsv(text) {
 }
 
 async function fetchText(path) {
-  const response = await fetch(path, { cache: 'no-store' });
+  const response = await fetch(cacheBust(path), { cache: 'no-store' });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
   return response.text();
 }

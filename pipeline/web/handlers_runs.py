@@ -18,6 +18,7 @@ from pipeline.thumbnails import thumbnail_rel_path_for_source, validate_source_r
 
 from . import handlers_dq, handlers_policy
 from ._safety import APIError, read_json_body, validate_start_payload
+from .build_id import get_build_id
 from .run_registry import RunRegistry
 
 
@@ -60,7 +61,8 @@ def handle_thumbnail(handler) -> None:
     thumbnail_rel = thumbnail_rel_path_for_source(source_rel)
     target_rel = thumbnail_rel if (handler.repo_root / thumbnail_rel).is_file() else source_rel
     location = "/" + quote(target_rel.as_posix(), safe="/")
-    _redirect(handler, location)
+    separator = "&" if "?" in location else "?"
+    _redirect(handler, f"{location}{separator}v={get_build_id()}")
 
 
 def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
@@ -76,6 +78,14 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
                     "started_at": handler.started_at,
                     "repo_root": str(handler.repo_root),
                 },
+            )
+            return
+
+        if method == "GET" and path == "/api/build-id":
+            send_json(
+                handler,
+                200,
+                {"build_id": get_build_id(), "started_at": handler.started_at},
             )
             return
 
