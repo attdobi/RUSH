@@ -662,7 +662,15 @@ function renderFlipRate() {
     if (!topRows.length) {
       tableTarget.innerHTML = '<div class="empty-state">No flipped images yet — all multi-run pairs are stable.</div>';
     } else {
-      const rows = topRows.map(row => `<tr><td><strong>${esc(row.image_id)}</strong></td><td>${esc(row.model_id)}</td><td>${esc(row.n_runs ?? '—')}</td><td>${esc(row.flip_count ?? '—')}</td><td>${formatFlipRate(Number(row.flip_rate))}</td><td>${flipLabelPills(row.labels_observed)}</td></tr>`).join('');
+      const rows = topRows.map(row => {
+        const id = String(row.image_id || '');
+        const thumbSrc = thumbnailSrcForPath(row.repo_rel_path || '');
+        const thumb = thumbSrc
+          ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
+          : '';
+        const imageCell = `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
+        return `<tr data-image-id="${attr(id)}"><td>${imageCell}</td><td>${esc(row.model_id)}</td><td>${esc(row.n_runs ?? '—')}</td><td>${esc(row.flip_count ?? '—')}</td><td>${formatFlipRate(Number(row.flip_rate))}</td><td>${flipLabelPills(row.labels_observed)}</td></tr>`;
+      }).join('');
       tableTarget.innerHTML = `<table class="misalignment"><thead><tr><th>image</th><th>model</th><th>runs</th><th>flips</th><th>flip rate</th><th>labels observed</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
   }

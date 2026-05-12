@@ -19,6 +19,20 @@ from . import exporters as exporters_mod
 from . import flip_rate as flip_rate_mod
 from . import misalignment as mis_mod
 from ._common import load_ground_truth, load_label_votes, try_validate
+from ..manifest import load_records as load_manifest_records
+
+
+def _image_repo_rel_paths(repo_root: Path) -> dict[str, str]:
+    """Build an ``image_id -> repo_rel_path`` map from the sample manifest.
+
+    Returns an empty map if the manifest is unavailable; flip-rate records still
+    serialize cleanly but UI thumbnails simply degrade to text-only buttons.
+    """
+    try:
+        records = load_manifest_records()
+    except Exception:
+        return {}
+    return {r.sample_id: r.repo_rel_path for r in records}
 
 
 def _atomic_write_json(path: Path, data: Any) -> None:
@@ -165,10 +179,14 @@ def compute_flip_rate(
                 continue
             run_ids_by_pair.setdefault((str(image_id), str(model_id)), set()).add(str(vote.get("run_id") or run_dir.name))
 
+    repo_rel_by_image = _image_repo_rel_paths(root)
     records = []
     for record in flip_rate_mod.build_flip_rate_records(run_dirs):
         row = _record_to_dict(record)
         row["run_ids"] = sorted(run_ids_by_pair.get((record.image_id, record.model_id), set(row.get("run_ids", []))))
+        repo_rel = repo_rel_by_image.get(record.image_id)
+        if repo_rel:
+            row["repo_rel_path"] = repo_rel
         records.append(row)
     stamp = computed_at.replace(":", "")
     out_dir = resolved_runs_root / "_flip_rate" / stamp
