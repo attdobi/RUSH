@@ -180,7 +180,7 @@
     const y = value => pad.top + (1 - Math.max(0, Math.min(1, value))) * innerH;
     const grid = [0, 0.25, 0.5, 0.75, 1].map(value => {
       const yy = y(value).toFixed(1);
-      return `<line x1="${pad.left}" y1="${yy}" x2="${width - pad.right}" y2="${yy}" class="chart-grid" /><text x="8" y="${Number(yy) + 4}" class="chart-label">${Math.round(value * 100)}%</text>`;
+      return `<line x1="${pad.left}" y1="${yy}" x2="${width - pad.right}" y2="${yy}" class="chart-grid" /><text x="8" y="${Number(yy) + 4}" class="chart-label" font-size="6.5" style="font-size:6.5px">${Math.round(value * 100)}%</text>`;
     }).join('');
     const lines = Array.from(series.entries()).map(([id, points], index) => {
       const color = COLORS[index % COLORS.length];
@@ -190,7 +190,7 @@
     }).join('');
     const labels = sortedRuns.map((run, index) => {
       const shortId = String(run.run_id || `run-${index + 1}`).slice(0, 13);
-      return `<text x="${x(index).toFixed(1)}" y="${height - 18}" class="chart-label" text-anchor="middle">${esc(shortId)}</text>`;
+      return `<text x="${x(index).toFixed(1)}" y="${height - 18}" class="chart-label" font-size="6.5" style="font-size:6.5px" text-anchor="middle">${esc(shortId)}</text>`;
     }).join('');
     const legend = Array.from(series.keys()).map((id, index) => `<span><i style="background:${COLORS[index % COLORS.length]}"></i>${esc(id)}</span>`).join('');
     target.innerHTML = `<div class="chart-wrap"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Accuracy across runs over time">${grid}${lines}${labels}</svg><div class="chart-legend">${legend}</div></div>`;
