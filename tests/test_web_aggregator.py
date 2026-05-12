@@ -6,6 +6,8 @@ from pathlib import Path
 from pipeline.web import aggregator
 from pipeline.web import handlers_dq
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -15,6 +17,97 @@ def _write_json(path: Path, data: dict) -> None:
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+
+
+def _make_autoscore_run(runs_root: Path, run_id: str) -> Path:
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-11T18:17:35Z",
+            "finished_at": "2026-05-11T18:18:35Z",
+            "policy_graph_version": "v0.1",
+            "sample_ids": ["dev_golden_0001", "dev_golden_0002"],
+            "models": [{"model_id": "model-a"}, {"model_id": "model-b"}],
+            "totals": {"expected_calls": 4, "completed_calls": 4, "errored_calls": 0},
+        },
+    )
+    rows = [
+        {
+            "run_id": run_id,
+            "image_id": "dev_golden_0001",
+            "labeler_type": "llm",
+            "labeler_id": "model-a",
+            "model_id": "model-a",
+            "label": "gen_ai",
+            "node_ids": [],
+            "confidence": 0.9,
+            "justification": "synthetic artifacts",
+            "policy_graph_version": "Generative_AI.v0.1",
+            "prompt_version": "v0.1",
+            "label_tier": "provisional",
+            "is_boundary": False,
+            "difficulty": "low",
+        },
+        {
+            "run_id": run_id,
+            "image_id": "dev_golden_0001",
+            "labeler_type": "llm",
+            "labeler_id": "model-b",
+            "model_id": "model-b",
+            "label": "not_gen_ai",
+            "node_ids": [],
+            "confidence": 0.55,
+            "justification": "uncertain",
+            "policy_graph_version": "Generative_AI.v0.1",
+            "prompt_version": "v0.1",
+            "label_tier": "provisional",
+            "is_boundary": True,
+            "difficulty": "high",
+        },
+        {
+            "run_id": run_id,
+            "image_id": "dev_golden_0002",
+            "labeler_type": "llm",
+            "labeler_id": "model-a",
+            "model_id": "model-a",
+            "label": "gen_ai",
+            "node_ids": [],
+            "confidence": 0.8,
+            "justification": "generated look",
+            "policy_graph_version": "Generative_AI.v0.1",
+            "prompt_version": "v0.1",
+            "label_tier": "provisional",
+            "is_boundary": False,
+            "difficulty": "medium",
+        },
+        {
+            "run_id": run_id,
+            "image_id": "dev_golden_0002",
+            "labeler_type": "llm",
+            "labeler_id": "model-b",
+            "model_id": "model-b",
+            "label": "gen_ai",
+            "node_ids": [],
+            "confidence": 0.85,
+            "justification": "generated look",
+            "policy_graph_version": "Generative_AI.v0.1",
+            "prompt_version": "v0.1",
+            "label_tier": "provisional",
+            "is_boundary": False,
+            "difficulty": "medium",
+        },
+    ]
+    _write_jsonl(run_dir / "label_votes.jsonl", rows)
+    _write_jsonl(
+        run_dir / "llm_outputs.jsonl",
+        [
+            {"run_id": row["run_id"], "image_id": row["image_id"], "model_id": row["model_id"], "output": {}}
+            for row in rows
+        ],
+    )
+    return run_dir
 
 
 def _make_run(
@@ -262,3 +355,37 @@ def test_handle_insights_requires_run_id_and_returns_payload(tmp_path: Path, mon
     status, body = handlers_dq.handle_insights({"run_id": ["run-early"]})
     assert status == 200
     assert body["run_id"] == "run-early"
+
+
+def test_handle_insights_auto_scores_when_artifacts_are_missing(tmp_path: Path, monkeypatch) -> None:
+    runs_root = tmp_path / "runs"
+    run_dir = _make_autoscore_run(runs_root, "run-auto")
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+    monkeypatch.setattr(handlers_dq, "REPO_ROOT", ROOT)
+
+    assert not (run_dir / "scoring").exists()
+    status, body = handlers_dq.handle_insights({"run_id": ["run-auto"]})
+
+    assert status == 200
+    assert body["run_id"] == "run-auto"
+    assert (run_dir / "scoring" / "consensus.json").exists()
+    assert (run_dir / "scoring" / "misalignment.json").exists()
+
+
+def test_handle_insights_does_not_auto_score_without_label_votes(tmp_path: Path, monkeypatch) -> None:
+    runs_root = tmp_path / "runs"
+    run_dir = runs_root / "run-no-votes"
+    _write_json(run_dir / "run_manifest.json", {"run_id": "run-no-votes"})
+    _write_jsonl(run_dir / "llm_outputs.jsonl", [{"run_id": "run-no-votes"}])
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+    monkeypatch.setattr(
+        handlers_dq,
+        "_auto_score_run",
+        lambda run_id: (_ for _ in ()).throw(AssertionError("should not auto-score")),
+    )
+
+    status, body = handlers_dq.handle_insights({"run_id": ["run-no-votes"]})
+
+    assert status == 404
+    assert "missing label_votes.jsonl" in body["error"]
+    assert not (run_dir / "scoring").exists()

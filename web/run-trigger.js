@@ -6,8 +6,8 @@
     {
       phase: 'Phase 1 · defaults',
       models: [
-        { id: 'openai/gpt-5.5-xhigh', checked: true },
-        { id: 'openai/gpt-5.5-high', checked: false },
+        { id: 'openai/gpt-5.5-xhigh', checked: false },
+        { id: 'openai/gpt-5.5-high', checked: true },
         { id: 'anthropic/claude-opus-4-6', checked: true },
         { id: 'google/gemini-3.1-pro-preview', checked: true }
       ]

@@ -41,6 +41,34 @@
     return labels.slice(0, 6).map(label => `<span class="mini-chip">${esc(label)}</span>`).join(' ');
   }
 
+  function isMissingScoringError(error) {
+    return /not scored|missing scoring|scoring failed/i.test(String(error?.message || error || ''));
+  }
+
+  function renderScoreRunEmpty(runId, message) {
+    return `<div class="empty-state">${esc(message)} <button type="button" data-score-run-id="${attr(runId)}">Score this run</button><span id="insightsScoreStatus" class="status-line" role="status"></span></div>`;
+  }
+
+  async function scoreRun(event) {
+    const button = event.target.closest('[data-score-run-id]');
+    if (!button) return;
+    const runId = button.dataset.scoreRunId || '';
+    if (!runId) return;
+    const scoreStatus = $('#insightsScoreStatus');
+    try {
+      button.disabled = true;
+      if (scoreStatus) scoreStatus.textContent = `Computing scoring for ${runId}…`;
+      status(`Computing scoring for ${runId}…`);
+      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute`, {});
+      await loadInsights();
+    } catch (error) {
+      const message = `Score failed: ${error.message}`;
+      if (scoreStatus) scoreStatus.textContent = message;
+      status(message, true);
+      button.disabled = false;
+    }
+  }
+
   function renderHotSpots(rows) {
     return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], rows.map(row => [
       `<strong>${esc(row.image_id || '—')}</strong>`,
@@ -123,7 +151,9 @@
       renderInsights(payload);
       status(`Loaded insights for ${payload.run_id || runId}.`);
     } catch (error) {
-      $('#insightsPanels').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+      $('#insightsPanels').innerHTML = isMissingScoringError(error)
+        ? renderScoreRunEmpty(runId, error.message)
+        : `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Insights failed: ${error.message}`, true);
     }
   }
@@ -137,6 +167,7 @@
     populateRuns();
     $('#insightsRunId')?.addEventListener('change', loadInsights);
     $('#refreshInsights')?.addEventListener('click', loadInsights);
+    $('#insightsPanels')?.addEventListener('click', scoreRun);
     await loadInsights();
   }
 

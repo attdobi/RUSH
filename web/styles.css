@@ -295,6 +295,8 @@ table.misalignment .muted { color: var(--muted); }
 }
 .api-form-grid select[multiple] { min-height: 150px; }
 .api-form-grid textarea { resize: vertical; min-height: 86px; }
+.tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: rgba(7,16,31,.72); border: 1px solid rgba(170,184,211,.25); color: #dce8ff; font-size: 12px; font-weight: 800; }
+.tag-current { background: rgba(77,224,166,.14); border-color: rgba(77,224,166,.4); color: #c8ffe1; }
 .checkbox-label { align-self: center; grid-template-columns: auto 1fr; align-items: center; text-transform: none; letter-spacing: 0; font-size: 14px; }
 .checkbox-label input { width: auto; }
 .api-panel, .diff-viewer {

@@ -121,10 +121,24 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _run_has_score_inputs(run_dir: Path) -> bool:
+    return (run_dir / "label_votes.jsonl").exists() and (run_dir / "llm_outputs.jsonl").exists()
+
+
 def _load_run_inputs(repo_root: Path, run_id: str, base_version: str) -> PolicyIterationInputs:
     run_dir = repo_root / "data" / "runs" / run_id
     mis_path = run_dir / "scoring" / "misalignment.json"
     bord_path = run_dir / "scoring" / "borderline.json"
+    if not mis_path.exists() and _run_has_score_inputs(run_dir):
+        try:
+            from pipeline.scoring.run_scoring import run_scoring  # noqa: PLC0415
+
+            run_scoring(run_id, repo_root, runs_root=repo_root / "data" / "runs")
+        except Exception as exc:  # noqa: BLE001 - preserve policy API failure path with context
+            raise FileNotFoundError(
+                f"missing scoring misalignment file and auto-scoring failed: {mis_path}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
     if not mis_path.exists():
         raise FileNotFoundError(f"missing scoring misalignment file: {mis_path}")
     misalignment = json.loads(mis_path.read_text(encoding="utf-8"))

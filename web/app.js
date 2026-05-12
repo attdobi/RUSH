@@ -1386,8 +1386,8 @@ function rushApiRunOptions(selected = '', includeAll = false, allLabel = 'All sc
   const prefix = includeAll ? rushApiOptionHtml('', allLabel, !selected) : '';
   if (!runs.length) return prefix || rushApiOptionHtml('', 'No runs found', true);
   return prefix + runs.map(run => {
-    const label = [run.run_id, run.started_at].filter(Boolean).join(' · ');
-    return rushApiOptionHtml(run.run_id || '', label || run.run_id || '', selected === run.run_id);
+    const runId = run.run_id || '';
+    return rushApiOptionHtml(runId, runId || 'unknown run', selected === runId);
   }).join('');
 }
 
@@ -1395,9 +1395,11 @@ function rushApiPolicyVersionOptions(selected = '', includeAll = false, allLabel
   const versions = window.RUSH_API?.catalog?.policyVersions || [];
   const prefix = includeAll ? rushApiOptionHtml('', allLabel, !selected) : '';
   if (!versions.length) return prefix || rushApiOptionHtml('', 'No policy versions found', true);
+  const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '';
   return prefix + versions.map(item => {
     const version = item.version || item;
-    return rushApiOptionHtml(version, version, selected === version);
+    const label = version === currentVersion ? `${version} · current` : version;
+    return rushApiOptionHtml(version, label, selected === version);
   }).join('');
 }
 
