@@ -16,9 +16,15 @@ _ALLOWED_REASONING_EFFORTS = {"high", "xhigh"}
 _POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
 
 _STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
+    # /api/thumbnail 302-redirects into one of these two directories depending on
+    # whether a derived thumbnail exists; both must be reachable as static GETs.
     (
-        "/data/images/genai-classification/thumbnails/",
-        "data/images/genai-classification/thumbnails",
+        "/data/images/genai-classification/derived/thumbnails/",
+        "data/images/genai-classification/derived/thumbnails",
+    ),
+    (
+        "/data/images/genai-classification/source-datasets/",
+        "data/images/genai-classification/source-datasets",
     ),
     (
         "/data/images/genai-classification/manifests/",
