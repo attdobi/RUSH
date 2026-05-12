@@ -37,15 +37,23 @@
     return `<span class="badge ${labelBadgeClass(label)}">${esc(label || '—')}</span>`;
   }
 
-  function imgIdThumb(imageId) {
-    const id = imageId || '';
+  function thumbnailSrcForRepoPath(repoRelPath) {
+    const path = String(repoRelPath || '').replace(/^\.\//, '').replace(/^\/+/, '');
+    if (!path) return '';
+    const fn = (typeof window !== 'undefined' && typeof window.thumbnailSrcForPath === 'function')
+      ? window.thumbnailSrcForPath
+      : (repoPath) => `/api/thumbnail?path=${encodeURIComponent(repoPath)}`;
+    return fn(path);
+  }
+
+  function imgThumbCell(row) {
+    const id = row?.image_id || '';
     if (!id) return '<span class="muted">—</span>';
-    const fn = (typeof window !== 'undefined' && window.thumbnailSrcForImageId)
-      ? window.thumbnailSrcForImageId
-      : (imgId) => `/api/thumbnail?path=${encodeURIComponent(`data/images/genai-classification/thumbnails/${imgId}.jpg`)}`;
-    const src = fn(id);
-    const fallbackSrc = `../data/images/genai-classification/thumbnails/${encodeURIComponent(id)}.jpg`;
-    return `<img class="row-thumb thumb-loading" src="${esc(src)}" data-fallback-src="${esc(fallbackSrc)}" alt="${esc(id)}" title="${esc(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="if(this.dataset.fallbackSrc){this.src=this.dataset.fallbackSrc;this.dataset.fallbackSrc='';}else{this.outerHTML='<span class=&quot;muted&quot;>'+this.alt+'</span>'}" />`;
+    const src = thumbnailSrcForRepoPath(row?.repo_rel_path);
+    const thumb = src
+      ? `<img class="row-thumb thumb-loading" src="${attr(src)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
+      : '';
+    return `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
   }
 
   function votesHtml(votes) {
@@ -96,28 +104,37 @@
   function renderHotSpots(rows) {
     const filteredRows = rows.filter(row => Number(row.flip_rate || 0) >= 0.05);
     if (!filteredRows.length) return '<div class="empty-state compact-empty">No policy clarity hot spots yet — needs ≥2 scored runs of the same images with flip-rate ≥ 0.05.</div>';
-    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], filteredRows.map(row => [
-      imgIdThumb(row.image_id),
-      isNumber(row.flip_rate) ? row.flip_rate.toFixed(2) : '—',
-      esc(row.n_runs ?? '—'),
-      labelsHtml(row.labels_observed)
-    ]));
+    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], filteredRows.map(row => ({
+      imageId: row.image_id,
+      cells: [
+        imgThumbCell(row),
+        isNumber(row.flip_rate) ? row.flip_rate.toFixed(2) : '—',
+        esc(row.n_runs ?? '—'),
+        labelsHtml(row.labels_observed)
+      ]
+    })));
   }
 
   function renderMajorityWrong(rows) {
-    return table(['Image', 'SME truth', 'Majority label', 'Votes'], rows.map(row => [
-      imgIdThumb(row.image_id),
-      labelBadge(row.sme_truth),
-      labelBadge(row.majority_label),
-      votesHtml(row.votes)
-    ]));
+    return table(['Image', 'SME truth', 'Majority label', 'Votes'], rows.map(row => ({
+      imageId: row.image_id,
+      cells: [
+        imgThumbCell(row),
+        labelBadge(row.sme_truth),
+        labelBadge(row.majority_label),
+        votesHtml(row.votes)
+      ]
+    })));
   }
 
   function renderDisagreement(rows) {
-    return table(['Image', 'Votes'], rows.map(row => [
-      imgIdThumb(row.image_id),
-      votesHtml(row.votes)
-    ]));
+    return table(['Image', 'Votes'], rows.map(row => ({
+      imageId: row.image_id,
+      cells: [
+        imgThumbCell(row),
+        votesHtml(row.votes)
+      ]
+    })));
   }
 
   function renderBoundary(rows) {
@@ -139,7 +156,12 @@
   function table(headers, rows, emptyMessage = 'No rows for this insight yet.') {
     if (!rows.length) return `<div class="empty-state compact-empty">${esc(emptyMessage)}</div>`;
     const head = headers.map(header => `<th>${esc(header)}</th>`).join('');
-    const body = rows.slice(0, 10).map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('');
+    const body = rows.slice(0, 10).map(row => {
+      const cells = Array.isArray(row) ? row : (row?.cells || []);
+      const imageId = Array.isArray(row) ? '' : (row?.imageId || '');
+      const rowAttrs = imageId ? ` data-image-id="${attr(imageId)}"` : '';
+      return `<tr${rowAttrs}>${cells.map(cell => `<td>${cell}</td>`).join('')}</tr>`;
+    }).join('');
     return `<div class="compact-table"><table class="misalignment"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
