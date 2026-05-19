@@ -5,6 +5,7 @@ The PDF is built from the on-disk policy version directory at request time;
 no PDFs are committed to the repo (build artifact).
 """
 
+from .node_examples import PolicyImageExample, collect_policy_image_examples
 from .policy_pdf import (
     BuildResult,
     PolicyPdfError,
@@ -15,8 +16,10 @@ from .policy_pdf import (
 
 __all__ = [
     "BuildResult",
+    "PolicyImageExample",
     "PolicyPdfError",
     "build_policy_pdf",
+    "collect_policy_image_examples",
     "iter_policy_markdown",
     "parse_frontmatter",
 ]

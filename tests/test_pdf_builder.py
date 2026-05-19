@@ -7,6 +7,7 @@ under ``policy-graph/Generative_AI/v0.1``.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sys
 
 import pytest
@@ -19,10 +20,12 @@ from pipeline.pdf import (  # noqa: E402
     BuildResult,
     PolicyPdfError,
     build_policy_pdf,
+    collect_policy_image_examples,
     iter_policy_markdown,
     parse_frontmatter,
 )
 from pipeline.pdf.policy_pdf import _inline_format  # noqa: E402
+from scripts.build_policy_pdf import main as build_policy_pdf_cli  # noqa: E402
 
 
 SAMPLE_ROOT_MD = """\
@@ -187,3 +190,91 @@ def test_build_policy_pdf_version_override(tmp_path: Path) -> None:
     result = build_policy_pdf(src, out, policy_graph_version="v0.1-test")
 
     assert result.policy_graph_version == "v0.1-test"
+
+
+def _write_tiny_manifest_with_images(repo: Path) -> Path:
+    from PIL import Image
+
+    source_dir = repo / "data" / "images" / "genai-classification" / "source-datasets" / "unit" / "ai_generated"
+    source_dir.mkdir(parents=True)
+    rows = []
+    for idx, color in enumerate(((220, 80, 40), (20, 120, 200), (80, 190, 90)), start=1):
+        image_path = source_dir / f"img_{idx}.jpg"
+        Image.new("RGB", (96 + idx, 64 + idx), color).save(image_path)
+        rows.append(
+            {
+                "sample_id": f"dev_golden_{idx:04d}",
+                "repo_rel_path": str(image_path.relative_to(repo)),
+                "split": "dev_golden",
+                "label": "ai_generated",
+                "dataset": "unit",
+                "sha256": f"test-{idx}",
+                "sampling_version": "unit-test",
+                "node_ids": ["GA.visual_artifacts.text_symbols"],
+            }
+        )
+    manifest = repo / "data" / "images" / "genai-classification" / "manifests" / "combined_labels.jsonl"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    return manifest
+
+
+def test_collect_policy_image_examples_uses_golden_manifest(tmp_path: Path) -> None:
+    repo = tmp_path
+    src = repo / "policy-graph" / "Generative_AI" / "v0.1"
+    src.mkdir(parents=True)
+    _write_bundle(src)
+    manifest = _write_tiny_manifest_with_images(repo)
+
+    examples = collect_policy_image_examples(manifest, repo_root=repo)
+
+    node_examples = examples["GA.visual_artifacts.text_symbols"]
+    assert [example.image_id for example in node_examples] == [
+        "dev_golden_0001",
+        "dev_golden_0002",
+        "dev_golden_0003",
+    ]
+    assert all(example.media_path.exists() for example in node_examples)
+
+
+def test_build_policy_pdf_with_image_examples_embeds_xobjects(tmp_path: Path) -> None:
+    repo = tmp_path
+    src = repo / "policy-graph" / "Generative_AI" / "v0.1"
+    src.mkdir(parents=True)
+    _write_bundle(src)
+    manifest = _write_tiny_manifest_with_images(repo)
+    out = tmp_path / "out" / "policy.pdf"
+
+    result = build_policy_pdf(src, out, examples_root=manifest, examples_per_node=3)
+    pdf_bytes = out.read_bytes()
+
+    assert out.exists()
+    assert result.file_count == 2
+    assert result.page_count >= 2
+    assert out.stat().st_size > 1024
+    assert b"/Subtype /Image" in pdf_bytes or b"/XObject" in pdf_bytes
+
+
+def test_build_policy_pdf_cli_no_examples_omits_image_xobjects(tmp_path: Path) -> None:
+    repo = tmp_path
+    src = repo / "policy-graph" / "Generative_AI" / "v0.1"
+    src.mkdir(parents=True)
+    _write_bundle(src)
+    manifest = _write_tiny_manifest_with_images(repo)
+    out = tmp_path / "out" / "policy-no-examples.pdf"
+
+    rc = build_policy_pdf_cli(
+        [
+            "--source",
+            str(src),
+            "--output",
+            str(out),
+            "--examples-root",
+            str(manifest),
+            "--no-examples",
+        ]
+    )
+
+    assert rc == 0
+    assert out.exists()
+    assert b"/Subtype /Image" not in out.read_bytes()
