@@ -14,6 +14,7 @@
   let currentPayload = null;
   let currentVersion = '';
   let currentFocus = null;
+  const pendingPulseNodeIds = new Set();
 
   function qs(selector) {
     return document.querySelector(selector);
@@ -83,6 +84,18 @@
   function childrenFor(id, nodes) {
     if (!id) return [];
     return nodes.filter(node => node.id !== id && (node.parent === id || String(node.id).startsWith(`${id}.`)));
+  }
+
+  function nodeIdFromPolicyFile(path) {
+    return String(path || '').split('/').pop().replace(/\.md$/i, '');
+  }
+
+  function pulseNodes(nodeSelection, ids) {
+    if (!ids?.size) return;
+    const circles = nodeSelection.select('circle').filter(d => ids.has(d.id));
+    if (circles.empty()) return;
+    circles.classed('pulse-new', true);
+    window.setTimeout(() => circles.classed('pulse-new', false), 2000);
   }
 
   function hasChildren(node, nodes) {
@@ -343,6 +356,19 @@
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    const visiblePulseIds = new Set(nodes.map(d => d.id).filter(id => pendingPulseNodeIds.has(id)));
+    if (visiblePulseIds.size) {
+      let didPulse = false;
+      const triggerPulse = () => {
+        if (didPulse) return;
+        didPulse = true;
+        pulseNodes(node, visiblePulseIds);
+        visiblePulseIds.forEach(id => pendingPulseNodeIds.delete(id));
+      };
+      simulation.on('end.pulseNew', triggerPulse);
+      window.setTimeout(triggerPulse, 900);
+    }
+
     function highlight(id) {
       const neighbors = neighborMap.get(id) || new Set([id]);
       node.classed('dimmed', d => !neighbors.has(d.id))
@@ -421,7 +447,15 @@
   rushApiOnReady(initPolicyGraph);
   window.addEventListener('rush-api-catalog', event => {
     const versions = event.detail?.policyVersions || [];
-    const latest = event.detail?.currentPolicyVersion || versions[versions.length - 1]?.version || '';
+    const latestItem = versions[versions.length - 1];
+    const latest = event.detail?.currentPolicyVersion || latestItem?.version || latestItem || '';
     if (latest && latest !== currentVersion) loadGraph(latest);
+  });
+  window.addEventListener('rush-policy-accepted', event => {
+    const files = [
+      ...(Array.isArray(event.detail?.files_added) ? event.detail.files_added : []),
+      ...(Array.isArray(event.detail?.files_changed) ? event.detail.files_changed : [])
+    ];
+    files.map(nodeIdFromPolicyFile).filter(Boolean).forEach(id => pendingPulseNodeIds.add(id));
   });
 })();

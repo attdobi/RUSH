@@ -532,6 +532,11 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .policy-node.leaf-node text { opacity: 0; }
 .policy-node.leaf-node.highlighted text { opacity: 1; }
 .policy-node.highlighted circle { filter: drop-shadow(0 0 8px rgba(77,224,166,.35)); }
+.policy-node circle.pulse-new { animation: policy-pulse-new 2s ease-in-out; }
+@keyframes policy-pulse-new {
+  0%, 100% { stroke-width: 2.4; filter: drop-shadow(0 0 0 rgba(77,224,166,0)); }
+  45%, 65% { stroke-width: 5; filter: drop-shadow(0 0 14px rgba(77,224,166,.78)); }
+}
 .policy-node.dimmed, .policy-link.dimmed { opacity: .18; }
 .policy-link { stroke: rgba(216,226,242,.34); stroke-linecap: round; }
 .policy-link.same-family { stroke: rgba(77,224,166,.45); }
@@ -592,6 +597,93 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .policy-graph-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .policy-graph-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
 
+.policy-grow-controls-slot {
+  border: 1px solid rgba(170,184,211,.18);
+  background: rgba(7,16,31,.55);
+  border-radius: 16px;
+  padding: clamp(16px, 2vw, 20px);
+  margin-top: 14px;
+}
+.policy-grow-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.policy-grow-header h3 { margin-bottom: 6px; }
+.policy-grow-header .body-copy { margin-bottom: 0; }
+.policy-grow-header .status-line { min-width: min(320px, 100%); margin: 0; text-align: right; }
+.policy-grow-mode-cold, .policy-grow-mode-warm { display: grid; gap: 12px; }
+.policy-grow-mode-cold[hidden], .policy-grow-mode-warm[hidden] { display: none; }
+.policy-grow-mode-cold label, .policy-grow-mode-warm label {
+  display: grid;
+  gap: 6px;
+  color: #dce8ff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.policy-grow-mode-cold textarea, .policy-grow-mode-cold select, .policy-grow-mode-warm input, .policy-grow-mode-warm select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #07101f;
+  color: var(--text);
+  padding: 9px 10px;
+}
+.policy-grow-mode-cold textarea { resize: vertical; min-height: 104px; line-height: 1.45; text-transform: none; letter-spacing: 0; }
+.policy-grow-form-row { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 12px; align-items: end; }
+.policy-grow-mode-warm .policy-grow-form-row { grid-template-columns: minmax(120px, .7fr) minmax(90px, .35fr) minmax(180px, 1fr) auto; }
+.policy-grow-form-row output {
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #07101f;
+  color: var(--green);
+  padding: 9px 10px;
+  font-weight: 950;
+}
+.policy-grow-chip-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.policy-grow-disabled-notice {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255,209,102,.4);
+  border-radius: 999px;
+  background: rgba(255,209,102,.1);
+  color: #ffe0a3;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+.policy-grow-batch-meta { min-height: 18px; margin: 0; color: var(--muted); font-size: 13px; font-weight: 800; }
+.policy-version-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 14px 0 0;
+  border: 1px solid rgba(170,184,211,.16);
+  background: rgba(7,16,31,.42);
+  border-radius: 14px;
+  padding: 12px;
+}
+.version-chip {
+  border: 1px solid rgba(170,184,211,.25);
+  border-radius: 999px;
+  background: rgba(16,26,49,.68);
+  color: #dce8ff;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.version-chip:hover { border-color: var(--blue); filter: brightness(1.08); }
+.version-chip.current { border-color: rgba(77,224,166,.56); background: rgba(77,224,166,.14); color: #c8ffe1; }
+
 .theory-prose {
   max-width: 760px;
   border: 1px solid rgba(170,184,211,.16);
@@ -611,6 +703,8 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
   .policy-graph-layout { grid-template-columns: 1fr; }
   .policy-graph-wrap svg { max-width: 100%; }
   .policy-graph-panel { min-height: 0; max-height: none; }
+  .policy-grow-header, .policy-grow-form-row, .policy-grow-mode-warm .policy-grow-form-row { grid-template-columns: 1fr; display: grid; }
+  .policy-grow-header .status-line { text-align: left; }
 }
 
 /* ----- X4 Pass 3: focus-visible rings, hover/focus, mobile sanity ----- */
