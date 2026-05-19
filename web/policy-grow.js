@@ -28,14 +28,15 @@
     rushApiStatus('#policyGrowStatus', message, isError);
   }
 
-  function selectedDemoMode() {
-    return qs('[name="demoMode"]:checked')?.value || 'cold_start';
+  function selectedPolicyMode() {
+    const samplerMode = qs('#samplerMode')?.value || 'cold_start';
+    const runMode = qs('#runTriggerMode')?.value || 'cold_start';
+    return samplerMode === 'warm_start' || runMode === 'warm_start' ? 'warm_start' : 'cold_start';
   }
 
   function modeBaseVersion(mode = state.mode) {
-    if (mode === 'warm_v0_1') return 'v0.1';
-    if (mode === 'warm_v0_2') return 'v0.2';
-    return window.RUSH_API?.catalog?.currentPolicyVersion || qs('#policyGraphVersion')?.value || 'v0.1';
+    if (mode === 'cold_start') return null;
+    return qs('#runTriggerPolicyVersion')?.value || qs('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
   }
 
   function latestRunId() {
@@ -124,8 +125,8 @@
   function updateControls() {
     const slot = ensureControls();
     if (!slot) return;
-    state.mode = selectedDemoMode();
-    state.baseVersion = state.mode === 'cold_start' ? null : modeBaseVersion(state.mode);
+    state.mode = selectedPolicyMode();
+    state.baseVersion = modeBaseVersion(state.mode);
     state.runId = latestRunId();
 
     const isCold = state.mode === 'cold_start';
@@ -252,8 +253,8 @@
     if (!api.available) status('Local API offline — start the rush web server to grow policy.', true);
   }
 
-  document.querySelectorAll('[name="demoMode"]').forEach(radio => {
-    radio.addEventListener('change', () => {
+  ['#samplerMode', '#runTriggerMode', '#runTriggerPolicyVersion', '#policyGraphVersion'].forEach(selector => {
+    qs(selector)?.addEventListener('change', () => {
       updateControls();
       renderHistory();
     });

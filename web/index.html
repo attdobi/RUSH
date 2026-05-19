@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-polish-v2-x2-ux" />
+  <link rel="stylesheet" href="styles.css?v=demo-polish-v3-x3-hero" />
 </head>
 <body>
   <header class="hero">
@@ -30,16 +30,9 @@
 
     <section class="hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow">Bulk LLM image audit, grounded in SME policy</p>
-        <h1>SME truth is ground truth. An LLM panel finds the cases humans should re-check.</h1>
-        <p class="lede">Multiple LLMs label the same images. Consensus is the audit signal; disagreement is where you look.</p>
-        <fieldset class="hero-mode-picker" aria-label="Demo mode">
-          <legend>Demo mode</legend>
-          <label><input type="radio" name="demoMode" value="cold_start" checked> Cold start — fresh policy from scratch</label>
-          <label><input type="radio" name="demoMode" value="warm_v0_1"> Warm — start from v0.1</label>
-          <label><input type="radio" name="demoMode" value="warm_v0_2"> Warm — start from v0.2</label>
-          <small class="muted">Drives sampling mode, the labeling run, and the policy graph in one place.</small>
-        </fieldset>
+        <p class="eyebrow">Bulk LLM image audit with SME policy</p>
+        <h1>RUSH turns SME policy into a repeatable image-audit loop.</h1>
+        <p class="lede">Sample images, seed a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
         <div class="hero-actions">
           <a class="primary-action" href="#sample">Start GenAI demo</a>
         </div>
@@ -374,16 +367,16 @@
     </section>
   </main>
 
-  <script src="genai-sampler.js"></script>
-  <script src="app.js"></script>
-  <script src="run-trigger.js"></script>
-  <script src="decision-quality.js"></script>
-  <script src="insights.js"></script>
-  <script src="policy-diff.js"></script>
-  <script src="policy-grow.js"></script>
+  <script src="genai-sampler.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="app.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="run-trigger.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="decision-quality.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="insights.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="policy-diff.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="policy-grow.js?v=demo-polish-v3-x3-hero"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js"></script>
-  <script src="justifications.js"></script>
-  <script src="policy-mode-labels.js"></script>
+  <script src="policy-graph.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="justifications.js?v=demo-polish-v3-x3-hero"></script>
+  <script src="policy-mode-labels.js?v=demo-polish-v3-x3-hero"></script>
 </body>
 </html>
