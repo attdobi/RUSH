@@ -140,8 +140,7 @@ Query: `?run_id=<id>` and/or `?policy_version=<v>` (both optional).
       ],
       "majority_vote": {"accuracy": 0.8, "n": 10},
       "consensus_summary": {"unanimous": 6, "split": 4},
-      "boundary_rate": 0.3,
-      "flip_rate_summary": {"images_with_flips": 2, "mean_flip_rate": 0.15}
+      "boundary_rate": 0.3
     }
   ],
   "policy_versions": ["Generative_AI.v0.1"]
@@ -153,10 +152,6 @@ Query: `?run_id=<id>` (required).
 ```json
 {
   "run_id": "...",
-  "policy_clarity_hot_spots": [
-    {"image_id": "dev_golden_0007", "flip_rate": 0.5,
-     "n_runs": 4, "labels_observed": ["gen_ai", "not_gen_ai"]}
-  ],
   "majority_wrong": [
     {"image_id": "...", "sme_truth": "ai_generated",
      "majority_label": "not_ai_generated",

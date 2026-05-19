@@ -249,39 +249,6 @@ def _runs_fixture(tmp_path: Path) -> Path:
         policy_version="Generative_AI.v0.1",
         cost={"total_cost_usd": 0.0123, "per_model": {"model-a": {"cost_per_1000_labels": 1.23}}},
     )
-    flip_dir = runs_root / "_flip_rate" / "2026-05-10T03:00:00Z"
-    _write_json(
-        flip_dir / "flip_rate_summary.json",
-        {
-            "n_pairs_total": 2,
-            "n_pairs_flipped": 1,
-            "mean_flip_rate": 0.5,
-            "top_flipped_images": [{"image_id": "img-1", "flip_rate": 1.0}],
-        },
-    )
-    _write_jsonl(
-        flip_dir / "flip_rate.jsonl",
-        [
-            {
-                "image_id": "img-1",
-                "model_id": "model-b",
-                "n_runs": 2,
-                "labels_observed": ["gen_ai", "not_gen_ai"],
-                "flip_count": 1,
-                "flip_rate": 1.0,
-                "run_ids": ["run-early", "run-late"],
-            },
-            {
-                "image_id": "img-2",
-                "model_id": "model-a",
-                "n_runs": 2,
-                "labels_observed": ["gen_ai"],
-                "flip_count": 0,
-                "flip_rate": 0.0,
-                "run_ids": ["run-early"],
-            },
-        ],
-    )
     return runs_root
 
 
@@ -294,7 +261,6 @@ def test_aggregate_decision_quality_returns_runs_sorted_by_started_at(tmp_path: 
     assert payload["runs"][0]["majority_vote"] == {"accuracy": 0.5, "n": 2}
     assert payload["runs"][0]["cost"] == {"total_cost_usd": 0.0123, "per_model": {"model-a": {"cost_per_1000_labels": 1.23}}}
     assert payload["runs"][0]["boundary_rate"] == 0.5
-    assert payload["runs"][0]["flip_rate_summary"]["mean_flip_rate"] == 0.5
 
 
 def test_aggregate_decision_quality_filters_by_run_id(tmp_path: Path) -> None:
@@ -316,7 +282,6 @@ def test_compute_insights_returns_documented_capped_lists(tmp_path: Path) -> Non
     payload = aggregator.compute_insights(runs_root / "run-early")
 
     expected_keys = {
-        "policy_clarity_hot_spots",
         "majority_wrong",
         "model_disagreement",
         "boundary_concentration",
@@ -330,7 +295,6 @@ def test_compute_insights_returns_documented_capped_lists(tmp_path: Path) -> Non
     assert payload["majority_wrong"][0]["repo_rel_path"] == "images/img-1.png"
     assert payload["model_disagreement"][0]["image_id"] == "img-1"
     assert payload["model_disagreement"][0]["repo_rel_path"] == "images/img-1.png"
-    assert payload["policy_clarity_hot_spots"][0]["repo_rel_path"] == "images/img-1.png"
     assert payload["consistent_pair_disagreement"][0]["n_disagreements"] == 1
 
 
