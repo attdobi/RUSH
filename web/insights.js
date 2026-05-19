@@ -1,10 +1,11 @@
 (() => {
   const PANELS = [
+    ['majority_wrong', 'Majority wrong'],
     ['model_disagreement', 'Model disagreement'],
     ['boundary_concentration', 'Boundary concentration'],
-    ['consistent_pair_disagreement', 'Consistent pair disagreement'],
-    ['majority_wrong', 'Majority wrong']
+    ['consistent_pair_disagreement', 'Consistent pair disagreement']
   ];
+  const SECONDARY_PANELS = PANELS.slice(1);
 
   const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
 
@@ -48,11 +49,12 @@
   function imgThumbCell(row) {
     const id = row?.image_id || '';
     if (!id) return '<span class="muted">—</span>';
-    const src = thumbnailSrcForRepoPath(row?.repo_rel_path);
+    const src = thumbnailSrcForRepoPath(row?.repo_rel_path)
+      || (typeof window.thumbnailSrcForImageId === 'function' ? window.thumbnailSrcForImageId(id) : '');
     const thumb = src
       ? `<img class="row-thumb thumb-loading" src="${attr(src)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
-      : '';
-    return `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
+      : '<div class="row-thumb thumb-fallback mini-thumb-fallback"><strong>no image</strong></div>';
+    return `<div class="thumb-wrap insight-thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
   }
 
   function votesHtml(votes) {
@@ -158,13 +160,15 @@
     else if (key === 'model_disagreement') body = renderDisagreement(safeRows);
     else if (key === 'boundary_concentration') body = renderBoundary(safeRows);
     else if (key === 'consistent_pair_disagreement') body = renderPairDisagreement(safeRows);
-    return `<article class="insight-panel"><h3>${esc(title)}</h3>${body}</article>`;
+    return `<article class="insight-panel ${key === 'majority_wrong' ? 'insight-panel-primary' : ''}"><h3>${esc(title)}</h3>${body}</article>`;
   }
 
   function renderInsights(payload) {
     const target = $('#insightsPanels');
     if (!target) return;
-    target.innerHTML = PANELS.map(([key, title]) => renderPanel(key, title, payload?.[key])).join('');
+    const majority = renderPanel('majority_wrong', 'Majority wrong — review these first', payload?.majority_wrong);
+    const secondary = SECONDARY_PANELS.map(([key, title]) => renderPanel(key, title, payload?.[key])).join('');
+    target.innerHTML = `${majority}<details class="insights-more"><summary>More cuts <span class="muted">model disagreement, boundary concentration, pair disagreement</span></summary><div class="insights-more-grid">${secondary}</div></details>`;
   }
 
   async function loadInsights() {

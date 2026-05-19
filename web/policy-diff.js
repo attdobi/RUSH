@@ -12,11 +12,47 @@
     $('#proposalDiffViewer').innerHTML = '';
   }
 
+  function proposalStatusClass(statusText) {
+    const status = String(statusText || 'pending').toLowerCase();
+    if (status.includes('accept')) return 'accepted';
+    if (status.includes('reject')) return 'rejected';
+    if (status.includes('error') || status.includes('fail')) return 'error';
+    return 'pending';
+  }
+
   function proposalLabel(proposal) {
     const id = proposal.proposal_id || 'unknown';
     const statusText = proposal.status || 'pending';
     const version = proposal.base_version || 'base ?';
-    return `${id} · ${statusText} · ${version}`;
+    return `${statusText.toUpperCase()} · ${version} · ${id}`;
+  }
+
+  function renderProposalCards() {
+    const target = $('#proposalGroupedList');
+    if (!target) return;
+    if (!state.proposals.length) {
+      target.innerHTML = '<div class="empty-state compact-empty">No policy proposals yet. Pick a scored run, then suggest changes.</div>';
+      return;
+    }
+    const groups = state.proposals.reduce((acc, proposal) => {
+      const key = proposal.status || 'pending';
+      (acc[key] ||= []).push(proposal);
+      return acc;
+    }, {});
+    target.innerHTML = Object.entries(groups).map(([statusText, proposals]) => `
+      <section class="proposal-status-group">
+        <h4><span class="proposal-status-chip ${proposalStatusClass(statusText)}">${esc(statusText)}</span><span>${proposals.length} proposal(s)</span></h4>
+        <div class="proposal-card-list">
+          ${proposals.map(proposal => {
+            const selected = proposal.proposal_id === state.selected;
+            return `<button type="button" class="proposal-card${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
+              <span class="proposal-status-chip ${proposalStatusClass(proposal.status)}">${esc(proposal.status || 'pending')}</span>
+              <strong>${esc(proposal.proposal_id || 'unknown')}</strong>
+              <small>${esc(proposal.base_version || 'base ?')}</small>
+            </button>`;
+          }).join('')}
+        </div>
+      </section>`).join('');
   }
 
   function populateControls() {
@@ -39,12 +75,14 @@
     if (!state.proposals.length) {
       select.innerHTML = rushApiOptionHtml('', 'No proposals found', true);
       state.selected = '';
+      renderProposalCards();
       return;
     }
     const selected = state.selected || state.proposals[0].proposal_id;
     select.innerHTML = state.proposals.map(proposal => rushApiOptionHtml(proposal.proposal_id || '', proposalLabel(proposal), selected === proposal.proposal_id)).join('');
     select.value = selected;
     state.selected = selected;
+    renderProposalCards();
   }
 
   function diffLineClass(line) {
@@ -71,7 +109,7 @@
     }
     const diffs = Array.isArray(payload.diffs) ? payload.diffs : [];
     const cards = [
-      ['Proposal', payload.proposal_id || '—', payload.status || '—'],
+      ['Proposal', payload.proposal_id || '—', `Status: ${payload.status || 'pending'}`],
       ['Base version', payload.base_version || '—', payload.model_id || DEFAULT_POLICY_MODEL],
       ['Draft model', payload.model_id || DEFAULT_POLICY_MODEL, `Drafted by ${payload.model_id || DEFAULT_POLICY_MODEL} (high reasoning)`],
       ['Changed', payload.files_changed?.length ?? diffs.filter(d => d.change === 'modified').length, (payload.files_changed || []).join(' · ')],
@@ -116,6 +154,7 @@
       const payload = await rushApiGetJson(`/api/policy/proposals/${encodeURIComponent(state.selected)}`);
       state.lastLoadedProposal = payload;
       renderProposal(payload);
+      renderProposalCards();
       status(`Loaded proposal ${state.selected}.`);
     } catch (error) {
       $('#proposalDiffViewer').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
@@ -207,6 +246,14 @@
 
   function bind() {
     $('#proposalPicker')?.addEventListener('change', event => loadProposal(event.target.value));
+    $('#proposalGroupedList')?.addEventListener('click', event => {
+      const card = event.target.closest('[data-proposal-id]');
+      if (!card) return;
+      const proposalId = card.dataset.proposalId || '';
+      const select = $('#proposalPicker');
+      if (select) select.value = proposalId;
+      loadProposal(proposalId);
+    });
     $('#proposeDiff')?.addEventListener('click', proposeDiff);
     $('#acceptProposal')?.addEventListener('click', acceptProposal);
     $('#rejectProposal')?.addEventListener('click', rejectProposal);

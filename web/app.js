@@ -546,6 +546,46 @@ function renderRunPicker() {
   }).join('');
 }
 
+function metricNumber(value) {
+  return isNumber(value) ? value : (Number.isFinite(Number(value)) ? Number(value) : null);
+}
+
+function runMetaForSelected() {
+  return runState.available.find(row => row.run_id === runState.selectedRunId) || {};
+}
+
+function runSummaryImageCount(summary) {
+  const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+  const nValues = labelers
+    .filter(row => !window.rushIsEnsembleRow(row))
+    .map(row => metricNumber(row?.metrics?.n))
+    .filter(value => value !== null);
+  if (nValues.length) return Math.max(...nValues);
+  const consensus = summary?.consensus_summary || {};
+  return consensus.n_images ?? consensus.image_count ?? consensus.total_images ?? '—';
+}
+
+function runSummaryCost(summary) {
+  if (isNumber(summary?.cost?.total_cost_usd)) return summary.cost.total_cost_usd;
+  const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+  const modelCosts = labelers
+    .filter(row => !window.rushIsEnsembleRow(row))
+    .map(row => {
+      const n = metricNumber(row?.metrics?.n);
+      const per1k = metricNumber(row?.metrics?.cost_per_1000_labels);
+      return n !== null && per1k !== null ? (n * per1k / 1000) : null;
+    })
+    .filter(value => value !== null);
+  if (!modelCosts.length) return null;
+  return modelCosts.reduce((total, value) => total + value, 0);
+}
+
+function formatRunTime(meta) {
+  const started = meta.started_at ? new Date(meta.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const finished = meta.finished_at ? new Date(meta.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (meta.running ? 'running' : '—');
+  return { started, finished };
+}
+
 function renderRunSummary() {
   const target = $('#runSummary');
   if (!target) return;
@@ -554,15 +594,31 @@ function renderRunSummary() {
     return;
   }
   const s = runState.summary;
+  const meta = runMetaForSelected();
+  const labelers = Array.isArray(s.labelers) ? s.labelers : [];
+  const modelRows = labelers.filter(row => !window.rushIsEnsembleRow(row));
+  const modelNames = modelRows.map(row => row.labeler_id).filter(Boolean);
+  const totals = meta.totals || {};
+  const errored = metricNumber(totals.errored_calls) || 0;
+  const completed = metricNumber(totals.completed_calls) ?? metricNumber(totals.successful_calls) ?? null;
+  const expected = metricNumber(totals.expected_calls);
+  const cost = runSummaryCost(s);
+  const time = formatRunTime(meta);
   const cards = [
-    ['Run id', s.run_id || runState.selectedRunId || '—', s.started_at || ''],
-    ['Models', Array.isArray(s.models) ? s.models.length : (s.model_count ?? '—'), Array.isArray(s.models) ? s.models.join(' · ') : ''],
-    ['Images', s.image_count ?? s.n_images ?? '—', s.split ? `split: ${s.split}` : ''],
-    ['Policy graph', s.policy_graph_version || '—', s.prompt_version ? `prompt ${s.prompt_version}` : '']
+    ['Images', runSummaryImageCount(s), meta.split ? `split: ${meta.split}` : 'scored images'],
+    ['Models', modelRows.length || '—', modelNames.length ? modelNames.join(' · ') : 'model breakdown unavailable'],
+    ['Time', time.finished === 'running' ? 'Running' : time.finished, `started ${time.started}`],
+    ['Cost', cost === null ? '—' : `$${cost.toFixed(cost >= 1 ? 2 : 4)}`, 'estimated from scored calls'],
+    ['Success / errors', `${completed ?? '—'} / ${errored}`, expected ? `${expected} expected calls` : 'from run manifest']
   ];
-  target.innerHTML = cards.map(([k, v, n]) =>
-    `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`
-  ).join('');
+  target.innerHTML = `
+    <div class="run-summary-metrics">
+      ${cards.map(([k, v, n]) => `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`).join('')}
+    </div>
+    <details class="raw-json-details run-summary-raw">
+      <summary>View raw summary JSON</summary>
+      <pre class="log-tail raw-json">${esc(JSON.stringify(s, null, 2))}</pre>
+    </details>`;
 }
 
 function preparedMetaLine(prepared) {
