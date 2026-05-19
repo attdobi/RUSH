@@ -294,18 +294,27 @@ def handle_policy_graph(
     """Return policy graph nodes and edges for the browser graph view."""
     try:
         versions, current = _policy_version_names(repo_root)
-        if not versions or not current:
+        if not versions:
             return 404, {"error": "no policy versions found"}
-        selected = (version or current).strip() or current
+        selected = (version or current or "").strip()
+        if not selected:
+            return 404, {"error": "no complete policy versions found"}
         if selected not in versions:
             return 404, {"error": f"unknown policy version: {selected}"}
 
         root = _root(repo_root)
         source = root / "policy-graph" / "Generative_AI" / selected
         nodes: list[dict[str, Any]] = []
-        for path in sorted(
-            source.glob("*.md"), key=lambda p: (p.name != "GA.root.md", p.name)
-        ):
+        md_paths = sorted(
+            (p for p in source.glob("*.md") if p.is_file()),
+            key=lambda p: (p.name != "GA.root.md", p.name),
+        )
+        if source.is_dir() and not md_paths:
+            return 500, {
+                "error": f"policy version {selected} is incomplete (no .md files)",
+                "error_type": "IncompletePolicyVersion",
+            }
+        for path in md_paths:
             meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
             node_id = meta.get("id") or path.stem
             title = meta.get("title") or _heading_title(body, node_id)
@@ -398,9 +407,13 @@ def handle_propose_diff(
         return _error(500, exc)
 
 
-def handle_list_proposals(repo_root: Path | str) -> tuple[int, dict[str, Any]]:
+def handle_list_proposals(
+    repo_root: Path | str,
+    *,
+    include_errors: bool = False,
+) -> tuple[int, dict[str, Any]]:
     try:
-        return 200, list_proposals(repo_root=repo_root)
+        return 200, list_proposals(repo_root=repo_root, include_errors=include_errors)
     except Exception as exc:  # noqa: BLE001
         return _error(500, exc)
 
