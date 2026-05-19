@@ -14,6 +14,7 @@ Design notes:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from io import BytesIO
 from pathlib import Path
 import re
 from typing import Iterable, Sequence
@@ -24,15 +25,25 @@ try:
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import (
+        Image as RLImage,
+        KeepTogether,
         Paragraph,
+        PageBreak,
         SimpleDocTemplate,
         Spacer,
-        PageBreak,
+        Table,
+        TableStyle,
     )
 except Exception as exc:  # pragma: no cover - import-time guard
     raise ImportError(
         "reportlab is required for pipeline.pdf. Install with `pip install reportlab`."
     ) from exc
+from .node_examples import (
+    PolicyImageExample,
+    collect_policy_image_examples as _collect_policy_image_examples,
+    prepare_thumbnail_bytes,
+)
+
 
 
 class PolicyPdfError(RuntimeError):
@@ -295,6 +306,70 @@ def _meta_lines(meta: dict[str, str]) -> str:
     return " &nbsp;·&nbsp; ".join(pairs)
 
 
+def _repo_root_for_source(source_dir: Path) -> Path | None:
+    """Infer the checkout root for a policy source directory, if possible."""
+    resolved = source_dir.resolve()
+    for candidate in (resolved, *resolved.parents):
+        if (candidate / "policy-graph").is_dir() and (candidate / "data").is_dir():
+            return candidate
+    return None
+
+
+def _example_caption(example: PolicyImageExample) -> str:
+    parts = [f"<b>{_escape_xml(example.image_id)}</b>"]
+    if example.label:
+        parts.append(_escape_xml(example.label))
+    if example.tier:
+        parts.append(_escape_xml(example.tier))
+    if example.split:
+        parts.append(_escape_xml(example.split))
+    if example.confidence is not None:
+        parts.append(f"conf {example.confidence:.2f}")
+    return " · ".join(parts)
+
+
+def _image_example_flowables(
+    node_id: str,
+    examples_by_node: dict[str, list[PolicyImageExample]],
+    styles: dict[str, ParagraphStyle],
+) -> list:
+    examples = examples_by_node.get(node_id, [])
+    if not examples:
+        return []
+
+    cells: list[list] = []
+    image_size = 1.35 * inch
+    for example in examples:
+        thumbnail = prepare_thumbnail_bytes(example.media_path, max_px=200)
+        if thumbnail is None:
+            continue
+        cells.append([
+            RLImage(
+                BytesIO(thumbnail),
+                width=image_size,
+                height=image_size,
+                kind="proportional",
+            ),
+            Paragraph(_example_caption(example), styles["meta"]),
+        ])
+
+    flow: list = []
+    if cells:
+        flow.append(Paragraph("Image examples", styles["h3"]))
+        rows = [cells[i : i + 3] for i in range(0, len(cells), 3)]
+        for row in rows:
+            row.extend([""] * (3 - len(row)))
+        table = Table(rows, colWidths=[1.75 * inch] * 3, hAlign="LEFT")
+        table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        flow.append(KeepTogether([table, Spacer(1, 0.05 * inch)]))
+    return flow
+
+
 def _cover_flowables(
     styles: dict[str, ParagraphStyle],
     source_dir: Path,
@@ -332,6 +407,9 @@ def build_policy_pdf(
     output_path: Path | str,
     *,
     policy_graph_version: str | None = None,
+    examples_root: Path | str | None = None,
+    examples_per_node: int = 3,
+    include_examples: bool = True,
 ) -> BuildResult:
     """Build a bound PDF from all `.md` files in *source_dir*.
 
@@ -341,6 +419,10 @@ def build_policy_pdf(
         output_path: Destination ``.pdf`` path. Parent directories are created.
         policy_graph_version: Optional override; defaults to the parent
             directory name of *source_dir* (``v0.1``).
+        examples_root: Optional data/manifest/run root for image examples.
+            Defaults to the checkout ``data/`` directory when it can be inferred.
+        examples_per_node: Maximum thumbnails to render under each node.
+        include_examples: Set false to skip image discovery/rendering entirely.
 
     Returns:
         :class:`BuildResult` describing the artifact.
@@ -353,6 +435,17 @@ def build_policy_pdf(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     styles = _styles()
+    repo_root = _repo_root_for_source(source_dir)
+    resolved_examples_root = Path(examples_root) if examples_root is not None else (repo_root / "data" if repo_root else None)
+    examples_by_node = (
+        _collect_policy_image_examples(
+            resolved_examples_root,
+            repo_root=repo_root,
+            max_per_node=examples_per_node,
+        )
+        if include_examples and examples_per_node > 0
+        else {}
+    )
     doc = SimpleDocTemplate(
         str(output_path),
         pagesize=LETTER,
@@ -374,6 +467,8 @@ def build_policy_pdf(
         if meta_line:
             story.append(Paragraph(meta_line, styles["meta"]))
         story.extend(_md_to_flowables(body, styles))
+        node_id = meta.get("id") or path.stem
+        story.extend(_image_example_flowables(node_id, examples_by_node, styles))
         if idx < len(files) - 1:
             story.append(PageBreak())
 
@@ -401,6 +496,9 @@ def build_from_files(
     output_path: Path | str,
     *,
     policy_graph_version: str,
+    examples_root: Path | str | None = None,
+    examples_per_node: int = 3,
+    include_examples: bool = True,
 ) -> BuildResult:
     """Build a PDF from an explicit list of files (used by tests)."""
     sources = list(sources)
@@ -409,6 +507,17 @@ def build_from_files(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     styles = _styles()
+    repo_root = _repo_root_for_source(sources[0].parent)
+    resolved_examples_root = Path(examples_root) if examples_root is not None else (repo_root / "data" if repo_root else None)
+    examples_by_node = (
+        _collect_policy_image_examples(
+            resolved_examples_root,
+            repo_root=repo_root,
+            max_per_node=examples_per_node,
+        )
+        if include_examples and examples_per_node > 0
+        else {}
+    )
     doc = SimpleDocTemplate(
         str(output_path),
         pagesize=LETTER,
@@ -429,6 +538,8 @@ def build_from_files(
         if meta_line:
             story.append(Paragraph(meta_line, styles["meta"]))
         story.extend(_md_to_flowables(body, styles))
+        node_id = meta.get("id") or path.stem
+        story.extend(_image_example_flowables(node_id, examples_by_node, styles))
         if idx < len(sources) - 1:
             story.append(PageBreak())
     page_counter = {"n": 0}
