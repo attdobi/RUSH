@@ -19,6 +19,24 @@
     return `${id} · ${statusText} · ${version}`;
   }
 
+  function syncProposalActions(payload = state.lastLoadedProposal) {
+    const proposalId = $('#proposalPicker')?.value || state.selected || '';
+    const statusText = String(payload?.status || '').toLowerCase();
+    const hasProposal = !!proposalId && !!payload;
+    const canAccept = hasProposal && statusText === 'pending';
+    const canReject = hasProposal && ['pending', 'parse_error'].includes(statusText);
+    const accept = $('#acceptProposal');
+    const reject = $('#rejectProposal');
+    if (accept) {
+      accept.disabled = !canAccept;
+      accept.title = canAccept ? 'Accept this pending proposal' : 'Only pending proposals can be accepted';
+    }
+    if (reject) {
+      reject.disabled = !canReject;
+      reject.title = canReject ? 'Reject this proposal' : 'Only pending or parse-error proposals can be rejected';
+    }
+  }
+
   function populateControls() {
     const currentRun = $('#proposalRunId')?.value || window.RUSH_API?.catalog?.runs?.[0]?.run_id || '';
     const runSelect = $('#proposalRunId');
@@ -39,6 +57,7 @@
     if (!state.proposals.length) {
       select.innerHTML = rushApiOptionHtml('', 'No proposals found', true);
       state.selected = '';
+      syncProposalActions(null);
       return;
     }
     const selected = state.selected || state.proposals[0].proposal_id;
@@ -67,8 +86,10 @@
     if (!payload) {
       summary.innerHTML = '';
       viewer.innerHTML = '<div class="empty-state">Select a proposal to view its diff.</div>';
+      syncProposalActions(null);
       return;
     }
+    syncProposalActions(payload);
     const diffs = Array.isArray(payload.diffs) ? payload.diffs : [];
     const cards = [
       ['Proposal', payload.proposal_id || '—', payload.status || '—'],
@@ -78,11 +99,13 @@
       ['Added / removed', `${payload.files_added?.length ?? 0} / ${payload.files_removed?.length ?? 0}`, [...(payload.files_added || []), ...(payload.files_removed || [])].join(' · ')]
     ];
     summary.innerHTML = cards.map(([label, value, note]) => `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note || '')}</p></article>`).join('');
+    const statusText = payload.status || 'pending';
+    const statusBanner = `<div class="proposal-state-banner"><strong>${esc(statusText)}</strong><span>${esc(statusText === 'pending' ? 'SME action needed before this graph changes.' : 'Proposal state is recorded; only pending proposals can change the graph.')}</span></div>`;
     if (!diffs.length) {
-      viewer.innerHTML = '<div class="empty-state">This proposal has no diff records.</div>';
+      viewer.innerHTML = `${statusBanner}<div class="empty-state">This proposal has no diff records.</div>`;
       return;
     }
-    viewer.innerHTML = diffs.map(diff => `<article class="diff-file-card"><h3>${esc(diff.path || 'unknown file')} <span>${esc(diff.change || '')}</span></h3>${renderUnifiedDiff(diff.unified_diff || '')}</article>`).join('');
+    viewer.innerHTML = statusBanner + diffs.map(diff => `<article class="diff-file-card"><h3>${esc(diff.path || 'unknown file')} <span>${esc(diff.change || '')}</span></h3>${renderUnifiedDiff(diff.unified_diff || '')}</article>`).join('');
   }
 
   async function loadProposals(selectFirst = true) {
@@ -101,6 +124,7 @@
       status(`Loaded ${state.proposals.length} proposal(s).`);
     } catch (error) {
       $('#proposalDiffViewer').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+      syncProposalActions(null);
       status(`Proposal list failed: ${error.message}`, true);
     }
   }
@@ -119,6 +143,7 @@
       status(`Loaded proposal ${state.selected}.`);
     } catch (error) {
       $('#proposalDiffViewer').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+      syncProposalActions(null);
       status(`Proposal failed: ${error.message}`, true);
     }
   }
@@ -170,7 +195,7 @@
     } catch (error) {
       status(`Accept failed: ${error.message}`, true);
     } finally {
-      $('#acceptProposal').disabled = false;
+      syncProposalActions(state.lastLoadedProposal);
     }
   }
 
@@ -187,7 +212,7 @@
     } catch (error) {
       status(`Reject failed: ${error.message}`, true);
     } finally {
-      $('#rejectProposal').disabled = false;
+      syncProposalActions(state.lastLoadedProposal);
     }
   }
 
@@ -221,6 +246,7 @@
     await rushApiLoadCatalog();
     populateControls();
     bind();
+    syncProposalActions(null);
     await loadProposals(true);
   }
 

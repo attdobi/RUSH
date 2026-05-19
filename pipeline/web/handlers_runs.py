@@ -120,7 +120,7 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             if method == "GET" and action == "status":
                 send_json(handler, 200, registry.status(token))
                 return
-            if method == "POST" and action == "compute-now":
+            if method == "POST" and action in {"compute-now", "compute"}:
                 send_json(handler, 200, registry.compute_now(token))
                 return
             if method == "POST" and action == "score":
@@ -157,9 +157,12 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             send_json(handler, status, body)
             return
         if method == "POST" and path == "/api/policy/propose-diff":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             body_in = read_json_body(handler) or {}
+            async_value = (query.get("async") or [body_in.get("async", "")])[0]
+            async_requested = str(async_value).lower() in {"1", "true", "yes"}
             status, body = handlers_policy.handle_propose_diff(
-                handler.repo_root, body_in
+                handler.repo_root, body_in, async_requested=async_requested
             )
             send_json(handler, status, body)
             return
@@ -184,6 +187,15 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             )
             send_json(handler, status, body)
             return
+        # /api/policy/propose-diff/jobs/<id>
+        if len(parts) == 6 and parts[:5] == ["", "api", "policy", "propose-diff", "jobs"]:
+            if method == "GET":
+                status, body = handlers_policy.handle_get_propose_diff_job(
+                    handler.repo_root, parts[5]
+                )
+                send_json(handler, status, body)
+                return
+
         # /api/policy/proposals/<id>(/accept|/reject)?
         if len(parts) >= 5 and parts[:4] == ["", "api", "policy", "proposals"]:
             proposal_id = parts[4]

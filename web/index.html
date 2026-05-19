@@ -206,8 +206,8 @@
     <section id="quality" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§4 Quality</p>
-        <h2>Track labeler accuracy across scored runs.</h2>
-        <p>Compare accuracy, F1, FPR, and FNR by labeler, filtered by run or policy version.</p>
+        <h2>Decision quality is the gate for policy growth.</h2>
+        <p>After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
       </div>
       <div class="run-controls" aria-label="Decision quality filters">
         <label>Run
@@ -221,6 +221,7 @@
       </div>
       <div id="decisionQualitySummary" class="dq-summary-strip"></div>
       <div id="decisionQualityWarning" class="dq-warning-banner" hidden></div>
+      <div id="decisionQualityNarrative" class="dq-narrative" hidden></div>
       <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="decisionQualityChart" class="api-panel"></div>
     </section>
@@ -245,7 +246,7 @@
       <div class="section-head compact">
         <p class="eyebrow">§6 Grow</p>
         <h2>Grow the policy graph.</h2>
-        <p>This shell keeps the live graph and proposal review together. Phase 2c will add growth controls and version history.</p>
+        <p>This shell keeps the live graph, growth controls, version history, and proposal review in one SME approval surface.</p>
       </div>
       <div class="policy-graph-block">
         <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
