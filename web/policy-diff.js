@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
-  const state = { proposals: [], selected: '' };
+  const state = { proposals: [], selected: '', lastLoadedProposal: null };
 
   function status(message, isError = false) {
     rushApiStatus('#proposalStatus', message, isError);
@@ -114,6 +114,7 @@
     try {
       status(`Loading proposal ${state.selected}…`);
       const payload = await rushApiGetJson(`/api/policy/proposals/${encodeURIComponent(state.selected)}`);
+      state.lastLoadedProposal = payload;
       renderProposal(payload);
       status(`Loaded proposal ${state.selected}.`);
     } catch (error) {
@@ -151,11 +152,19 @@
   async function acceptProposal() {
     const proposalId = $('#proposalPicker')?.value || state.selected;
     if (!proposalId) return status('Select a proposal to accept.', true);
+    const proposal = state.lastLoadedProposal?.proposal_id === proposalId ? state.lastLoadedProposal : null;
     try {
       status(`Accepting ${proposalId}…`);
       $('#acceptProposal').disabled = true;
       const payload = await rushApiPostJson(`/api/policy/proposals/${encodeURIComponent(proposalId)}/accept`, {});
       status(`Accepted into ${payload.new_version || 'new version'}.`);
+      window.dispatchEvent(new CustomEvent('rush-policy-accepted', {
+        detail: {
+          new_version: payload.new_version,
+          files_added: Array.isArray(proposal?.files_added) ? proposal.files_added : [],
+          files_changed: Array.isArray(proposal?.files_changed) ? proposal.files_changed : []
+        }
+      }));
       await rushApiLoadCatalog();
       await loadProposals(false);
     } catch (error) {
@@ -217,4 +226,12 @@
 
   rushApiOnReady(initPolicyDiff);
   window.addEventListener('rush-api-catalog', populateControls);
+  window.rushLoadProposal = async id => {
+    state.selected = id || '';
+    await loadProposal(state.selected);
+  };
+  window.rushRefreshPolicyProposals = async selectedId => {
+    if (selectedId) state.selected = selectedId;
+    await loadProposals(false);
+  };
 })();
