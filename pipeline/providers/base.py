@@ -393,6 +393,20 @@ class LabelClient(ABC):
     def label(self, request: LabelRequest) -> LabelResponse:
         """Run a single labeling request end-to-end."""
 
+    def batch_label(self, requests: list[LabelRequest]) -> list[LabelResponse]:
+        """Run a logical batch of labeling requests.
+
+        Providers with a true multi-image endpoint should override this method
+        and perform one provider call. The default preserves compatibility for
+        single-image providers while still treating the group as one logical
+        batch: requests are dispatched sequentially and responses are returned
+        in input order. Runner-level concurrency remains the only default
+        source of provider parallelism.
+        """
+        if not requests:
+            return []
+        return [self.label(request) for request in requests]
+
 
 __all__ = [
     "IMAGE_OMITTED_SENTINEL",

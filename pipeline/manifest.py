@@ -124,12 +124,24 @@ def select_samples(
             continue
         keep.append(rec)
 
-    keep.sort(key=lambda r: r.sample_id)
-
     if limit is not None:
         if limit < 1:
             raise ValueError(f"limit must be >= 1, got {limit}")
-        keep = keep[:limit]
+
+    keep.sort(key=lambda r: r.sample_id)
+
+    if limit is not None:
+        if split == "all" and explicit_ids is None:
+            # Demo batches should be a real N-per-portion pass, not a single
+            # N-sized slice that happens to include whichever split sorts first.
+            # With the bundled manifest this means N dev_golden + N holdout.
+            per_split: list[SampleRecord] = []
+            for split_name in sorted(VALID_SPLITS):
+                rows = [rec for rec in keep if rec.split == split_name]
+                per_split.extend(rows[:limit])
+            keep = sorted(per_split, key=lambda r: r.sample_id)
+        else:
+            keep = keep[:limit]
     return keep
 
 

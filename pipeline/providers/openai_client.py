@@ -18,6 +18,7 @@ client never reads the original file directly.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -301,6 +302,181 @@ class OpenAIClient(LabelClient):
             policy_quotes=fields["policy_quotes"],
             justification_too_long=fields["justification_too_long"],
         )
+
+    def batch_label(self, requests: list[LabelRequest]) -> list[LabelResponse]:
+        """Label multiple images in one OpenAI multimodal request.
+
+        The current transport uses Chat Completions, but the provider call is
+        genuinely batched: one request contains the shared policy text plus all
+        prepared image blocks, and the model returns one JSON ``items`` array.
+        """
+        if not requests:
+            return []
+        if len(requests) == 1:
+            return [self.label(requests[0])]
+
+        prepared_images = [
+            prepare_image_for_labeling(
+                request.image_path,
+                max_size=request.max_image_size,
+                jpeg_quality=request.jpeg_quality,
+            )
+            for request in requests
+        ]
+        policy_markdown = requests[0].policy_markdown
+        user_text = (
+            f"{USER_INSTRUCTIONS}\n\n"
+            "BATCH MODE. Classify each image below independently against the "
+            "same policy document. Return EXACTLY one JSON object with this "
+            "shape: {\"items\":[{\"image_id\":\"...\", \"label\":..., "
+            "\"l2_label\":..., \"justification\":..., \"policy_citations\":..., "
+            "\"policy_quotes\":..., \"confidence\":..., \"difficulty\":..., "
+            "\"is_boundary\":...}]}. Preserve the input order and echo each "
+            "image_id exactly.\n\n"
+            f"[POLICY DOCUMENT]\n{policy_markdown}\n"
+        )
+        user_content: list[dict[str, Any]] = [{"type": "text", "text": user_text}]
+        for idx, (request, prepared) in enumerate(zip(requests, prepared_images, strict=True), start=1):
+            user_content.append(
+                {"type": "text", "text": f"IMAGE {idx} image_id={request.image_id}"}
+            )
+            user_content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": prepared.to_data_url(),
+                        "detail": self.config.image_detail,
+                    },
+                }
+            )
+        batch_system_prompt = DEFAULT_SYSTEM_PROMPT.replace(
+            "classify a single image",
+            "classify each supplied image independently",
+        ).replace(
+            "Return EXACTLY one JSON object. No prose, no markdown fences.",
+            "Return EXACTLY one JSON object with an items array. No prose, no markdown fences.",
+        )
+        messages = [
+            {"role": "system", "content": batch_system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+        api_params = self._build_api_params(messages=messages)
+
+        attempts_holder = {"n": 0}
+
+        def _do_call() -> Any:
+            attempts_holder["n"] += 1
+            client = self._ensure_client()
+            return client.chat.completions.create(**api_params)
+
+        start = time.monotonic()
+        try:
+            response = retry_call(
+                _do_call,
+                is_retryable=self._is_retryable,
+                extract_retry_after=self._retry_after,
+                label="openai.chat.completions.batch",
+            )
+        except BaseException as exc:  # noqa: BLE001
+            elapsed = int((time.monotonic() - start) * 1000)
+            return [
+                abstain_response(
+                    image_id=request.image_id,
+                    model_id=request.model_id,
+                    error=f"provider_error:{type(exc).__name__}",
+                    latency_ms=elapsed,
+                    attempts=attempts_holder["n"],
+                    prepared=prepared,
+                    raw_payload={
+                        "request_model": api_params.get("model"),
+                        "image_detail": self.config.image_detail,
+                        "batch_size": len(requests),
+                        "messages": strip_image_bytes(api_params.get("messages")),
+                    },
+                    justification=(
+                        "OpenAI batch provider error; abstaining without label "
+                        "so downstream consensus can ignore this vote."
+                    ),
+                )
+                for request, prepared in zip(requests, prepared_images, strict=True)
+            ]
+
+        elapsed = int((time.monotonic() - start) * 1000)
+        text = self._extract_text(response)
+        raw_payload = self._serialize_response(response, api_params)
+        input_tokens, output_tokens = self._extract_usage_tokens(response)
+        if input_tokens is None and output_tokens is None:
+            logger.info("usage_unknown for %s batch_size=%s", requests[0].model_id, len(requests))
+        total_cost = compute_call_cost(
+            requests[0].model_id,
+            input_tokens,
+            output_tokens,
+            image_count=len(requests),
+        )
+        per_image_cost = None if total_cost is None else total_cost / len(requests)
+
+        try:
+            parsed = parse_label_json(text)
+            items = parsed.get("items")
+            if not isinstance(items, list):
+                raise ValueError("missing items array")
+        except (ValueError, json.JSONDecodeError):
+            return [
+                abstain_response(
+                    image_id=request.image_id,
+                    model_id=request.model_id,
+                    error="parse_failed",
+                    latency_ms=elapsed,
+                    attempts=attempts_holder["n"],
+                    prepared=prepared,
+                    raw_payload=raw_payload,
+                    justification=(
+                        "OpenAI returned non-JSON batch content; abstaining "
+                        "to keep the vote out of consensus until the prompt is fixed."
+                    ),
+                )
+                for request, prepared in zip(requests, prepared_images, strict=True)
+            ]
+
+        by_id = {
+            str(item.get("image_id")): item
+            for item in items
+            if isinstance(item, dict) and item.get("image_id") is not None
+        }
+        responses: list[LabelResponse] = []
+        for idx, (request, prepared) in enumerate(zip(requests, prepared_images, strict=True)):
+            item = by_id.get(request.image_id)
+            if item is None and idx < len(items) and isinstance(items[idx], dict):
+                item = items[idx]
+            if item is None:
+                item = {}
+            fields = coerce_label_fields(item)
+            responses.append(
+                LabelResponse(
+                    image_id=request.image_id,
+                    model_id=request.model_id,
+                    label=fields["label"],
+                    l2_label=fields["l2_label"],
+                    justification=fields["justification"] or "no justification provided",
+                    confidence=fields["confidence"],
+                    difficulty=fields["difficulty"],
+                    is_boundary=fields["is_boundary"],
+                    raw_provider_payload=raw_payload,
+                    error=None,
+                    latency_ms=elapsed,
+                    attempts=attempts_holder["n"],
+                    prepared_image_sha256=prepared.sha256,
+                    prepared_image_width=prepared.width,
+                    prepared_image_height=prepared.height,
+                    prepared_image_mime_type=prepared.mime_type,
+                    prepared_image_byte_size=prepared.byte_size,
+                    cost_usd=per_image_cost,
+                    policy_citations=fields["policy_citations"],
+                    policy_quotes=fields["policy_quotes"],
+                    justification_too_long=fields["justification_too_long"],
+                )
+            )
+        return responses
 
     # ------------------------------------------------------------------
     # Response helpers

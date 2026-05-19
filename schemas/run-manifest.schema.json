@@ -76,6 +76,16 @@
       "minimum": 1,
       "description": "In-flight provider call cap per provider."
     },
+    "batch_size": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Requested maximum images per logical provider batch."
+    },
+    "effective_batches": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of logical provider batches scheduled for the run."
+    },
     "image_prep": {
       "type": "object",
       "required": ["longest_edge_px", "format", "quality"],

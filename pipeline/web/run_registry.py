@@ -145,6 +145,10 @@ class RunRegistry:
             "--allow-spend",
             "--concurrency",
             str(request["concurrency"]),
+            "--policy-version",
+            request["policy_version"],
+            "--batch-size",
+            str(request.get("batch_size") or 20),
         ]
         if request.get("reasoning_effort") is not None:
             argv.extend(["--reasoning-effort", request["reasoning_effort"]])
@@ -171,6 +175,10 @@ class RunRegistry:
             "reasoning_effort": request.get("reasoning_effort"),
             "policy_version": request["policy_version"],
             "allow_spend": bool(request["allow_spend"]),
+            "allow_holdout": bool(request.get("allow_holdout")),
+            "limit": request.get("limit"),
+            "sample_ids": request.get("sample_ids"),
+            "batch_size": request.get("batch_size"),
         }
         self._write_state(state)
 

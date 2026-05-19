@@ -121,6 +121,48 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+_PROPOSAL_STATUSES = {"pending", "accepted", "rejected", "parse_error"}
+
+
+def _error_summary(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
+
+
+def _change_count(meta: dict[str, Any]) -> int:
+    return sum(
+        len(meta.get(key, []) or [])
+        for key in ("files_changed", "files_added", "files_removed")
+    )
+
+
+def _proposal_summary(meta: dict[str, Any]) -> str:
+    status = str(meta.get("status") or "pending")
+    if status == "parse_error":
+        err = meta.get("error") or meta.get("parse_error") or meta.get("raw_response")
+        return str(err or "Proposal could not be parsed.")[:500]
+    kind = meta.get("kind") or "propose_diff"
+    changed = len(meta.get("files_changed", []) or [])
+    added = len(meta.get("files_added", []) or [])
+    removed = len(meta.get("files_removed", []) or [])
+    return f"{kind}: {changed} changed, {added} added, {removed} removed"
+
+
+def _normalize_proposal_meta(meta: dict[str, Any]) -> dict[str, Any]:
+    """Return proposal metadata with stable list/detail fields for the UI."""
+    out = dict(meta)
+    status = str(out.get("status") or "pending")
+    if status not in _PROPOSAL_STATUSES:
+        status = "parse_error"
+    out["status"] = status
+    out.setdefault("kind", "propose_diff")
+    out.setdefault("files_changed", [])
+    out.setdefault("files_added", [])
+    out.setdefault("files_removed", [])
+    out["change_count"] = _change_count(out)
+    out["summary"] = _proposal_summary(out)
+    return out
+
+
 def _run_has_score_inputs(run_dir: Path) -> bool:
     return (run_dir / "label_votes.jsonl").exists() and (run_dir / "llm_outputs.jsonl").exists()
 
@@ -211,12 +253,13 @@ def _write_proposal_dir(
     proposed_dir = prop_dir / "proposed"
     proposed_dir.mkdir(parents=True, exist_ok=False)
 
+    normalized = _normalize_proposal_meta(metadata)
     for filename, content in proposed_files.items():
         _atomic_write_text(proposed_dir / _validate_md_filename(filename), content)
     _atomic_write_json(prop_dir / "prompt.json", prompt)
     _atomic_write_text(prop_dir / "raw_response.txt", raw_response)
-    _atomic_write_json(prop_dir / "proposal.json", metadata)
-    return metadata
+    _atomic_write_json(prop_dir / "proposal.json", normalized)
+    return normalized
 
 
 def _classify_changes_cold_start(
@@ -312,14 +355,15 @@ def propose_diff(
             ],
             "user_payload": user_payload,
         }
-        raw_response = chat_callable(
-            prompt["messages"], model_id=effective_model, reasoning_effort="high"
-        )
         try:
-            proposed_files, removed = _proposal_from_llm_json(raw_response)
-        except ValueError:
+            raw_response = chat_callable(
+                prompt["messages"], model_id=effective_model, reasoning_effort="high"
+            )
+        except Exception as exc:  # noqa: BLE001 - persist provider/proxy failures for review
+            error = _error_summary(exc)
             metadata = {
                 "proposal_id": proposal_id,
+                "kind": "propose_diff",
                 "base_version": base_version,
                 "model_id": effective_model,
                 "run_id": run_id,
@@ -328,6 +372,32 @@ def propose_diff(
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
+                "error": error,
+                "raw_response": "",
+            }
+            return _write_proposal_dir(
+                repo_root=root,
+                proposal_id=proposal_id,
+                metadata=metadata,
+                prompt=prompt,
+                raw_response="",
+                proposed_files={},
+            )
+        try:
+            proposed_files, removed = _proposal_from_llm_json(raw_response)
+        except ValueError as exc:
+            metadata = {
+                "proposal_id": proposal_id,
+                "kind": "propose_diff",
+                "base_version": base_version,
+                "model_id": effective_model,
+                "run_id": run_id,
+                "created_at": created_at,
+                "status": "parse_error",
+                "files_changed": [],
+                "files_added": [],
+                "files_removed": [],
+                "error": str(exc),
                 "raw_response": raw_response,
             }
             return _write_proposal_dir(
@@ -371,6 +441,7 @@ def propose_diff(
     )
     metadata = {
         "proposal_id": proposal_id,
+        "kind": "propose_diff",
         "base_version": base_version,
         "model_id": effective_model,
         "run_id": run_id,
@@ -473,12 +544,12 @@ def seed_cold_start_proposal(
             ],
             "user_payload": user_payload,
         }
-        raw_response = chat_callable(
-            prompt["messages"], model_id=effective_model, reasoning_effort="high"
-        )
         try:
-            proposed_files, removed = _proposal_from_llm_json(raw_response)
-        except ValueError:
+            raw_response = chat_callable(
+                prompt["messages"], model_id=effective_model, reasoning_effort="high"
+            )
+        except Exception as exc:  # noqa: BLE001 - persist provider/proxy failures for review
+            error = _error_summary(exc)
             metadata = {
                 "proposal_id": proposal_id,
                 "kind": "cold_start",
@@ -491,6 +562,33 @@ def seed_cold_start_proposal(
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
+                "error": error,
+                "raw_response": "",
+            }
+            return _write_proposal_dir(
+                repo_root=root,
+                proposal_id=proposal_id,
+                metadata=metadata,
+                prompt=prompt,
+                raw_response="",
+                proposed_files={},
+            )
+        try:
+            proposed_files, removed = _proposal_from_llm_json(raw_response)
+        except ValueError as exc:
+            metadata = {
+                "proposal_id": proposal_id,
+                "kind": "cold_start",
+                "domain": domain,
+                "base_version": None,
+                "task_description": task_description_trunc,
+                "model_id": effective_model,
+                "created_at": created_at,
+                "status": "parse_error",
+                "files_changed": [],
+                "files_added": [],
+                "files_removed": [],
+                "error": str(exc),
                 "raw_response": raw_response,
             }
             return _write_proposal_dir(
@@ -556,6 +654,7 @@ def seed_cold_start_proposal(
 
 SME_TRUTH_POSITIVE_LABEL = "gen_ai"
 SME_TRUTH_NEGATIVE_LABEL = "not_gen_ai"
+DEFAULT_GROW_BATCH_SIZE = 20
 
 
 def _stratified_batch_rows(
@@ -608,7 +707,7 @@ def propose_growth_batch(
     run_id: str,
     base_version: str = "v0.1",
     batch_index: int = 0,
-    batch_size: int = 50,
+    batch_size: int = DEFAULT_GROW_BATCH_SIZE,
     model_id: str | None = None,
     chat_callable: ChatCallable | None = None,
     proposed_files: dict[str, str] | None = None,
@@ -709,12 +808,12 @@ def propose_growth_batch(
             ],
             "user_payload": user_payload,
         }
-        raw_response = chat_callable(
-            prompt["messages"], model_id=effective_model, reasoning_effort="high"
-        )
         try:
-            proposed_files, removed = _proposal_from_llm_json(raw_response)
-        except ValueError:
+            raw_response = chat_callable(
+                prompt["messages"], model_id=effective_model, reasoning_effort="high"
+            )
+        except Exception as exc:  # noqa: BLE001 - persist provider/proxy failures for review
+            error = _error_summary(exc)
             metadata = {
                 "proposal_id": proposal_id,
                 "kind": "grow_batch",
@@ -728,6 +827,34 @@ def propose_growth_batch(
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
+                "error": error,
+                "raw_response": "",
+            }
+            return _write_proposal_dir(
+                repo_root=root,
+                proposal_id=proposal_id,
+                metadata=metadata,
+                prompt=prompt,
+                raw_response="",
+                proposed_files={},
+            )
+        try:
+            proposed_files, removed = _proposal_from_llm_json(raw_response)
+        except ValueError as exc:
+            metadata = {
+                "proposal_id": proposal_id,
+                "kind": "grow_batch",
+                "base_version": base_version,
+                "batch_index": batch_index,
+                "batch": batch_meta,
+                "run_id": run_id,
+                "model_id": effective_model,
+                "created_at": created_at,
+                "status": "parse_error",
+                "files_changed": [],
+                "files_added": [],
+                "files_removed": [],
+                "error": str(exc),
                 "raw_response": raw_response,
             }
             return _write_proposal_dir(
@@ -1005,6 +1132,7 @@ __all__ = [
     "ANTHROPIC_POLICY_MODEL",
     "SME_TRUTH_NEGATIVE_LABEL",
     "SME_TRUTH_POSITIVE_LABEL",
+    "DEFAULT_GROW_BATCH_SIZE",
     "accept_proposal",
     "get_proposal",
     "list_policy_versions",

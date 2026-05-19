@@ -180,7 +180,7 @@
           <div class="run-default-card" aria-label="Default run settings">
             <span>Default batch</span>
             <strong>N=20 · training + testing</strong>
-            <p>Uses split <code>all</code>, latest selected policy version, and one-at-a-time calls for a predictable demo.</p>
+            <p>Uses split <code>all</code>, latest selected policy version, and true batched labeling for the demo loop.</p>
           </div>
         </div>
         <details class="run-trigger-advanced">
@@ -188,9 +188,9 @@
           <div class="api-form-grid run-trigger-form">
             <label>Split
               <select id="runTriggerSplit">
-                <option value="dev_golden">dev_golden</option>
-                <option value="holdout">holdout</option>
                 <option value="all" selected>all · training + testing</option>
+                <option value="dev_golden">dev_golden · training only</option>
+                <option value="holdout">holdout · testing only</option>
               </select>
             </label>
             <label>Batch size

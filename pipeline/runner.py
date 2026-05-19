@@ -96,6 +96,8 @@ class RunSummary:
     started_at: str = ""
     finished_at: str = ""
     dry_run: bool = False
+    batch_size: int = 20
+    effective_batches: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +140,7 @@ class DeterministicFakeClient(LabelClient):
             return "abstain"
         return "gen_ai" if bucket % 2 == 0 else "not_gen_ai"
 
-    def label(self, request: LabelRequest) -> LabelResponse:
+    def _response_for(self, request: LabelRequest) -> LabelResponse:
         digest = self._digest(request.image_id)
         return LabelResponse(
             image_id=request.image_id,
@@ -162,6 +164,12 @@ class DeterministicFakeClient(LabelClient):
             prepared_image_mime_type="image/jpeg",
             prepared_image_byte_size=int(digest[8:14], 16) % 200_000 + 10_000,
         )
+
+    def label(self, request: LabelRequest) -> LabelResponse:
+        return self._response_for(request)
+
+    def batch_label(self, requests: list[LabelRequest]) -> list[LabelResponse]:
+        return [self._response_for(request) for request in requests]
 
 
 def deterministic_fake_factory(_spec: ModelSpec) -> LabelClient:
@@ -319,6 +327,8 @@ def _initial_manifest(
     concurrency: int,
     expected_calls: int,
     dry_run: bool,
+    batch_size: int = 20,
+    effective_batches: int = 0,
     reasoning_effort: str | None = None,
 ) -> dict:
     manifest: dict = {
@@ -352,6 +362,8 @@ def _initial_manifest(
         "prompt_version": prompt_version,
         "sampling_version": sampling_version,
         "concurrency": concurrency,
+        "batch_size": batch_size,
+        "effective_batches": effective_batches,
         "image_prep": {
             "longest_edge_px": IMAGE_PREP_LONGEST_EDGE_PX,
             "format": IMAGE_PREP_FORMAT,
@@ -385,6 +397,35 @@ def _coerce_models(models: Iterable[str | ModelSpec]) -> list[ModelSpec]:
     return out
 
 
+def _chunked(
+    items: list[tuple[SampleRecord, ModelSpec]],
+    size: int,
+) -> list[list[tuple[SampleRecord, ModelSpec]]]:
+    return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _build_work_batches(
+    selected: list[SampleRecord],
+    model_specs: list[ModelSpec],
+    *,
+    batch_size: int,
+) -> list[list[tuple[SampleRecord, ModelSpec]]]:
+    """Build deterministic logical provider batches.
+
+    ``batch_size=1`` intentionally preserves the historical sample-major
+    dispatch order byte-for-byte. Larger batches group by model because one
+    provider batch call can only target one concrete model.
+    """
+    if batch_size == 1:
+        return [[(s, m)] for s in selected for m in model_specs]
+
+    batches: list[list[tuple[SampleRecord, ModelSpec]]] = []
+    for spec in model_specs:
+        model_pairs = [(sample, spec) for sample in selected]
+        batches.extend(_chunked(model_pairs, batch_size))
+    return batches
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -405,6 +446,7 @@ def run_labeling(
     sampling_version: str = "genai-gold-sampling-v1",
     client_factory: ClientFactory = deterministic_fake_factory,
     concurrency: int = 1,
+    batch_size: int = 20,
     allow_holdout: bool = False,
     run_id: str | None = None,
     dry_run: bool = True,
@@ -418,6 +460,8 @@ def run_labeling(
     """
     if concurrency < 1:
         raise ValueError(f"concurrency must be >= 1, got {concurrency}")
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size}")
     model_specs = _coerce_models(models)
     if not model_specs:
         raise ValueError("no models supplied")
@@ -431,9 +475,11 @@ def run_labeling(
     if not selected:
         raise ValueError("no samples matched the selection (split/limit/sample_ids)")
 
-    if split in HOLDOUT_SPLITS and not allow_holdout:
+    selected_holdout_splits = sorted({r.split for r in selected if r.split in HOLDOUT_SPLITS})
+    if selected_holdout_splits and not allow_holdout:
         raise PermissionError(
-            f"refusing to run against holdout split {split!r} without allow_holdout=True"
+            "refusing to run against holdout split(s) "
+            f"{', '.join(selected_holdout_splits)!r} without allow_holdout=True"
         )
 
     # 2. Resolve paths + run_id + policy markdown.
@@ -452,6 +498,8 @@ def run_labeling(
 
     sample_ids_sorted = [r.sample_id for r in selected]
     expected = len(sample_ids_sorted) * len(model_specs)
+    batches = _build_work_batches(selected, model_specs, batch_size=batch_size)
+    effective_batches = len(batches)
     started_at = _utcnow_iso()
 
     # 3. Write initial run manifest (validated).
@@ -467,23 +515,23 @@ def run_labeling(
         split=split,
         limit=limit,
         concurrency=concurrency,
+        batch_size=batch_size,
+        effective_batches=effective_batches,
         expected_calls=expected,
         dry_run=dry_run,
         reasoning_effort=reasoning_effort,
     )
     persistence.write_run_manifest(paths, manifest)
 
-    # 4. Dispatch (sample × model) pairs deterministically.
-    pairs: list[tuple[SampleRecord, ModelSpec]] = [
-        (s, m) for s in selected for m in model_specs
-    ]
-
+    # 4. Dispatch logical batches deterministically.
     summary = RunSummary(
         run_id=rid,
         paths=paths,
         expected_calls=expected,
         started_at=started_at,
         dry_run=dry_run,
+        batch_size=batch_size,
+        effective_batches=effective_batches,
     )
 
     # Per-provider client cache + semaphore (cap in-flight per provider).
@@ -505,37 +553,14 @@ def run_labeling(
 
     write_lock = threading.Lock()  # keeps JSONL appends from interleaving
 
-    def _process(pair: tuple[SampleRecord, ModelSpec]) -> tuple[bool, str]:
-        sample, spec = pair
-        sem = _provider_sem(spec.provider)
-        with sem:
-            try:
-                client = _client_for(spec)
-                request = _build_request(
-                    sample,
-                    spec,
-                    policy_markdown=policy_markdown,
-                    policy_graph_version=policy_graph_version,
-                    prompt_version=prompt_version,
-                )
-                response = client.label(request)
-                if response.cost_usd is None:
-                    response.cost_usd = compute_call_cost(
-                        response.model_id,
-                        response.input_tokens,
-                        response.output_tokens,
-                        image_count=1,
-                    )
-            except Exception as exc:  # client raised; treat as a hard error.
-                with write_lock:
-                    persistence.append_error(
-                        paths,
-                        stage="provider_call",
-                        image_id=sample.sample_id,
-                        model_id=spec.model_id,
-                        reason=f"{type(exc).__name__}: {exc}",
-                    )
-                return False, f"exception: {type(exc).__name__}"
+    def _persist_response(response: LabelResponse) -> bool:
+        if response.cost_usd is None:
+            response.cost_usd = compute_call_cost(
+                response.model_id,
+                response.input_tokens,
+                response.output_tokens,
+                image_count=1,
+            )
 
         # If the client returned a populated `error`, persist as failure.
         if response.error:
@@ -543,12 +568,12 @@ def run_labeling(
                 persistence.append_error(
                     paths,
                     stage="provider_call",
-                    image_id=sample.sample_id,
-                    model_id=spec.model_id,
+                    image_id=response.image_id,
+                    model_id=response.model_id,
                     reason=response.error,
                     attempts=max(1, response.attempts),
                 )
-            return False, response.error
+            return False
 
         try:
             llm_output = _build_llm_output(response)
@@ -562,32 +587,91 @@ def run_labeling(
                 persistence.append_llm_output(
                     paths,
                     llm_output,
-                    image_id=sample.sample_id,
-                    model_id=spec.model_id,
+                    image_id=response.image_id,
+                    model_id=response.model_id,
                 )
                 persistence.append_label_vote(paths, label_vote)
-            return True, "ok"
-        except persistence.PersistenceError as exc:
-            return False, str(exc)
+            return True
+        except persistence.PersistenceError:
+            return False
+
+    def _process_batch(batch: list[tuple[SampleRecord, ModelSpec]]) -> tuple[int, int]:
+        # Every batch is homogeneous by model/provider (except historical
+        # singleton batches, where homogeneity is trivially true).
+        _, spec = batch[0]
+        sem = _provider_sem(spec.provider)
+        requests = [
+            _build_request(
+                sample,
+                model_spec,
+                policy_markdown=policy_markdown,
+                policy_graph_version=policy_graph_version,
+                prompt_version=prompt_version,
+            )
+            for sample, model_spec in batch
+        ]
+        with sem:
+            try:
+                client = _client_for(spec)
+                if len(requests) == 1:
+                    responses = [client.label(requests[0])]
+                else:
+                    batch_method = getattr(client, "batch_label", None)
+                    if callable(batch_method):
+                        responses = list(batch_method(requests))
+                    else:
+                        responses = [client.label(request) for request in requests]
+            except Exception as exc:  # client raised; treat each image as a hard error.
+                with write_lock:
+                    for sample, model_spec in batch:
+                        persistence.append_error(
+                            paths,
+                            stage="provider_call",
+                            image_id=sample.sample_id,
+                            model_id=model_spec.model_id,
+                            reason=f"{type(exc).__name__}: {exc}",
+                        )
+                return 0, len(batch)
+
+        if len(responses) != len(requests):
+            with write_lock:
+                for sample, model_spec in batch:
+                    persistence.append_error(
+                        paths,
+                        stage="provider_call",
+                        image_id=sample.sample_id,
+                        model_id=model_spec.model_id,
+                        reason=(
+                            "provider returned mismatched batch size: "
+                            f"expected {len(requests)}, got {len(responses)}"
+                        ),
+                    )
+            return 0, len(batch)
+
+        completed = 0
+        errored = 0
+        for response in responses:
+            if _persist_response(response):
+                completed += 1
+            else:
+                errored += 1
+        return completed, errored
 
     if concurrency == 1:
-        for pair in pairs:
-            ok, _ = _process(pair)
-            if ok:
-                summary.completed_calls += 1
-            else:
-                summary.errored_calls += 1
+        for batch in batches:
+            completed, errored = _process_batch(batch)
+            summary.completed_calls += completed
+            summary.errored_calls += errored
     else:
         # ThreadPoolExecutor with provider-bound semaphores keeps per-provider
-        # in-flight calls capped at `concurrency`.
-        with ThreadPoolExecutor(max_workers=concurrency * max(1, len({p[1].provider for p in pairs}))) as pool:
-            futures: list[Future] = [pool.submit(_process, pair) for pair in pairs]
+        # in-flight logical batches capped at `concurrency`.
+        providers = {batch[0][1].provider for batch in batches}
+        with ThreadPoolExecutor(max_workers=concurrency * max(1, len(providers))) as pool:
+            futures: list[Future] = [pool.submit(_process_batch, batch) for batch in batches]
             for fut in futures:
-                ok, _ = fut.result()
-                if ok:
-                    summary.completed_calls += 1
-                else:
-                    summary.errored_calls += 1
+                completed, errored = fut.result()
+                summary.completed_calls += completed
+                summary.errored_calls += errored
 
     # 5. Finalize manifest.
     summary.finished_at = _utcnow_iso()

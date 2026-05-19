@@ -66,8 +66,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Comma-separated sample_ids (overrides --split/--limit filtering).")
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
     parser.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION)
+    parser.add_argument(
+        "--policy-version",
+        default="v0.1",
+        help="Policy graph version directory to label against (default: v0.1).",
+    )
     parser.add_argument("--concurrency", type=int, default=1,
                         help="In-flight provider calls per provider (default 1; max recommended: 4).")
+    parser.add_argument("--batch-size", type=int, default=20,
+                        help="Images per logical provider batch (default 20).")
     parser.add_argument("--reasoning-effort", choices=["high", "xhigh"], default="xhigh",
                         help="OpenAI gpt-5.5 reasoning effort for this run (default: xhigh).")
     parser.add_argument("--allow-holdout", action="store_true",
@@ -118,6 +125,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[X2] refusing to use split={args.split} without --allow-holdout", file=sys.stderr)
         return 2
 
+    if args.batch_size < 1:
+        print(f"[X2] --batch-size must be >= 1 (got {args.batch_size})", file=sys.stderr)
+        return 2
+
     # If X1's registry is importable, enrich each ModelSpec with phase + params
     # so they show up in run_manifest.json. Stays optional for dry-run/CI.
     requested_ids = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -156,18 +167,31 @@ def main(argv: list[str] | None = None) -> int:
     if args.plan_only:
         records = load_records(args.manifest)
         selected = select_samples(records, split=args.split, limit=args.limit, sample_ids=sample_ids)
+        n_calls = len(selected) * len(model_specs)
+        effective_batches = sum(
+            (len(selected) + args.batch_size - 1) // args.batch_size
+            for _ in model_specs
+        )
         plan = {
             "models": [m.model_id for m in model_specs],
             "split": args.split,
             "limit": args.limit,
+            "policy_version": args.policy_version,
+            "batch_size": args.batch_size,
+            "effective_batches": effective_batches,
             "n_samples": len(selected),
-            "n_calls": len(selected) * len(model_specs),
+            "n_calls": n_calls,
             "sample_ids_head": [r.sample_id for r in selected[:5]],
             "dry_run": not args.live,
         }
         json.dump(plan, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
         return 0
+
+    policy_graph_dir = ROOT / "policy-graph" / "Generative_AI" / args.policy_version
+    if not policy_graph_dir.is_dir():
+        print(f"[X2] unknown policy version directory: {policy_graph_dir}", file=sys.stderr)
+        return 2
 
     factory = _resolve_factory(use_live=args.live, reasoning_effort=args.reasoning_effort)
     summary = run_labeling(
@@ -177,9 +201,12 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
         sample_ids=sample_ids,
         runs_root=args.runs_root,
+        policy_graph_dir=policy_graph_dir,
+        policy_graph_version=args.policy_version,
         prompt_version=args.prompt_version,
         client_factory=factory,
         concurrency=args.concurrency,
+        batch_size=args.batch_size,
         allow_holdout=args.allow_holdout,
         dry_run=not args.live,
         reasoning_effort=args.reasoning_effort,
@@ -204,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         "expected_calls": summary.expected_calls,
         "completed_calls": summary.completed_calls,
         "errored_calls": summary.errored_calls,
+        "batch_size": summary.batch_size,
+        "effective_batches": summary.effective_batches,
         "started_at": summary.started_at,
         "finished_at": summary.finished_at,
         "dry_run": summary.dry_run,
