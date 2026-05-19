@@ -11,15 +11,13 @@
     <nav class="topbar" aria-label="Primary">
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="nav-pills" aria-label="Page sections">
-        <a href="#demo">Demo</a>
-        <a href="#policy-graph">Graph</a>
-        <a href="#run-trigger">Run</a>
-        <a href="#consensus">Consensus</a>
-        <a href="#misalignment">Misalignment</a>
-        <a href="#decision-quality-overview">Quality</a>
-        <a href="#policy-proposals">Proposals</a>
-        <a href="#system">System</a>
-        <a href="#roadmap">Next</a>
+        <a href="#sample">Sample</a>
+        <a href="#label">Label</a>
+        <a href="#score">Score</a>
+        <a href="#quality">Quality</a>
+        <a href="#insights">Insights</a>
+        <a href="#grow">Grow</a>
+        <a href="#about">About</a>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
         <div class="topbar-action-links">
@@ -35,8 +33,15 @@
         <p class="eyebrow">Bulk LLM image audit, grounded in SME policy</p>
         <h1>SME truth is ground truth. An LLM panel finds the cases humans should re-check.</h1>
         <p class="lede">Multiple LLMs label the same images. Consensus is the audit signal; disagreement is where you look.</p>
+        <fieldset class="hero-mode-picker" aria-label="Demo mode">
+          <legend>Demo mode</legend>
+          <label><input type="radio" name="demoMode" value="cold_start" checked> Cold start — fresh policy from scratch</label>
+          <label><input type="radio" name="demoMode" value="warm_v0_1"> Warm — start from v0.1</label>
+          <label><input type="radio" name="demoMode" value="warm_v0_2"> Warm — start from v0.2</label>
+          <small class="muted">Drives sampling mode, the labeling run, and the policy graph in one place.</small>
+        </fieldset>
         <div class="hero-actions">
-          <a class="primary-action" href="#demo">Start GenAI demo</a>
+          <a class="primary-action" href="#sample">Start GenAI demo</a>
         </div>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
@@ -49,27 +54,11 @@
   </header>
 
   <main>
-    <section id="policy-graph" class="section">
+    <section id="sample" class="section demo-shell">
       <div class="section-head compact">
-        <p class="eyebrow">Interactive policy graph</p>
-        <h2 id="policyGraphTitle">Cold-start GenAI policy</h2>
-        <p>Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
-      </div>
-      <div class="run-controls" aria-label="Policy graph version picker">
-        <label>Policy version
-          <select id="policyGraphVersion"></select>
-        </label>
-        <span id="policyGraphStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
-    </section>
-
-    <section id="demo" class="section demo-shell">
-      <div class="section-head compact">
-        <p class="eyebrow">Cold-start GenAI image demo</p>
-        <h2>Sample first, then turn edge cases into policy.</h2>
-        <p>Local sampling — uses real image manifests when present, deterministic synthetics otherwise. No LLM calls yet.</p>
+        <p class="eyebrow">§1 Sample</p>
+        <h2>Sample the golden set.</h2>
+        <p>Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
       </div>
 
       <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
@@ -111,13 +100,15 @@
 
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
 
-    <section id="run-trigger" class="section api-section" hidden>
+    <section id="label" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">Run trigger</p>
-        <h2>Start a local labeling run.</h2>
-        <p>Launch a labeling run, watch progress, score it on completion.</p>
+        <p class="eyebrow">§2 Label</p>
+        <h2>Run a labeling pass.</h2>
+        <p>Start a local labeling run, then pick a completed export to populate every scoring panel below.</p>
       </div>
-      <div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
+      <div class="label-block label-run-trigger">
+        <h3>Start a new run</h3>
+<div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
         <fieldset class="model-picker" aria-label="Models">
           <legend>Models</legend>
           <div id="runTriggerModels" class="model-picker-list"></div>
@@ -155,15 +146,10 @@
         <pre id="runTriggerLogTail" class="log-tail"></pre>
         <button id="scoreRunNow" type="button" hidden>Score now</button>
       </div>
-    </section>
-
-    <section id="runs" class="section runs-strip">
-      <div class="section-head compact">
-        <p class="eyebrow">Bulk labeling runs</p>
-        <h2>Pick an existing run.</h2>
-        <p>Pick a completed export to populate every panel below.</p>
       </div>
-      <div class="run-controls" aria-label="Run picker">
+      <div class="label-block runs-strip">
+        <h3>Recent runs</h3>
+<div class="run-controls" aria-label="Run picker">
         <label>Run
           <select id="runPicker"><option value="">— no runs found —</option></select>
         </label>
@@ -171,15 +157,24 @@
         <span id="runStatus" class="status-line" role="status"></span>
       </div>
       <div id="runSummary" class="stat-grid"></div>
+      </div>
     </section>
 
-    <section id="consensus" class="section">
+    <section id="score" class="section">
       <div class="section-head compact">
-        <p class="eyebrow">Consensus / majority vote</p>
-        <h2>What did the panel decide — together?</h2>
-        <p>Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
+        <p class="eyebrow">§3 Score</p>
+        <h2>Per-image audit.</h2>
+        <p>Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
       </div>
-      <div class="run-controls" aria-label="Consensus filter">
+      <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
+        <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
+      </div>
+      <div class="score-tab-panel" data-score-panel="consensus" role="tabpanel" aria-labelledby="scoreTabConsensus">
+        <h3>What did the panel decide — together?</h3>
+        <p class="body-copy">Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
+<div class="run-controls" aria-label="Consensus filter">
         <label>Filter
           <select id="consensusFilter">
             <option value="all">All images</option>
@@ -193,31 +188,24 @@
       <div id="consensusSummary" class="stat-grid"></div>
       <div id="consensusEmpty" class="empty-state">No consensus data yet for this run. <button type="button" data-compute-target="consensus" data-run-id="">Compute now</button></div>
       <div id="consensusTable" class="misalignment-table"></div>
-    </section>
-
-    <section id="misalignment" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Misalignment worklist</p>
-        <h2>Model vs SME disagreement, ranked for review.</h2>
-        <p>Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
       </div>
-      <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
+      <div class="score-tab-panel" data-score-panel="misalignment" role="tabpanel" aria-labelledby="scoreTabMisalignment" hidden>
+        <h3>Model vs SME disagreement, ranked for review.</h3>
+        <p class="body-copy">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
+<div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
-    </section>
-
-    <section id="borderline" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">Borderline inspector</p>
-        <h2>Where models hedge, SMEs decide.</h2>
-        <p>Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
       </div>
-      <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
+      <div class="score-tab-panel" data-score-panel="borderline" role="tabpanel" aria-labelledby="scoreTabBorderline" hidden>
+        <h3>Where models hedge, SMEs decide.</h3>
+        <p class="body-copy">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
+<div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
+      </div>
     </section>
 
-    <section id="decision-quality-overview" class="section api-section">
+    <section id="quality" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">Decision quality overview</p>
+        <p class="eyebrow">§4 Quality</p>
         <h2>Track labeler accuracy across scored runs.</h2>
         <p>Compare accuracy, F1, FPR, and FNR by labeler, filtered by run or policy version.</p>
       </div>
@@ -239,7 +227,7 @@
 
     <section id="insights" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">Insights</p>
+        <p class="eyebrow">§5 Insights</p>
         <h2>Find the cases that should change review priorities.</h2>
         <p>Majority-wrong rows, model disagreement, boundary concentration, and recurring pair disagreement.</p>
       </div>
@@ -253,13 +241,29 @@
       <div id="insightsPanels" class="insights-grid"></div>
     </section>
 
-    <section id="policy-proposals" class="section api-section">
+    <section id="grow" class="section">
       <div class="section-head compact">
-        <p class="eyebrow">Policy proposals</p>
-        <h2>Review, accept, reject, or build policy artifacts.</h2>
-        <p>Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
+        <p class="eyebrow">§6 Grow</p>
+        <h2>Grow the policy graph.</h2>
+        <p>This shell keeps the live graph and proposal review together. Phase 2c will add growth controls and version history.</p>
       </div>
-      <div class="proposal-controls" aria-label="Policy proposal controls">
+      <div class="policy-graph-block">
+        <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
+        <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
+<div class="run-controls" aria-label="Policy graph version picker">
+        <label>Policy version
+          <select id="policyGraphVersion"></select>
+        </label>
+        <span id="policyGraphStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
+      </div>
+      <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
+      <div class="policy-proposals-block api-section">
+        <h3>Review, accept, reject, or build policy artifacts.</h3>
+        <p class="body-copy">Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
+<div class="proposal-controls" aria-label="Policy proposal controls">
         <label>Proposal
           <select id="proposalPicker"><option value="">No proposals loaded</option></select>
         </label>
@@ -282,22 +286,16 @@
       </div>
       <div id="proposalSummary" class="stat-grid"></div>
       <div id="proposalDiffViewer" class="diff-viewer"></div>
-    </section>
-
-    <section id="policy" class="section split-section">
-      <div>
-        <p class="eyebrow">Policy graph</p>
-        <h2>Policy is the product, not a prompt blob.</h2>
-        <p class="body-copy">Every label cites a policy node — evidence, boundary, exception, or uncertainty. SMEs approve diffs; LLMs surface candidates.</p>
-        <div id="policyNodeList" class="node-list"></div>
-      </div>
-      <div class="panel-card">
-        <h3>Current demo loop</h3>
-        <div id="policyLoop" class="timeline"></div>
       </div>
     </section>
 
-    <section id="system" class="section system-section">
+    <section id="about" class="section about-shell">
+      <div class="section-head compact">
+        <p class="eyebrow">§7 About</p>
+        <h2>System, theory, and next steps.</h2>
+      </div>
+      <details class="about-block" open>
+        <summary>System</summary>
       <div class="section-head compact">
         <p class="eyebrow">System view</p>
         <h2>The RUSH loop at scale.</h2>
@@ -306,9 +304,9 @@
       <div class="system-card">
         <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
       </div>
-    </section>
-
-    <section id="theory" class="section theory-section">
+      </details>
+      <details class="about-block">
+        <summary>Theory</summary>
       <div class="section-head compact">
         <p class="eyebrow">Theory</p>
         <h2>RUSH turns review judgment into a measurable policy loop.</h2>
@@ -332,9 +330,9 @@
         <p>SMEs do not rubber-stamp model labels. They adjudicate evidence, clarify boundaries, and approve durable graph changes that future runs can cite.</p>
         <p class="fineprint">Related framing: active learning, human-in-the-loop annotation, weak supervision, model auditing, and dataset governance. RUSH adapts those ideas to policy-versioned visual classification with explicit cost and review-burden accounting.</p>
       </div>
-    </section>
-
-    <section id="roadmap" class="section roadmap">
+      </details>
+      <details class="about-block">
+        <summary>Next</summary>
       <p class="eyebrow">Future work</p>
       <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
       <div class="roadmap-grid">
@@ -343,6 +341,7 @@
         <article><span>03</span><h3>Policy diffs</h3><p>Turn repeated ambiguity into graph patches: nodes, examples, exceptions, rejected memory.</p></article>
         <article><span>04</span><h3>Decision quality</h3><p>Per-model accuracy, F1, FPR/FNR, coverage, CIs, and review burden by policy version.</p></article>
       </div>
+      </details>
     </section>
   </main>
 

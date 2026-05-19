@@ -7,7 +7,7 @@
   }
 
   function setUnavailable() {
-    rushApiUnavailable('#policy-proposals');
+    rushApiUnavailable('#grow');
     $('#proposalSummary').innerHTML = '';
     $('#proposalDiffViewer').innerHTML = '';
   }

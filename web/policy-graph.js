@@ -380,7 +380,7 @@
     const node = (currentPayload.nodes || []).find(item => item.id === nodeId);
     if (!node) return false;
     openPanel(node);
-    qs('#policy-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    qs('#grow')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return true;
   }
 

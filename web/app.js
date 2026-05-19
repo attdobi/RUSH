@@ -34,15 +34,6 @@ const MANIFESTS = {
   summary: '../data/images/genai-classification/manifests/sampling_summary.json'
 };
 
-const policyNodes = [
-  { id: 'GA.visual_artifacts.anatomy.hands', label: 'Hands / anatomy', type: 'positive evidence', summary: 'Impossible hands, fingers, limbs, teeth, or repeated body details.' },
-  { id: 'GA.visual_artifacts.text_symbols', label: 'Text + symbols', type: 'positive evidence', summary: 'Garbled text, pseudo-logos, malformed UI, or impossible integrated typography.' },
-  { id: 'GA.surface_texture.plastic_skin', label: 'Synthetic texture', type: 'positive evidence', summary: 'Waxy skin, over-smoothed surfaces, diffusion texture repetition, or pore absence.' },
-  { id: 'GA.scene_geometry.inconsistent_perspective', label: 'Scene geometry', type: 'positive evidence', summary: 'Impossible reflections, shadows, object intersections, or inconsistent perspective.' },
-  { id: 'GA.boundary.photo_editing', label: 'Edited real photo', type: 'hard negative', summary: 'Filters, retouching, compression, and conventional edits are not GenAI by themselves.' },
-  { id: 'GA.boundary.cgi_game_render', label: 'CGI / game render', type: 'hard negative', summary: 'Stylized renders are not GenAI unless generative provenance is established.' },
-  { id: 'GA.boundary.low_quality_uncertain', label: 'Low-quality uncertain', type: 'abstain / SME review', summary: 'Blurred, cropped, or ambiguous evidence should route to SME review.' }
-];
 
 const demoState = {
   result: null,
@@ -388,22 +379,10 @@ function renderGallery() {
     ${visible.length ? `<div class="sample-grid">${visible.map(row => renderSampleCard(row)).join('')}</div>` : '<div class="empty-state">No samples match this filter yet.</div>'}`;
 }
 
-function renderPolicy() {
-  $('#policyNodeList').innerHTML = policyNodes.map(node => `<article class="node-card ${node.type.includes('negative') ? 'negative' : ''}"><span>${esc(node.type)}</span><h3>${esc(node.label)}</h3><p>${esc(node.summary)}</p><code>${esc(node.id)}</code></article>`).join('');
-  const summary = demoState.result?.summary;
-  const total = summary?.total || 0;
-  $('#policyLoop').innerHTML = [
-    ['Sample', `${total} candidates sampled`, 'Balanced GenAI/not-GenAI examples create a cold-start policy surface.'],
-    ['Annotate', 'SME override controls ready', 'Human corrections are captured before LLM labels exist.'],
-    ['Label', 'LLM labeling comes next', 'Models will cite policy nodes and return structured confidence/justification.'],
-    ['Patch', 'Policy diffs from clusters', 'Repeated disagreements become SME-reviewable graph changes.']
-  ].map(([k, v, d]) => `<div class="timeline-row"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(d)}</p></div>`).join('');
-}
 
 function renderAll() {
   renderStats();
   renderGallery();
-  renderPolicy();
 }
 
 function setSamplerLoading(isLoading) {
@@ -979,6 +958,7 @@ function renderConsensus() {
 }
 
 function renderRun() {
+  if (!document.querySelector('.score-tab-panel:not([hidden])')) selectScoreTab('consensus');
   renderRunPicker();
   renderRunSummary();
   renderBorderline();
@@ -1007,6 +987,78 @@ async function refreshRuns(autoSelectMostRecent = true) {
   } else {
     renderRun();
   }
+}
+
+function demoModeVersion(mode) {
+  if (mode === 'warm_v0_1') return 'v0.1';
+  if (mode === 'warm_v0_2') return 'v0.2';
+  return '';
+}
+
+function selectedDemoMode() {
+  return document.querySelector('[name="demoMode"]:checked')?.value || 'cold_start';
+}
+
+function setSelectValue(selector, value, dispatch = false) {
+  const el = $(selector);
+  if (!el) return;
+  el.value = value;
+  if (dispatch) el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function applyDemoMode(mode = selectedDemoMode(), dispatchPolicyChange = true) {
+  const policyVersion = demoModeVersion(mode);
+  const sampleMode = mode === 'cold_start' ? 'cold_start' : 'warm_start';
+  setSelectValue('#samplerMode', sampleMode);
+  setSelectValue('#runTriggerMode', sampleMode);
+  setSelectValue('#runTriggerPolicyVersion', policyVersion);
+  setSelectValue('#policyGraphVersion', policyVersion, dispatchPolicyChange);
+}
+
+function modeFromControls() {
+  const graphVersion = $('#policyGraphVersion')?.value || $('#runTriggerPolicyVersion')?.value || '';
+  const samplerMode = $('#samplerMode')?.value || $('#runTriggerMode')?.value || 'cold_start';
+  if (samplerMode === 'cold_start' && !graphVersion) return 'cold_start';
+  if (graphVersion === 'v0.1') return 'warm_v0_1';
+  return 'warm_v0_2';
+}
+
+function syncDemoModeRadioFromControls() {
+  const mode = modeFromControls();
+  const radio = document.querySelector(`[name="demoMode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+}
+
+function initDemoModePicker() {
+  syncDemoModeRadioFromControls();
+  applyDemoMode(selectedDemoMode(), false);
+  document.querySelectorAll('[name="demoMode"]').forEach(radio => {
+    radio.addEventListener('change', () => applyDemoMode(selectedDemoMode(), true));
+  });
+  ['#samplerMode', '#runTriggerMode', '#runTriggerPolicyVersion', '#policyGraphVersion'].forEach(selector => {
+    $(selector)?.addEventListener('change', syncDemoModeRadioFromControls);
+  });
+  window.addEventListener('rush-api-catalog', () => {
+    window.requestAnimationFrame(() => applyDemoMode(selectedDemoMode(), true));
+  });
+}
+
+function selectScoreTab(tabName = 'consensus') {
+  const selected = tabName || 'consensus';
+  document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
+    tab.setAttribute('aria-selected', String(tab.dataset.scoreTab === selected));
+  });
+  document.querySelectorAll('.score-tab-panel[data-score-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.scorePanel !== selected;
+  });
+}
+
+function initScoreTabs() {
+  const current = document.querySelector('.score-tabs [data-score-tab][aria-selected="true"]')?.dataset.scoreTab || 'consensus';
+  selectScoreTab(current);
+  document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
+    tab.addEventListener('click', () => selectScoreTab(tab.dataset.scoreTab || 'consensus'));
+  });
 }
 
 function bindControls() {
@@ -1108,10 +1160,11 @@ function initActiveNav() {
 }
 
 function init() {
-  $('#policyNodeList').innerHTML = '';
   initInlineJustificationStyles();
   bindControls();
   bindRunControls();
+  initDemoModePicker();
+  initScoreTabs();
   initActiveNav();
   initApi();
   runSamplerDemo();
@@ -1157,7 +1210,7 @@ function rushApiApplyAvailability(available) {
   if (hint) hint.hidden = !!available;
   if (!available) {
     document.querySelectorAll('.api-section').forEach(section => {
-      if (section.id === 'run-trigger') section.hidden = true;
+      if (section.id === 'label') section.hidden = true;
       else rushApiUnavailable(section);
     });
   } else {

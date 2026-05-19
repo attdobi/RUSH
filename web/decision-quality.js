@@ -6,7 +6,7 @@
   }
 
   function setUnavailable() {
-    rushApiUnavailable('#decision-quality-overview');
+    rushApiUnavailable('#quality');
     const summary = $('#decisionQualitySummary');
     if (summary) summary.innerHTML = '';
     const warning = $('#decisionQualityWarning');

@@ -206,7 +206,7 @@
   }
 
   async function initRunTrigger(api) {
-    const section = $('#run-trigger');
+    const section = $('#label');
     const hint = $('#apiUnavailableHint');
     if (!api.available) {
       if (section) section.hidden = true;
