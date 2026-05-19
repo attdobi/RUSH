@@ -1028,18 +1028,21 @@ def list_policy_versions(*, repo_root: Path | str, domain: str = DOMAIN) -> dict
     for path in sorted(domain_dir.iterdir() if domain_dir.exists() else []):
         if not path.is_dir() or not _VERSION_RE.match(path.name):
             continue
+        file_count = len([p for p in path.glob("*.md") if p.is_file()])
         versions.append(
             {
                 "version": path.name,
-                "files": len([p for p in path.glob("*.md") if p.is_file()]),
+                "files": file_count,
+                "complete": file_count > 0,
                 "path": str(path.relative_to(_repo_root(repo_root))),
             }
         )
     versions.sort(key=lambda v: _version_key(v["version"]))
+    complete_versions = [version for version in versions if version["complete"]]
     return {
         "domain": domain,
         "versions": versions,
-        "current": versions[-1]["version"] if versions else None,
+        "current": complete_versions[-1]["version"] if complete_versions else None,
     }
 
 
@@ -1071,7 +1074,11 @@ def _find_proposal_json(repo_root: Path | str, proposal_id: str) -> Path:
     raise FileNotFoundError(f"unknown proposal_id: {proposal_id}")
 
 
-def list_proposals(*, repo_root: Path | str) -> dict[str, Any]:
+def list_proposals(
+    *,
+    repo_root: Path | str,
+    include_errors: bool = False,
+) -> dict[str, Any]:
     root = _proposal_root(repo_root)
     proposals: list[dict[str, Any]] = []
     if root.exists():
@@ -1083,8 +1090,22 @@ def list_proposals(*, repo_root: Path | str) -> dict[str, Any]:
         if archive.exists():
             for path in sorted(archive.glob("*/proposal.json")):
                 proposals.append(_read_json(path))
-    proposals.sort(key=lambda p: p.get("created_at", ""), reverse=True)
-    return {"proposals": proposals}
+    status_priority = {"pending": 3, "accepted": 2, "rejected": 1, "parse_error": 0}
+    proposals.sort(
+        key=lambda p: (
+            p.get("created_at", ""),
+            status_priority.get(str(p.get("status", "")), -1),
+        ),
+        reverse=True,
+    )
+    hidden_error_count = sum(1 for p in proposals if p.get("status") == "parse_error")
+    if not include_errors:
+        proposals = [p for p in proposals if p.get("status") != "parse_error"]
+    return {
+        "proposals": proposals,
+        "hidden_error_count": 0 if include_errors else hidden_error_count,
+        "include_errors": include_errors,
+    }
 
 
 def _diff_for_file(*, filename: str, before: str, after: str) -> str:

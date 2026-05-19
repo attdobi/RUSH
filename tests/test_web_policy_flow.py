@@ -141,3 +141,33 @@ def test_policy_growth_and_review_routes_are_wired(tmp_path: Path, monkeypatch) 
     assert ("cold", {"task_description": "Classify GenAI images"}) in calls
     assert ("accept", "grow-1") in calls
     assert ("reject", "cold-1") in calls
+
+
+def test_policy_proposals_route_forwards_include_errors_query(tmp_path: Path, monkeypatch) -> None:
+    calls: list[bool] = []
+
+    def fake_list(repo_root, *, include_errors=False):  # noqa: ARG001
+        calls.append(include_errors)
+        return 200, {
+            "proposals": [],
+            "hidden_error_count": 0,
+            "include_errors": include_errors,
+        }
+
+    monkeypatch.setattr(handlers_policy, "handle_list_proposals", fake_list)
+
+    server, thread = _serve(tmp_path)
+    try:
+        status, body = _request_json(server, "GET", "/api/policy/proposals")
+        assert status == 200
+        assert body["include_errors"] is False
+
+        status, body = _request_json(
+            server, "GET", "/api/policy/proposals?include_errors=true"
+        )
+        assert status == 200
+        assert body["include_errors"] is True
+    finally:
+        _stop(server, thread)
+
+    assert calls == [False, True]

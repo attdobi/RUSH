@@ -153,7 +153,15 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             send_json(handler, status, body)
             return
         if method == "GET" and path == "/api/policy/proposals":
-            status, body = handlers_policy.handle_list_proposals(handler.repo_root)
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            include_errors = str((query.get("include_errors") or [""])[0]).lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            status, body = handlers_policy.handle_list_proposals(
+                handler.repo_root, include_errors=include_errors
+            )
             send_json(handler, status, body)
             return
         if method == "POST" and path == "/api/policy/propose-diff":
