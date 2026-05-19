@@ -1045,60 +1045,6 @@ async function refreshRuns(autoSelectMostRecent = true) {
   }
 }
 
-function demoModeVersion(mode) {
-  if (mode === 'warm_v0_1') return 'v0.1';
-  if (mode === 'warm_v0_2') return 'v0.2';
-  return '';
-}
-
-function selectedDemoMode() {
-  return document.querySelector('[name="demoMode"]:checked')?.value || 'cold_start';
-}
-
-function setSelectValue(selector, value, dispatch = false) {
-  const el = $(selector);
-  if (!el) return;
-  el.value = value;
-  if (dispatch) el.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function applyDemoMode(mode = selectedDemoMode(), dispatchPolicyChange = true) {
-  const policyVersion = demoModeVersion(mode);
-  const sampleMode = mode === 'cold_start' ? 'cold_start' : 'warm_start';
-  setSelectValue('#samplerMode', sampleMode);
-  setSelectValue('#runTriggerMode', sampleMode);
-  setSelectValue('#runTriggerPolicyVersion', policyVersion);
-  setSelectValue('#policyGraphVersion', policyVersion, dispatchPolicyChange);
-}
-
-function modeFromControls() {
-  const graphVersion = $('#policyGraphVersion')?.value || $('#runTriggerPolicyVersion')?.value || '';
-  const samplerMode = $('#samplerMode')?.value || $('#runTriggerMode')?.value || 'cold_start';
-  if (samplerMode === 'cold_start' && !graphVersion) return 'cold_start';
-  if (graphVersion === 'v0.1') return 'warm_v0_1';
-  return 'warm_v0_2';
-}
-
-function syncDemoModeRadioFromControls() {
-  const mode = modeFromControls();
-  const radio = document.querySelector(`[name="demoMode"][value="${mode}"]`);
-  if (radio) radio.checked = true;
-}
-
-function initDemoModePicker() {
-  syncDemoModeRadioFromControls();
-  applyDemoMode(selectedDemoMode(), false);
-  document.querySelectorAll('[name="demoMode"]').forEach(radio => {
-    radio.addEventListener('change', () => applyDemoMode(selectedDemoMode(), true));
-  });
-  ['#samplerMode', '#runTriggerMode', '#runTriggerPolicyVersion', '#policyGraphVersion'].forEach(selector => {
-    $(selector)?.addEventListener('change', syncDemoModeRadioFromControls);
-  });
-  window.addEventListener('rush-api-catalog', () => {
-    window.requestAnimationFrame(() => applyDemoMode(selectedDemoMode(), true));
-  });
-}
-
 function selectScoreTab(tabName = 'consensus') {
   const selected = tabName || 'consensus';
   document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
@@ -1219,7 +1165,6 @@ function init() {
   initInlineJustificationStyles();
   bindControls();
   bindRunControls();
-  initDemoModePicker();
   initScoreTabs();
   initActiveNav();
   initApi();
