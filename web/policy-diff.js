@@ -2,8 +2,67 @@
   const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
   const state = { proposals: [], selected: '', lastLoadedProposal: null };
 
-  function status(message, isError = false) {
-    rushApiStatus('#proposalStatus', message, isError);
+  const STATUS_THEMES = {
+    idle: { label: 'IDLE', color: '#94a3b8' },
+    loading: { label: 'LOADING', color: '#38bdf8' },
+    building: { label: 'BUILDING', color: '#f59e0b' },
+    building_retry: { label: 'BUILDING', color: '#f97316' },
+    success: { label: 'SUCCESS', color: '#22c55e' },
+    parse_error: { label: 'PARSE ERROR', color: '#fb7185' },
+    failed: { label: 'FAILED', color: '#ef4444' }
+  };
+
+  function status(message, state = 'idle', details = {}) {
+    const legacyError = state === true;
+    const statusState = legacyError ? 'failed' : (state || 'idle');
+    const theme = STATUS_THEMES[statusState] || STATUS_THEMES.idle;
+    const retry = details.retry_count ? ` retry ${details.retry_count}/${details.max_retries || '?'}` : '';
+    const spinner = ['loading', 'building', 'building_retry'].includes(statusState) ? '⏳ ' : '';
+    const text = `${spinner}[${theme.label}${retry}] ${message || ''}`.trim();
+    const isError = legacyError || ['failed', 'parse_error'].includes(statusState);
+    rushApiStatus('#proposalStatus', text, isError);
+    const el = $('#proposalStatus');
+    if (!el) return;
+    el.dataset.state = statusState;
+    el.style.color = theme.color;
+    el.style.fontWeight = statusState === 'idle' ? '' : '700';
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function jobStatusMessage(job) {
+    const reason = job?.error || job?.message || '';
+    if (job?.status === 'building_retry' || (job?.status === 'building' && job?.retry_count)) {
+      return `Generating proposal… retry ${job.retry_count || 0}/${job.max_retries || '?'} after a timeout.`;
+    }
+    if (job?.status === 'queued') return 'Queued proposal generation…';
+    if (job?.status === 'building') return 'Generating proposal… (still working, this can take a minute)';
+    if (job?.status === 'parse_error') return `Model returned malformed JSON${reason ? `: ${reason}` : '.'}`;
+    if (job?.status === 'failed') return `Proposal generation failed${reason ? `: ${reason}` : '.'}`;
+    if (job?.status === 'success') return `Created proposal ${job.proposal_id || job.result?.proposal_id || 'unknown'}.`;
+    return job?.message || 'Generating proposal…';
+  }
+
+  function renderJobStatus(job) {
+    const stateName = job?.status || 'building';
+    status(jobStatusMessage(job), stateName, {
+      retry_count: job?.retry_count || 0,
+      max_retries: job?.max_retries || 0
+    });
+  }
+
+  async function waitForProposalJob(initialJob) {
+    let job = initialJob;
+    renderJobStatus(job);
+    for (let polls = 0; polls < 240; polls += 1) {
+      if (['success', 'parse_error', 'failed'].includes(job?.status)) return job;
+      await sleep(1500);
+      job = await rushApiGetJson(job.status_url || `/api/policy/propose-diff/jobs/${encodeURIComponent(job.job_id)}`);
+      renderJobStatus(job);
+    }
+    throw new Error('proposal job is still running after several minutes');
   }
 
   function setUnavailable() {
@@ -191,23 +250,36 @@
     const runId = $('#proposalRunId')?.value || '';
     const baseVersion = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
     if (!runId) {
-      status('Select a run before proposing a diff.', true);
+      status('Select a run before proposing a diff.', 'failed');
       return;
     }
     try {
-      status(`Proposing diff from ${runId}…`);
+      status(`Starting proposal from ${runId}…`, 'building');
       $('#proposeDiff').disabled = true;
-      const payload = await rushApiPostJson('/api/policy/propose-diff', {
+      const started = await rushApiPostJson('/api/policy/propose-diff?async=1', {
         run_id: runId,
         base_version: baseVersion,
         model_id: DEFAULT_POLICY_MODEL
       });
+      const job = started.job_id ? await waitForProposalJob(started) : { status: 'success', result: started, proposal_id: started.proposal_id };
+      const payload = job.result || job;
+      if (job.status === 'failed') {
+        status(jobStatusMessage(job), 'failed');
+        return;
+      }
       state.selected = payload.proposal_id || '';
       await loadProposals(false);
       if (state.selected) await loadProposal(state.selected);
-      status(`Created proposal ${payload.proposal_id || 'unknown'}.`);
+      if (job.status === 'parse_error' || payload.status === 'parse_error') {
+        status(jobStatusMessage(job), 'parse_error');
+        return;
+      }
+      status(`Created proposal ${payload.proposal_id || 'unknown'}.`, 'success');
     } catch (error) {
-      status(`Propose diff failed: ${error.message}`, true);
+      const message = /\b524\b/.test(String(error.message || ''))
+        ? 'The proposal request timed out at the gateway, but the server may still be working. Refresh proposals in a moment.'
+        : `Proposal generation could not start: ${error.message}`;
+      status(message, 'failed');
     } finally {
       $('#proposeDiff').disabled = false;
     }

@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import difflib
 import json
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import time
 import uuid
 from typing import Any, Callable, Iterable
 
@@ -29,6 +31,11 @@ ALLOWED_POLICY_MODELS = {DEFAULT_POLICY_MODEL, ANTHROPIC_POLICY_MODEL}
 _VERSION_RE = re.compile(r"^v(\d+)\.(\d+)$")
 
 ChatCallable = Callable[..., str]
+ProgressCallable = Callable[[dict[str, Any]], None]
+
+DEFAULT_LLM_TIMEOUT_S = 60.0
+DEFAULT_LLM_RETRIES = 2
+DEFAULT_LLM_BACKOFF_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -301,6 +308,82 @@ def _classify_changes(
     return changed, added, removed
 
 
+def _is_retryable_llm_exception(exc: BaseException) -> bool:
+    if isinstance(exc, (TimeoutError, FutureTimeoutError)):
+        return True
+    marker = f"{type(exc).__name__}: {exc}".lower()
+    return "timeout" in marker or "timed out" in marker
+
+
+def _call_chat_with_retries(
+    chat_callable: ChatCallable,
+    messages: list[dict[str, str]],
+    *,
+    model_id: str,
+    reasoning_effort: str,
+    timeout_s: float = DEFAULT_LLM_TIMEOUT_S,
+    retries: int = DEFAULT_LLM_RETRIES,
+    backoff_s: float = DEFAULT_LLM_BACKOFF_S,
+    progress_callback: ProgressCallable | None = None,
+) -> str:
+    """Call the policy LLM with a per-attempt timeout and bounded retries."""
+    attempts = max(1, int(retries) + 1)
+    timeout_s = max(0.1, float(timeout_s))
+    backoff_s = max(0.0, float(backoff_s))
+    last_exc: BaseException | None = None
+
+    for attempt in range(1, attempts + 1):
+        if progress_callback:
+            progress_callback(
+                {
+                    "status": "building",
+                    "attempt": attempt,
+                    "max_attempts": attempts,
+                    "retry_count": attempt - 1,
+                    "max_retries": attempts - 1,
+                }
+            )
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="policy-propose")
+        future = executor.submit(
+            chat_callable,
+            messages,
+            model_id=model_id,
+            reasoning_effort=reasoning_effort,
+        )
+        retryable = False
+        try:
+            return future.result(timeout=timeout_s)
+        except FutureTimeoutError as exc:
+            future.cancel()
+            last_exc = TimeoutError(f"LLM call timed out after {timeout_s:g}s")
+            retryable = True
+        except Exception as exc:  # noqa: BLE001 - transport-specific timeout classes vary
+            last_exc = exc
+            retryable = _is_retryable_llm_exception(exc)
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+        if not retryable or attempt >= attempts:
+            assert last_exc is not None
+            raise last_exc
+
+        if progress_callback:
+            progress_callback(
+                {
+                    "status": "building_retry",
+                    "attempt": attempt + 1,
+                    "max_attempts": attempts,
+                    "retry_count": attempt,
+                    "max_retries": attempts - 1,
+                    "reason": str(last_exc),
+                }
+            )
+        time.sleep(backoff_s * (2 ** (attempt - 1)))
+
+    assert last_exc is not None
+    raise last_exc
+
+
 def propose_diff(
     *,
     repo_root: Path | str,
@@ -310,6 +393,10 @@ def propose_diff(
     proposed_files: dict[str, str] | None = None,
     files_removed: Iterable[str] | None = None,
     chat_callable: ChatCallable | None = None,
+    llm_timeout_s: float = DEFAULT_LLM_TIMEOUT_S,
+    llm_retries: int = DEFAULT_LLM_RETRIES,
+    llm_backoff_s: float = DEFAULT_LLM_BACKOFF_S,
+    progress_callback: ProgressCallable | None = None,
 ) -> dict[str, Any]:
     """Create a policy proposal without modifying ``policy-graph``.
 
@@ -356,8 +443,15 @@ def propose_diff(
             "user_payload": user_payload,
         }
         try:
-            raw_response = chat_callable(
-                prompt["messages"], model_id=effective_model, reasoning_effort="high"
+            raw_response = _call_chat_with_retries(
+                chat_callable,
+                prompt["messages"],
+                model_id=effective_model,
+                reasoning_effort="high",
+                timeout_s=llm_timeout_s,
+                retries=llm_retries,
+                backoff_s=llm_backoff_s,
+                progress_callback=progress_callback,
             )
         except Exception as exc:  # noqa: BLE001 - persist provider/proxy failures for review
             error = _error_summary(exc)
@@ -369,10 +463,11 @@ def propose_diff(
                 "run_id": run_id,
                 "created_at": created_at,
                 "status": "parse_error",
+                "error": error,
+                "error_type": "provider_error",
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
-                "error": error,
                 "raw_response": "",
             }
             return _write_proposal_dir(
@@ -394,11 +489,13 @@ def propose_diff(
                 "run_id": run_id,
                 "created_at": created_at,
                 "status": "parse_error",
+                "error": str(exc),
+                "error_type": "parse_error",
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
-                "error": str(exc),
                 "raw_response": raw_response,
+                "raw_response_excerpt": raw_response[:1200],
             }
             return _write_proposal_dir(
                 repo_root=root,
