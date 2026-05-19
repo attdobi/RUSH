@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=web-ux-x4-pass3" />
+  <link rel="stylesheet" href="styles.css?v=demo-polish-v2" />
 </head>
 <body>
   <header class="hero">
@@ -12,11 +12,11 @@
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="nav-pills" aria-label="Page sections">
         <a href="#sample">Sample</a>
+        <a href="#grow">Grow</a>
         <a href="#label">Label</a>
         <a href="#score">Score</a>
         <a href="#quality">Quality</a>
         <a href="#insights">Insights</a>
-        <a href="#grow">Grow</a>
         <a href="#about">About</a>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
@@ -46,9 +46,10 @@
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
         <div class="loop-step active"><strong>1</strong><span>Sample images</span></div>
-        <div class="loop-step"><strong>2</strong><span>SMEs confirm labels and cite policy</span></div>
-        <div class="loop-step"><strong>3</strong><span>LLM panel labels and cites policy</span></div>
-        <div class="loop-step"><strong>4</strong><span>Disagreement routes back to SMEs</span></div>
+        <div class="loop-step"><strong>2</strong><span>Seed the policy</span></div>
+        <div class="loop-step"><strong>3</strong><span>Label with an LLM panel</span></div>
+        <div class="loop-step"><strong>4</strong><span>Propose graph updates</span></div>
+        <div class="loop-step"><strong>5</strong><span>Accept SME-reviewed diffs</span></div>
       </aside>
     </section>
   </header>
@@ -97,47 +98,103 @@
       <div id="galleryStatus" class="gallery-status" role="status"></div>
       <div id="sampleGallery" class="sample-gallery"></div>
     </section>
-
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
-
+    <section id="grow" class="section">
+      <div class="section-head compact">
+        <p class="eyebrow">§2 Grow the policy</p>
+        <h2>Grow the policy as a full loop.</h2>
+        <p>Seed the graph, run a labeling pass, draft updates from the latest run, then accept an SME-reviewed diff.</p>
+      </div>
+      <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
+      <div class="policy-graph-block">
+        <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
+        <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
+<div class="run-controls" aria-label="Policy graph version picker">
+        <label>Policy version
+          <select id="policyGraphVersion"></select>
+        </label>
+        <span id="policyGraphStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
+      </div>
+      <div class="policy-proposals-block api-section">
+        <h3>Review, accept, reject, or build policy artifacts.</h3>
+        <p class="body-copy">Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
+<div class="proposal-controls" aria-label="Policy proposal controls">
+        <label>Proposal
+          <select id="proposalPicker"><option value="">No proposals loaded</option></select>
+        </label>
+        <label>Run
+          <select id="proposalRunId"><option value="">Select a run</option></select>
+        </label>
+        <label>Base version
+          <span class="tag tag-current" id="proposalBaseVersionChip"></span>
+        </label>
+        <label>Build version
+          <span class="tag tag-current" id="proposalBuildVersionChip"></span>
+        </label>
+      </div>
+      <div id="proposalGroupedList" class="proposal-grouped-list" aria-label="Proposal review list"></div>
+      <div class="proposal-actions">
+        <button id="proposeDiff" class="primary-action" type="button">Propose new diff from current run</button>
+        <button id="acceptProposal" type="button">Accept</button>
+        <button id="rejectProposal" type="button">Reject</button>
+        <button id="buildPolicyPdf" type="button">Build PDF</button>
+        <span id="proposalStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="proposalSummary" class="stat-grid"></div>
+      <div id="proposalDiffViewer" class="diff-viewer"></div>
+      </div>
+    </section>
     <section id="label" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">§2 Label</p>
+        <p class="eyebrow">§3 Label</p>
         <h2>Run a labeling pass.</h2>
-        <p>Start a local labeling run, then pick a completed export to populate every scoring panel below.</p>
+        <p>Pick the panel models, start the run, and let the scored results feed the rest of the loop.</p>
       </div>
       <div class="label-block label-run-trigger">
         <h3>Start a new run</h3>
-<div class="api-form-grid run-trigger-form" aria-label="Start labeling run">
-        <fieldset class="model-picker" aria-label="Models">
-          <legend>Models</legend>
-          <div id="runTriggerModels" class="model-picker-list"></div>
-        </fieldset>
-        <label>Split
-          <select id="runTriggerSplit">
-            <option value="dev_golden">dev_golden</option>
-            <option value="holdout">holdout</option>
-            <option value="all">all</option>
-          </select>
-        </label>
-        <label>Limit
-          <input id="runTriggerLimit" type="number" min="1" value="10" />
-        </label>
-        <label>Sample IDs
-          <textarea id="runTriggerSampleIds" rows="3" placeholder="Optional CSV list; leave limit blank when using this"></textarea>
-        </label>
-        <label>Policy version
-          <select id="runTriggerPolicyVersion"></select>
-        </label>
-        <label>Mode
-          <select id="runTriggerMode">
-            <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
-            <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
-          </select>
-          <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
-        </label>
-        <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" /> Allow spend</label>
-        <button id="startLabelingRun" class="primary-action" type="button">Start labeling run</button>
+<div class="run-trigger-compact" aria-label="Start labeling run">
+        <div class="run-trigger-primary-row">
+          <fieldset class="model-picker compact-model-picker" aria-label="Models">
+            <legend>Models</legend>
+            <div id="runTriggerModels" class="model-picker-list"></div>
+          </fieldset>
+          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start labeling run</button>
+        </div>
+        <details class="run-trigger-advanced">
+          <summary>Advanced <span class="muted">(split, limit, sample IDs, policy version, mode, allow spend, batch size)</span></summary>
+          <div class="api-form-grid run-trigger-form">
+            <label>Split
+              <select id="runTriggerSplit">
+                <option value="dev_golden">dev_golden</option>
+                <option value="holdout">holdout</option>
+                <option value="all" selected>all</option>
+              </select>
+            </label>
+            <label>Limit
+              <input id="runTriggerLimit" type="number" min="1" placeholder="Whole split" />
+            </label>
+            <label>Sample IDs
+              <textarea id="runTriggerSampleIds" rows="3" placeholder="Optional CSV list; leave limit blank when using this"></textarea>
+            </label>
+            <label>Policy version
+              <select id="runTriggerPolicyVersion"></select>
+            </label>
+            <label>Mode
+              <select id="runTriggerMode">
+                <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
+                <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
+              </select>
+              <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
+            </label>
+            <label>Batch size
+              <input id="runTriggerBatchSize" type="number" min="1" max="50" value="20" />
+            </label>
+            <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" checked /> Allow spend</label>
+          </div>
+        </details>
       </div>
       <div id="runTriggerStatusLine" class="status-line" role="status"></div>
       <div id="runTriggerStatusPanel" class="api-panel" hidden>
@@ -159,10 +216,9 @@
       <div id="runSummary" class="stat-grid"></div>
       </div>
     </section>
-
     <section id="score" class="section">
       <div class="section-head compact">
-        <p class="eyebrow">§3 Score</p>
+        <p class="eyebrow">§4 Score</p>
         <h2>Per-image audit.</h2>
         <p>Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
       </div>
@@ -202,10 +258,9 @@
       <div id="borderlineGroups" class="borderline-groups"></div>
       </div>
     </section>
-
     <section id="quality" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">§4 Quality</p>
+        <p class="eyebrow">§5 Quality</p>
         <h2>Track labeler accuracy across scored runs.</h2>
         <p>Compare accuracy, F1, FPR, and FNR by labeler, filtered by run or policy version.</p>
       </div>
@@ -224,12 +279,11 @@
       <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="decisionQualityChart" class="api-panel"></div>
     </section>
-
     <section id="insights" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">§5 Insights</p>
-        <h2>Find the cases that should change review priorities.</h2>
-        <p>Majority-wrong rows, model disagreement, boundary concentration, and recurring pair disagreement.</p>
+        <p class="eyebrow">§6 Insights</p>
+        <h2>Where the panel disagreed with SMEs.</h2>
+        <p>Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
       </div>
       <div class="run-controls" aria-label="Insights filters">
         <label>Run
@@ -240,55 +294,6 @@
       </div>
       <div id="insightsPanels" class="insights-grid"></div>
     </section>
-
-    <section id="grow" class="section">
-      <div class="section-head compact">
-        <p class="eyebrow">§6 Grow</p>
-        <h2>Grow the policy graph.</h2>
-        <p>This shell keeps the live graph and proposal review together. Phase 2c will add growth controls and version history.</p>
-      </div>
-      <div class="policy-graph-block">
-        <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
-        <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
-<div class="run-controls" aria-label="Policy graph version picker">
-        <label>Policy version
-          <select id="policyGraphVersion"></select>
-        </label>
-        <span id="policyGraphStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
-      </div>
-      <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
-      <div class="policy-proposals-block api-section">
-        <h3>Review, accept, reject, or build policy artifacts.</h3>
-        <p class="body-copy">Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
-<div class="proposal-controls" aria-label="Policy proposal controls">
-        <label>Proposal
-          <select id="proposalPicker"><option value="">No proposals loaded</option></select>
-        </label>
-        <label>Run
-          <select id="proposalRunId"><option value="">Select a run</option></select>
-        </label>
-        <label>Base version
-          <span class="tag tag-current" id="proposalBaseVersionChip"></span>
-        </label>
-        <label>Build version
-          <span class="tag tag-current" id="proposalBuildVersionChip"></span>
-        </label>
-      </div>
-      <div class="proposal-actions">
-        <button id="proposeDiff" class="primary-action" type="button">Propose new diff from current run</button>
-        <button id="acceptProposal" type="button">Accept</button>
-        <button id="rejectProposal" type="button">Reject</button>
-        <button id="buildPolicyPdf" type="button">Build PDF</button>
-        <span id="proposalStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="proposalSummary" class="stat-grid"></div>
-      <div id="proposalDiffViewer" class="diff-viewer"></div>
-      </div>
-    </section>
-
     <section id="about" class="section about-shell">
       <div class="section-head compact">
         <p class="eyebrow">§7 About</p>
