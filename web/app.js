@@ -471,12 +471,6 @@ const runState = {
 };
 window.runState = runState;
 
-const flipRateState = {
-  data: null,
-  byImage: {},
-  source: null
-};
-
 async function fetchJsonOptional(path) {
   try {
     const response = await fetch(path, { cache: 'no-store' });
@@ -484,203 +478,6 @@ async function fetchJsonOptional(path) {
     return await response.json();
   } catch (error) {
     return null;
-  }
-}
-
-function assertFlipRateShape(data) {
-  const warn = message => console.warn(`flip_rate.json shape: ${message}`);
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    warn('expected a top-level object.');
-    return false;
-  }
-
-  const expectedTop = ['summary', 'records'];
-  for (const key of expectedTop) {
-    if (!(key in data)) warn(`missing top-level key "${key}".`);
-  }
-  const extraTop = Object.keys(data).filter(key => !expectedTop.includes(key));
-  if (extraTop.length) warn(`extra top-level key(s): ${extraTop.join(', ')}.`);
-
-  const summary = data.summary || {};
-  const expectedSummary = [
-    'n_pairs_total', 'n_pairs_stable', 'n_pairs_flipped', 'n_pairs_single_run',
-    'mean_flip_rate', 'per_model_flip_rate', 'top_flipped_images', 'computed_at'
-  ];
-  if (!data.summary || typeof data.summary !== 'object' || Array.isArray(data.summary)) {
-    warn('missing or invalid summary object.');
-  } else {
-    for (const key of expectedSummary) {
-      if (!(key in summary)) warn(`summary missing key "${key}".`);
-    }
-    const extraSummary = Object.keys(summary).filter(key => !expectedSummary.includes(key));
-    if (extraSummary.length) warn(`summary extra key(s): ${extraSummary.join(', ')}.`);
-  }
-
-  if (!Array.isArray(data.records)) {
-    warn('records should be an array.');
-    return false;
-  }
-  const sample = data.records.find(record => record && typeof record === 'object');
-  if (sample) {
-    const expectedRecord = [
-      'image_id', 'model_id', 'n_runs', 'labels_observed', 'label_counts', 'distinct_label_count',
-      'flip_count', 'flip_rate', 'stable_label', 'abstain_count', 'confidence_min', 'confidence_max',
-      'confidence_mean', 'first_seen_run_id', 'last_seen_run_id', 'run_ids', 'single_run_only'
-    ];
-    for (const key of expectedRecord) {
-      if (!(key in sample)) warn(`record missing key "${key}".`);
-    }
-    const extraRecord = Object.keys(sample).filter(key => !expectedRecord.includes(key));
-    if (extraRecord.length) warn(`record extra key(s): ${extraRecord.join(', ')}.`);
-  }
-  return true;
-}
-
-function buildFlipRateIndex(records) {
-  return (records || []).reduce((acc, record) => {
-    const imageId = record?.image_id;
-    if (!imageId) return acc;
-    const key = String(imageId);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(record);
-    return acc;
-  }, {});
-}
-
-function formatFlipRate(value) {
-  return isNumber(value) ? value.toFixed(2) : '—';
-}
-
-function formatPct(numerator, denominator) {
-  if (!isNumber(numerator) || !isNumber(denominator) || denominator <= 0) return '—';
-  return `${((numerator / denominator) * 100).toFixed(1)}%`;
-}
-
-function flipLabelPills(labels) {
-  if (!Array.isArray(labels) || labels.length === 0) return '<span class="muted">—</span>';
-  return labels.map(label => `<span class="flip-label-pill">${esc(label)}</span>`).join(' ');
-}
-
-function renderFlipBadgeForImage(imageId) {
-  if (!flipRateState.data) return '';
-  const records = flipRateState.byImage[String(imageId || '')] || [];
-  const multiRunRecords = records.filter(record => !record.single_run_only && Number(record.n_runs || 0) > 1);
-  if (!multiRunRecords.length) {
-    return `<span class="flip-badge single" title="No multi-run flip-rate data for this image">single run</span>`;
-  }
-  const maxFlipCount = Math.max(...multiRunRecords.map(record => Number(record.flip_count || 0)));
-  if (maxFlipCount >= 2) {
-    return `<span class="flip-badge bad" title="At least one model flipped ${maxFlipCount} times for this image">2+ flips</span>`;
-  }
-  if (maxFlipCount === 1) {
-    return '<span class="flip-badge warn" title="At least one model flipped once for this image">1 flip</span>';
-  }
-  return '<span class="flip-badge stable" title="All multi-run model pairs were stable for this image">stable</span>';
-}
-
-function unstableImageCount(records) {
-  const ids = new Set();
-  for (const record of records || []) {
-    if (record?.image_id && Number(record.flip_count || 0) > 0) ids.add(record.image_id);
-  }
-  return ids.size;
-}
-
-async function loadFlipRate() {
-  const fixture = (typeof window !== 'undefined' && window.__FLIP_RATE_DEV__ && typeof window.__FLIP_RATE_DEV__ === 'object')
-    ? window.__FLIP_RATE_DEV__
-    : null;
-  const data = fixture || await fetchJsonOptional('flip_rate.json');
-  if (data) {
-    assertFlipRateShape(data);
-    flipRateState.data = data;
-    flipRateState.byImage = buildFlipRateIndex(Array.isArray(data.records) ? data.records : []);
-    flipRateState.source = fixture ? 'dev fixture' : 'flip_rate.json';
-  } else {
-    flipRateState.data = null;
-    flipRateState.byImage = {};
-    flipRateState.source = null;
-  }
-  renderFlipRate();
-  renderConsensus();
-}
-
-function renderFlipRate() {
-  const panel = $('#flip-rate-panel');
-  if (!panel) return;
-  const empty = $('#flipRateEmpty');
-  const cardsTarget = $('#flipRateCards');
-  const barsTarget = $('#flipRateBars');
-  const tableTarget = $('#flipRateTable');
-  const data = flipRateState.data;
-  if (!data || !Array.isArray(data.records)) {
-    panel.hidden = !runState.selectedRunId;
-    showComputeEmpty(empty, 'flip-rate', 'No flip-rate data yet — need ≥2 scored runs of the same images.');
-    if (cardsTarget) cardsTarget.innerHTML = '';
-    if (barsTarget) barsTarget.innerHTML = '';
-    if (tableTarget) tableTarget.innerHTML = '';
-    return;
-  }
-  panel.hidden = false;
-  if (empty) empty.hidden = true;
-
-  const summary = data.summary || {};
-  const total = Number(summary.n_pairs_total || 0);
-  if (cardsTarget) {
-    const cards = [
-      ['Mean Flip Rate', formatFlipRate(summary.mean_flip_rate), flipRateState.source || ''],
-      ['% Stable', formatPct(Number(summary.n_pairs_stable || 0), total), `${summary.n_pairs_stable ?? 0} / ${summary.n_pairs_total ?? 0} pairs`],
-      ['% Flipped', formatPct(Number(summary.n_pairs_flipped || 0), total), `${summary.n_pairs_flipped ?? 0} / ${summary.n_pairs_total ?? 0} pairs`],
-      ['Unstable Images', unstableImageCount(data.records), 'distinct images with ≥1 flipped model pair']
-    ];
-    cardsTarget.innerHTML = cards.map(([label, value, note]) =>
-      `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note || '')}</p></article>`
-    ).join('');
-  }
-
-  if (barsTarget) {
-    const perModel = summary.per_model_flip_rate || {};
-    const modelEntries = Object.entries(perModel)
-      .sort((a, b) => Number(b[1]?.mean_flip_rate || 0) - Number(a[1]?.mean_flip_rate || 0));
-    if (!modelEntries.length) {
-      barsTarget.innerHTML = '<div class="empty-state">No per-model flip-rate records available.</div>';
-    } else {
-      const observedMax = Math.max(...modelEntries.map(([, stats]) => Number(stats?.mean_flip_rate || 0)), 0);
-      const denominator = Math.max(0.5, observedMax);
-      barsTarget.innerHTML = modelEntries.map(([modelId, stats]) => {
-        const rate = Number(stats?.mean_flip_rate || 0);
-        const width = denominator > 0 ? Math.max(0, Math.min(100, (rate / denominator) * 100)) : 0;
-        return `<article class="flip-bar">
-          <header><strong>${esc(modelId)}</strong><span>${formatFlipRate(rate)} · ${esc(stats?.n_pairs_flipped ?? 0)} / ${esc(stats?.n_pairs ?? 0)} flipped</span></header>
-          <div class="flip-bar-track" aria-hidden="true"><span style="width:${width.toFixed(1)}%"></span></div>
-        </article>`;
-      }).join('');
-    }
-  }
-
-  if (tableTarget) {
-    const topSource = Array.isArray(summary.top_flipped_images) && summary.top_flipped_images.length
-      ? summary.top_flipped_images
-      : data.records;
-    const topRows = topSource
-      .filter(record => Number(record.flip_count || 0) > 0)
-      .slice()
-      .sort((a, b) => Number(b.flip_rate || 0) - Number(a.flip_rate || 0) || Number(b.flip_count || 0) - Number(a.flip_count || 0))
-      .slice(0, 20);
-    if (!topRows.length) {
-      tableTarget.innerHTML = '<div class="empty-state">No flipped images yet — all multi-run pairs are stable.</div>';
-    } else {
-      const rows = topRows.map(row => {
-        const id = String(row.image_id || '');
-        const thumbSrc = thumbnailSrcForPath(row.repo_rel_path || '');
-        const thumb = thumbSrc
-          ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
-          : '';
-        const imageCell = `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
-        return `<tr data-image-id="${attr(id)}"><td>${imageCell}</td><td>${esc(row.model_id)}</td><td>${esc(row.n_runs ?? '—')}</td><td>${esc(row.flip_count ?? '—')}</td><td>${formatFlipRate(Number(row.flip_rate))}</td><td>${flipLabelPills(row.labels_observed)}</td></tr>`;
-      }).join('');
-      tableTarget.innerHTML = `<table class="misalignment"><thead><tr><th>image</th><th>model</th><th>runs</th><th>flips</th><th>flip rate</th><th>labels observed</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }
   }
 }
 
@@ -1120,7 +917,6 @@ function renderConsensus() {
   const headerCells = [
     '<th></th>',
     '<th>image</th>',
-    '<th>flip rate</th>',
     '<th>SME truth</th>',
     '<th>majority</th>',
     ...voterColumns.map(v => `<th>${esc(voterId(v))}${ensembleSuffix(v)}</th>`),
@@ -1174,11 +970,10 @@ function renderConsensus() {
       .join(' ');
     const mismatch = sme && majorityLabel && majorityLabel !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
-    const flipBadge = renderFlipBadgeForImage(r.image_id) || '<span class="muted">—</span>';
     const thumbSrc = thumbnailSrcForPath(r.repo_rel_path || '');
     const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(r.image_id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
-    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${flipBadge}</td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
-    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 7);
+    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 6);
   }).join('');
   tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1189,7 +984,6 @@ function renderRun() {
   renderBorderline();
   renderMisalignment();
   renderConsensus();
-  renderFlipRate();
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
@@ -1285,7 +1079,6 @@ function bindRunControls() {
     try {
       await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute-now`, {});
       await loadRun(runId);
-      await loadFlipRate();
       if (status) status.textContent = `Computed and refreshed ${runId}.`;
     } catch (error) {
       if (status) {
@@ -1322,7 +1115,6 @@ function init() {
   initActiveNav();
   initApi();
   runSamplerDemo();
-  loadFlipRate();
   refreshRuns(true);
 }
 

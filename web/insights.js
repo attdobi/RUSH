@@ -3,8 +3,7 @@
     ['model_disagreement', 'Model disagreement'],
     ['boundary_concentration', 'Boundary concentration'],
     ['consistent_pair_disagreement', 'Consistent pair disagreement'],
-    ['majority_wrong', 'Majority wrong'],
-    ['policy_clarity_hot_spots', 'Policy clarity hot spots']
+    ['majority_wrong', 'Majority wrong']
   ];
 
   const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
@@ -101,20 +100,6 @@
     }
   }
 
-  function renderHotSpots(rows) {
-    const filteredRows = rows.filter(row => Number(row.flip_rate || 0) >= 0.05);
-    if (!filteredRows.length) return '<div class="empty-state compact-empty">No policy clarity hot spots yet — needs ≥2 scored runs of the same images with flip-rate ≥ 0.05.</div>';
-    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], filteredRows.map(row => ({
-      imageId: row.image_id,
-      cells: [
-        imgThumbCell(row),
-        isNumber(row.flip_rate) ? row.flip_rate.toFixed(2) : '—',
-        esc(row.n_runs ?? '—'),
-        labelsHtml(row.labels_observed)
-      ]
-    })));
-  }
-
   function renderMajorityWrong(rows) {
     return table(['Image', 'SME truth', 'Majority label', 'Votes'], rows.map(row => ({
       imageId: row.image_id,
@@ -169,8 +154,7 @@
     const sourceRows = Array.isArray(rows) ? rows : [];
     const safeRows = sourceRows.slice(0, 10);
     let body = '';
-    if (key === 'policy_clarity_hot_spots') body = renderHotSpots(sourceRows);
-    else if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
+    if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
     else if (key === 'model_disagreement') body = renderDisagreement(safeRows);
     else if (key === 'boundary_concentration') body = renderBoundary(safeRows);
     else if (key === 'consistent_pair_disagreement') body = renderPairDisagreement(safeRows);

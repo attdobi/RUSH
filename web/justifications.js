@@ -244,7 +244,7 @@
       return;
     }
     if (target.closest('a, button, input, select, textarea')) return;
-    const row = target.closest('#misalignmentTable [data-image-id], #consensusTable [data-image-id], #borderlineGroups [data-image-id], #insightsPanels [data-image-id], #flipRateTable [data-image-id]');
+    const row = target.closest('#misalignmentTable [data-image-id], #consensusTable [data-image-id], #borderlineGroups [data-image-id], #insightsPanels [data-image-id]');
     if (!row) return;
     renderDrawer(findRecord(row.dataset.imageId));
   });
