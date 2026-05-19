@@ -241,7 +241,7 @@
       <div class="section-head compact">
         <p class="eyebrow">Insights</p>
         <h2>Find the cases that should change review priorities.</h2>
-        <p>Policy clarity hot spots, majority-wrong rows, model disagreement, boundary concentration, and recurring pair disagreement.</p>
+        <p>Majority-wrong rows, model disagreement, boundary concentration, and recurring pair disagreement.</p>
       </div>
       <div class="run-controls" aria-label="Insights filters">
         <label>Run
@@ -251,18 +251,6 @@
         <span id="insightsStatus" class="status-line" role="status"></span>
       </div>
       <div id="insightsPanels" class="insights-grid"></div>
-    </section>
-
-    <section id="flip-rate-panel" class="section flip-rate-panel" hidden>
-      <div class="section-head compact">
-        <p class="eyebrow">Policy clarity / flip rate</p>
-        <h2>Which images make model labels move?</h2>
-        <p>Repeated runs expose policy ambiguity. Stable pairs are clear; flipped pairs need SME review or a sharper policy node.</p>
-      </div>
-      <div id="flipRateEmpty" class="empty-state">No flip-rate data yet — need ≥2 scored runs of the same images. <button type="button" data-compute-target="flip-rate" data-run-id="">Compute now</button></div>
-      <div id="flipRateCards" class="flip-cards"></div>
-      <div id="flipRateBars" class="flip-model-list"></div>
-      <div id="flipRateTable" class="misalignment-table"></div>
     </section>
 
     <section id="policy-proposals" class="section api-section">
