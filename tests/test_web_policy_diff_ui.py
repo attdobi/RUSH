@@ -13,6 +13,8 @@ def test_policy_diff_ui_collapses_parse_errors_and_loads_them() -> None:
     assert "<details class=\"proposal-status-group proposal-parse-errors\">" in source
     assert "Parse errors (${parseErrors.length})" in source
     assert "proposalStatusGroups(reviewable)" in source
+    assert "proposal-card-${statusKey}" in source
+    assert "proposalVersionText(proposal)" in source
 
 
 def test_policy_diff_version_chips_have_single_current_placeholder() -> None:

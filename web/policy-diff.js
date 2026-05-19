@@ -87,12 +87,27 @@
   }
 
   function isParseErrorProposal(proposal) {
-    return String(proposal?.status || '').toLowerCase() === 'parse_error';
+    return proposalStatusKey(proposal?.status) === 'parse_error';
+  }
+
+  function proposalTime(proposal) {
+    return Date.parse(proposal.accepted_at || proposal.updated_at || proposal.created_at || '') || 0;
+  }
+
+  function proposalVersionText(proposal) {
+    const base = proposal.base_version || 'base ?';
+    if (proposal.accepted_into_version) return `${base} → ${proposal.accepted_into_version}`;
+    if (proposal.build_version) return `${base} → ${proposal.build_version}`;
+    return `${base} · build pending`;
+  }
+
+  function sortProposalList(proposals) {
+    return [...proposals].sort((a, b) => proposalTime(b) - proposalTime(a) || String(b.proposal_id || '').localeCompare(String(a.proposal_id || '')));
   }
 
   function proposalStatusGroups(proposals) {
     const groups = proposals.reduce((acc, proposal) => {
-      const key = proposal.status || 'pending';
+      const key = proposalStatusKey(proposal.status);
       (acc[key] ||= []).push(proposal);
       return acc;
     }, {});
@@ -100,12 +115,12 @@
     return [
       ...priority.filter(statusText => groups[statusText]?.length),
       ...Object.keys(groups).filter(statusText => !priority.includes(statusText))
-    ].map(statusText => [statusText, groups[statusText]]);
+    ].map(statusText => [statusText, sortProposalList(groups[statusText])]);
   }
 
   function orderedProposalList() {
     const reviewable = state.proposals.filter(proposal => !isParseErrorProposal(proposal));
-    const parseErrors = state.proposals.filter(isParseErrorProposal);
+    const parseErrors = sortProposalList(state.proposals.filter(isParseErrorProposal));
     return [
       ...proposalStatusGroups(reviewable).flatMap(([, proposals]) => proposals),
       ...parseErrors
@@ -119,16 +134,18 @@
 
   function renderProposalCard(proposal) {
     const selected = proposal.proposal_id === state.selected;
-    return `<button type="button" class="proposal-card${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
-      <span class="proposal-status-chip ${proposalStatusClass(proposal.status)}">${esc(proposal.status || 'pending')}</span>
+    const statusKey = proposalStatusKey(proposal.status);
+    return `<button type="button" class="proposal-card proposal-card-${statusKey}${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
+      <span class="proposal-status-chip ${statusKey}">${esc(proposalStatusLabel(proposal.status))}</span>
       <strong>${esc(proposal.proposal_id || 'unknown')}</strong>
-      <small>${esc(proposal.base_version || 'base ?')}</small>
+      <small>${esc(proposalVersionText(proposal))}</small>
     </button>`;
   }
 
   function renderProposalGroup(statusText, proposals) {
-    return `<section class="proposal-status-group">
-      <h4><span class="proposal-status-chip ${proposalStatusClass(statusText)}">${esc(statusText)}</span><span>${proposals.length} proposal(s)</span></h4>
+    const statusKey = proposalStatusKey(statusText);
+    return `<section class="proposal-status-group proposal-status-group-${statusKey}">
+      <h4><span class="proposal-status-chip ${statusKey}">${esc(proposalStatusLabel(statusText, proposals.length))}</span></h4>
       <div class="proposal-card-list">${proposals.map(renderProposalCard).join('')}</div>
     </section>`;
   }
