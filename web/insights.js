@@ -92,7 +92,7 @@
       button.disabled = true;
       if (scoreStatus) scoreStatus.textContent = `Computing scoring for ${runId}…`;
       status(`Computing scoring for ${runId}…`);
-      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute`, {});
+      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute-now`, {});
       await loadInsights();
     } catch (error) {
       const message = `Score failed: ${error.message}`;
