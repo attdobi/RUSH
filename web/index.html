@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-polish-v2-x2-ux" />
+  <link rel="stylesheet" href="styles.css?v=demo-polish-v3-x4-versions" />
 </head>
 <body>
   <header class="hero">
@@ -141,7 +141,8 @@
           <label>Base version
             <span class="tag tag-current proposal-version-chip" id="proposalBaseVersionChip"></span>
           </label>
-          <label>Build version
+          <span class="proposal-version-arrow" id="proposalVersionArrow" aria-hidden="true" hidden>→</span>
+          <label id="proposalBuildVersionLabel" hidden>Build version
             <span class="tag tag-current proposal-version-chip" id="proposalBuildVersionChip"></span>
           </label>
         </div>
@@ -379,7 +380,7 @@
   <script src="run-trigger.js"></script>
   <script src="decision-quality.js"></script>
   <script src="insights.js"></script>
-  <script src="policy-diff.js"></script>
+  <script src="policy-diff.js?v=demo-polish-v3-x4-versions"></script>
   <script src="policy-grow.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
   <script src="policy-graph.js"></script>
