@@ -14,13 +14,18 @@ from typing import Any
 
 from pipeline.policy_diff import (
     DEFAULT_POLICY_MODEL,
+    DOMAIN,
     accept_proposal,
     get_proposal,
     list_policy_versions,
     list_proposals,
     propose_diff,
+    propose_growth_batch,
     reject_proposal,
+    seed_cold_start_proposal,
 )
+
+_VERSION_RE = re.compile(r"^v\d+\.\d+$")
 
 
 def _root(repo_root: Path | str) -> Path:
@@ -231,6 +236,76 @@ def handle_accept_proposal(
         return _error(500, exc)
 
 
+def handle_cold_start(
+    repo_root: Path | str,
+    body: dict[str, Any] | None,
+) -> tuple[int, dict[str, Any]]:
+    body = body or {}
+    task_description = body.get("task_description")
+    if not isinstance(task_description, str) or not task_description.strip():
+        return 400, {"error": "task_description is required"}
+    domain = body.get("domain") or DOMAIN
+    if not isinstance(domain, str) or domain != DOMAIN:
+        return 400, {"error": f"unsupported domain: {domain!r}"}
+    model_id = body.get("model_id") or DEFAULT_POLICY_MODEL
+    if not isinstance(model_id, str):
+        return 400, {"error": "model_id must be a string"}
+
+    try:
+        meta = seed_cold_start_proposal(
+            repo_root=repo_root,
+            task_description=task_description,
+            model_id=model_id,
+            domain=domain,
+        )
+        return (200 if meta.get("status") != "parse_error" else 422), meta
+    except ValueError as exc:
+        return _bad_request(exc)
+    except FileNotFoundError as exc:
+        return _error(404, exc)
+    except Exception as exc:  # noqa: BLE001
+        return _error(500, exc)
+
+
+def handle_grow_batch(
+    repo_root: Path | str,
+    body: dict[str, Any] | None,
+) -> tuple[int, dict[str, Any]]:
+    body = body or {}
+    run_id = body.get("run_id")
+    if not isinstance(run_id, str) or not run_id:
+        return 400, {"error": "run_id is required"}
+    base_version = body.get("base_version")
+    if not isinstance(base_version, str) or not _VERSION_RE.match(base_version):
+        return 400, {"error": "base_version is required and must match ^v\\d+\\.\\d+$"}
+    batch_index = body.get("batch_index")
+    if not isinstance(batch_index, int) or isinstance(batch_index, bool) or batch_index < 0:
+        return 400, {"error": "batch_index must be an integer >= 0"}
+    batch_size = body.get("batch_size")
+    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 2:
+        return 400, {"error": "batch_size must be an integer >= 2"}
+    model_id = body.get("model_id") or DEFAULT_POLICY_MODEL
+    if not isinstance(model_id, str):
+        return 400, {"error": "model_id must be a string"}
+
+    try:
+        meta = propose_growth_batch(
+            repo_root=repo_root,
+            run_id=run_id,
+            base_version=base_version,
+            batch_index=batch_index,
+            batch_size=batch_size,
+            model_id=model_id,
+        )
+        return (200 if meta.get("status") != "parse_error" else 422), meta
+    except ValueError as exc:
+        return _bad_request(exc)
+    except FileNotFoundError as exc:
+        return _error(404, exc)
+    except Exception as exc:  # noqa: BLE001
+        return _error(500, exc)
+
+
 def handle_reject_proposal(
     repo_root: Path | str,
     proposal_id: str,
@@ -296,7 +371,9 @@ def handle_build_pdf(
 __all__ = [
     "handle_accept_proposal",
     "handle_build_pdf",
+    "handle_cold_start",
     "handle_get_proposal",
+    "handle_grow_batch",
     "handle_list_proposals",
     "handle_policy_graph",
     "handle_policy_versions",
