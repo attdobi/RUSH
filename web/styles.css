@@ -1044,3 +1044,74 @@ table.misalignment a:focus-visible {
   .start-run-button { width: 100%; white-space: normal; }
   .run-trigger-form .sample-id-field { grid-column: auto; }
 }
+
+/* X2 demo-polish-v3: proposal review context and parse-error toggle */
+.proposal-controls { grid-template-columns: minmax(220px, 1.1fr) minmax(180px, .9fr) minmax(220px, auto); }
+.proposal-version-context {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid rgba(130,181,255,.38);
+  border-radius: 999px;
+  background: rgba(125,176,255,.10);
+  color: #d9e7ff;
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.proposal-version-context span::before { content: '↔'; margin-right: 7px; color: var(--blue); }
+.proposal-version-context span[data-state="current"]::before { content: '●'; color: var(--green); }
+.proposal-version-context span[data-state="pending"]::before { content: '→'; color: var(--gold); }
+.proposal-version-context span[data-state="accepted"]::before { content: '→'; color: var(--green); }
+.proposal-error-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  border: 1px solid rgba(170,184,211,.16);
+  border-radius: 14px;
+  background: rgba(7,16,31,.36);
+  padding: 10px 12px;
+}
+.proposal-error-toggle-row span { color: var(--muted); font-size: 12px; font-weight: 800; }
+.show-errors-toggle {
+  border: 1px solid rgba(251,113,133,.30);
+  border-radius: 999px;
+  background: rgba(127,29,29,.16);
+  color: #fecdd3;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+.show-errors-toggle:hover { border-color: rgba(253,164,175,.58); filter: brightness(1.08); }
+.proposal-grouped-list { gap: 14px; margin: 12px 0 14px; }
+.proposal-status-group { border-color: rgba(170,184,211,.12); background: rgba(7,16,31,.28); padding: 12px; }
+.proposal-status-group h4 { margin: 0 0 10px; line-height: 1.2; }
+.proposal-card-list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.proposal-card {
+  min-height: 112px;
+  gap: 8px;
+  border-color: rgba(170,184,211,.18);
+  background: linear-gradient(180deg, rgba(16,26,49,.76), rgba(7,16,31,.64));
+  padding: 12px;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.proposal-card:hover { border-color: rgba(130,181,255,.55); box-shadow: 0 14px 34px rgba(0,0,0,.22); transform: translateY(-1px); filter: none; }
+.proposal-card.selected { border-color: rgba(56,189,248,.88); box-shadow: 0 0 0 1px rgba(56,189,248,.20), 0 16px 34px rgba(0,0,0,.25); filter: none; }
+.proposal-card strong { overflow-wrap: anywhere; line-height: 1.25; }
+.proposal-card small { color: var(--muted); font-weight: 800; }
+.proposal-status-chip.parse_error { color: #fecdd3; border-color: rgba(253,164,175,.32); background: rgba(127,29,29,.12); }
+.proposal-empty-state { text-align: center; }
+@media (max-width: 1220px) {
+  .proposal-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proposal-version-context { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .proposal-controls { grid-template-columns: 1fr; }
+  .proposal-version-context { width: 100%; white-space: normal; }
+  .proposal-card-list { grid-template-columns: 1fr; }
+}

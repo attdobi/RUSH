@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
-  const state = { proposals: [], selected: '', lastLoadedProposal: null };
+  const state = { proposals: [], selected: '', lastLoadedProposal: null, includeErrors: false, hiddenErrorCount: 0 };
 
   const STATUS_THEMES = {
     idle: { label: 'IDLE', color: '#94a3b8' },
@@ -8,7 +8,7 @@
     building: { label: 'BUILDING', color: '#f59e0b' },
     building_retry: { label: 'BUILDING', color: '#f97316' },
     success: { label: 'SUCCESS', color: '#22c55e' },
-    parse_error: { label: 'PARSE ERROR', color: '#fb7185' },
+    parse_error: { label: 'PARSE ERROR', color: '#fda4af' },
     failed: { label: 'FAILED', color: '#ef4444' }
   };
 
@@ -71,12 +71,28 @@
     $('#proposalDiffViewer').innerHTML = '';
   }
 
-  function proposalStatusClass(statusText) {
+  function proposalStatusKey(statusText) {
     const status = String(statusText || 'pending').toLowerCase();
     if (status.includes('accept')) return 'accepted';
     if (status.includes('reject')) return 'rejected';
-    if (status.includes('error') || status.includes('fail')) return 'error';
+    if (status.includes('parse') || status.includes('error') || status.includes('fail')) return 'parse_error';
     return 'pending';
+  }
+
+  function proposalStatusClass(statusText) {
+    return proposalStatusKey(statusText);
+  }
+
+  function proposalStatusLabel(statusText, count = null) {
+    const key = proposalStatusKey(statusText);
+    const labels = {
+      pending: 'pending',
+      accepted: 'accepted',
+      rejected: 'rejected',
+      parse_error: '⚠ parse error'
+    };
+    if (count != null) return key === 'parse_error' ? `${count} parse error${count === 1 ? '' : 's'}` : `${count} ${labels[key]} proposal${count === 1 ? '' : 's'}`;
+    return labels[key] || String(statusText || 'pending');
   }
 
   function proposalLabel(proposal) {
@@ -86,32 +102,60 @@
     return `${statusText.toUpperCase()} · ${version} · ${id}`;
   }
 
+  function proposalTime(proposal) {
+    return Date.parse(proposal.accepted_at || proposal.updated_at || proposal.created_at || '') || 0;
+  }
+
+  function proposalVersionText(proposal) {
+    const base = proposal.base_version || 'base ?';
+    if (proposal.accepted_into_version) return `${base} → ${proposal.accepted_into_version}`;
+    return `${base} · build pending`;
+  }
+
+  function renderParseErrorToggle() {
+    if (!state.includeErrors && !state.hiddenErrorCount) return '';
+    const visibleErrorCount = state.proposals.filter(proposal => proposalStatusKey(proposal.status) === 'parse_error').length;
+    const count = state.includeErrors ? visibleErrorCount : state.hiddenErrorCount;
+    const label = state.includeErrors ? 'Hide parse errors' : `Show ${count} parse error${count === 1 ? '' : 's'}`;
+    const note = state.includeErrors ? 'Malformed drafts are visible for debugging.' : 'Malformed LLM drafts are hidden from the review queue.';
+    return `<div class="proposal-error-toggle-row"><button type="button" class="show-errors-toggle" aria-pressed="${state.includeErrors ? 'true' : 'false'}">${esc(label)}</button><span>${esc(note)}</span></div>`;
+  }
+
   function renderProposalCards() {
     const target = $('#proposalGroupedList');
     if (!target) return;
     if (!state.proposals.length) {
-      target.innerHTML = '<div class="empty-state compact-empty">No policy proposals yet. Pick a scored run, then suggest changes.</div>';
+      target.innerHTML = `${renderParseErrorToggle()}<div class="empty-state compact-empty proposal-empty-state">No policy proposals yet. Pick a scored run, then suggest changes.</div>`;
       return;
     }
+    const order = ['pending', 'accepted', 'rejected', 'parse_error'];
     const groups = state.proposals.reduce((acc, proposal) => {
-      const key = proposal.status || 'pending';
+      const key = proposalStatusKey(proposal.status);
       (acc[key] ||= []).push(proposal);
       return acc;
     }, {});
-    target.innerHTML = Object.entries(groups).map(([statusText, proposals]) => `
-      <section class="proposal-status-group">
-        <h4><span class="proposal-status-chip ${proposalStatusClass(statusText)}">${esc(statusText)}</span><span>${proposals.length} proposal(s)</span></h4>
+    order.forEach(key => {
+      groups[key]?.sort((a, b) => proposalTime(b) - proposalTime(a) || String(b.proposal_id || '').localeCompare(String(a.proposal_id || '')));
+    });
+    const sections = order.filter(key => groups[key]?.length).map(key => {
+      const proposals = groups[key];
+      return `
+      <section class="proposal-status-group proposal-status-group-${key}">
+        <h4><span class="proposal-status-chip ${key}">${esc(proposalStatusLabel(key, proposals.length))}</span></h4>
         <div class="proposal-card-list">
           ${proposals.map(proposal => {
             const selected = proposal.proposal_id === state.selected;
+            const statusKey = proposalStatusKey(proposal.status);
             return `<button type="button" class="proposal-card${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
-              <span class="proposal-status-chip ${proposalStatusClass(proposal.status)}">${esc(proposal.status || 'pending')}</span>
+              <span class="proposal-status-chip ${statusKey}">${esc(proposalStatusLabel(proposal.status))}</span>
               <strong>${esc(proposal.proposal_id || 'unknown')}</strong>
-              <small>${esc(proposal.base_version || 'base ?')}</small>
+              <small>${esc(proposalVersionText(proposal))}</small>
             </button>`;
           }).join('')}
         </div>
-      </section>`).join('');
+      </section>`;
+    });
+    target.innerHTML = renderParseErrorToggle() + sections.join('');
   }
 
   function syncProposalActions(payload = state.lastLoadedProposal) {
@@ -132,6 +176,26 @@
     }
   }
 
+  function updateProposalVersionContext(payload = null) {
+    const context = $('#proposalVersionContext');
+    if (!context) return;
+    if (!payload) {
+      const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '—';
+      context.textContent = `Current policy: ${currentVersion}`;
+      context.dataset.state = 'current';
+      return;
+    }
+    const base = payload.base_version || '—';
+    const acceptedInto = payload.accepted_into_version || payload.new_version || '';
+    if (acceptedInto) {
+      context.textContent = `${base} → ${acceptedInto}`;
+      context.dataset.state = 'accepted';
+    } else {
+      context.textContent = `Base: ${base} · Build: pending`;
+      context.dataset.state = 'pending';
+    }
+  }
+
   function populateControls() {
     const currentRun = $('#proposalRunId')?.value || window.RUSH_API?.catalog?.runs?.[0]?.run_id || '';
     const runSelect = $('#proposalRunId');
@@ -139,11 +203,7 @@
       runSelect.innerHTML = rushApiRunOptions(currentRun, false);
       if (currentRun) runSelect.value = currentRun;
     }
-    const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '';
-    for (const id of ['proposalBaseVersionChip', 'proposalBuildVersionChip']) {
-      const chip = $(`#${id}`);
-      if (chip) chip.textContent = `${currentVersion} · current`;
-    }
+    if (!state.lastLoadedProposal) updateProposalVersionContext(null);
   }
 
   function populateProposalPicker() {
@@ -156,7 +216,9 @@
       syncProposalActions(null);
       return;
     }
-    const selected = state.selected || state.proposals[0].proposal_id;
+    const selected = state.proposals.some(proposal => proposal.proposal_id === state.selected)
+      ? state.selected
+      : state.proposals[0].proposal_id;
     select.innerHTML = state.proposals.map(proposal => rushApiOptionHtml(proposal.proposal_id || '', proposalLabel(proposal), selected === proposal.proposal_id)).join('');
     select.value = selected;
     state.selected = selected;
@@ -181,11 +243,14 @@
     const viewer = $('#proposalDiffViewer');
     if (!summary || !viewer) return;
     if (!payload) {
+      state.lastLoadedProposal = null;
+      updateProposalVersionContext(null);
       summary.innerHTML = '';
       viewer.innerHTML = '<div class="empty-state">Select a proposal to view its diff.</div>';
       syncProposalActions(null);
       return;
     }
+    updateProposalVersionContext(payload);
     syncProposalActions(payload);
     const diffs = Array.isArray(payload.diffs) ? payload.diffs : [];
     const cards = [
@@ -212,13 +277,19 @@
     }
     try {
       status('Loading proposals…');
-      const payload = await rushApiGetJson('/api/policy/proposals');
+      const include = state.includeErrors ? 'true' : 'false';
+      const payload = await rushApiGetJson(`/api/policy/proposals?include_errors=${include}`);
       state.proposals = Array.isArray(payload.proposals) ? payload.proposals : [];
+      state.includeErrors = Boolean(payload.include_errors ?? state.includeErrors);
+      const responseHiddenCount = Number(payload.hidden_error_count ?? 0);
+      if (!state.includeErrors) state.hiddenErrorCount = responseHiddenCount;
+      else state.hiddenErrorCount = responseHiddenCount || state.proposals.filter(proposal => proposalStatusKey(proposal.status) === 'parse_error').length;
       if (selectFirst && !state.selected && state.proposals.length) state.selected = state.proposals[0].proposal_id;
       populateProposalPicker();
       if (state.selected) await loadProposal(state.selected);
       else renderProposal(null);
-      status(`Loaded ${state.proposals.length} proposal(s).`);
+      const hiddenNote = !state.includeErrors && state.hiddenErrorCount ? ` (${state.hiddenErrorCount} parse error${state.hiddenErrorCount === 1 ? '' : 's'} hidden)` : '';
+      status(`Loaded ${state.proposals.length} proposal(s)${hiddenNote}.`);
     } catch (error) {
       $('#proposalDiffViewer').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
       syncProposalActions(null);
@@ -344,6 +415,12 @@
   function bind() {
     $('#proposalPicker')?.addEventListener('change', event => loadProposal(event.target.value));
     $('#proposalGroupedList')?.addEventListener('click', event => {
+      const toggle = event.target.closest('.show-errors-toggle');
+      if (toggle) {
+        state.includeErrors = !state.includeErrors;
+        loadProposals(false);
+        return;
+      }
       const card = event.target.closest('[data-proposal-id]');
       if (!card) return;
       const proposalId = card.dataset.proposalId || '';

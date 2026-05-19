@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-polish-v2-x2-ux" />
+  <link rel="stylesheet" href="styles.css?v=demo-polish-v3-x2" />
 </head>
 <body>
   <header class="hero">
@@ -138,12 +138,9 @@
           <label>Run
             <select id="proposalRunId"><option value="">Select a run</option></select>
           </label>
-          <label>Base version
-            <span class="tag tag-current proposal-version-chip" id="proposalBaseVersionChip"></span>
-          </label>
-          <label>Build version
-            <span class="tag tag-current proposal-version-chip" id="proposalBuildVersionChip"></span>
-          </label>
+          <div class="proposal-version-context" aria-live="polite">
+            <span id="proposalVersionContext">Current policy: —</span>
+          </div>
         </div>
         <div id="proposalGroupedList" class="proposal-grouped-list" aria-label="Proposal review list"></div>
         <div class="proposal-actions">
