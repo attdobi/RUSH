@@ -247,11 +247,7 @@ class RunRegistry:
                         state["status"] = "completed"
                         state["scoring_finished_at"] = utcnow_iso()
                         state["scoring_result"] = score_result
-                        flip = score_result.get("flip_rate", {}) if isinstance(score_result, dict) else {}
-                        if flip.get("skipped"):
-                            log.write(f"[web] skipped: {flip.get('reason', 'flip-rate needs ≥2 runs')}\n")
-                        else:
-                            log.write("[web] auto-scoring completed\n")
+                        log.write("[web] auto-scoring completed\n")
                     except Exception as exc:  # pragma: no cover - defensive job monitor path
                         state["status"] = "scoring_failed"
                         state["scoring_finished_at"] = utcnow_iso()

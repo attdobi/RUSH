@@ -35,7 +35,7 @@ def test_list_runs_ignores_internal_dirs(tmp_path: Path) -> None:
     _make_run(runs_root, "20260510T230000-aaaaaaaa", started_at="2026-05-10T23:00:00Z")
     _make_run(runs_root, "20260510T231000-bbbbbbbb", started_at="2026-05-10T23:10:00Z")
     _write_json(runs_root / "_jobs" / "run_manifest.json", {"run_id": "bad"})
-    _write_json(runs_root / "_flip_rate" / "run_manifest.json", {"run_id": "bad"})
+    _write_json(runs_root / "_junk" / "run_manifest.json", {"run_id": "bad"})
     (runs_root / "20260510T231000-bbbbbbbb" / "scoring").mkdir(parents=True)
     (runs_root / "20260510T231000-bbbbbbbb" / "scoring" / "decision_quality.json").write_text("{}")
 
