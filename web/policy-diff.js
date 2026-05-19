@@ -86,6 +86,53 @@
     return `${statusText.toUpperCase()} · ${version} · ${id}`;
   }
 
+  function isParseErrorProposal(proposal) {
+    return String(proposal?.status || '').toLowerCase() === 'parse_error';
+  }
+
+  function proposalStatusGroups(proposals) {
+    const groups = proposals.reduce((acc, proposal) => {
+      const key = proposal.status || 'pending';
+      (acc[key] ||= []).push(proposal);
+      return acc;
+    }, {});
+    const priority = ['pending', 'accepted', 'rejected'];
+    return [
+      ...priority.filter(statusText => groups[statusText]?.length),
+      ...Object.keys(groups).filter(statusText => !priority.includes(statusText))
+    ].map(statusText => [statusText, groups[statusText]]);
+  }
+
+  function orderedProposalList() {
+    const reviewable = state.proposals.filter(proposal => !isParseErrorProposal(proposal));
+    const parseErrors = state.proposals.filter(isParseErrorProposal);
+    return [
+      ...proposalStatusGroups(reviewable).flatMap(([, proposals]) => proposals),
+      ...parseErrors
+    ];
+  }
+
+  function defaultProposalId() {
+    const ordered = orderedProposalList();
+    return ordered[0]?.proposal_id || '';
+  }
+
+  function renderProposalCard(proposal) {
+    const selected = proposal.proposal_id === state.selected;
+    return `<button type="button" class="proposal-card${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
+      <span class="proposal-status-chip ${proposalStatusClass(proposal.status)}">${esc(proposal.status || 'pending')}</span>
+      <strong>${esc(proposal.proposal_id || 'unknown')}</strong>
+      <small>${esc(proposal.base_version || 'base ?')}</small>
+    </button>`;
+  }
+
+  function renderProposalGroup(statusText, proposals) {
+    return `<section class="proposal-status-group">
+      <h4><span class="proposal-status-chip ${proposalStatusClass(statusText)}">${esc(statusText)}</span><span>${proposals.length} proposal(s)</span></h4>
+      <div class="proposal-card-list">${proposals.map(renderProposalCard).join('')}</div>
+    </section>`;
+  }
+
   function renderProposalCards() {
     const target = $('#proposalGroupedList');
     if (!target) return;
@@ -93,25 +140,17 @@
       target.innerHTML = '<div class="empty-state compact-empty">No policy proposals yet. Pick a scored run, then suggest changes.</div>';
       return;
     }
-    const groups = state.proposals.reduce((acc, proposal) => {
-      const key = proposal.status || 'pending';
-      (acc[key] ||= []).push(proposal);
-      return acc;
-    }, {});
-    target.innerHTML = Object.entries(groups).map(([statusText, proposals]) => `
-      <section class="proposal-status-group">
-        <h4><span class="proposal-status-chip ${proposalStatusClass(statusText)}">${esc(statusText)}</span><span>${proposals.length} proposal(s)</span></h4>
-        <div class="proposal-card-list">
-          ${proposals.map(proposal => {
-            const selected = proposal.proposal_id === state.selected;
-            return `<button type="button" class="proposal-card${selected ? ' selected' : ''}" data-proposal-id="${attr(proposal.proposal_id || '')}">
-              <span class="proposal-status-chip ${proposalStatusClass(proposal.status)}">${esc(proposal.status || 'pending')}</span>
-              <strong>${esc(proposal.proposal_id || 'unknown')}</strong>
-              <small>${esc(proposal.base_version || 'base ?')}</small>
-            </button>`;
-          }).join('')}
-        </div>
-      </section>`).join('');
+    const reviewable = state.proposals.filter(proposal => !isParseErrorProposal(proposal));
+    const parseErrors = state.proposals.filter(isParseErrorProposal);
+    const reviewGroups = proposalStatusGroups(reviewable).map(([statusText, proposals]) => renderProposalGroup(statusText, proposals));
+    const parseErrorDetails = parseErrors.length ? `<details class="proposal-status-group proposal-parse-errors">
+      <summary>Parse errors (${parseErrors.length})</summary>
+      <div class="proposal-card-list">${parseErrors.map(renderProposalCard).join('')}</div>
+    </details>` : '';
+    target.innerHTML = [
+      ...reviewGroups,
+      parseErrorDetails
+    ].filter(Boolean).join('') || '<div class="empty-state compact-empty">Only parse-error proposals are available. Expand parse errors below to inspect them.</div>';
   }
 
   function syncProposalActions(payload = state.lastLoadedProposal) {
@@ -132,6 +171,28 @@
     }
   }
 
+  function syncProposalVersionChips(payload = state.lastLoadedProposal) {
+    const baseChip = $('#proposalBaseVersionChip');
+    const buildChip = $('#proposalBuildVersionChip');
+    const buildLabel = $('#proposalBuildVersionLabel');
+    const arrow = $('#proposalVersionArrow');
+    const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '—';
+    const hasProposal = !!payload && !!(payload.proposal_id || state.selected);
+    if (!hasProposal) {
+      if (baseChip) baseChip.textContent = `Policy ${currentVersion} · current`;
+      if (buildChip) buildChip.textContent = '';
+      if (buildLabel) buildLabel.hidden = true;
+      if (arrow) arrow.hidden = true;
+      return;
+    }
+    const baseVersion = payload.base_version || currentVersion;
+    const buildVersion = payload.build_version || (payload.base_version ? `${payload.base_version}+` : `${baseVersion}+`);
+    if (baseChip) baseChip.textContent = baseVersion;
+    if (buildChip) buildChip.textContent = buildVersion;
+    if (buildLabel) buildLabel.hidden = false;
+    if (arrow) arrow.hidden = false;
+  }
+
   function populateControls() {
     const currentRun = $('#proposalRunId')?.value || window.RUSH_API?.catalog?.runs?.[0]?.run_id || '';
     const runSelect = $('#proposalRunId');
@@ -139,11 +200,7 @@
       runSelect.innerHTML = rushApiRunOptions(currentRun, false);
       if (currentRun) runSelect.value = currentRun;
     }
-    const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '';
-    for (const id of ['proposalBaseVersionChip', 'proposalBuildVersionChip']) {
-      const chip = $(`#${id}`);
-      if (chip) chip.textContent = `${currentVersion} · current`;
-    }
+    syncProposalVersionChips();
   }
 
   function populateProposalPicker() {
@@ -154,10 +211,13 @@
       state.selected = '';
       renderProposalCards();
       syncProposalActions(null);
+      syncProposalVersionChips(null);
       return;
     }
-    const selected = state.selected || state.proposals[0].proposal_id;
-    select.innerHTML = state.proposals.map(proposal => rushApiOptionHtml(proposal.proposal_id || '', proposalLabel(proposal), selected === proposal.proposal_id)).join('');
+    const ordered = orderedProposalList();
+    const hasSelected = ordered.some(proposal => proposal.proposal_id === state.selected);
+    const selected = hasSelected ? state.selected : defaultProposalId();
+    select.innerHTML = ordered.map(proposal => rushApiOptionHtml(proposal.proposal_id || '', proposalLabel(proposal), selected === proposal.proposal_id)).join('');
     select.value = selected;
     state.selected = selected;
     renderProposalCards();
@@ -181,12 +241,15 @@
     const viewer = $('#proposalDiffViewer');
     if (!summary || !viewer) return;
     if (!payload) {
+      state.lastLoadedProposal = null;
       summary.innerHTML = '';
       viewer.innerHTML = '<div class="empty-state">Select a proposal to view its diff.</div>';
       syncProposalActions(null);
+      syncProposalVersionChips(null);
       return;
     }
     syncProposalActions(payload);
+    syncProposalVersionChips(payload);
     const diffs = Array.isArray(payload.diffs) ? payload.diffs : [];
     const cards = [
       ['Proposal', payload.proposal_id || '—', `Status: ${payload.status || 'pending'}`],
@@ -212,9 +275,9 @@
     }
     try {
       status('Loading proposals…');
-      const payload = await rushApiGetJson('/api/policy/proposals');
+      const payload = await rushApiGetJson('/api/policy/proposals?include_errors=true');
       state.proposals = Array.isArray(payload.proposals) ? payload.proposals : [];
-      if (selectFirst && !state.selected && state.proposals.length) state.selected = state.proposals[0].proposal_id;
+      if (selectFirst && !state.selected && state.proposals.length) state.selected = defaultProposalId();
       populateProposalPicker();
       if (state.selected) await loadProposal(state.selected);
       else renderProposal(null);
@@ -229,6 +292,7 @@
   async function loadProposal(proposalId) {
     state.selected = proposalId || '';
     if (!state.selected) {
+      state.lastLoadedProposal = null;
       renderProposal(null);
       return;
     }
