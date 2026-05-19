@@ -163,6 +163,20 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             )
             send_json(handler, status, body)
             return
+        if method == "POST" and path == "/api/policy/cold-start":
+            body_in = read_json_body(handler) or {}
+            status, body = handlers_policy.handle_cold_start(
+                handler.repo_root, body_in
+            )
+            send_json(handler, status, body)
+            return
+        if method == "POST" and path == "/api/policy/grow-batch":
+            body_in = read_json_body(handler) or {}
+            status, body = handlers_policy.handle_grow_batch(
+                handler.repo_root, body_in
+            )
+            send_json(handler, status, body)
+            return
         if method == "POST" and path == "/api/policy/build-pdf":
             body_in = read_json_body(handler) or {}
             status, body = handlers_policy.handle_build_pdf(
