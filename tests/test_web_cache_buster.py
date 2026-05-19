@@ -134,6 +134,17 @@ def test_index_html_local_scripts_versioned(web_server) -> None:
     assert f"styles.css?v={build_id}" in local_urls
 
 
+def test_web_prefixed_static_assets_load(web_server) -> None:
+    for path, content_type in [
+        ("/web/styles.css", "text/css"),
+        ("/web/app.js", "text/javascript"),
+    ]:
+        status, body, headers = _request(web_server, "GET", path)
+        assert status == 200
+        assert body
+        assert headers["content-type"].startswith(content_type)
+
+
 def test_thumbnail_redirect_has_version_param(web_server) -> None:
     build_id = _build_id_from_api(web_server)
     path = "data/images/genai-classification/source-datasets/wfir/not_ai_generated/00046.jpg"

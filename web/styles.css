@@ -1121,3 +1121,47 @@ table.misalignment a:focus-visible {
   .proposal-version-context { width: 100%; white-space: normal; }
   .proposal-card-list { grid-template-columns: 1fr; }
 }
+
+/* Pista final demo polish: unclutter proposal actions + grow controls */
+.proposal-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: -4px 0 16px;
+  padding-top: 4px;
+}
+.proposal-export-actions .fineprint { margin: 0; color: var(--muted); }
+.proposal-export-actions button {
+  border: 1px solid rgba(170,184,211,.22);
+  border-radius: 999px;
+  background: rgba(16,26,49,.72);
+  color: #dce8ff;
+  padding: 8px 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.proposal-export-actions button:hover { border-color: rgba(125,176,255,.52); filter: brightness(1.1); }
+.proposal-state-banner { border-color: rgba(170,184,211,.2); background: rgba(148,163,184,.08); color: #dce8ff; }
+.proposal-state-banner strong { text-transform: none; letter-spacing: .01em; }
+.proposal-state-banner.pending strong { color: #f8d99b; }
+.proposal-state-banner.accepted strong { color: #b8f3d4; }
+.proposal-state-banner.rejected strong,
+.proposal-state-banner.parse_error strong,
+.proposal-state-banner.error strong { color: #f5c0ca; }
+.policy-grow-mode-cold small.muted { text-transform: none; letter-spacing: 0; font-weight: 750; }
+.policy-grow-form-row--cold { grid-template-columns: minmax(220px, 1fr) auto; }
+.policy-grow-mode-warm .policy-grow-form-row--warm { grid-template-columns: minmax(110px, .75fr) minmax(86px, .35fr) minmax(180px, 1fr) auto; }
+@media (max-width: 1220px) {
+  .policy-grow-form-row--warm,
+  .policy-grow-mode-warm .policy-grow-form-row--warm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .policy-grow-form-row .primary-action { width: 100%; }
+}
+@media (max-width: 720px) {
+  .policy-grow-form-row--cold,
+  .policy-grow-form-row--warm,
+  .policy-grow-mode-warm .policy-grow-form-row--warm { grid-template-columns: 1fr; }
+  .proposal-export-actions { justify-content: stretch; }
+  .proposal-export-actions button { width: 100%; }
+}

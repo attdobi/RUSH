@@ -134,6 +134,11 @@ def safe_static_path(
             candidate = allowed_root.joinpath(*suffix_parts) if suffix_parts else allowed_root
             return _ensure_under_root(allowed_root, candidate)
 
+    # Browsers resolve relative assets from /web/ and /web/index.html as /web/*.
+    # Treat that route prefix as the web root instead of 404ing CSS/JS assets.
+    if parts and parts[0] == "web":
+        parts = parts[1:]
+
     rel = Path(*parts) if parts else Path(".")
     return _ensure_under_root(web, web / rel)
 

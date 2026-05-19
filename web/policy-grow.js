@@ -61,18 +61,19 @@
     slot.innerHTML = `
       <div class="policy-grow-header">
         <div>
-          <h3>Seed or suggest the next graph update</h3>
-          <p class="body-copy">Use cold start to seed a graph, or use a scored labeling round to draft SME-reviewable changes.</p>
+          <h3>Choose the next graph update</h3>
+          <p class="body-copy">Cold start seeds a fresh graph; warm mode drafts SME-reviewable updates from the selected scored run.</p>
         </div>
         <span id="policyGrowStatus" class="status-line" role="status"></span>
       </div>
 
       <div class="policy-grow-mode-cold" data-policy-grow-panel="cold">
-        <label>Task description
+        <label>Task brief
           <textarea id="policyGrowTaskDescription" rows="4">${esc(DEFAULT_TASK_DESCRIPTION)}</textarea>
+          <small class="muted">Describe what the graph should classify; this becomes the seed proposal prompt.</small>
         </label>
-        <div class="policy-grow-form-row">
-          <label>Model
+        <div class="policy-grow-form-row policy-grow-form-row--cold">
+          <label>Drafting model
             <select id="policyGrowColdModel">${modelOptions()}</select>
           </label>
           <button id="policyGrowSeedBtn" class="primary-action" type="button">Seed policy graph</button>
@@ -85,17 +86,17 @@
           <span class="tag tag-current" id="policyGrowRunChip">Run: —</span>
           <span class="policy-grow-disabled-notice" id="policyGrowRunNotice" hidden>Run a labeling pass first</span>
         </div>
-        <div class="policy-grow-form-row">
+        <div class="policy-grow-form-row policy-grow-form-row--warm">
           <label>Batch size
             <input id="policyGrowBatchSize" type="number" min="2" value="20" />
           </label>
-          <label>Next batch
+          <label>Next batch #
             <output id="policyGrowBatchIndex">0</output>
           </label>
-          <label>Model
+          <label>Drafting model
             <select id="policyGrowWarmModel">${modelOptions()}</select>
           </label>
-          <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Suggest changes from batch</button>
+          <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Suggest batch changes</button>
         </div>
         <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 for the next labeling round.</p>
       </div>`;

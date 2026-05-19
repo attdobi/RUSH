@@ -71,12 +71,32 @@
     $('#proposalDiffViewer').innerHTML = '';
   }
 
-  function proposalStatusClass(statusText) {
+  function proposalStatusKey(statusText) {
     const status = String(statusText || 'pending').toLowerCase();
     if (status.includes('accept')) return 'accepted';
     if (status.includes('reject')) return 'rejected';
-    if (status.includes('error') || status.includes('fail')) return 'error';
+    if (status.includes('parse') || status.includes('error') || status.includes('fail')) return 'parse_error';
     return 'pending';
+  }
+
+  function proposalStatusClass(statusText) {
+    return proposalStatusKey(statusText);
+  }
+
+  function proposalStatusLabel(statusText, count = null) {
+    const key = proposalStatusKey(statusText);
+    const labels = {
+      pending: 'pending',
+      accepted: 'accepted',
+      rejected: 'rejected',
+      parse_error: 'parse error'
+    };
+    if (count != null) {
+      return key === 'parse_error'
+        ? `${count} parse error${count === 1 ? '' : 's'}`
+        : `${count} ${labels[key]} proposal${count === 1 ? '' : 's'}`;
+    }
+    return labels[key] || String(statusText || 'pending');
   }
 
   function proposalLabel(proposal) {
@@ -277,7 +297,13 @@
     ];
     summary.innerHTML = cards.map(([label, value, note]) => `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note || '')}</p></article>`).join('');
     const statusText = payload.status || 'pending';
-    const statusBanner = `<div class="proposal-state-banner"><strong>${esc(statusText)}</strong><span>${esc(statusText === 'pending' ? 'SME action needed before this graph changes.' : 'Proposal state is recorded; only pending proposals can change the graph.')}</span></div>`;
+    const statusKey = proposalStatusClass(statusText);
+    const statusCopy = statusKey === 'pending'
+      ? 'SME action needed before this graph changes.'
+      : (statusKey === 'parse_error'
+        ? 'Malformed proposal output was saved for review; reject it without changing the graph.'
+        : 'Proposal state is recorded; only pending proposals can change the graph.');
+    const statusBanner = `<div class="proposal-state-banner ${statusKey}"><strong>${esc(proposalStatusLabel(statusText))}</strong><span>${esc(statusCopy)}</span></div>`;
     if (!diffs.length) {
       viewer.innerHTML = `${statusBanner}<div class="empty-state">This proposal has no diff records.</div>`;
       return;
