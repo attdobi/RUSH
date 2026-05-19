@@ -96,8 +96,9 @@
       policy_version: $('#runTriggerPolicyVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1',
       mode: $('#runTriggerMode')?.value || 'cold_start',
       allow_spend: allowSpend,
-      allow_holdout: split === 'holdout' && allowSpend,
-      concurrency: 1
+      allow_holdout: (split === 'holdout' || split === 'all') && allowSpend,
+      concurrency: 1,
+      batch_size: 20
     };
   }
 

@@ -8,7 +8,7 @@
     baseVersion: null,
     runId: null,
     batchIndex: 0,
-    batchSize: 50,
+    batchSize: 20,
     latestProposalId: null,
     history: [],
     busy: false
@@ -86,7 +86,7 @@
         </div>
         <div class="policy-grow-form-row">
           <label>Batch size
-            <input id="policyGrowBatchSize" type="number" min="2" value="50" />
+            <input id="policyGrowBatchSize" type="number" min="2" value="20" />
           </label>
           <label>Next batch
             <output id="policyGrowBatchIndex">0</output>
@@ -102,7 +102,7 @@
     qs('#policyGrowSeedBtn')?.addEventListener('click', seedColdStart);
     qs('#policyGrowRunBatchBtn')?.addEventListener('click', runNextBatch);
     qs('#policyGrowBatchSize')?.addEventListener('input', event => {
-      state.batchSize = Math.max(2, Number.parseInt(event.target.value, 10) || 50);
+      state.batchSize = Math.max(2, Number.parseInt(event.target.value, 10) || 20);
     });
     return slot;
   }
@@ -209,7 +209,7 @@
   async function runNextBatch() {
     state.runId = latestRunId();
     state.baseVersion = modeBaseVersion(state.mode);
-    state.batchSize = Math.max(2, Number.parseInt(qs('#policyGrowBatchSize')?.value, 10) || state.batchSize || 50);
+    state.batchSize = Math.max(2, Number.parseInt(qs('#policyGrowBatchSize')?.value, 10) || state.batchSize || 20);
     const batchIndex = state.batchIndex;
     const modelId = qs('#policyGrowWarmModel')?.value || DEFAULT_MODEL;
     if (!state.runId) {

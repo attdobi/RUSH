@@ -115,13 +115,13 @@
         </fieldset>
         <label>Split
           <select id="runTriggerSplit">
-            <option value="dev_golden">dev_golden</option>
-            <option value="holdout">holdout</option>
-            <option value="all">all</option>
+            <option value="all" selected>all — training + testing</option>
+            <option value="dev_golden">dev_golden — training only</option>
+            <option value="holdout">holdout — testing only</option>
           </select>
         </label>
-        <label>Limit
-          <input id="runTriggerLimit" type="number" min="1" value="10" />
+        <label>Limit per portion
+          <input id="runTriggerLimit" type="number" min="1" value="20" />
         </label>
         <label>Sample IDs
           <textarea id="runTriggerSampleIds" rows="3" placeholder="Optional CSV list; leave limit blank when using this"></textarea>

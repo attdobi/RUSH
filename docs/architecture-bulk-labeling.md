@@ -32,6 +32,13 @@ The web UI fetches `data/runs/index.json` to discover runs, then loads
 `data/runs/<run_id>/web/{summary,borderline,misalignment}.json` for the
 selected run. None of those JSON files contain image bytes.
 
+Batch labeling is real, not cosmetic: the runner groups same-model images into
+logical provider batches (`batch_size`, default 20) and records both
+`batch_size` and `effective_batches` in `run_manifest.json`. OpenAI uses one
+multi-image provider request per batch; providers without a native multi-image
+method use the compatibility `batch_label()` fallback, preserving input order
+under the same per-provider concurrency semaphore.
+
 ## 2. Provider image preparation contract (visible in web copy)
 
 Provider calls **always** downsample images before submission via a shared

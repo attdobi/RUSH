@@ -14,6 +14,7 @@ _ALLOWED_SPLITS = {"dev_golden", "holdout", "all"}
 _ALLOWED_MODES = {"cold_start", "warm_start"}
 _ALLOWED_REASONING_EFFORTS = {"high", "xhigh"}
 _POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
+DEFAULT_BATCH_SIZE = 20
 
 _STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
     # /api/thumbnail 302-redirects into one of these two directories depending on
@@ -180,7 +181,7 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if model_id not in models:
             models.append(model_id)
 
-    split = payload.get("split", "dev_golden")
+    split = payload.get("split", "all")
     if split not in _ALLOWED_SPLITS:
         raise APIError(
             400,
@@ -224,11 +225,11 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "allow_spend",
         "allow_spend: true is required before starting a live run",
     )
-    if split == "holdout":
+    if split in {"holdout", "all"}:
         _require_bool_true(
             payload,
             "allow_holdout",
-            "allow_holdout: true is required for split=holdout",
+            "allow_holdout: true is required before labeling holdout/testing records",
         )
 
     concurrency = payload.get("concurrency", 1)
@@ -238,6 +239,15 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "validation_error",
             "concurrency must be an integer in [1, 4]",
             details={"field": "concurrency"},
+        )
+
+    batch_size = payload.get("batch_size", DEFAULT_BATCH_SIZE)
+    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size < 1:
+        raise APIError(
+            400,
+            "validation_error",
+            "batch_size must be a positive integer",
+            details={"field": "batch_size"},
         )
 
     has_limit = payload.get("limit") is not None
@@ -298,4 +308,5 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "allow_spend": True,
         "allow_holdout": payload.get("allow_holdout") is True,
         "concurrency": concurrency,
+        "batch_size": batch_size,
     }
