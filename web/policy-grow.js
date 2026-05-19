@@ -8,7 +8,7 @@
     baseVersion: null,
     runId: null,
     batchIndex: 0,
-    batchSize: 50,
+    batchSize: 20,
     latestProposalId: null,
     history: [],
     busy: false
@@ -60,8 +60,8 @@
     slot.innerHTML = `
       <div class="policy-grow-header">
         <div>
-          <h3>Grow the policy</h3>
-          <p class="body-copy">Seed a fresh GenAI graph or grow the current graph from a scored labeling batch.</p>
+          <h3>Seed or suggest the next graph update</h3>
+          <p class="body-copy">Use cold start to seed a graph, or use a scored labeling round to draft SME-reviewable changes.</p>
         </div>
         <span id="policyGrowStatus" class="status-line" role="status"></span>
       </div>
@@ -86,7 +86,7 @@
         </div>
         <div class="policy-grow-form-row">
           <label>Batch size
-            <input id="policyGrowBatchSize" type="number" min="2" value="50" />
+            <input id="policyGrowBatchSize" type="number" min="2" value="20" />
           </label>
           <label>Next batch
             <output id="policyGrowBatchIndex">0</output>
@@ -94,15 +94,15 @@
           <label>Model
             <select id="policyGrowWarmModel">${modelOptions()}</select>
           </label>
-          <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Run next batch</button>
+          <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Suggest changes from batch</button>
         </div>
-        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta"></p>
+        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 for the next labeling round.</p>
       </div>`;
 
     qs('#policyGrowSeedBtn')?.addEventListener('click', seedColdStart);
     qs('#policyGrowRunBatchBtn')?.addEventListener('click', runNextBatch);
     qs('#policyGrowBatchSize')?.addEventListener('input', event => {
-      state.batchSize = Math.max(2, Number.parseInt(event.target.value, 10) || 50);
+      state.batchSize = Math.max(2, Number.parseInt(event.target.value, 10) || 20);
     });
     return slot;
   }
@@ -209,7 +209,7 @@
   async function runNextBatch() {
     state.runId = latestRunId();
     state.baseVersion = modeBaseVersion(state.mode);
-    state.batchSize = Math.max(2, Number.parseInt(qs('#policyGrowBatchSize')?.value, 10) || state.batchSize || 50);
+    state.batchSize = Math.max(2, Number.parseInt(qs('#policyGrowBatchSize')?.value, 10) || state.batchSize || 20);
     const batchIndex = state.batchIndex;
     const modelId = qs('#policyGrowWarmModel')?.value || DEFAULT_MODEL;
     if (!state.runId) {

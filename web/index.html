@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-polish-v2" />
+  <link rel="stylesheet" href="styles.css?v=demo-polish-v2-x2-ux" />
 </head>
 <body>
   <header class="hero">
@@ -46,10 +46,10 @@
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
         <div class="loop-step active"><strong>1</strong><span>Sample images</span></div>
-        <div class="loop-step"><strong>2</strong><span>Seed the policy</span></div>
-        <div class="loop-step"><strong>3</strong><span>Label with an LLM panel</span></div>
+        <div class="loop-step"><strong>2</strong><span>Seed the policy graph</span></div>
+        <div class="loop-step"><strong>3</strong><span>Label a 20-image batch</span></div>
         <div class="loop-step"><strong>4</strong><span>Propose graph updates</span></div>
-        <div class="loop-step"><strong>5</strong><span>Accept SME-reviewed diffs</span></div>
+        <div class="loop-step"><strong>5</strong><span>Accept updates → label again</span></div>
       </aside>
     </section>
   </header>
@@ -99,85 +99,105 @@
       <div id="sampleGallery" class="sample-gallery"></div>
     </section>
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
-    <section id="grow" class="section">
+    <section id="grow" class="section grow-section">
       <div class="section-head compact">
         <p class="eyebrow">§2 Grow the policy</p>
-        <h2>Grow the policy as a full loop.</h2>
-        <p>Seed the graph, run a labeling pass, draft updates from the latest run, then accept an SME-reviewed diff.</p>
+        <h2>Make policy growth the demo loop.</h2>
+        <p>Seed → label → propose → accept → back to labeling. The graph is versioned, and every accepted SME update strengthens the next run.</p>
+      </div>
+      <div class="growth-loop-strip" aria-label="Policy growth loop steps">
+        <article><span>1</span><strong>Seed</strong><p>Start from a cold policy graph or choose a warm version.</p></article>
+        <article><span>2</span><strong>Run a labeling pass</strong><p>Jump to §3 for the default 20-image train+test batch.</p></article>
+        <article><span>3</span><strong>Propose updates</strong><p>Use disagreements from the selected run to draft a graph diff.</p></article>
+        <article><span>4</span><strong>Accept / reject</strong><p>SMEs promote good diffs, then the loop starts again.</p></article>
       </div>
       <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
-      <div class="policy-graph-block">
-        <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
-        <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
-<div class="run-controls" aria-label="Policy graph version picker">
-        <label>Policy version
-          <select id="policyGraphVersion"></select>
-        </label>
-        <span id="policyGraphStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-      <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
+      <div class="policy-graph-block policy-graph-spotlight">
+        <div class="policy-graph-copy">
+          <div>
+            <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
+            <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
+          </div>
+          <div class="run-controls compact-run-controls" aria-label="Policy graph version picker">
+            <label>Policy version
+              <select id="policyGraphVersion"></select>
+            </label>
+            <span id="policyGraphStatus" class="status-line" role="status"></span>
+          </div>
+        </div>
+        <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+        <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
       </div>
       <div class="policy-proposals-block api-section">
-        <h3>Review, accept, reject, or build policy artifacts.</h3>
+        <h3>Review policy proposals.</h3>
         <p class="body-copy">Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
-<div class="proposal-controls" aria-label="Policy proposal controls">
-        <label>Proposal
-          <select id="proposalPicker"><option value="">No proposals loaded</option></select>
-        </label>
-        <label>Run
-          <select id="proposalRunId"><option value="">Select a run</option></select>
-        </label>
-        <label>Base version
-          <span class="tag tag-current" id="proposalBaseVersionChip"></span>
-        </label>
-        <label>Build version
-          <span class="tag tag-current" id="proposalBuildVersionChip"></span>
-        </label>
-      </div>
-      <div id="proposalGroupedList" class="proposal-grouped-list" aria-label="Proposal review list"></div>
-      <div class="proposal-actions">
-        <button id="proposeDiff" class="primary-action" type="button">Propose new diff from current run</button>
-        <button id="acceptProposal" type="button">Accept</button>
-        <button id="rejectProposal" type="button">Reject</button>
-        <button id="buildPolicyPdf" type="button">Build PDF</button>
-        <span id="proposalStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="proposalSummary" class="stat-grid"></div>
-      <div id="proposalDiffViewer" class="diff-viewer"></div>
+        <div class="proposal-controls" aria-label="Policy proposal controls">
+          <label>Proposal
+            <select id="proposalPicker"><option value="">No proposals loaded</option></select>
+          </label>
+          <label>Run
+            <select id="proposalRunId"><option value="">Select a run</option></select>
+          </label>
+          <label>Base version
+            <span class="tag tag-current proposal-version-chip" id="proposalBaseVersionChip"></span>
+          </label>
+          <label>Build version
+            <span class="tag tag-current proposal-version-chip" id="proposalBuildVersionChip"></span>
+          </label>
+        </div>
+        <div id="proposalGroupedList" class="proposal-grouped-list" aria-label="Proposal review list"></div>
+        <div class="proposal-actions">
+          <button id="proposeDiff" class="primary-action" type="button">Suggest changes from current run</button>
+          <button id="acceptProposal" type="button">Accept update</button>
+          <button id="rejectProposal" type="button">Reject</button>
+          <button id="buildPolicyPdf" type="button">Build PDF</button>
+          <span id="proposalStatus" class="status-line" role="status"></span>
+        </div>
+        <div id="proposalSummary" class="stat-grid"></div>
+        <div id="proposalDiffViewer" class="diff-viewer"></div>
       </div>
     </section>
     <section id="label" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
-        <h2>Run a labeling pass.</h2>
-        <p>Pick the panel models, start the run, and let the scored results feed the rest of the loop.</p>
+        <h2>Run the next labeling round.</h2>
+        <p>Default: both training and testing portions, N=20 images, selected panel models, then scored results feed proposals and decision quality.</p>
       </div>
-      <div class="label-block label-run-trigger">
-        <h3>Start a new run</h3>
-<div class="run-trigger-compact" aria-label="Start labeling run">
+      <div class="label-block label-run-trigger compact-label-runner">
+        <div class="label-run-head">
+          <div>
+            <h3>Start a new run</h3>
+            <p class="body-copy">Quick path keeps the demo moving; advanced controls stay tucked away until needed.</p>
+          </div>
+          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start 20-image train+test run</button>
+        </div>
+        <div class="run-trigger-compact" aria-label="Start labeling run">
         <div class="run-trigger-primary-row">
           <fieldset class="model-picker compact-model-picker" aria-label="Models">
-            <legend>Models</legend>
+            <legend>Panel models</legend>
             <div id="runTriggerModels" class="model-picker-list"></div>
           </fieldset>
-          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start labeling run</button>
+          <div class="run-default-card" aria-label="Default run settings">
+            <span>Default batch</span>
+            <strong>N=20 · training + testing</strong>
+            <p>Uses split <code>all</code>, latest selected policy version, and one-at-a-time calls for a predictable demo.</p>
+          </div>
         </div>
         <details class="run-trigger-advanced">
-          <summary>Advanced <span class="muted">(split, limit, sample IDs, policy version, mode, allow spend, batch size)</span></summary>
+          <summary>Advanced controls <span class="muted">(split, batch size, sample IDs, policy version, mode, spend)</span></summary>
           <div class="api-form-grid run-trigger-form">
             <label>Split
               <select id="runTriggerSplit">
                 <option value="dev_golden">dev_golden</option>
                 <option value="holdout">holdout</option>
-                <option value="all" selected>all</option>
+                <option value="all" selected>all · training + testing</option>
               </select>
             </label>
-            <label>Limit
-              <input id="runTriggerLimit" type="number" min="1" placeholder="Whole split" />
+            <label>Batch size
+              <input id="runTriggerBatchSize" type="number" min="1" max="200" value="20" />
             </label>
-            <label>Sample IDs
-              <textarea id="runTriggerSampleIds" rows="3" placeholder="Optional CSV list; leave limit blank when using this"></textarea>
+            <label class="sample-id-field">Sample IDs
+              <textarea id="runTriggerSampleIds" rows="2" placeholder="Optional CSV list; clear batch size when using IDs"></textarea>
             </label>
             <label>Policy version
               <select id="runTriggerPolicyVersion"></select>
@@ -189,9 +209,6 @@
               </select>
               <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
             </label>
-            <label>Batch size
-              <input id="runTriggerBatchSize" type="number" min="1" max="50" value="20" />
-            </label>
             <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" checked /> Allow spend</label>
           </div>
         </details>
@@ -200,20 +217,25 @@
       <div id="runTriggerStatusPanel" class="api-panel" hidden>
         <div class="progress-row"><strong id="runTriggerRunId">No run started</strong><span id="runTriggerProgressText">0 / 0 calls</span><span id="runTriggerCostBadge" class="cost-badge" hidden>$0.00 spent</span></div>
         <div class="progress-track" aria-hidden="true"><span id="runTriggerProgressBar" style="width:0%"></span></div>
-        <pre id="runTriggerLogTail" class="log-tail"></pre>
+        <div id="runTriggerSummary" class="run-trigger-summary" aria-live="polite"></div>
+        <details class="raw-json-details">
+          <summary>View raw status JSON and log</summary>
+          <pre id="runTriggerRawJson" class="log-tail raw-json"></pre>
+          <pre id="runTriggerLogTail" class="log-tail"></pre>
+        </details>
         <button id="scoreRunNow" type="button" hidden>Score now</button>
       </div>
       </div>
       <div class="label-block runs-strip">
         <h3>Recent runs</h3>
-<div class="run-controls" aria-label="Run picker">
-        <label>Run
-          <select id="runPicker"><option value="">— no runs found —</option></select>
-        </label>
-        <button id="refreshRuns" type="button">Refresh</button>
-        <span id="runStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="runSummary" class="stat-grid"></div>
+        <div class="run-controls" aria-label="Run picker">
+          <label>Run
+            <select id="runPicker"><option value="">— no runs found —</option></select>
+          </label>
+          <button id="refreshRuns" type="button">Refresh</button>
+          <span id="runStatus" class="status-line" role="status"></span>
+        </div>
+        <div id="runSummary" class="run-summary-card"></div>
       </div>
     </section>
     <section id="score" class="section">
