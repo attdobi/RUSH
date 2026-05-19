@@ -5,11 +5,14 @@ thin routing layer.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
+import threading
+import uuid
 from typing import Any
 
 from pipeline.policy_diff import (
@@ -38,6 +41,185 @@ def _error(status: int, exc: Exception) -> tuple[int, dict[str, Any]]:
 
 def _bad_request(exc: Exception) -> tuple[int, dict[str, Any]]:
     return _error(400, exc)
+
+
+_PROPOSAL_JOB_LOCK = threading.Lock()
+_PROPOSAL_JOBS: dict[str, dict[str, Any]] = {}
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _new_job_id() -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    return f"{stamp}-{uuid.uuid4().hex[:8]}"
+
+
+def _public_proposal_job(job: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "status_url": job["status_url"],
+        "run_id": job.get("run_id"),
+        "base_version": job.get("base_version"),
+        "model_id": job.get("model_id"),
+        "created_at": job.get("created_at"),
+        "updated_at": job.get("updated_at"),
+        "attempt": job.get("attempt", 0),
+        "max_attempts": job.get("max_attempts", 1),
+        "retry_count": job.get("retry_count", 0),
+        "max_retries": job.get("max_retries", 0),
+        "message": job.get("message", ""),
+    }
+    if job.get("proposal_id"):
+        payload["proposal_id"] = job["proposal_id"]
+    if job.get("result") is not None:
+        payload["result"] = job["result"]
+    if job.get("error"):
+        payload["error"] = job["error"]
+        payload["error_type"] = job.get("error_type") or "error"
+    return payload
+
+
+def _proposal_job_path(repo_root: Path | str, job: dict[str, Any]) -> Path | None:
+    run_id = str(job.get("run_id") or "")
+    if not re.match(r"^[A-Za-z0-9_.-]+$", run_id):
+        return None
+    return _root(repo_root) / "data" / "runs" / run_id / "proposals" / "jobs" / f"{job['job_id']}.json"
+
+
+def _persist_proposal_job(repo_root: Path | str, job: dict[str, Any]) -> None:
+    path = _proposal_job_path(repo_root, job)
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps(_public_proposal_job(job), indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+    except Exception:
+        # Persistence is best-effort; in-memory status remains authoritative.
+        return
+
+
+def _update_proposal_job(repo_root: Path | str, job_id: str, **updates: Any) -> dict[str, Any]:
+    with _PROPOSAL_JOB_LOCK:
+        job = _PROPOSAL_JOBS[job_id]
+        job.update(updates)
+        job["updated_at"] = _utc_now()
+        snapshot = dict(job)
+    _persist_proposal_job(repo_root, snapshot)
+    return _public_proposal_job(snapshot)
+
+
+def _start_propose_diff_job(
+    repo_root: Path | str,
+    *,
+    run_id: str,
+    base_version: str,
+    model_id: str,
+    proposed_files: dict[str, Any] | None,
+    files_removed: list[Any],
+) -> dict[str, Any]:
+    job_id = _new_job_id()
+    now = _utc_now()
+    job = {
+        "job_id": job_id,
+        "status": "queued",
+        "status_url": f"/api/policy/propose-diff/jobs/{job_id}",
+        "run_id": run_id,
+        "base_version": base_version,
+        "model_id": model_id,
+        "created_at": now,
+        "updated_at": now,
+        "attempt": 0,
+        "max_attempts": 1,
+        "retry_count": 0,
+        "max_retries": 0,
+        "message": "Queued proposal generation.",
+    }
+    with _PROPOSAL_JOB_LOCK:
+        _PROPOSAL_JOBS[job_id] = job
+    _persist_proposal_job(repo_root, job)
+
+    def progress(event: dict[str, Any]) -> None:
+        retry_count = int(event.get("retry_count") or 0)
+        max_retries = int(event.get("max_retries") or 0)
+        state = "building" if event.get("status") != "building_retry" else "building_retry"
+        message = "Generating proposal… (still working, this can take a minute)"
+        if retry_count:
+            message = f"Generating proposal… retry {retry_count}/{max_retries} after timeout."
+        _update_proposal_job(
+            repo_root,
+            job_id,
+            status=state,
+            attempt=event.get("attempt", 0),
+            max_attempts=event.get("max_attempts", 1),
+            retry_count=retry_count,
+            max_retries=max_retries,
+            message=message,
+        )
+
+    def worker() -> None:
+        _update_proposal_job(
+            repo_root,
+            job_id,
+            status="building",
+            message="Generating proposal… (still working, this can take a minute)",
+        )
+        try:
+            meta = propose_diff(
+                repo_root=repo_root,
+                run_id=run_id,
+                base_version=base_version,
+                model_id=model_id,
+                proposed_files=proposed_files,
+                files_removed=files_removed,
+                progress_callback=progress,
+            )
+            final_status = "parse_error" if meta.get("status") == "parse_error" else "success"
+            message = (
+                "Proposal generated but the model returned malformed JSON."
+                if final_status == "parse_error"
+                else f"Created proposal {meta.get('proposal_id', 'unknown')}."
+            )
+            _update_proposal_job(
+                repo_root,
+                job_id,
+                status=final_status,
+                result=meta,
+                proposal_id=meta.get("proposal_id"),
+                message=message,
+                error=meta.get("error") if final_status == "parse_error" else None,
+                error_type=meta.get("error_type") if final_status == "parse_error" else None,
+            )
+        except Exception as exc:  # noqa: BLE001 - surface to local web UI
+            _update_proposal_job(
+                repo_root,
+                job_id,
+                status="failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                message=f"Proposal generation failed: {exc}",
+            )
+
+    thread = threading.Thread(target=worker, name=f"policy-propose-{job_id}", daemon=True)
+    thread.start()
+    return _public_proposal_job(job)
+
+
+def handle_get_propose_diff_job(
+    repo_root: Path | str,
+    job_id: str,
+) -> tuple[int, dict[str, Any]]:
+    with _PROPOSAL_JOB_LOCK:
+        job = _PROPOSAL_JOBS.get(job_id)
+        snapshot = dict(job) if job else None
+    if snapshot is None:
+        return 404, {"error": f"unknown proposal job: {job_id}"}
+    _persist_proposal_job(repo_root, snapshot)
+    return 200, _public_proposal_job(snapshot)
 
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
@@ -168,6 +350,8 @@ def handle_policy_versions(repo_root: Path | str) -> tuple[int, dict[str, Any]]:
 def handle_propose_diff(
     repo_root: Path | str,
     body: dict[str, Any] | None,
+    *,
+    async_requested: bool = False,
 ) -> tuple[int, dict[str, Any]]:
     body = body or {}
     run_id = body.get("run_id")
@@ -182,6 +366,19 @@ def handle_propose_diff(
     files_removed = body.get("files_removed") or []
     if not isinstance(files_removed, list):
         return 400, {"error": "files_removed must be a list when provided"}
+
+    if async_requested:
+        try:
+            return 202, _start_propose_diff_job(
+                repo_root,
+                run_id=run_id,
+                base_version=base_version,
+                model_id=model_id,
+                proposed_files=proposed,
+                files_removed=files_removed,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _error(500, exc)
 
     try:
         meta = propose_diff(
