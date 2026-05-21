@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_MODEL = 'openai/gpt-5.5';
-  const ALT_MODEL = 'anthropic/claude-opus-4-7';
+  const ALT_MODEL = 'anthropic/claude-opus-4-6';
   const DEFAULT_TASK_DESCRIPTION = 'Classify whether a given image is AI-generated. Use visual evidence (hand/finger anatomy, text/typography glitches, surface texture, scene geometry/reflections) as positive evidence; treat conventional photo edits, CGI/game renders, and low-quality uncertain inputs as boundaries; surface explicit synthetic provenance as a separate evidence class.';
 
   const state = {

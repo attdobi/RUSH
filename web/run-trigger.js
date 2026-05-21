@@ -8,7 +8,7 @@
       models: [
         { id: 'openai/gpt-5.5-xhigh', checked: false },
         { id: 'openai/gpt-5.5-high', checked: true },
-        { id: 'anthropic/claude-opus-4-7', checked: true },
+        { id: 'anthropic/claude-opus-4-6', checked: true },
         { id: 'google/gemini-3.1-pro-preview', checked: true }
       ]
     },
@@ -29,6 +29,7 @@
     'openai/gpt-5.5-xhigh': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-high': { input: 1.25, output: 10.0 },
     'google/gemini-3.1-pro-preview': { input: 1.25, output: 5.0 },
+    'anthropic/claude-opus-4-6': { input: 15.0, output: 75.0 },
     'anthropic/claude-opus-4-7': { input: 15.0, output: 75.0 },
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-xhigh': { input: 0.15, output: 0.60 },

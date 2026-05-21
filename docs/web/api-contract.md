@@ -195,11 +195,11 @@ Body:
 {
   "run_id": "20260510T230535-6a71939d",
   "base_version": "v0.1",
-  "model_id": "anthropic/claude-opus-4-7"
+  "model_id": "anthropic/claude-opus-4-6"
 }
 ```
-- **Default model: `anthropic/claude-opus-4-7`.** Only also accept
-  `openai/gpt-5.5` (high reasoning) when explicitly requested.
+- **Default model: `anthropic/claude-opus-4-6`.** Also accept
+  `openai/gpt-5.5` (high reasoning) and `anthropic/claude-opus-4-7` when explicitly requested.
 - Calls Claude through the Anthropic SDK (lazy import).
 - DOES NOT write a new policy version. Stores the proposal under
   `data/policy_proposals/<proposal_id>/`:
@@ -213,7 +213,7 @@ Response:
 {
   "proposal_id": "20260510T231500-cafef00d",
   "base_version": "v0.1",
-  "model_id": "anthropic/claude-opus-4-7",
+  "model_id": "anthropic/claude-opus-4-6",
   "files_changed": ["GA.boundary.low_quality_uncertain.md", "GA.root.md"],
   "files_added": ["GA.boundary.over_smoothed_skin.md"],
   "files_removed": [],
