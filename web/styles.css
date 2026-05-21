@@ -554,6 +554,27 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .policy-link.same-family { stroke: rgba(77,224,166,.45); }
 .policy-link.cross-family { stroke: rgba(255,183,77,.42); stroke-dasharray: 4 2; }
 .policy-link.highlighted { opacity: 1; stroke: #dce8ff; stroke-width: 2.4px; }
+
+/* Persistent selection (click) — set by applySelection() */
+.policy-node.selected circle { stroke-width: 5px; filter: drop-shadow(0 0 12px rgba(77,224,166,.55)); }
+.policy-node.selected text { opacity: 1; font-weight: 900; }
+.policy-node.ancestor circle { stroke-width: 3.6px; filter: drop-shadow(0 0 6px rgba(125,176,255,.45)); }
+.policy-node.ancestor text { opacity: 1; }
+.policy-node.descendant circle { stroke-width: 3px; }
+.policy-node.descendant text { opacity: 1; }
+.policy-link.ancestor-edge { stroke: #7db0ff; stroke-width: 2.6px; opacity: 1; }
+.policy-link.descendant-edge { stroke: rgba(77,224,166,.7); stroke-width: 2px; opacity: 1; }
+/* Force-show labels even for leaf nodes when they're part of the selection */
+.policy-node.leaf-node.selected text,
+.policy-node.leaf-node.ancestor text,
+.policy-node.leaf-node.descendant text { opacity: 1; }
+
+/* Hover trace — independent of selection so mouseout never clobbers it */
+.policy-node.hover-trace circle { filter: drop-shadow(0 0 8px rgba(255,255,255,.4)); }
+.policy-node.hover-trace text { opacity: 1; }
+.policy-node.leaf-node.hover-trace text { opacity: 1; }
+.policy-node.hover-dim, .policy-link.hover-dim { opacity: .22; }
+.policy-link.hover-trace { stroke: #dce8ff; stroke-width: 2.4px; opacity: 1; }
 .policy-graph-panel {
   border: 1px solid rgba(170,184,211,.16);
   background: rgba(7,16,31,.72);
@@ -565,7 +586,8 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 }
 .policy-graph-panel h3 { margin: 6px 0 10px; }
 .policy-graph-panel .muted { color: var(--muted); font-size: 13px; line-height: 1.5; }
-#policyGraphBack {
+#policyGraphBack,
+#policyGraphClear {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #13254a;
