@@ -1,6 +1,6 @@
 (() => {
   const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
-  const state = { proposals: [], selected: '', lastLoadedProposal: null };
+  const state = { proposals: [], selected: '', lastLoadedProposal: null, activeDiffIndex: 0, activeDiffs: [] };
 
   const STATUS_THEMES = {
     idle: { label: 'IDLE', color: '#94a3b8' },
@@ -268,9 +268,64 @@
     return 'diff-context';
   }
 
+  function diffChangeKey(change) {
+    const value = String(change || 'modified').toLowerCase();
+    if (value.includes('add') || value === 'new') return 'added';
+    if (value.includes('remove') || value.includes('delete')) return 'removed';
+    return 'modified';
+  }
+
+  function renderDiffStatusBadge(change) {
+    const key = diffChangeKey(change);
+    return `<span class="diff-status-badge ${key}">${esc(key)}</span>`;
+  }
+
+  function renderDiffCounts(stats) {
+    return `<span class="diff-counts"><span class="diff-count-add">+${stats.additions}</span><span class="diff-count-del">−${stats.deletions}</span></span>`;
+  }
+
+  function middleTruncate(value, max = 48) {
+    const text = String(value || 'unknown file');
+    if (text.length <= max) return text;
+    const keep = Math.max(8, Math.floor((max - 1) / 2));
+    return `${text.slice(0, keep)}…${text.slice(-keep)}`;
+  }
+
+  function renderDiffLine(line) {
+    return `<span class="${diffLineClass(line)}">${esc(line || ' ')}</span>`;
+  }
+
+  function renderHunkLines(lines) {
+    const visible = lines.slice(0, 40);
+    const hidden = lines.slice(40);
+    const visibleHtml = visible.map(renderDiffLine).join('\n');
+    if (!hidden.length) return visibleHtml;
+    return `${visibleHtml}\n<div class="diff-hidden-lines" hidden>${hidden.map(renderDiffLine).join('\n')}</div><button type="button" class="diff-show-more">Show ${hidden.length} more lines</button>`;
+  }
+
   function renderUnifiedDiff(diffText) {
-    const lines = String(diffText || '').split('\n');
-    return `<pre class="policy-diff-pre">${lines.map(line => `<span class="${diffLineClass(line)}">${esc(line || ' ')}</span>`).join('\n')}</pre>`;
+    const rawLines = String(diffText || '').split('\n');
+    const lines = rawLines.filter(line => !(line.startsWith('--- ') || line.startsWith('+++ ')));
+    const chunks = [];
+    let current = null;
+    lines.forEach(line => {
+      if (line.startsWith('@@')) {
+        if (current) chunks.push(current);
+        current = { header: line, lines: [] };
+        return;
+      }
+      if (current) current.lines.push(line);
+      else chunks.push({ header: '', lines: [line] });
+    });
+    if (current) chunks.push(current);
+    const body = chunks.map(chunk => {
+      if (!chunk.header) return chunk.lines.map(renderDiffLine).join('\n');
+      return `<div class="diff-hunk-block">
+        <button type="button" class="diff-hunk diff-hunk-toggle" aria-expanded="true">${esc(chunk.header)}</button>
+        <div class="diff-hunk-lines">${renderHunkLines(chunk.lines)}</div>
+      </div>`;
+    }).join('\n');
+    return `<div class="policy-diff-pre proposal-diff-body">${body || '<span class="diff-context">No textual diff.</span>'}</div>`;
   }
 
   function diffHeaderPath(line) {
@@ -317,15 +372,81 @@
   }
 
   function renderDiffFileCard(diff) {
-    return `<article class="diff-file-card"><h3>${esc(diffPath(diff))} <span>${esc(diff.change || '')}</span></h3>${renderUnifiedDiff(diff.unified_diff || '')}</article>`;
+    const path = diffPath(diff);
+    const stats = diffStats(diff.unified_diff || '');
+    return `<article class="diff-file-card proposal-diff-card">
+      <header class="proposal-diff-file-header">
+        <div class="proposal-diff-file-title" title="${attr(path)}"><strong>${esc(path)}</strong>${renderDiffStatusBadge(diff.change)}</div>
+        ${renderDiffCounts(stats)}
+      </header>
+      ${renderUnifiedDiff(diff.unified_diff || '')}
+    </article>`;
   }
 
-  function renderDiffFile(diff, index, total) {
-    const card = renderDiffFileCard(diff);
-    if (total <= 3 || index < 3) return card;
+  function renderDiffFile(diff, index) {
+    const path = diffPath(diff);
     const stats = diffStats(diff.unified_diff || '');
-    const summary = `📄 ${diffPath(diff)} (${stats.additions}+ / ${stats.deletions}-)`;
-    return `<details class="diff-file-collapsed"><summary>${esc(summary)}</summary>${card}</details>`;
+    const selected = index === state.activeDiffIndex;
+    return `<button type="button" class="proposal-diff-file-row" role="option" data-diff-index="${index}" aria-selected="${selected ? 'true' : 'false'}" title="${attr(path)}">
+      ${renderDiffStatusBadge(diff.change)}
+      <span class="proposal-diff-file-path">${esc(middleTruncate(path))}</span>
+      ${renderDiffCounts(stats)}
+    </button>`;
+  }
+
+  function renderDiffFileOption(diff, index) {
+    const path = diffPath(diff);
+    const stats = diffStats(diff.unified_diff || '');
+    const label = `${diffChangeKey(diff.change)} · ${middleTruncate(path, 72)} · +${stats.additions}/−${stats.deletions}`;
+    return `<option value="${index}"${index === state.activeDiffIndex ? ' selected' : ''}>${esc(label)}</option>`;
+  }
+
+  function renderDiffViewer(diffs, statusBanner) {
+    state.activeDiffs = diffs;
+    state.activeDiffIndex = Math.min(Math.max(state.activeDiffIndex || 0, 0), diffs.length - 1);
+    return `${statusBanner}<div class="proposal-diff-layout">
+      <aside class="proposal-diff-rail" aria-label="Changed files">
+        <div class="proposal-diff-rail-title">Changed files <span>${diffs.length}</span></div>
+        <div class="proposal-diff-file-list" role="listbox" tabindex="0" aria-label="Changed files">${diffs.map(renderDiffFile).join('')}</div>
+      </aside>
+      <label class="proposal-diff-select-wrap">Changed file
+        <select class="proposal-diff-select" aria-label="Changed file">${diffs.map(renderDiffFileOption).join('')}</select>
+      </label>
+      <section class="proposal-diff-pane" aria-live="polite">${renderDiffFileCard(diffs[state.activeDiffIndex])}</section>
+    </div>`;
+  }
+
+  function setActiveDiffIndex(index) {
+    const diffs = state.activeDiffs || [];
+    if (!diffs.length) return;
+    const nextIndex = Math.min(Math.max(Number(index) || 0, 0), diffs.length - 1);
+    if (nextIndex === state.activeDiffIndex) return;
+    state.activeDiffIndex = nextIndex;
+    const viewer = $('#proposalDiffViewer');
+    viewer?.querySelectorAll('[data-diff-index]').forEach(row => {
+      row.setAttribute('aria-selected', String(Number(row.dataset.diffIndex) === nextIndex));
+    });
+    const select = viewer?.querySelector('.proposal-diff-select');
+    if (select) select.value = String(nextIndex);
+    const pane = viewer?.querySelector('.proposal-diff-pane');
+    if (pane) pane.innerHTML = renderDiffFileCard(diffs[nextIndex]);
+  }
+
+  function toggleDiffHunk(button) {
+    const block = button?.closest('.diff-hunk-block');
+    const lines = block?.querySelector('.diff-hunk-lines');
+    if (!lines) return;
+    const expanded = button.getAttribute('aria-expanded') !== 'false';
+    button.setAttribute('aria-expanded', String(!expanded));
+    lines.hidden = expanded;
+    block.classList.toggle('collapsed', expanded);
+  }
+
+  function expandLongHunk(button) {
+    const block = button?.closest('.diff-hunk-lines');
+    const hidden = block?.querySelector('.diff-hidden-lines');
+    if (hidden) hidden.hidden = false;
+    button.remove();
   }
 
   function renderProposal(payload) {
@@ -334,6 +455,8 @@
     if (!summary || !viewer) return;
     if (!payload) {
       state.lastLoadedProposal = null;
+      state.activeDiffIndex = 0;
+      state.activeDiffs = [];
       summary.innerHTML = '';
       viewer.innerHTML = '<div class="empty-state">Select a proposal to view its diff.</div>';
       syncProposalActions(null);
@@ -360,10 +483,12 @@
         : 'Proposal state is recorded; only pending proposals can change the graph.');
     const statusBanner = `<div class="proposal-state-banner ${statusKey}"><strong>${esc(proposalStatusLabel(statusText))}</strong><span>${esc(statusCopy)}</span></div>`;
     if (!diffs.length) {
+      state.activeDiffIndex = 0;
+      state.activeDiffs = [];
       viewer.innerHTML = `${statusBanner}<div class="empty-state">This proposal has no diff records.</div>`;
       return;
     }
-    viewer.innerHTML = statusBanner + diffs.map((diff, index) => renderDiffFile(diff, index, diffs.length)).join('');
+    viewer.innerHTML = renderDiffViewer(diffs, statusBanner);
   }
 
   async function loadProposals(selectFirst = true) {
@@ -389,6 +514,7 @@
 
   async function loadProposal(proposalId) {
     state.selected = proposalId || '';
+    state.activeDiffIndex = 0;
     if (!state.selected) {
       state.lastLoadedProposal = null;
       renderProposal(null);
@@ -512,6 +638,30 @@
       const select = $('#proposalPicker');
       if (select) select.value = proposalId;
       loadProposal(proposalId);
+    });
+    $('#proposalDiffViewer')?.addEventListener('click', event => {
+      const fileRow = event.target.closest('[data-diff-index]');
+      if (fileRow) {
+        setActiveDiffIndex(fileRow.dataset.diffIndex);
+        return;
+      }
+      const hunkToggle = event.target.closest('.diff-hunk-toggle');
+      if (hunkToggle) {
+        toggleDiffHunk(hunkToggle);
+        return;
+      }
+      const showMore = event.target.closest('.diff-show-more');
+      if (showMore) expandLongHunk(showMore);
+    });
+    $('#proposalDiffViewer')?.addEventListener('change', event => {
+      if (event.target.matches('.proposal-diff-select')) setActiveDiffIndex(event.target.value);
+    });
+    $('#proposalDiffViewer')?.addEventListener('keydown', event => {
+      if (!event.target.closest('.proposal-diff-file-list')) return;
+      const direction = ['ArrowDown', 'j'].includes(event.key) ? 1 : (['ArrowUp', 'k'].includes(event.key) ? -1 : 0);
+      if (!direction) return;
+      event.preventDefault();
+      setActiveDiffIndex(state.activeDiffIndex + direction);
     });
     $('#proposeDiff')?.addEventListener('click', proposeDiff);
     $('#acceptProposal')?.addEventListener('click', acceptProposal);
