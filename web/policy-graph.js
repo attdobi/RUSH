@@ -459,6 +459,61 @@
 
   window.rushOpenPolicyNode = openPolicyNodeById;
 
+  // Defensive backfill: ensure every node has a path to GA.root so the d3 view
+  // never shows orphaned floats when a proposal-added node lands without an
+  // explicit subtype_of edge in its frontmatter.
+  function backfillParentEdges(payload) {
+    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+    const edges = Array.isArray(payload?.edges) ? payload.edges : [];
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const existing = new Set(edges.map(e => `${edgeSource(e)}\u2192${edgeTarget(e)}`));
+    let addedExplicit = 0;
+    let addedPrefix = 0;
+    let addedRoot = 0;
+    function add(from, to, kind) {
+      const key = `${from}\u2192${to}`;
+      if (from === to || !nodeIds.has(from) || !nodeIds.has(to) || existing.has(key)) return false;
+      edges.push({ source: from, target: to, type: kind, synthetic: true });
+      existing.add(key);
+      return true;
+    }
+    function hasAnyEdge(id) {
+      for (const edge of edges) {
+        if (edgeSource(edge) === id || edgeTarget(edge) === id) return true;
+      }
+      return false;
+    }
+    nodes.forEach(node => {
+      if (!node || node.id === 'GA.root') return;
+      // 1. Honor explicit parent frontmatter when the target exists in this payload.
+      if (node.parent && nodeIds.has(node.parent)) {
+        if (add(node.id, node.parent, 'subtype_of_inferred')) addedExplicit += 1;
+        return;
+      }
+      // 2. Fall back to id-prefix parent (drop dotted segments until something matches).
+      const parts = String(node.id).split('.');
+      let attached = false;
+      for (let i = parts.length - 1; i > 0; i -= 1) {
+        const candidate = parts.slice(0, i).join('.');
+        if (nodeIds.has(candidate)) {
+          if (add(node.id, candidate, 'subtype_of_inferred')) addedPrefix += 1;
+          attached = true;
+          break;
+        }
+      }
+      if (attached) return;
+      // 3. Last resort: attach to GA.root so no node ever floats on stage.
+      if (!hasAnyEdge(node.id) && nodeIds.has('GA.root')) {
+        if (add(node.id, 'GA.root', 'subtype_of_inferred')) addedRoot += 1;
+      }
+    });
+    payload.edges = edges;
+    if (addedExplicit || addedPrefix || addedRoot) {
+      payload._backfilled_edges = { explicit: addedExplicit, prefix: addedPrefix, root: addedRoot };
+    }
+    return payload;
+  }
+
   async function loadGraph(version = '') {
     if (!window.RUSH_API?.available) {
       setUnavailable();
@@ -468,11 +523,14 @@
       const query = version ? `?version=${encodeURIComponent(version)}` : '';
       status('Loading policy graph…');
       const payload = await rushApiGetJson(`/api/policy/graph${query}`);
+      backfillParentEdges(payload);
       currentFocus = null;
       currentVersion = payload.version || version;
       populateVersions(payload.available_versions, payload.version);
       renderGraph(payload, null);
-      status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s).`);
+      const backfilled = payload._backfilled_edges;
+      const backfillNote = backfilled ? ` · backfilled ${backfilled.explicit + backfilled.prefix + backfilled.root} parent edge(s)` : '';
+      status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s)${backfillNote}.`);
     } catch (error) {
       const wrap = qs('#policyGraphSvgWrap');
       if (wrap) wrap.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
