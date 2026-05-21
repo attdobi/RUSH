@@ -273,6 +273,61 @@
     return `<pre class="policy-diff-pre">${lines.map(line => `<span class="${diffLineClass(line)}">${esc(line || ' ')}</span>`).join('\n')}</pre>`;
   }
 
+  function diffHeaderPath(line) {
+    const value = String(line || '').replace(/^[+-]{3}\s+/, '').trim().split(/\s+/)[0] || '';
+    if (!value || value === '/dev/null') return '';
+    return value.replace(/^[ab]\//, '');
+  }
+
+  function diffPath(diff) {
+    const lines = String(diff?.unified_diff || '').split('\n');
+    return diffHeaderPath(lines.find(line => line.startsWith('+++ ')))
+      || diffHeaderPath(lines.find(line => line.startsWith('--- ')))
+      || diff?.path
+      || 'unknown file';
+  }
+
+  function splitUnifiedDiffRecord(diff) {
+    const diffText = String(diff?.unified_diff || '');
+    const lines = diffText.split('\n');
+    const fileStarts = lines.reduce((starts, line, index) => {
+      if (line.startsWith('--- ') && lines[index + 1]?.startsWith('+++ ')) starts.push(index);
+      return starts;
+    }, []);
+    if (fileStarts.length <= 1) return [diff];
+    return fileStarts.map((start, index) => {
+      const end = fileStarts[index + 1] ?? lines.length;
+      const unifiedDiff = lines.slice(start, end).join('\n');
+      const record = { ...diff, unified_diff: unifiedDiff };
+      record.path = diffPath(record);
+      return record;
+    });
+  }
+
+  function normalizeDiffRecords(diffs) {
+    return diffs.flatMap(splitUnifiedDiffRecord);
+  }
+
+  function diffStats(diffText) {
+    return String(diffText || '').split('\n').reduce((stats, line) => {
+      if (line.startsWith('+') && !line.startsWith('+++')) stats.additions += 1;
+      if (line.startsWith('-') && !line.startsWith('---')) stats.deletions += 1;
+      return stats;
+    }, { additions: 0, deletions: 0 });
+  }
+
+  function renderDiffFileCard(diff) {
+    return `<article class="diff-file-card"><h3>${esc(diffPath(diff))} <span>${esc(diff.change || '')}</span></h3>${renderUnifiedDiff(diff.unified_diff || '')}</article>`;
+  }
+
+  function renderDiffFile(diff, index, total) {
+    const card = renderDiffFileCard(diff);
+    if (total <= 3 || index < 3) return card;
+    const stats = diffStats(diff.unified_diff || '');
+    const summary = `📄 ${diffPath(diff)} (${stats.additions}+ / ${stats.deletions}-)`;
+    return `<details class="diff-file-collapsed"><summary>${esc(summary)}</summary>${card}</details>`;
+  }
+
   function renderProposal(payload) {
     const summary = $('#proposalSummary');
     const viewer = $('#proposalDiffViewer');
@@ -287,7 +342,7 @@
     }
     syncProposalActions(payload);
     syncProposalVersionChips(payload);
-    const diffs = Array.isArray(payload.diffs) ? payload.diffs : [];
+    const diffs = normalizeDiffRecords(Array.isArray(payload.diffs) ? payload.diffs : []);
     const cards = [
       ['Proposal', payload.proposal_id || '—', `Status: ${payload.status || 'pending'}`],
       ['Base version', payload.base_version || '—', payload.model_id || DEFAULT_POLICY_MODEL],
@@ -308,7 +363,7 @@
       viewer.innerHTML = `${statusBanner}<div class="empty-state">This proposal has no diff records.</div>`;
       return;
     }
-    viewer.innerHTML = statusBanner + diffs.map(diff => `<article class="diff-file-card"><h3>${esc(diff.path || 'unknown file')} <span>${esc(diff.change || '')}</span></h3>${renderUnifiedDiff(diff.unified_diff || '')}</article>`).join('');
+    viewer.innerHTML = statusBanner + diffs.map((diff, index) => renderDiffFile(diff, index, diffs.length)).join('');
   }
 
   async function loadProposals(selectFirst = true) {
