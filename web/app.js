@@ -34,15 +34,6 @@ const MANIFESTS = {
   summary: '../data/images/genai-classification/manifests/sampling_summary.json'
 };
 
-const policyNodes = [
-  { id: 'GA.visual_artifacts.anatomy.hands', label: 'Hands / anatomy', type: 'positive evidence', summary: 'Impossible hands, fingers, limbs, teeth, or repeated body details.' },
-  { id: 'GA.visual_artifacts.text_symbols', label: 'Text + symbols', type: 'positive evidence', summary: 'Garbled text, pseudo-logos, malformed UI, or impossible integrated typography.' },
-  { id: 'GA.surface_texture.plastic_skin', label: 'Synthetic texture', type: 'positive evidence', summary: 'Waxy skin, over-smoothed surfaces, diffusion texture repetition, or pore absence.' },
-  { id: 'GA.scene_geometry.inconsistent_perspective', label: 'Scene geometry', type: 'positive evidence', summary: 'Impossible reflections, shadows, object intersections, or inconsistent perspective.' },
-  { id: 'GA.boundary.photo_editing', label: 'Edited real photo', type: 'hard negative', summary: 'Filters, retouching, compression, and conventional edits are not GenAI by themselves.' },
-  { id: 'GA.boundary.cgi_game_render', label: 'CGI / game render', type: 'hard negative', summary: 'Stylized renders are not GenAI unless generative provenance is established.' },
-  { id: 'GA.boundary.low_quality_uncertain', label: 'Low-quality uncertain', type: 'abstain / SME review', summary: 'Blurred, cropped, or ambiguous evidence should route to SME review.' }
-];
 
 const demoState = {
   result: null,
@@ -200,6 +191,38 @@ function thumbnailSrcForPath(repoRelPath) {
   return `../${path}`;
 }
 
+// Deterministic synthetic SVG thumb for browser-only demo (no real image bytes available).
+function syntheticThumbDataUri(row) {
+  const label = String(row?.label || 'unknown');
+  const dataset = String(row?.dataset || 'demo');
+  const sampleId = String(row?.sample_id || row?.synthetic_repo_rel_path || dataset);
+  const hash = String(row?.sha256 || '').slice(0, 8) || sampleId.slice(-8);
+  // Deterministic hue from sha256/sample_id
+  let h = 0;
+  for (let i = 0; i < hash.length; i += 1) h = (h * 31 + hash.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const isAi = label === 'ai_generated';
+  const accent = isAi ? `hsl(${(hue + 320) % 360}, 70%, 56%)` : `hsl(${(hue + 150) % 360}, 60%, 52%)`;
+  const bgA = `hsl(${hue}, 38%, 18%)`;
+  const bgB = `hsl(${(hue + 40) % 360}, 42%, 28%)`;
+  const labelText = isAi ? 'AI' : 'REAL';
+  const idShort = sampleId.length > 14 ? `${sampleId.slice(0, 12)}…` : sampleId;
+  const datasetShort = dataset.length > 10 ? `${dataset.slice(0, 9)}…` : dataset;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>` +
+    `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
+      `<stop offset='0' stop-color='${bgA}'/><stop offset='1' stop-color='${bgB}'/>` +
+    `</linearGradient></defs>` +
+    `<rect width='200' height='200' rx='14' fill='url(#g)'/>` +
+    `<circle cx='150' cy='52' r='30' fill='${accent}' opacity='0.85'/>` +
+    `<rect x='14' y='14' width='${datasetShort.length * 8 + 14}' height='22' rx='11' fill='rgba(0,0,0,0.45)'/>` +
+    `<text x='${14 + 7}' y='30' font-family='Inter,system-ui,sans-serif' font-size='12' font-weight='700' fill='#dce8ff'>${esc(datasetShort)}</text>` +
+    `<text x='100' y='118' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='44' font-weight='900' fill='#fff' opacity='0.92'>${labelText}</text>` +
+    `<text x='100' y='154' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='11' font-weight='600' fill='#dce8ff' opacity='0.8'>${esc(idShort)}</text>` +
+    `<text x='100' y='180' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='9' font-weight='500' fill='#aab8d3' opacity='0.65'>demo placeholder · no image bytes</text>` +
+  `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 function thumbnailSrcForImageId(imageId) {
   if (!imageId) return null;
   const path = `data/images/genai-classification/thumbnails/${imageId}.jpg`;
@@ -208,9 +231,11 @@ function thumbnailSrcForImageId(imageId) {
 
 window.thumbnailSrcForPath = thumbnailSrcForPath;
 window.thumbnailSrcForImageId = thumbnailSrcForImageId;
+window.syntheticThumbDataUri = syntheticThumbDataUri;
 
 function imgSrc(row) {
-  return thumbnailSrcForPath(row.repo_rel_path || row.synthetic_repo_rel_path);
+  if (row && row.is_synthetic_demo_candidate === true) return syntheticThumbDataUri(row);
+  return thumbnailSrcForPath(row?.repo_rel_path || row?.synthetic_repo_rel_path);
 }
 
 function safeImageFallback(label = 'image unavailable', detail = 'local path missing') {
@@ -388,22 +413,10 @@ function renderGallery() {
     ${visible.length ? `<div class="sample-grid">${visible.map(row => renderSampleCard(row)).join('')}</div>` : '<div class="empty-state">No samples match this filter yet.</div>'}`;
 }
 
-function renderPolicy() {
-  $('#policyNodeList').innerHTML = policyNodes.map(node => `<article class="node-card ${node.type.includes('negative') ? 'negative' : ''}"><span>${esc(node.type)}</span><h3>${esc(node.label)}</h3><p>${esc(node.summary)}</p><code>${esc(node.id)}</code></article>`).join('');
-  const summary = demoState.result?.summary;
-  const total = summary?.total || 0;
-  $('#policyLoop').innerHTML = [
-    ['Sample', `${total} candidates sampled`, 'Balanced GenAI/not-GenAI examples create a cold-start policy surface.'],
-    ['Annotate', 'SME override controls ready', 'Human corrections are captured before LLM labels exist.'],
-    ['Label', 'LLM labeling comes next', 'Models will cite policy nodes and return structured confidence/justification.'],
-    ['Patch', 'Policy diffs from clusters', 'Repeated disagreements become SME-reviewable graph changes.']
-  ].map(([k, v, d]) => `<div class="timeline-row"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(d)}</p></div>`).join('');
-}
 
 function renderAll() {
   renderStats();
   renderGallery();
-  renderPolicy();
 }
 
 function setSamplerLoading(isLoading) {
@@ -471,12 +484,6 @@ const runState = {
 };
 window.runState = runState;
 
-const flipRateState = {
-  data: null,
-  byImage: {},
-  source: null
-};
-
 async function fetchJsonOptional(path) {
   try {
     const response = await fetch(path, { cache: 'no-store' });
@@ -484,203 +491,6 @@ async function fetchJsonOptional(path) {
     return await response.json();
   } catch (error) {
     return null;
-  }
-}
-
-function assertFlipRateShape(data) {
-  const warn = message => console.warn(`flip_rate.json shape: ${message}`);
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    warn('expected a top-level object.');
-    return false;
-  }
-
-  const expectedTop = ['summary', 'records'];
-  for (const key of expectedTop) {
-    if (!(key in data)) warn(`missing top-level key "${key}".`);
-  }
-  const extraTop = Object.keys(data).filter(key => !expectedTop.includes(key));
-  if (extraTop.length) warn(`extra top-level key(s): ${extraTop.join(', ')}.`);
-
-  const summary = data.summary || {};
-  const expectedSummary = [
-    'n_pairs_total', 'n_pairs_stable', 'n_pairs_flipped', 'n_pairs_single_run',
-    'mean_flip_rate', 'per_model_flip_rate', 'top_flipped_images', 'computed_at'
-  ];
-  if (!data.summary || typeof data.summary !== 'object' || Array.isArray(data.summary)) {
-    warn('missing or invalid summary object.');
-  } else {
-    for (const key of expectedSummary) {
-      if (!(key in summary)) warn(`summary missing key "${key}".`);
-    }
-    const extraSummary = Object.keys(summary).filter(key => !expectedSummary.includes(key));
-    if (extraSummary.length) warn(`summary extra key(s): ${extraSummary.join(', ')}.`);
-  }
-
-  if (!Array.isArray(data.records)) {
-    warn('records should be an array.');
-    return false;
-  }
-  const sample = data.records.find(record => record && typeof record === 'object');
-  if (sample) {
-    const expectedRecord = [
-      'image_id', 'model_id', 'n_runs', 'labels_observed', 'label_counts', 'distinct_label_count',
-      'flip_count', 'flip_rate', 'stable_label', 'abstain_count', 'confidence_min', 'confidence_max',
-      'confidence_mean', 'first_seen_run_id', 'last_seen_run_id', 'run_ids', 'single_run_only'
-    ];
-    for (const key of expectedRecord) {
-      if (!(key in sample)) warn(`record missing key "${key}".`);
-    }
-    const extraRecord = Object.keys(sample).filter(key => !expectedRecord.includes(key));
-    if (extraRecord.length) warn(`record extra key(s): ${extraRecord.join(', ')}.`);
-  }
-  return true;
-}
-
-function buildFlipRateIndex(records) {
-  return (records || []).reduce((acc, record) => {
-    const imageId = record?.image_id;
-    if (!imageId) return acc;
-    const key = String(imageId);
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(record);
-    return acc;
-  }, {});
-}
-
-function formatFlipRate(value) {
-  return isNumber(value) ? value.toFixed(2) : '—';
-}
-
-function formatPct(numerator, denominator) {
-  if (!isNumber(numerator) || !isNumber(denominator) || denominator <= 0) return '—';
-  return `${((numerator / denominator) * 100).toFixed(1)}%`;
-}
-
-function flipLabelPills(labels) {
-  if (!Array.isArray(labels) || labels.length === 0) return '<span class="muted">—</span>';
-  return labels.map(label => `<span class="flip-label-pill">${esc(label)}</span>`).join(' ');
-}
-
-function renderFlipBadgeForImage(imageId) {
-  if (!flipRateState.data) return '';
-  const records = flipRateState.byImage[String(imageId || '')] || [];
-  const multiRunRecords = records.filter(record => !record.single_run_only && Number(record.n_runs || 0) > 1);
-  if (!multiRunRecords.length) {
-    return `<span class="flip-badge single" title="No multi-run flip-rate data for this image">single run</span>`;
-  }
-  const maxFlipCount = Math.max(...multiRunRecords.map(record => Number(record.flip_count || 0)));
-  if (maxFlipCount >= 2) {
-    return `<span class="flip-badge bad" title="At least one model flipped ${maxFlipCount} times for this image">2+ flips</span>`;
-  }
-  if (maxFlipCount === 1) {
-    return '<span class="flip-badge warn" title="At least one model flipped once for this image">1 flip</span>';
-  }
-  return '<span class="flip-badge stable" title="All multi-run model pairs were stable for this image">stable</span>';
-}
-
-function unstableImageCount(records) {
-  const ids = new Set();
-  for (const record of records || []) {
-    if (record?.image_id && Number(record.flip_count || 0) > 0) ids.add(record.image_id);
-  }
-  return ids.size;
-}
-
-async function loadFlipRate() {
-  const fixture = (typeof window !== 'undefined' && window.__FLIP_RATE_DEV__ && typeof window.__FLIP_RATE_DEV__ === 'object')
-    ? window.__FLIP_RATE_DEV__
-    : null;
-  const data = fixture || await fetchJsonOptional('flip_rate.json');
-  if (data) {
-    assertFlipRateShape(data);
-    flipRateState.data = data;
-    flipRateState.byImage = buildFlipRateIndex(Array.isArray(data.records) ? data.records : []);
-    flipRateState.source = fixture ? 'dev fixture' : 'flip_rate.json';
-  } else {
-    flipRateState.data = null;
-    flipRateState.byImage = {};
-    flipRateState.source = null;
-  }
-  renderFlipRate();
-  renderConsensus();
-}
-
-function renderFlipRate() {
-  const panel = $('#flip-rate-panel');
-  if (!panel) return;
-  const empty = $('#flipRateEmpty');
-  const cardsTarget = $('#flipRateCards');
-  const barsTarget = $('#flipRateBars');
-  const tableTarget = $('#flipRateTable');
-  const data = flipRateState.data;
-  if (!data || !Array.isArray(data.records)) {
-    panel.hidden = !runState.selectedRunId;
-    showComputeEmpty(empty, 'flip-rate', 'No flip-rate data yet — need ≥2 scored runs of the same images.');
-    if (cardsTarget) cardsTarget.innerHTML = '';
-    if (barsTarget) barsTarget.innerHTML = '';
-    if (tableTarget) tableTarget.innerHTML = '';
-    return;
-  }
-  panel.hidden = false;
-  if (empty) empty.hidden = true;
-
-  const summary = data.summary || {};
-  const total = Number(summary.n_pairs_total || 0);
-  if (cardsTarget) {
-    const cards = [
-      ['Mean Flip Rate', formatFlipRate(summary.mean_flip_rate), flipRateState.source || ''],
-      ['% Stable', formatPct(Number(summary.n_pairs_stable || 0), total), `${summary.n_pairs_stable ?? 0} / ${summary.n_pairs_total ?? 0} pairs`],
-      ['% Flipped', formatPct(Number(summary.n_pairs_flipped || 0), total), `${summary.n_pairs_flipped ?? 0} / ${summary.n_pairs_total ?? 0} pairs`],
-      ['Unstable Images', unstableImageCount(data.records), 'distinct images with ≥1 flipped model pair']
-    ];
-    cardsTarget.innerHTML = cards.map(([label, value, note]) =>
-      `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note || '')}</p></article>`
-    ).join('');
-  }
-
-  if (barsTarget) {
-    const perModel = summary.per_model_flip_rate || {};
-    const modelEntries = Object.entries(perModel)
-      .sort((a, b) => Number(b[1]?.mean_flip_rate || 0) - Number(a[1]?.mean_flip_rate || 0));
-    if (!modelEntries.length) {
-      barsTarget.innerHTML = '<div class="empty-state">No per-model flip-rate records available.</div>';
-    } else {
-      const observedMax = Math.max(...modelEntries.map(([, stats]) => Number(stats?.mean_flip_rate || 0)), 0);
-      const denominator = Math.max(0.5, observedMax);
-      barsTarget.innerHTML = modelEntries.map(([modelId, stats]) => {
-        const rate = Number(stats?.mean_flip_rate || 0);
-        const width = denominator > 0 ? Math.max(0, Math.min(100, (rate / denominator) * 100)) : 0;
-        return `<article class="flip-bar">
-          <header><strong>${esc(modelId)}</strong><span>${formatFlipRate(rate)} · ${esc(stats?.n_pairs_flipped ?? 0)} / ${esc(stats?.n_pairs ?? 0)} flipped</span></header>
-          <div class="flip-bar-track" aria-hidden="true"><span style="width:${width.toFixed(1)}%"></span></div>
-        </article>`;
-      }).join('');
-    }
-  }
-
-  if (tableTarget) {
-    const topSource = Array.isArray(summary.top_flipped_images) && summary.top_flipped_images.length
-      ? summary.top_flipped_images
-      : data.records;
-    const topRows = topSource
-      .filter(record => Number(record.flip_count || 0) > 0)
-      .slice()
-      .sort((a, b) => Number(b.flip_rate || 0) - Number(a.flip_rate || 0) || Number(b.flip_count || 0) - Number(a.flip_count || 0))
-      .slice(0, 20);
-    if (!topRows.length) {
-      tableTarget.innerHTML = '<div class="empty-state">No flipped images yet — all multi-run pairs are stable.</div>';
-    } else {
-      const rows = topRows.map(row => {
-        const id = String(row.image_id || '');
-        const thumbSrc = thumbnailSrcForPath(row.repo_rel_path || '');
-        const thumb = thumbSrc
-          ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
-          : '';
-        const imageCell = `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
-        return `<tr data-image-id="${attr(id)}"><td>${imageCell}</td><td>${esc(row.model_id)}</td><td>${esc(row.n_runs ?? '—')}</td><td>${esc(row.flip_count ?? '—')}</td><td>${formatFlipRate(Number(row.flip_rate))}</td><td>${flipLabelPills(row.labels_observed)}</td></tr>`;
-      }).join('');
-      tableTarget.innerHTML = `<table class="misalignment"><thead><tr><th>image</th><th>model</th><th>runs</th><th>flips</th><th>flip rate</th><th>labels observed</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }
   }
 }
 
@@ -770,6 +580,46 @@ function renderRunPicker() {
   }).join('');
 }
 
+function metricNumber(value) {
+  return isNumber(value) ? value : (Number.isFinite(Number(value)) ? Number(value) : null);
+}
+
+function runMetaForSelected() {
+  return runState.available.find(row => row.run_id === runState.selectedRunId) || {};
+}
+
+function runSummaryImageCount(summary) {
+  const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+  const nValues = labelers
+    .filter(row => !window.rushIsEnsembleRow(row))
+    .map(row => metricNumber(row?.metrics?.n))
+    .filter(value => value !== null);
+  if (nValues.length) return Math.max(...nValues);
+  const consensus = summary?.consensus_summary || {};
+  return consensus.n_images ?? consensus.image_count ?? consensus.total_images ?? '—';
+}
+
+function runSummaryCost(summary) {
+  if (isNumber(summary?.cost?.total_cost_usd)) return summary.cost.total_cost_usd;
+  const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+  const modelCosts = labelers
+    .filter(row => !window.rushIsEnsembleRow(row))
+    .map(row => {
+      const n = metricNumber(row?.metrics?.n);
+      const per1k = metricNumber(row?.metrics?.cost_per_1000_labels);
+      return n !== null && per1k !== null ? (n * per1k / 1000) : null;
+    })
+    .filter(value => value !== null);
+  if (!modelCosts.length) return null;
+  return modelCosts.reduce((total, value) => total + value, 0);
+}
+
+function formatRunTime(meta) {
+  const started = meta.started_at ? new Date(meta.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const finished = meta.finished_at ? new Date(meta.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (meta.running ? 'running' : '—');
+  return { started, finished };
+}
+
 function renderRunSummary() {
   const target = $('#runSummary');
   if (!target) return;
@@ -778,15 +628,31 @@ function renderRunSummary() {
     return;
   }
   const s = runState.summary;
+  const meta = runMetaForSelected();
+  const labelers = Array.isArray(s.labelers) ? s.labelers : [];
+  const modelRows = labelers.filter(row => !window.rushIsEnsembleRow(row));
+  const modelNames = modelRows.map(row => row.labeler_id).filter(Boolean);
+  const totals = meta.totals || {};
+  const errored = metricNumber(totals.errored_calls) || 0;
+  const completed = metricNumber(totals.completed_calls) ?? metricNumber(totals.successful_calls) ?? null;
+  const expected = metricNumber(totals.expected_calls);
+  const cost = runSummaryCost(s);
+  const time = formatRunTime(meta);
   const cards = [
-    ['Run id', s.run_id || runState.selectedRunId || '—', s.started_at || ''],
-    ['Models', Array.isArray(s.models) ? s.models.length : (s.model_count ?? '—'), Array.isArray(s.models) ? s.models.join(' · ') : ''],
-    ['Images', s.image_count ?? s.n_images ?? '—', s.split ? `split: ${s.split}` : ''],
-    ['Policy graph', s.policy_graph_version || '—', s.prompt_version ? `prompt ${s.prompt_version}` : '']
+    ['Images', runSummaryImageCount(s), meta.split ? `split: ${meta.split}` : 'scored images'],
+    ['Models', modelRows.length || '—', modelNames.length ? modelNames.join(' · ') : 'model breakdown unavailable'],
+    ['Time', time.finished === 'running' ? 'Running' : time.finished, `started ${time.started}`],
+    ['Cost', cost === null ? '—' : `$${cost.toFixed(cost >= 1 ? 2 : 4)}`, 'estimated from scored calls'],
+    ['Success / errors', `${completed ?? '—'} / ${errored}`, expected ? `${expected} expected calls` : 'from run manifest']
   ];
-  target.innerHTML = cards.map(([k, v, n]) =>
-    `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`
-  ).join('');
+  target.innerHTML = `
+    <div class="run-summary-metrics">
+      ${cards.map(([k, v, n]) => `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`).join('')}
+    </div>
+    <details class="raw-json-details run-summary-raw">
+      <summary>View raw summary JSON</summary>
+      <pre class="log-tail raw-json">${esc(JSON.stringify(s, null, 2))}</pre>
+    </details>`;
 }
 
 function preparedMetaLine(prepared) {
@@ -1120,7 +986,6 @@ function renderConsensus() {
   const headerCells = [
     '<th></th>',
     '<th>image</th>',
-    '<th>flip rate</th>',
     '<th>SME truth</th>',
     '<th>majority</th>',
     ...voterColumns.map(v => `<th>${esc(voterId(v))}${ensembleSuffix(v)}</th>`),
@@ -1174,22 +1039,21 @@ function renderConsensus() {
       .join(' ');
     const mismatch = sme && majorityLabel && majorityLabel !== sme;
     const rowCls = mismatch ? ' class="row-mismatch"' : '';
-    const flipBadge = renderFlipBadgeForImage(r.image_id) || '<span class="muted">—</span>';
     const thumbSrc = thumbnailSrcForPath(r.repo_rel_path || '');
     const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(r.image_id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
-    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${flipBadge}</td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
-    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 7);
+    const primary = `<tr data-image-id="${attr(r.image_id)}"${rowCls}><td>${expandButton('consensus', r.image_id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(r.image_id)}"><strong>${esc(r.image_id)}</strong></button>${mismatch ? '<p class="row-meta mismatch-note">majority ≠ SME</p>' : ''}</div></div></td><td>${smeBadge}</td>${majorityCell}${perModel}<td>${chipFor(r)}</td><td>${distChips || '<span class="muted">—</span>'}</td></tr>`;
+    return primary + renderInlineJustificationsRow('consensus', r, voterColumns.length + 6);
   }).join('');
   tableTarget.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderRun() {
+  if (!document.querySelector('.score-tab-panel:not([hidden])')) selectScoreTab('consensus');
   renderRunPicker();
   renderRunSummary();
   renderBorderline();
   renderMisalignment();
   renderConsensus();
-  renderFlipRate();
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
@@ -1213,6 +1077,24 @@ async function refreshRuns(autoSelectMostRecent = true) {
   } else {
     renderRun();
   }
+}
+
+function selectScoreTab(tabName = 'consensus') {
+  const selected = tabName || 'consensus';
+  document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
+    tab.setAttribute('aria-selected', String(tab.dataset.scoreTab === selected));
+  });
+  document.querySelectorAll('.score-tab-panel[data-score-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.scorePanel !== selected;
+  });
+}
+
+function initScoreTabs() {
+  const current = document.querySelector('.score-tabs [data-score-tab][aria-selected="true"]')?.dataset.scoreTab || 'consensus';
+  selectScoreTab(current);
+  document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
+    tab.addEventListener('click', () => selectScoreTab(tab.dataset.scoreTab || 'consensus'));
+  });
 }
 
 function bindControls() {
@@ -1285,7 +1167,6 @@ function bindRunControls() {
     try {
       await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute-now`, {});
       await loadRun(runId);
-      await loadFlipRate();
       if (status) status.textContent = `Computed and refreshed ${runId}.`;
     } catch (error) {
       if (status) {
@@ -1315,14 +1196,13 @@ function initActiveNav() {
 }
 
 function init() {
-  $('#policyNodeList').innerHTML = '';
   initInlineJustificationStyles();
   bindControls();
   bindRunControls();
+  initScoreTabs();
   initActiveNav();
   initApi();
   runSamplerDemo();
-  loadFlipRate();
   refreshRuns(true);
 }
 
@@ -1365,7 +1245,7 @@ function rushApiApplyAvailability(available) {
   if (hint) hint.hidden = !!available;
   if (!available) {
     document.querySelectorAll('.api-section').forEach(section => {
-      if (section.id === 'run-trigger') section.hidden = true;
+      if (section.id === 'label') section.hidden = true;
       else rushApiUnavailable(section);
     });
   } else {

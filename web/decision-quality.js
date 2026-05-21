@@ -6,13 +6,18 @@
   }
 
   function setUnavailable() {
-    rushApiUnavailable('#decision-quality-overview');
+    rushApiUnavailable('#quality');
     const summary = $('#decisionQualitySummary');
     if (summary) summary.innerHTML = '';
     const warning = $('#decisionQualityWarning');
     if (warning) {
       warning.hidden = true;
       warning.textContent = '';
+    }
+    const narrative = $('#decisionQualityNarrative');
+    if (narrative) {
+      narrative.hidden = true;
+      narrative.textContent = '';
     }
     $('#decisionQualityCards').innerHTML = '';
     $('#decisionQualityChart').innerHTML = '';
@@ -94,6 +99,36 @@
     return isNumber(value) ? `$${value.toFixed(4)}` : '—';
   }
 
+  function formatSignedMetric(value) {
+    if (!isNumber(value)) return '—';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${rushApiFormatMetric(value)}`;
+  }
+
+  function policyVersionCount(runs) {
+    return new Set(runs.map(run => run.policy_graph_version).filter(Boolean)).size;
+  }
+
+  function totalImages(runs) {
+    return runs.reduce((sum, run) => sum + (Number(run.n_images || 0) || 0), 0);
+  }
+
+  function splitBoundaryText(runs) {
+    const totals = runs.reduce((acc, run) => {
+      const summary = run.consensus_summary || {};
+      const n = Number(run.n_images || summary.n_images_total || 0) || 0;
+      const split = Number(summary.n_images_split || 0) || 0;
+      const boundaryRate = isNumber(run.boundary_rate) ? run.boundary_rate : null;
+      const boundary = boundaryRate === null ? Number(summary.n_images_with_boundary_flag || 0) || 0 : boundaryRate * n;
+      acc.n += n;
+      acc.split += split;
+      acc.boundary += boundary;
+      return acc;
+    }, { n: 0, split: 0, boundary: 0 });
+    if (!totals.n) return '—';
+    return `${rushApiFormatMetric(totals.split / totals.n)} / ${rushApiFormatMetric(totals.boundary / totals.n)}`;
+  }
+
   function renderSummary(runs, rows) {
     const target = $('#decisionQualitySummary');
     if (!target) return;
@@ -102,10 +137,19 @@
       return isNumber(value) ? sum + value : sum;
     }, 0);
     const ensemble = rows.find(row => row.labeler_id === 'majority_vote') || rows.find(isEnsembleRow);
+    const bestLabeler = rows.find(row => !isEnsembleRow(row));
+    const ensembleLift = ensemble && bestLabeler && isNumber(ensemble.accuracy) && isNumber(bestLabeler.accuracy)
+      ? ensemble.accuracy - bestLabeler.accuracy
+      : null;
+    const imageCount = totalImages(runs);
     target.innerHTML = [
-      ['Total runs filtered', String(runs.length)],
-      ['Total cost (USD)', `$${totalCost.toFixed(4)}`],
-      ['Ensemble accuracy', ensemble ? rushApiFormatMetric(ensemble.accuracy) : '—']
+      ['Scored runs', String(runs.length)],
+      ['Images scored', imageCount ? String(imageCount) : '—'],
+      ['Policy versions', policyVersionCount(runs) ? String(policyVersionCount(runs)) : '—'],
+      ['Ensemble accuracy', ensemble ? rushApiFormatMetric(ensemble.accuracy) : '—'],
+      ['Ensemble vs best model', formatSignedMetric(ensembleLift)],
+      ['Split / boundary review load', splitBoundaryText(runs)],
+      ['Total cost (USD)', `$${totalCost.toFixed(4)}`]
     ].map(([label, value]) => `<div class="dq-summary-card"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
   }
 
@@ -117,6 +161,26 @@
     target.textContent = hasSmallN ? 'Sample sizes are small (N < 30); metrics are indicative, not statistical.' : '';
   }
 
+  function renderNarrative(runs, rows) {
+    const target = $('#decisionQualityNarrative');
+    if (!target) return;
+    if (!runs.length || !rows.length) {
+      target.hidden = true;
+      target.textContent = '';
+      return;
+    }
+    const ensemble = rows.find(row => row.labeler_id === 'majority_vote') || rows.find(isEnsembleRow);
+    const bestLabeler = rows.find(row => !isEnsembleRow(row));
+    const lift = ensemble && bestLabeler && isNumber(ensemble.accuracy) && isNumber(bestLabeler.accuracy)
+      ? ensemble.accuracy - bestLabeler.accuracy
+      : null;
+    const liftText = isNumber(lift)
+      ? `ensemble is ${formatSignedMetric(lift)} vs the best individual labeler`
+      : 'ensemble comparison is waiting on scored labeler rows';
+    target.innerHTML = `<strong>Demo read:</strong> treat this panel as the decision-quality gate before accepting policy growth — ${esc(liftText)}; watch false positives/false negatives and the split/boundary review load for regressions by policy version.`;
+    target.hidden = false;
+  }
+
   function renderCards(runs) {
     const target = $('#decisionQualityCards');
     if (!target) return;
@@ -124,12 +188,13 @@
     target.classList.add('dq-table-wrap');
     renderSummary(runs, rows);
     renderSmallNWarning(rows);
+    renderNarrative(runs, rows);
     if (!rows.length) {
       target.innerHTML = '<div class="empty-state">No labeler metrics found for the current filters.</div>';
       return;
     }
     const columns = [
-      ['Labeler', row => esc(row.labeler_id), false],
+      ['Labeler', row => `${esc(row.labeler_id)}${isEnsembleRow(row) ? ' <span class="dq-ensemble-pill">ensemble decision</span>' : ''}`, false],
       ['Type', row => esc(row.labeler_type), false],
       ['Accuracy', row => rushApiFormatMetric(row.accuracy), true],
       ['F1', row => rushApiFormatMetric(row.f1), true],
@@ -219,6 +284,11 @@
       if (warning) {
         warning.hidden = true;
         warning.textContent = '';
+      }
+      const narrative = $('#decisionQualityNarrative');
+      if (narrative) {
+        narrative.hidden = true;
+        narrative.textContent = '';
       }
       $('#decisionQualityCards').innerHTML = '';
       $('#decisionQualityChart').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;

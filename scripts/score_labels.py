@@ -84,11 +84,6 @@ def main() -> int:
         f"total_cost_usd: {float(cost.get('total_cost_usd') or 0):.6f} | "
         f"cost_per_1000_labels: {cost.get('cost_per_1000_labels')}"
     )
-    flip = result.get("flip_rate", {})
-    if flip.get("skipped"):
-        print(f"flip-rate skipped: {flip.get('reason')}")
-    else:
-        print(f"flip-rate wrote: {flip.get('output_dir')}")
     return 0
 
 

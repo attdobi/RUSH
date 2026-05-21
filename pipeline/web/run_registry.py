@@ -145,6 +145,10 @@ class RunRegistry:
             "--allow-spend",
             "--concurrency",
             str(request["concurrency"]),
+            "--policy-version",
+            request["policy_version"],
+            "--batch-size",
+            str(request.get("batch_size") or 20),
         ]
         if request.get("reasoning_effort") is not None:
             argv.extend(["--reasoning-effort", request["reasoning_effort"]])
@@ -171,6 +175,10 @@ class RunRegistry:
             "reasoning_effort": request.get("reasoning_effort"),
             "policy_version": request["policy_version"],
             "allow_spend": bool(request["allow_spend"]),
+            "allow_holdout": bool(request.get("allow_holdout")),
+            "limit": request.get("limit"),
+            "sample_ids": request.get("sample_ids"),
+            "batch_size": request.get("batch_size"),
         }
         self._write_state(state)
 
@@ -247,11 +255,7 @@ class RunRegistry:
                         state["status"] = "completed"
                         state["scoring_finished_at"] = utcnow_iso()
                         state["scoring_result"] = score_result
-                        flip = score_result.get("flip_rate", {}) if isinstance(score_result, dict) else {}
-                        if flip.get("skipped"):
-                            log.write(f"[web] skipped: {flip.get('reason', 'flip-rate needs ≥2 runs')}\n")
-                        else:
-                            log.write("[web] auto-scoring completed\n")
+                        log.write("[web] auto-scoring completed\n")
                     except Exception as exc:  # pragma: no cover - defensive job monitor path
                         state["status"] = "scoring_failed"
                         state["scoring_finished_at"] = utcnow_iso()

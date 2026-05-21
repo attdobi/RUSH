@@ -14,6 +14,7 @@
   let currentPayload = null;
   let currentVersion = '';
   let currentFocus = null;
+  const pendingPulseNodeIds = new Set();
 
   function qs(selector) {
     return document.querySelector(selector);
@@ -83,6 +84,18 @@
   function childrenFor(id, nodes) {
     if (!id) return [];
     return nodes.filter(node => node.id !== id && (node.parent === id || String(node.id).startsWith(`${id}.`)));
+  }
+
+  function nodeIdFromPolicyFile(path) {
+    return String(path || '').split('/').pop().replace(/\.md$/i, '');
+  }
+
+  function pulseNodes(nodeSelection, ids) {
+    if (!ids?.size) return;
+    const circles = nodeSelection.select('circle').filter(d => ids.has(d.id));
+    if (circles.empty()) return;
+    circles.classed('pulse-new', true);
+    window.setTimeout(() => circles.classed('pulse-new', false), 2000);
   }
 
   function hasChildren(node, nodes) {
@@ -167,8 +180,8 @@
 
   function panelShell(node, markdownHtml = '<p class="muted">Loading node markdown…</p>') {
     const color = nodeColor(node);
-    const backButton = currentFocus ? '<button id="policyGraphBack" type="button">Back to full graph</button>' : '';
-    return `${backButton}
+    const clearButton = currentFocus ? '<button id="policyGraphClear" type="button" aria-label="Clear selection and return to full graph">Clear selection</button>' : '';
+    return `${clearButton}
       <div class="policy-node-kicker" style="--node-color:${color}">${esc(node.id)}</div>
       <h3>${esc(node.title || node.id)}</h3>
       <dl class="policy-node-meta">
@@ -183,7 +196,7 @@
     const panel = qs('#policyGraphPanel');
     if (!panel || !node) return;
     panel.innerHTML = panelShell(node);
-    qs('#policyGraphBack')?.addEventListener('click', () => renderGraph(currentPayload, null));
+    qs('#policyGraphClear')?.addEventListener('click', () => applySelection(null));
 
     try {
       const version = currentVersion || currentPayload?.version || '';
@@ -199,17 +212,66 @@
     }
   }
 
-  function graphSubset(payload, focusId) {
-    const allNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-    if (!focusId) return allNodes;
-    const keep = new Set([focusId]);
-    allNodes.forEach(node => {
-      if (node.id === focusId || node.parent === focusId || String(node.id).startsWith(`${focusId}.`)) keep.add(node.id);
-    });
-    return allNodes.filter(node => keep.has(node.id));
+  function ancestorChain(id, nodes) {
+    const byId = new Map(nodes.map(n => [n.id, n]));
+    const chain = new Set();
+    let cur = byId.get(id);
+    while (cur && cur.parent && cur.parent !== cur.id) {
+      if (chain.has(cur.parent)) break; // safety: avoid cycles
+      chain.add(cur.parent);
+      cur = byId.get(cur.parent);
+    }
+    return chain;
   }
 
-  function renderGraph(payload, focusId = currentFocus) {
+  function descendantSet(id, nodes) {
+    const byParent = new Map();
+    nodes.forEach(n => {
+      if (!n.parent) return;
+      if (!byParent.has(n.parent)) byParent.set(n.parent, []);
+      byParent.get(n.parent).push(n.id);
+    });
+    const out = new Set();
+    const stack = [id];
+    while (stack.length) {
+      const cur = stack.pop();
+      (byParent.get(cur) || []).forEach(child => {
+        if (!out.has(child)) { out.add(child); stack.push(child); }
+      });
+    }
+    // Fallback: also walk id-prefix descendants in case `parent` field is missing
+    nodes.forEach(n => { if (n.id !== id && String(n.id).startsWith(`${id}.`)) out.add(n.id); });
+    return out;
+  }
+
+  function applySelection(id) {
+    currentFocus = id || null;
+    const panel = qs('#policyGraphPanel');
+    // Clear all persistent selection classes first (hover classes are untouched)
+    d3.selectAll('.policy-node').classed('selected ancestor descendant dimmed', false);
+    d3.selectAll('.policy-link').classed('ancestor-edge descendant-edge dimmed', false);
+    if (!id) {
+      if (panel) panel.innerHTML = '<h3>Policy node details</h3><p class="muted">Hover a node to trace its neighbors. Click a node to see its lineage to the root and read its Markdown.</p>';
+      return;
+    }
+    const nodes = currentPayload?.nodes || [];
+    const ancestors = ancestorChain(id, nodes);
+    const descendants = descendantSet(id, nodes);
+    const related = new Set([id, ...ancestors, ...descendants]);
+    d3.selectAll('.policy-node')
+      .classed('selected', d => d.id === id)
+      .classed('ancestor', d => ancestors.has(d.id))
+      .classed('descendant', d => descendants.has(d.id))
+      .classed('dimmed', d => !related.has(d.id));
+    d3.selectAll('.policy-link')
+      .classed('ancestor-edge', d => (ancestors.has(d.sourceId) && (d.targetId === id || ancestors.has(d.targetId))) || (ancestors.has(d.targetId) && (d.sourceId === id || ancestors.has(d.sourceId))))
+      .classed('descendant-edge', d => (descendants.has(d.sourceId) || d.sourceId === id) && (descendants.has(d.targetId) || d.targetId === id))
+      .classed('dimmed', d => !(related.has(d.sourceId) && related.has(d.targetId)));
+    const node = nodes.find(n => n.id === id);
+    if (node) openPanel(node);
+  }
+
+  function renderGraph(payload, focusId = null) {
     currentPayload = payload;
     currentVersion = payload.version || currentVersion;
     currentFocus = focusId;
@@ -221,9 +283,10 @@
       return;
     }
 
+    // Always render the full graph. focusId is now selection state only, not a filter.
     const allNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-    const nodeSet = new Set(graphSubset(payload, focusId).map(node => node.id));
-    const nodes = allNodes.filter(node => nodeSet.has(node.id)).map(node => ({ ...node }));
+    const nodes = allNodes.map(node => ({ ...node }));
+    const nodeSet = new Set(nodes.map(n => n.id));
     const links = (Array.isArray(payload.edges) ? payload.edges : [])
       .map(edge => ({ ...edge, source: edgeSource(edge), target: edgeTarget(edge), sourceId: edgeSource(edge), targetId: edgeTarget(edge) }))
       .filter(edge => nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId));
@@ -244,7 +307,7 @@
         </div>
         <aside id="policyGraphPanel" class="policy-graph-panel" aria-live="polite">
           <h3>Policy node details</h3>
-          <p class="muted">Hover a node to trace its neighbors. Click a node to read its Markdown and drill into its subtree when one exists.</p>
+          <p class="muted">Hover a node to trace its neighbors. Click a node to see its lineage to the root and read its Markdown.</p>
         </aside>
       </div>
       <div class="policy-graph-legend">${legendItems}</div>`;
@@ -301,7 +364,7 @@
       .attr('r', d => nodeRadius(d, allNodes))
       .attr('fill', '#111927')
       .attr('stroke', d => nodeColor(d))
-      .attr('stroke-width', d => d.id === focusId ? 4 : 2.4);
+      .attr('stroke-width', 2.4);
 
     node.append('text')
       .attr('y', d => nodeRadius(d, allNodes) + 13)
@@ -314,17 +377,12 @@
       .on('mouseout', clearHighlight)
       .on('click', (event, d) => {
         event.stopPropagation();
-        if (hasChildren(d, allNodes) && d.id !== currentFocus) {
-          renderGraph(payload, d.id);
-          window.requestAnimationFrame(() => openPanel(d));
-        } else {
-          openPanel(d);
-        }
+        applySelection(d.id);
       })
       .on('keydown', (event, d) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          openPanel(d);
+          applySelection(d.id);
         }
       });
 
@@ -343,17 +401,32 @@
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    const visiblePulseIds = new Set(nodes.map(d => d.id).filter(id => pendingPulseNodeIds.has(id)));
+    if (visiblePulseIds.size) {
+      let didPulse = false;
+      const triggerPulse = () => {
+        if (didPulse) return;
+        didPulse = true;
+        pulseNodes(node, visiblePulseIds);
+        visiblePulseIds.forEach(id => pendingPulseNodeIds.delete(id));
+      };
+      simulation.on('end.pulseNew', triggerPulse);
+      window.setTimeout(triggerPulse, 900);
+    }
+
     function highlight(id) {
       const neighbors = neighborMap.get(id) || new Set([id]);
-      node.classed('dimmed', d => !neighbors.has(d.id))
-        .classed('highlighted', d => neighbors.has(d.id));
-      link.classed('dimmed', d => d.sourceId !== id && d.targetId !== id)
-        .classed('highlighted', d => d.sourceId === id || d.targetId === id);
+      // Use hover-only classes so we never clobber persistent selection classes.
+      node.classed('hover-dim', d => !neighbors.has(d.id))
+        .classed('hover-trace', d => neighbors.has(d.id));
+      link.classed('hover-dim', d => d.sourceId !== id && d.targetId !== id)
+        .classed('hover-trace', d => d.sourceId === id || d.targetId === id);
     }
 
     function clearHighlight() {
-      node.classed('dimmed highlighted', false);
-      link.classed('dimmed highlighted', false);
+      // Only remove hover classes; selection classes (set by applySelection) stay intact.
+      node.classed('hover-dim hover-trace', false);
+      link.classed('hover-dim hover-trace', false);
     }
 
     function dragstarted(event, d) {
@@ -379,12 +452,67 @@
     if (!nodeId || !currentPayload) return false;
     const node = (currentPayload.nodes || []).find(item => item.id === nodeId);
     if (!node) return false;
-    openPanel(node);
-    qs('#policy-graph')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    applySelection(nodeId);
+    qs('#grow')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     return true;
   }
 
   window.rushOpenPolicyNode = openPolicyNodeById;
+
+  // Defensive backfill: ensure every node has a path to GA.root so the d3 view
+  // never shows orphaned floats when a proposal-added node lands without an
+  // explicit subtype_of edge in its frontmatter.
+  function backfillParentEdges(payload) {
+    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+    const edges = Array.isArray(payload?.edges) ? payload.edges : [];
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const existing = new Set(edges.map(e => `${edgeSource(e)}\u2192${edgeTarget(e)}`));
+    let addedExplicit = 0;
+    let addedPrefix = 0;
+    let addedRoot = 0;
+    function add(from, to, kind) {
+      const key = `${from}\u2192${to}`;
+      if (from === to || !nodeIds.has(from) || !nodeIds.has(to) || existing.has(key)) return false;
+      edges.push({ source: from, target: to, type: kind, synthetic: true });
+      existing.add(key);
+      return true;
+    }
+    function hasAnyEdge(id) {
+      for (const edge of edges) {
+        if (edgeSource(edge) === id || edgeTarget(edge) === id) return true;
+      }
+      return false;
+    }
+    nodes.forEach(node => {
+      if (!node || node.id === 'GA.root') return;
+      // 1. Honor explicit parent frontmatter when the target exists in this payload.
+      if (node.parent && nodeIds.has(node.parent)) {
+        if (add(node.id, node.parent, 'subtype_of_inferred')) addedExplicit += 1;
+        return;
+      }
+      // 2. Fall back to id-prefix parent (drop dotted segments until something matches).
+      const parts = String(node.id).split('.');
+      let attached = false;
+      for (let i = parts.length - 1; i > 0; i -= 1) {
+        const candidate = parts.slice(0, i).join('.');
+        if (nodeIds.has(candidate)) {
+          if (add(node.id, candidate, 'subtype_of_inferred')) addedPrefix += 1;
+          attached = true;
+          break;
+        }
+      }
+      if (attached) return;
+      // 3. Last resort: attach to GA.root so no node ever floats on stage.
+      if (!hasAnyEdge(node.id) && nodeIds.has('GA.root')) {
+        if (add(node.id, 'GA.root', 'subtype_of_inferred')) addedRoot += 1;
+      }
+    });
+    payload.edges = edges;
+    if (addedExplicit || addedPrefix || addedRoot) {
+      payload._backfilled_edges = { explicit: addedExplicit, prefix: addedPrefix, root: addedRoot };
+    }
+    return payload;
+  }
 
   async function loadGraph(version = '') {
     if (!window.RUSH_API?.available) {
@@ -395,11 +523,14 @@
       const query = version ? `?version=${encodeURIComponent(version)}` : '';
       status('Loading policy graph…');
       const payload = await rushApiGetJson(`/api/policy/graph${query}`);
+      backfillParentEdges(payload);
       currentFocus = null;
       currentVersion = payload.version || version;
       populateVersions(payload.available_versions, payload.version);
       renderGraph(payload, null);
-      status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s).`);
+      const backfilled = payload._backfilled_edges;
+      const backfillNote = backfilled ? ` · backfilled ${backfilled.explicit + backfilled.prefix + backfilled.root} parent edge(s)` : '';
+      status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s)${backfillNote}.`);
     } catch (error) {
       const wrap = qs('#policyGraphSvgWrap');
       if (wrap) wrap.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
@@ -421,7 +552,15 @@
   rushApiOnReady(initPolicyGraph);
   window.addEventListener('rush-api-catalog', event => {
     const versions = event.detail?.policyVersions || [];
-    const latest = event.detail?.currentPolicyVersion || versions[versions.length - 1]?.version || '';
+    const latestItem = versions[versions.length - 1];
+    const latest = event.detail?.currentPolicyVersion || latestItem?.version || latestItem || '';
     if (latest && latest !== currentVersion) loadGraph(latest);
+  });
+  window.addEventListener('rush-policy-accepted', event => {
+    const files = [
+      ...(Array.isArray(event.detail?.files_added) ? event.detail.files_added : []),
+      ...(Array.isArray(event.detail?.files_changed) ? event.detail.files_changed : [])
+    ];
+    files.map(nodeIdFromPolicyFile).filter(Boolean).forEach(id => pendingPulseNodeIds.add(id));
   });
 })();

@@ -50,6 +50,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Override the version label embedded in the cover page.",
     )
     parser.add_argument(
+        "--examples-root",
+        type=Path,
+        default=ROOT / "data",
+        help="Data directory, manifest file, or run directory to source node image examples from.",
+    )
+    parser.add_argument(
+        "--examples-per-node",
+        type=int,
+        default=3,
+        help="Maximum number of image examples to render under each policy node.",
+    )
+    parser.add_argument(
+        "--no-examples",
+        action="store_true",
+        help="Skip image example discovery and render the markdown-only PDF.",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Emit a JSON build summary on stdout.",
@@ -64,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
             args.source,
             args.output,
             policy_graph_version=args.policy_graph_version,
+            examples_root=args.examples_root,
+            examples_per_node=args.examples_per_node,
+            include_examples=not args.no_examples,
         )
     except PolicyPdfError as exc:
         print(f"error: {exc}", file=sys.stderr)

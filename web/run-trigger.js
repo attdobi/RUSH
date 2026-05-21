@@ -37,7 +37,7 @@
     'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 }
   };
 
-  const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false };
+  const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null };
 
   function estimatePerThousandLabels(model) {
     const pricing = PRICING_PER_MTOK[model];
@@ -79,15 +79,14 @@
 
   function buildStartPayload() {
     const models = selectedModels();
-    const split = ($('#runTriggerSplit')?.value || 'dev_golden').trim() || 'dev_golden';
+    const split = ($('#runTriggerSplit')?.value || 'all').trim() || 'all';
     const sampleIds = ($('#runTriggerSampleIds')?.value || '').trim();
     const limitText = ($('#runTriggerLimit')?.value || '').trim();
-    const limit = limitText ? Number.parseInt(limitText, 10) : null;
+    const batchSizeText = ($('#runTriggerBatchSize')?.value || '').trim();
+    const limit = sampleIds ? null : (limitText ? Number.parseInt(limitText, 10) : (Number.parseInt(batchSizeText, 10) || 20));
     const allowSpend = $('#runTriggerAllowSpend')?.checked === true;
     if (!models.length) throw new Error('Select at least one model.');
-    if (sampleIds && limit !== null) throw new Error('Use either limit or sample_ids, not both.');
-    if (!sampleIds && limit === null) throw new Error('Provide either a limit or sample_ids.');
-    if (limit !== null && (!Number.isInteger(limit) || limit < 1)) throw new Error('Limit must be a positive integer.');
+    if (limit !== null && (!Number.isInteger(limit) || limit < 1)) throw new Error('Batch size must be a positive integer.');
     return {
       models,
       split,
@@ -96,8 +95,9 @@
       policy_version: $('#runTriggerPolicyVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1',
       mode: $('#runTriggerMode')?.value || 'cold_start',
       allow_spend: allowSpend,
-      allow_holdout: split === 'holdout' && allowSpend,
-      concurrency: 1
+      allow_holdout: (split === 'holdout' || split === 'all') && allowSpend,
+      concurrency: 1,
+      batch_size: limit || 20
     };
   }
 
@@ -116,7 +116,44 @@
     state.pollTimer = window.setTimeout(() => pollStatus(), POLL_MS);
   }
 
+  function formatUsd(value) {
+    return isNumber(value) ? `$${value.toFixed(value >= 1 ? 2 : 4)}` : '—';
+  }
+
+  function compactModelName(model) {
+    return String(model || 'unknown')
+      .replace(/^openai\//, 'OpenAI ')
+      .replace(/^anthropic\//, 'Anthropic ')
+      .replace(/^google\//, 'Google ');
+  }
+
+  function renderStatusSummary(payload, completed, expected, errored) {
+    const target = $('#runTriggerSummary');
+    if (!target) return;
+    const models = selectedModels();
+    const modelCount = models.length || '—';
+    const imageCount = expected && models.length ? Math.ceil(expected / models.length) : ($('#runTriggerBatchSize')?.value || '20');
+    const succeeded = Math.max(0, completed - errored);
+    const started = payload.started_at ? new Date(payload.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    const finished = payload.finished_at ? new Date(payload.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (payload.running ? 'running' : '—');
+    const modelBreakdown = models.length ? models.map(compactModelName).join(' · ') : 'No models selected';
+    const cards = [
+      ['Images', imageCount, `split ${$('#runTriggerSplit')?.value || 'all'}`],
+      ['Models', modelCount, modelBreakdown],
+      ['Time', finished === 'running' ? 'Running' : finished, `started ${started}`],
+      ['Cost', formatUsd(payload.running_cost_usd_estimate), 'estimated live spend'],
+      ['Calls', `${succeeded}/${expected || '—'}`, errored ? `${errored} error(s)` : 'no errors reported']
+    ];
+    target.innerHTML = cards.map(([label, value, note]) => `
+      <article class="run-summary-metric">
+        <span>${esc(label)}</span>
+        <strong>${esc(value)}</strong>
+        <p>${esc(note)}</p>
+      </article>`).join('');
+  }
+
   function renderStatus(payload) {
+    state.lastPayload = payload;
     const panel = $('#runTriggerStatusPanel');
     if (panel) panel.hidden = false;
     const completed = Number(payload.completed_calls || 0);
@@ -140,8 +177,11 @@
     }
     const bar = $('#runTriggerProgressBar');
     if (bar) bar.style.width = `${width.toFixed(1)}%`;
+    renderStatusSummary(payload, completed, expected, errored);
+    const raw = $('#runTriggerRawJson');
+    if (raw) raw.textContent = JSON.stringify(payload, null, 2);
     const log = $('#runTriggerLogTail');
-    if (log) log.textContent = Array.isArray(payload.log_tail) ? payload.log_tail.join('\n') : '';
+    if (log) log.textContent = Array.isArray(payload.log_tail) ? payload.log_tail.slice(-8).join('\n') : '';
     const running = payload.running === true;
     const score = $('#scoreRunNow');
     if (score) score.hidden = running || payload.scoring_done === true;
@@ -206,7 +246,7 @@
   }
 
   async function initRunTrigger(api) {
-    const section = $('#run-trigger');
+    const section = $('#label');
     const hint = $('#apiUnavailableHint');
     if (!api.available) {
       if (section) section.hidden = true;
@@ -219,7 +259,7 @@
     bind();
     await rushApiLoadCatalog();
     populatePolicies();
-    status('Local API connected. Configure a run and click Start labeling run.');
+    status('Local API connected. Default run is N=20 across train+test (split=all).');
   }
 
   rushApiOnReady(initRunTrigger);

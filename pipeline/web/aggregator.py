@@ -5,7 +5,7 @@ under ``data/runs``; handlers can safely call these functions on live run data.
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 import json
 from itertools import combinations
 from pathlib import Path
@@ -47,25 +47,6 @@ def _read_json_if_exists(path: Path, runs_root: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def _read_jsonl_if_exists(path: Path, runs_root: Path) -> list[dict[str, Any]]:
-    safe = _resolve_under(path, runs_root)
-    if not safe.exists():
-        return []
-    rows: list[dict[str, Any]] = []
-    with safe.open("r", encoding="utf-8") as fh:
-        for line_no, raw in enumerate(fh, 1):
-            line = raw.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"{safe.name}:{line_no} invalid JSON: {exc}") from exc
-            if isinstance(row, dict):
-                rows.append(row)
-    return rows
-
-
 def _scored_run_dirs(runs_root: Path) -> list[Path]:
     root = runs_root.resolve()
     if not root.exists():
@@ -80,33 +61,6 @@ def _scored_run_dirs(runs_root: Path) -> list[Path]:
         ).exists():
             out.append(run_dir)
     return out
-
-
-def _latest_flip_rate_dir(runs_root: Path) -> Path | None:
-    root = runs_root.resolve()
-    flip_root = _resolve_under(root / "_flip_rate", root)
-    if not flip_root.exists():
-        return None
-    dirs = [
-        _resolve_under(path, root)
-        for path in flip_root.iterdir()
-        if path.is_dir()
-    ]
-    return sorted(dirs, key=lambda p: p.name)[-1] if dirs else None
-
-
-def _latest_flip_rate_summary(runs_root: Path) -> dict[str, Any] | None:
-    latest = _latest_flip_rate_dir(runs_root)
-    if latest is None:
-        return None
-    return _read_json_if_exists(latest / "flip_rate_summary.json", runs_root)
-
-
-def _latest_flip_rate_records(runs_root: Path) -> list[dict[str, Any]]:
-    latest = _latest_flip_rate_dir(runs_root)
-    if latest is None:
-        return []
-    return _read_jsonl_if_exists(latest / "flip_rate.jsonl", runs_root)
 
 
 def _policy_version(manifest: dict[str, Any], dq: dict[str, Any]) -> str | None:
@@ -166,7 +120,6 @@ def aggregate_decision_quality(
 ) -> dict[str, Any]:
     """Aggregate scored run decision-quality snapshots for the web API."""
     root = runs_root.resolve()
-    flip_summary = _latest_flip_rate_summary(root)
     runs: list[dict[str, Any]] = []
     discovered_policy_versions: set[str] = set()
 
@@ -197,7 +150,6 @@ def aggregate_decision_quality(
                 "cost": dq.get("cost") if isinstance(dq.get("cost"), dict) else None,
                 "consensus_summary": (consensus or {}).get("summary", {}),
                 "boundary_rate": _boundary_rate(consensus, borderline),
-                "flip_rate_summary": flip_summary,
             }
         )
 
@@ -268,37 +220,6 @@ def _image_repo_rel_paths(misalignment: dict[str, Any], borderline: dict[str, An
     for record in _borderline_group_records(borderline):
         remember(record)
     return image_paths
-
-
-def _policy_clarity_hot_spots(run_id: str, runs_root: Path, image_paths: dict[str, str]) -> list[dict[str, Any]]:
-    rows = []
-    for record in _latest_flip_rate_records(runs_root):
-        run_ids = record.get("run_ids")
-        if isinstance(run_ids, list) and run_id not in {str(r) for r in run_ids}:
-            continue
-        if isinstance(run_ids, list) or record.get("first_seen_run_id") == run_id or record.get("last_seen_run_id") == run_id:
-            rows.append(
-                _add_repo_rel_path(
-                    {
-                        "image_id": record.get("image_id"),
-                        "model_id": record.get("model_id"),
-                        "flip_rate": record.get("flip_rate"),
-                        "flip_count": record.get("flip_count"),
-                        "n_runs": record.get("n_runs"),
-                        "labels_observed": record.get("labels_observed", []),
-                    },
-                    image_paths,
-                )
-            )
-    rows.sort(
-        key=lambda row: (
-            -float(row.get("flip_rate") or 0),
-            -int(row.get("flip_count") or 0),
-            str(row.get("image_id") or ""),
-            str(row.get("model_id") or ""),
-        )
-    )
-    return rows[:_MAX_ITEMS]
 
 
 def _majority_wrong(consensus: dict[str, Any], misalignment: dict[str, Any], image_paths: dict[str, str]) -> list[dict[str, Any]]:
@@ -422,7 +343,6 @@ def compute_insights(run_dir: Path) -> dict[str, Any]:
 
     return {
         "run_id": run_id,
-        "policy_clarity_hot_spots": _policy_clarity_hot_spots(run_id, runs_root, image_paths),
         "majority_wrong": _majority_wrong(consensus, misalignment, image_paths),
         "model_disagreement": _model_disagreement(consensus, image_paths),
         "boundary_concentration": _boundary_concentration(borderline),

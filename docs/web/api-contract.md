@@ -140,8 +140,7 @@ Query: `?run_id=<id>` and/or `?policy_version=<v>` (both optional).
       ],
       "majority_vote": {"accuracy": 0.8, "n": 10},
       "consensus_summary": {"unanimous": 6, "split": 4},
-      "boundary_rate": 0.3,
-      "flip_rate_summary": {"images_with_flips": 2, "mean_flip_rate": 0.15}
+      "boundary_rate": 0.3
     }
   ],
   "policy_versions": ["Generative_AI.v0.1"]
@@ -153,10 +152,6 @@ Query: `?run_id=<id>` (required).
 ```json
 {
   "run_id": "...",
-  "policy_clarity_hot_spots": [
-    {"image_id": "dev_golden_0007", "flip_rate": 0.5,
-     "n_runs": 4, "labels_observed": ["gen_ai", "not_gen_ai"]}
-  ],
   "majority_wrong": [
     {"image_id": "...", "sme_truth": "ai_generated",
      "majority_label": "not_ai_generated",
@@ -200,11 +195,11 @@ Body:
 {
   "run_id": "20260510T230535-6a71939d",
   "base_version": "v0.1",
-  "model_id": "anthropic/claude-opus-4-7"
+  "model_id": "anthropic/claude-opus-4-6"
 }
 ```
-- **Default model: `anthropic/claude-opus-4-7`.** Only also accept
-  `openai/gpt-5.5` (high reasoning) when explicitly requested.
+- **Default model: `anthropic/claude-opus-4-6`.** Also accept
+  `openai/gpt-5.5` (high reasoning) and `anthropic/claude-opus-4-7` when explicitly requested.
 - Calls Claude through the Anthropic SDK (lazy import).
 - DOES NOT write a new policy version. Stores the proposal under
   `data/policy_proposals/<proposal_id>/`:
@@ -218,7 +213,7 @@ Response:
 {
   "proposal_id": "20260510T231500-cafef00d",
   "base_version": "v0.1",
-  "model_id": "anthropic/claude-opus-4-7",
+  "model_id": "anthropic/claude-opus-4-6",
   "files_changed": ["GA.boundary.low_quality_uncertain.md", "GA.root.md"],
   "files_added": ["GA.boundary.over_smoothed_skin.md"],
   "files_removed": [],
@@ -256,6 +251,115 @@ Returns proposal metadata + per-file diff in unified-diff text:
 ### `POST /api/policy/proposals/<proposal_id>/reject`
 - Moves the proposal directory under
   `data/policy_proposals/_archive/<proposal_id>/` and updates status.
+
+## 4.5. Policy growth (X1 — Phase 2c)
+
+Two additive proposal endpoints. Both write into the existing
+`data/policy_proposals/<proposal_id>/` shape, so the existing
+`GET /api/policy/proposals/<id>`, `POST .../accept`, and `POST .../reject`
+endpoints work unchanged. New additive metadata fields in `proposal.json`:
+`kind` (`"cold_start"` | `"grow_batch"` | absent for legacy `propose_diff`
+proposals), and for `grow_batch` proposals also `batch_index` and `batch`.
+
+### `POST /api/policy/cold-start`
+Seed a brand-new policy graph from a free-form task description. There is
+no base version; the proposal contains only `files_added`. Accepting the
+proposal creates `policy-graph/Generative_AI/v0.1/` (or the next free
+`vN.M`).
+
+Body:
+```json
+{
+  "task_description": "Classify whether an image is AI-generated...",
+  "domain": "Generative_AI",
+  "model_id": "openai/gpt-5.5"
+}
+```
+- `task_description` (required, non-empty string, truncated to 2000 chars
+  in stored metadata).
+- `domain` optional, defaults to `"Generative_AI"`. Only that domain is
+  supported today; anything else returns 400.
+- `model_id` optional; defaults to `DEFAULT_POLICY_MODEL` (`openai/gpt-5.5`).
+  Must be a member of `ALLOWED_POLICY_MODELS`.
+
+Response 200:
+```json
+{
+  "proposal_id": "20260518T230000-abc12345",
+  "kind": "cold_start",
+  "domain": "Generative_AI",
+  "base_version": null,
+  "task_description": "Classify whether an image is AI-generated...",
+  "model_id": "openai/gpt-5.5",
+  "created_at": "2026-05-18T23:00:00Z",
+  "status": "pending",
+  "files_changed": [],
+  "files_added": ["GA.root.md", "GA.visual_artifacts.md"],
+  "files_removed": []
+}
+```
+Errors: 400 (invalid/empty `task_description`, unsupported `domain`),
+422 (`status: "parse_error"` — LLM returned malformed JSON, the proposal
+is still persisted under `data/policy_proposals/<id>/raw_response.txt`),
+500 other.
+
+### `POST /api/policy/grow-batch`
+Grow an existing policy graph from a stratified 50/50 batch of
+SME-labeled misclassifications.
+
+Body:
+```json
+{
+  "run_id": "20260518T180000-abcdef01",
+  "base_version": "v0.1",
+  "batch_index": 0,
+  "batch_size": 50,
+  "model_id": "openai/gpt-5.5"
+}
+```
+- `run_id` (required, non-empty string).
+- `base_version` (required, matches `^v\d+\.\d+$`).
+- `batch_index` (required int, `>= 0`).
+- `batch_size` (required int, `>= 2`).
+- `model_id` optional; same allowed set as `cold-start`.
+
+**Stratification:** the misalignment records are split by `sme_truth` into
+positives (`"gen_ai"`) and negatives (`"not_gen_ai"`), each sorted by
+`image_id` for reproducibility. With `half = batch_size // 2`, the handler
+takes `positives[batch_index*half : (batch_index+1)*half]` and the same
+slice of negatives. If one class is exhausted, the remainder is filled
+from the other class's leftover rows (no wrap, no repeat). `batch.batch_size_actual`
+reports the actual rows assembled, which may be less than
+`batch_size_requested`.
+
+Response 200:
+```json
+{
+  "proposal_id": "20260518T231500-def67890",
+  "kind": "grow_batch",
+  "base_version": "v0.1",
+  "batch_index": 0,
+  "batch": {
+    "batch_size_requested": 50,
+    "batch_size_actual": 48,
+    "n_positives": 24,
+    "n_negatives": 24,
+    "sme_truth_positive_label": "gen_ai",
+    "sme_truth_negative_label": "not_gen_ai"
+  },
+  "run_id": "20260518T180000-abcdef01",
+  "model_id": "openai/gpt-5.5",
+  "created_at": "2026-05-18T23:15:00Z",
+  "status": "pending",
+  "files_changed": ["GA.visual_artifacts.md"],
+  "files_added": ["GA.visual_artifacts.eyes.md"],
+  "files_removed": []
+}
+```
+Errors: 400 (invalid body, missing required fields, malformed version,
+batch bounds violated), 404 (unknown `run_id` / `base_version` /
+missing `data/runs/<run_id>/scoring/misalignment.json` with no auto-score
+fallback), 422 (`status: "parse_error"`), 500 other.
 
 ### `POST /api/policy/build-pdf`
 Body: `{"version": "v0.1", "model_id": "anthropic/claude-opus-4-7"}`

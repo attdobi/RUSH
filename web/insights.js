@@ -1,11 +1,11 @@
 (() => {
   const PANELS = [
+    ['majority_wrong', 'Majority wrong'],
     ['model_disagreement', 'Model disagreement'],
     ['boundary_concentration', 'Boundary concentration'],
-    ['consistent_pair_disagreement', 'Consistent pair disagreement'],
-    ['majority_wrong', 'Majority wrong'],
-    ['policy_clarity_hot_spots', 'Policy clarity hot spots']
+    ['consistent_pair_disagreement', 'Consistent pair disagreement']
   ];
+  const SECONDARY_PANELS = PANELS.slice(1);
 
   const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
 
@@ -47,13 +47,19 @@
   }
 
   function imgThumbCell(row) {
-    const id = row?.image_id || '';
+    const isSynthetic = row?.is_synthetic_demo_candidate === true;
+    const id = row?.image_id || (isSynthetic ? row?.sample_id : '') || '';
     if (!id) return '<span class="muted">—</span>';
-    const src = thumbnailSrcForRepoPath(row?.repo_rel_path);
+    const syntheticSrc = isSynthetic && typeof window.syntheticThumbDataUri === 'function'
+      ? window.syntheticThumbDataUri(row)
+      : '';
+    const src = syntheticSrc
+      || thumbnailSrcForRepoPath(row?.repo_rel_path)
+      || (typeof window.thumbnailSrcForImageId === 'function' ? window.thumbnailSrcForImageId(id) : '');
     const thumb = src
       ? `<img class="row-thumb thumb-loading" src="${attr(src)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
-      : '';
-    return `<div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
+      : '<div class="row-thumb thumb-fallback mini-thumb-fallback"><strong>no image</strong></div>';
+    return `<div class="thumb-wrap insight-thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></div>`;
   }
 
   function votesHtml(votes) {
@@ -91,7 +97,7 @@
       button.disabled = true;
       if (scoreStatus) scoreStatus.textContent = `Computing scoring for ${runId}…`;
       status(`Computing scoring for ${runId}…`);
-      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute`, {});
+      await rushApiPostJson(`/api/runs/${encodeURIComponent(runId)}/compute-now`, {});
       await loadInsights();
     } catch (error) {
       const message = `Score failed: ${error.message}`;
@@ -99,20 +105,6 @@
       status(message, true);
       button.disabled = false;
     }
-  }
-
-  function renderHotSpots(rows) {
-    const filteredRows = rows.filter(row => Number(row.flip_rate || 0) >= 0.05);
-    if (!filteredRows.length) return '<div class="empty-state compact-empty">No policy clarity hot spots yet — needs ≥2 scored runs of the same images with flip-rate ≥ 0.05.</div>';
-    return table(['Image', 'Flip rate', 'Runs', 'Labels observed'], filteredRows.map(row => ({
-      imageId: row.image_id,
-      cells: [
-        imgThumbCell(row),
-        isNumber(row.flip_rate) ? row.flip_rate.toFixed(2) : '—',
-        esc(row.n_runs ?? '—'),
-        labelsHtml(row.labels_observed)
-      ]
-    })));
   }
 
   function renderMajorityWrong(rows) {
@@ -169,18 +161,19 @@
     const sourceRows = Array.isArray(rows) ? rows : [];
     const safeRows = sourceRows.slice(0, 10);
     let body = '';
-    if (key === 'policy_clarity_hot_spots') body = renderHotSpots(sourceRows);
-    else if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
+    if (key === 'majority_wrong') body = renderMajorityWrong(safeRows);
     else if (key === 'model_disagreement') body = renderDisagreement(safeRows);
     else if (key === 'boundary_concentration') body = renderBoundary(safeRows);
     else if (key === 'consistent_pair_disagreement') body = renderPairDisagreement(safeRows);
-    return `<article class="insight-panel"><h3>${esc(title)}</h3>${body}</article>`;
+    return `<article class="insight-panel ${key === 'majority_wrong' ? 'insight-panel-primary' : ''}"><h3>${esc(title)}</h3>${body}</article>`;
   }
 
   function renderInsights(payload) {
     const target = $('#insightsPanels');
     if (!target) return;
-    target.innerHTML = PANELS.map(([key, title]) => renderPanel(key, title, payload?.[key])).join('');
+    const majority = renderPanel('majority_wrong', 'Majority wrong — review these first', payload?.majority_wrong);
+    const secondary = SECONDARY_PANELS.map(([key, title]) => renderPanel(key, title, payload?.[key])).join('');
+    target.innerHTML = `${majority}<details class="insights-more"><summary>More cuts <span class="muted">model disagreement, boundary concentration, pair disagreement</span></summary><div class="insights-more-grid">${secondary}</div></details>`;
   }
 
   async function loadInsights() {
