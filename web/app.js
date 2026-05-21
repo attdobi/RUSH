@@ -191,6 +191,38 @@ function thumbnailSrcForPath(repoRelPath) {
   return `../${path}`;
 }
 
+// Deterministic synthetic SVG thumb for browser-only demo (no real image bytes available).
+function syntheticThumbDataUri(row) {
+  const label = String(row?.label || 'unknown');
+  const dataset = String(row?.dataset || 'demo');
+  const sampleId = String(row?.sample_id || row?.synthetic_repo_rel_path || dataset);
+  const hash = String(row?.sha256 || '').slice(0, 8) || sampleId.slice(-8);
+  // Deterministic hue from sha256/sample_id
+  let h = 0;
+  for (let i = 0; i < hash.length; i += 1) h = (h * 31 + hash.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  const isAi = label === 'ai_generated';
+  const accent = isAi ? `hsl(${(hue + 320) % 360}, 70%, 56%)` : `hsl(${(hue + 150) % 360}, 60%, 52%)`;
+  const bgA = `hsl(${hue}, 38%, 18%)`;
+  const bgB = `hsl(${(hue + 40) % 360}, 42%, 28%)`;
+  const labelText = isAi ? 'AI' : 'REAL';
+  const idShort = sampleId.length > 14 ? `${sampleId.slice(0, 12)}…` : sampleId;
+  const datasetShort = dataset.length > 10 ? `${dataset.slice(0, 9)}…` : dataset;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'>` +
+    `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>` +
+      `<stop offset='0' stop-color='${bgA}'/><stop offset='1' stop-color='${bgB}'/>` +
+    `</linearGradient></defs>` +
+    `<rect width='200' height='200' rx='14' fill='url(#g)'/>` +
+    `<circle cx='150' cy='52' r='30' fill='${accent}' opacity='0.85'/>` +
+    `<rect x='14' y='14' width='${datasetShort.length * 8 + 14}' height='22' rx='11' fill='rgba(0,0,0,0.45)'/>` +
+    `<text x='${14 + 7}' y='30' font-family='Inter,system-ui,sans-serif' font-size='12' font-weight='700' fill='#dce8ff'>${esc(datasetShort)}</text>` +
+    `<text x='100' y='118' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='44' font-weight='900' fill='#fff' opacity='0.92'>${labelText}</text>` +
+    `<text x='100' y='154' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='11' font-weight='600' fill='#dce8ff' opacity='0.8'>${esc(idShort)}</text>` +
+    `<text x='100' y='180' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='9' font-weight='500' fill='#aab8d3' opacity='0.65'>demo placeholder · no image bytes</text>` +
+  `</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
 function thumbnailSrcForImageId(imageId) {
   if (!imageId) return null;
   const path = `data/images/genai-classification/thumbnails/${imageId}.jpg`;
@@ -199,9 +231,11 @@ function thumbnailSrcForImageId(imageId) {
 
 window.thumbnailSrcForPath = thumbnailSrcForPath;
 window.thumbnailSrcForImageId = thumbnailSrcForImageId;
+window.syntheticThumbDataUri = syntheticThumbDataUri;
 
 function imgSrc(row) {
-  return thumbnailSrcForPath(row.repo_rel_path || row.synthetic_repo_rel_path);
+  if (row && row.is_synthetic_demo_candidate === true) return syntheticThumbDataUri(row);
+  return thumbnailSrcForPath(row?.repo_rel_path || row?.synthetic_repo_rel_path);
 }
 
 function safeImageFallback(label = 'image unavailable', detail = 'local path missing') {

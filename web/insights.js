@@ -47,9 +47,14 @@
   }
 
   function imgThumbCell(row) {
-    const id = row?.image_id || '';
+    const isSynthetic = row?.is_synthetic_demo_candidate === true;
+    const id = row?.image_id || (isSynthetic ? row?.sample_id : '') || '';
     if (!id) return '<span class="muted">—</span>';
-    const src = thumbnailSrcForRepoPath(row?.repo_rel_path)
+    const syntheticSrc = isSynthetic && typeof window.syntheticThumbDataUri === 'function'
+      ? window.syntheticThumbDataUri(row)
+      : '';
+    const src = syntheticSrc
+      || thumbnailSrcForRepoPath(row?.repo_rel_path)
       || (typeof window.thumbnailSrcForImageId === 'function' ? window.thumbnailSrcForImageId(id) : '');
     const thumb = src
       ? `<img class="row-thumb thumb-loading" src="${attr(src)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />`
