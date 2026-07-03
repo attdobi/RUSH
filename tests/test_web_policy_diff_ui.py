@@ -25,4 +25,6 @@ def test_policy_diff_version_chips_have_single_current_placeholder() -> None:
     assert "payload.build_version || (payload.base_version ? `${payload.base_version}+`" in source
     assert "proposalVersionArrow" in html
     assert "proposalBuildVersionLabel" in html
-    assert "policy-diff.js?v=demo-polish-v3-integrated" in html
+    # Cache-buster: any versioned query string on policy-diff.js is fine.
+    import re as _re
+    assert _re.search(r"policy-diff\.js\?v=[^\"']+", html)
