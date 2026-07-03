@@ -1,0 +1,129 @@
+{
+  "allocation": {
+    "train": {
+      "0": 200,
+      "1": 200,
+      "2": 200,
+      "3": 200,
+      "4": 200,
+      "5": 200,
+      "6": 200,
+      "7": 200,
+      "8": 200,
+      "9": 200
+    },
+    "val": {
+      "0": 50,
+      "1": 50,
+      "2": 50,
+      "3": 50,
+      "4": 50,
+      "5": 50,
+      "6": 50,
+      "7": 50,
+      "8": 50,
+      "9": 50
+    }
+  },
+  "dataset": "mnist",
+  "label_assumptions": [
+    "Assumption: labels_and_paths.csv 'path' column is unreliable and ignored; payload resolved as <source>/data/f{index}.png keyed by CSV row index.",
+    "Assumption: verified index-based split \u2014 0..59999 train, 60000..69999 val; no reshuffling across the boundary."
+  ],
+  "n_train": 2000,
+  "n_val": 500,
+  "sampling_version": "mnist-sampling-v1",
+  "seed": 20260703,
+  "source_counts": {
+    "train/0": {
+      "available_unique": 5923,
+      "sampled": 200
+    },
+    "train/1": {
+      "available_unique": 6742,
+      "sampled": 200
+    },
+    "train/2": {
+      "available_unique": 5958,
+      "sampled": 200
+    },
+    "train/3": {
+      "available_unique": 6131,
+      "sampled": 200
+    },
+    "train/4": {
+      "available_unique": 5842,
+      "sampled": 200
+    },
+    "train/5": {
+      "available_unique": 5421,
+      "sampled": 200
+    },
+    "train/6": {
+      "available_unique": 5918,
+      "sampled": 200
+    },
+    "train/7": {
+      "available_unique": 6265,
+      "sampled": 200
+    },
+    "train/8": {
+      "available_unique": 5851,
+      "sampled": 200
+    },
+    "train/9": {
+      "available_unique": 5949,
+      "sampled": 200
+    },
+    "val/0": {
+      "available_unique": 980,
+      "sampled": 50
+    },
+    "val/1": {
+      "available_unique": 1135,
+      "sampled": 50
+    },
+    "val/2": {
+      "available_unique": 1032,
+      "sampled": 50
+    },
+    "val/3": {
+      "available_unique": 1010,
+      "sampled": 50
+    },
+    "val/4": {
+      "available_unique": 982,
+      "sampled": 50
+    },
+    "val/5": {
+      "available_unique": 892,
+      "sampled": 50
+    },
+    "val/6": {
+      "available_unique": 958,
+      "sampled": 50
+    },
+    "val/7": {
+      "available_unique": 1028,
+      "sampled": 50
+    },
+    "val/8": {
+      "available_unique": 974,
+      "sampled": 50
+    },
+    "val/9": {
+      "available_unique": 1009,
+      "sampled": 50
+    }
+  },
+  "split_index_ranges": {
+    "train": [
+      0,
+      59999
+    ],
+    "val": [
+      60000,
+      69999
+    ]
+  }
+}

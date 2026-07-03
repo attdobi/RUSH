@@ -6,3 +6,9 @@
 !genai-classification/.gitignore
 !genai-classification/README.md
 !genai-classification/**/.gitkeep
+!mnist-classification/.gitignore
+!mnist-classification/README.md
+!mnist-classification/**/.gitkeep
+# MNIST manifests are deterministic + regenerable but committed for the demo.
+!mnist-classification/manifests/*.csv
+!mnist-classification/manifests/*.json
