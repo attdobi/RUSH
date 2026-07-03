@@ -1,0 +1,11 @@
+# MNIST classification image payloads are local-only by default.
+# Keep the directory skeleton, documentation, and deterministic manifests in git;
+# keep the bulk copied PNG payloads (source-datasets, thumbnails) out.
+*
+!.gitignore
+!README.md
+!*/
+!.gitkeep
+# Deterministic label manifests are small and regenerable; commit them for the demo.
+!manifests/*.csv
+!manifests/*.json
