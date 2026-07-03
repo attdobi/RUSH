@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +59,20 @@ def load_ground_truth(
     *,
     truth_tiers: tuple[str, ...] = ("gold", "platinum", "gold_candidate"),
     splits: tuple[str, ...] | None = None,
+    label_coercer: Callable[[str, int | None], str] | None = None,
 ) -> dict[str, GroundTruth]:
     """Load SME ground truth keyed by image_id (sample_id).
 
     The combined_labels manifest is JSONL; each line carries the SME label.
     `truth_tiers` filters which records count as ground truth; default keeps
     gold/platinum AND the cold-start gold_candidate so v1 has data to score.
+
+    `label_coercer` maps ``(raw_label, label_int)`` to the task vocabulary.
+    It defaults to the binary GenAI coercer (:func:`_coerce_truth_label`);
+    multiclass tasks pass their own (see
+    :func:`pipeline.scoring.decision_quality_multiclass.make_label_coercer`).
     """
+    coerce = label_coercer or _coerce_truth_label
     if not manifest_path.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
     out: dict[str, GroundTruth] = {}
@@ -89,7 +96,7 @@ def load_ground_truth(
             continue
         out[sample_id] = GroundTruth(
             image_id=sample_id,
-            label=_coerce_truth_label(record.get("label", ""), record.get("label_int")),
+            label=coerce(record.get("label", ""), record.get("label_int")),
             truth_tier=tier,
             split=record.get("split", ""),
             repo_rel_path=record.get("repo_rel_path", ""),
