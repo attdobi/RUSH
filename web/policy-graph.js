@@ -16,6 +16,23 @@
   let currentFocus = null;
   const pendingPulseNodeIds = new Set();
 
+  function activeDemo() {
+    return typeof window.rushActiveDemo === 'function' ? window.rushActiveDemo() : null;
+  }
+  function isMnistDemo() {
+    return activeDemo()?.id === 'mnist';
+  }
+  function policyGraphArea() {
+    return activeDemo()?.policyGraph?.area || 'Generative_AI';
+  }
+  function showNotImplemented() {
+    const wrap = qs('#policyGraphSvgWrap');
+    if (wrap) wrap.innerHTML = '<div class="empty-state">MNIST policy graph browser not implemented yet.</div>';
+    const title = qs('#policyGraphTitle');
+    if (title) title.textContent = 'MNIST policy graph';
+    status('MNIST policy graph browser not implemented yet.');
+  }
+
   function qs(selector) {
     return document.querySelector(selector);
   }
@@ -200,7 +217,7 @@
 
     try {
       const version = currentVersion || currentPayload?.version || '';
-      const path = `/policy-graph/Generative_AI/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
+      const path = `/policy-graph/${encodeURIComponent(policyGraphArea())}/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
       const response = await fetch(path);
       if (!response.ok) throw new Error(`Markdown not found (${response.status})`);
       const markdown = await response.text();
@@ -515,6 +532,12 @@
   }
 
   async function loadGraph(version = '') {
+    // The current d3 loader is GenAI-specific. For other demos (mnist) show a
+    // clear placeholder instead of loading/crashing on a GA-shaped payload.
+    if (isMnistDemo()) {
+      showNotImplemented();
+      return;
+    }
     if (!window.RUSH_API?.available) {
       setUnavailable();
       return;
@@ -539,6 +562,10 @@
   }
 
   async function initPolicyGraph(api) {
+    if (isMnistDemo()) {
+      showNotImplemented();
+      return;
+    }
     if (!api.available) {
       setUnavailable();
       return;
@@ -551,6 +578,7 @@
 
   rushApiOnReady(initPolicyGraph);
   window.addEventListener('rush-api-catalog', event => {
+    if (isMnistDemo()) return;
     const versions = event.detail?.policyVersions || [];
     const latestItem = versions[versions.length - 1];
     const latest = event.detail?.currentPolicyVersion || latestItem?.version || latestItem || '';

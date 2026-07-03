@@ -193,9 +193,10 @@
     try {
       setBusy(true);
       status('Calling LLM (this may take 30s)…');
+      const domain = (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.area) || 'Generative_AI';
       const resp = await rushApiPostJson('/api/policy/cold-start', {
         task_description: taskDescription,
-        domain: 'Generative_AI',
+        domain,
         model_id: modelId
       });
       state.latestProposalId = resp.proposal_id || null;
