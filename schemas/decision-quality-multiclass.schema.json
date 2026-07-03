@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RUSH DecisionQualitySnapshot (multiclass)",
+  "description": "Multiclass decision-quality snapshot. Distinct shape from the binary decision-quality.schema.json; per-labeler metrics carry per-class one-vs-rest rows, macro averages, and a confusion matrix.",
+  "type": "object",
+  "required": [
+    "policy_graph_version",
+    "task",
+    "classes",
+    "ground_truth_tier",
+    "labelers"
+  ],
+  "properties": {
+    "policy_graph_version": {
+      "type": "string"
+    },
+    "task": {
+      "type": "string"
+    },
+    "classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ground_truth_tier": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "gold",
+          "platinum"
+        ]
+      }
+    },
+    "labelers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "labeler_id",
+          "labeler_type",
+          "metrics"
+        ],
+        "properties": {
+          "labeler_id": {
+            "type": "string"
+          },
+          "labeler_type": {
+            "enum": [
+              "llm",
+              "ensemble",
+              "human"
+            ]
+          },
+          "metrics": {
+            "$ref": "#/$defs/multiclass_metrics"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "warning": {
+      "type": "string"
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "ratio_or_null": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "per_class_metrics": {
+      "type": "object",
+      "required": [
+        "precision",
+        "recall",
+        "f1",
+        "fpr",
+        "support"
+      ],
+      "properties": {
+        "precision": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "recall": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "f1": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "fpr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "support": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "multiclass_metrics": {
+      "type": "object",
+      "required": [
+        "accuracy",
+        "n",
+        "n_abstained",
+        "macro_precision",
+        "macro_recall",
+        "macro_f1",
+        "per_class",
+        "confusion_matrix"
+      ],
+      "properties": {
+        "accuracy": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_abstained": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "macro_precision": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "macro_recall": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "macro_f1": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "per_class": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/per_class_metrics"
+          }
+        },
+        "confusion_matrix": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "cost_per_1000_labels": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
