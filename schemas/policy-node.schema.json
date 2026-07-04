@@ -28,6 +28,7 @@
       "enum": [
         "category",
         "boundary",
+        "digit_class",
         "exception",
         "example",
         "clarification",

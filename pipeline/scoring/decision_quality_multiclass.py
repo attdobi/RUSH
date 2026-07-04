@@ -231,6 +231,7 @@ def compute_decision_quality_multiclass(
     by_labeler: dict[str, list[tuple[str, str]]] = defaultdict(list)
     abstain_counts: dict[str, int] = defaultdict(int)
     per_image: dict[str, dict[str, str]] = defaultdict(dict)
+    class_set = set(task.classes)
 
     for v in votes:
         image_id = v.get("image_id")
@@ -239,6 +240,12 @@ def compute_decision_quality_multiclass(
             continue
         labeler = _common.labeler_id_for(v)
         label = v.get("label", task.abstain)
+        if label not in class_set and label != task.abstain:
+            import re
+
+            match = re.fullmatch(r"MD\.digit\.(\d+)", str(v.get("l2_label", "")))
+            if match and match.group(1) in class_set:
+                label = match.group(1)
         per_image[image_id][labeler] = label
         if label == task.abstain:
             abstain_counts[labeler] += 1

@@ -109,6 +109,7 @@ class LabelResponse:
     # labeler invoked and the exact policy clauses it leaned on. Empty
     # defaults preserve backwards compatibility for callers/tests built
     # against the old six-field schema.
+    is_boundary_between: list[str] = field(default_factory=list)
     policy_citations: list[str] = field(default_factory=list)
     policy_quotes: list[str] = field(default_factory=list)
     justification_too_long: bool = False
@@ -260,7 +261,22 @@ def _coerce_str_list(value: Any, *, cap: int | None = None) -> list[str]:
     return items
 
 
-def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
+def _coerce_string_list(value: Any) -> list[str]:
+    """Coerce a provider field into a list of non-empty strings."""
+    if value is None:
+        return []
+    raw_items = value if isinstance(value, list) else [value]
+    out: list[str] = []
+    for item in raw_items:
+        text = str(item).strip() if item is not None else ""
+        if text:
+            out.append(text)
+    return out
+
+
+def coerce_label_fields(
+    parsed: dict[str, Any], ontology: Any | None = None
+) -> dict[str, Any]:
     """Normalize a parsed label dict to the canonical label fields.
 
     Missing fields fall back to safe defaults (``label="abstain"``,
@@ -276,6 +292,10 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
         asks for ≤~350 tokens; runaway output triggers this flag). Callers
         should still validate against ``schemas/llm-output.schema.json``
         before persistence; the flag is informational only.
+
+    Ontology-aware callers can pass ``ontology`` to validate
+    ``is_boundary_between`` against the area's L1 classes. ``None`` preserves
+    the historical GenAI behavior: no boundary pair is required.
     """
     from pipeline.providers._prompts import (
         MAX_JUSTIFICATION_CHARS,
@@ -291,6 +311,27 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
     if difficulty not in {"high", "medium", "low"}:
         difficulty = "medium"
     is_boundary = _coerce_bool(parsed.get("is_boundary"), default=False)
+    is_boundary_between = _coerce_string_list(parsed.get("is_boundary_between"))
+    l1_classes = tuple(
+        getattr(ontology, "l1_classes", ("gen_ai", "not_gen_ai"))
+        if ontology is not None
+        else ("gen_ai", "not_gen_ai")
+    )
+    require_boundary_between = bool(
+        getattr(ontology, "require_boundary_between", False)
+        if ontology is not None
+        else False
+    )
+    boundary_between_invalid = False
+    if not is_boundary:
+        is_boundary_between = []
+    elif require_boundary_between:
+        allowed = set(l1_classes)
+        boundary_between_invalid = (
+            len(is_boundary_between) != 2
+            or len(set(is_boundary_between)) != 2
+            or any(item not in allowed for item in is_boundary_between)
+        )
     policy_citations = _coerce_str_list(parsed.get("policy_citations"))
     policy_quotes = _coerce_str_list(
         parsed.get("policy_quotes"), cap=MAX_POLICY_QUOTES
@@ -303,6 +344,8 @@ def coerce_label_fields(parsed: dict[str, Any]) -> dict[str, Any]:
         "confidence": confidence,
         "difficulty": difficulty,
         "is_boundary": is_boundary,
+        "is_boundary_between": is_boundary_between,
+        "boundary_between_invalid": boundary_between_invalid,
         "policy_citations": policy_citations,
         "policy_quotes": policy_quotes,
         "justification_too_long": justification_too_long,
@@ -342,6 +385,7 @@ def abstain_response(
         confidence=None,
         difficulty="high",
         is_boundary=False,
+        is_boundary_between=[],
         raw_provider_payload=payload,
         error=error,
         latency_ms=latency_ms,
