@@ -421,7 +421,8 @@ def _build_work_batches(
 
     ``batch_size=1`` intentionally preserves the historical sample-major
     dispatch order byte-for-byte. Larger batches group by model because one
-    provider batch call can only target one concrete model.
+    provider batch call can only target one concrete model. Local models keep
+    singleton dispatch even when API models are batched.
     """
     if batch_size == 1:
         return [[(s, m)] for s in selected for m in model_specs]
@@ -429,7 +430,8 @@ def _build_work_batches(
     batches: list[list[tuple[SampleRecord, ModelSpec]]] = []
     for spec in model_specs:
         model_pairs = [(sample, spec) for sample in selected]
-        batches.extend(_chunked(model_pairs, batch_size))
+        spec_batch_size = 1 if spec.model_id.startswith("local/") else batch_size
+        batches.extend(_chunked(model_pairs, spec_batch_size))
     return batches
 
 

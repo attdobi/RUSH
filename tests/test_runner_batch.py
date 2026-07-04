@@ -149,6 +149,39 @@ def test_batching_is_per_model_one_provider_call_per_model_batch() -> None:
             assert client.batch_models == [{model_id}, {model_id}]
 
 
+def test_local_models_stay_single_image_when_api_models_batch() -> None:
+    with TemporaryDirectory() as tmp:
+        clients: dict[str, CountingBatchClient] = {}
+
+        def factory(spec):
+            client = CountingBatchClient(spec.model_id)
+            clients[spec.model_id] = client
+            return client
+
+        summary = run_labeling(
+            models=["local/gemma-4-26b-a4b-qat", "openai/gpt-5.5"],
+            split="dev_golden",
+            limit=5,
+            samples=SAMPLES,
+            runs_root=Path(tmp),
+            client_factory=factory,
+            concurrency=1,
+            batch_size=3,
+        )
+
+        local_client = clients["local/gemma-4-26b-a4b-qat"]
+        api_client = clients["openai/gpt-5.5"]
+        assert summary.expected_calls == 10
+        assert summary.completed_calls == 10
+        assert summary.effective_batches == 7
+        assert local_client.label_calls == 5
+        assert local_client.batch_calls == 0
+        assert api_client.label_calls == 0
+        assert api_client.batch_calls == 2
+        assert api_client.batch_sizes == [3, 2]
+        assert api_client.batch_models == [{"openai/gpt-5.5"}, {"openai/gpt-5.5"}]
+
+
 def test_batched_outputs_match_single_mode_labels() -> None:
     models = ["openai/gpt-5.5", "anthropic/claude-opus-4-6"]
     with TemporaryDirectory() as tmp_single, TemporaryDirectory() as tmp_batched:

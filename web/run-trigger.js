@@ -94,6 +94,22 @@
       .filter(Boolean);
   }
 
+  function isLocalModel(modelId) {
+    return String(modelId || '').startsWith('local/');
+  }
+
+  function parsePositiveInt(raw, fallback, label) {
+    const text = String(raw ?? '').trim();
+    if (text && !/^\d+$/.test(text)) {
+      throw new Error(`${label} must be a positive integer.`);
+    }
+    const value = text ? Number.parseInt(text, 10) : fallback;
+    if (!Number.isInteger(value) || value < 1) {
+      throw new Error(`${label} must be a positive integer.`);
+    }
+    return value;
+  }
+
   function renderModelPick(model, checked, isLocal) {
     let estimateText;
     if (isLocal) {
@@ -128,12 +144,13 @@
     const models = selectedModels();
     const split = ($('#runTriggerSplit')?.value || 'all').trim() || 'all';
     const sampleIds = ($('#runTriggerSampleIds')?.value || '').trim();
-    const limitText = ($('#runTriggerLimit')?.value || '').trim();
-    const batchSizeText = ($('#runTriggerBatchSize')?.value || '').trim();
-    const limit = sampleIds ? null : (limitText ? Number.parseInt(limitText, 10) : (Number.parseInt(batchSizeText, 10) || 20));
+    const kPerSplit = parsePositiveInt($('#runTriggerBatchSize')?.value, 20, 'k per split');
+    const requestedImagesPerCall = parsePositiveInt($('#runTriggerImagesPerCall')?.value, 5, 'Images per API call');
+    const allSelectedModelsAreLocal = models.length > 0 && models.every(isLocalModel);
+    const batchSize = allSelectedModelsAreLocal ? 1 : requestedImagesPerCall;
+    const limit = sampleIds ? null : kPerSplit;
     const allowSpend = $('#runTriggerAllowSpend')?.checked === true;
     if (!models.length) throw new Error('Select at least one model.');
-    if (limit !== null && (!Number.isInteger(limit) || limit < 1)) throw new Error('Batch size must be a positive integer.');
     return {
       demo: activeDemo().id || 'genai',
       area: activeDemo().policyGraph?.area || 'Generative_AI',
@@ -146,7 +163,7 @@
       allow_spend: allowSpend,
       allow_holdout: (split === 'holdout' || split === 'all') && allowSpend,
       concurrency: 1,
-      batch_size: limit || 20
+      batch_size: batchSize
     };
   }
 
