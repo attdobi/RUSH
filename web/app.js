@@ -1089,6 +1089,9 @@ function bindScoreAlgorithmControls() {
   syncScoreControlsFromRunTrigger();
   $('#scoreKPerSplit')?.addEventListener('input', pushScoreControlsToRunTrigger);
   $('#scoreSplitMirror')?.addEventListener('change', pushScoreControlsToRunTrigger);
+  $('#runTriggerBatchSize')?.addEventListener('input', (event) => {
+    if (event?.target) event.target.dataset.userEdited = '1';
+  });
   $('#runTriggerBatchSize')?.addEventListener('input', syncScoreControlsFromRunTrigger);
   $('#runTriggerSplit')?.addEventListener('change', syncScoreControlsFromRunTrigger);
 }
@@ -1550,6 +1553,14 @@ function applyDemoChrome() {
     });
   }
   document.body.dataset.rushDemo = demo.id;
+  // Apply the per-demo default k (images per split). MNIST defaults to 50
+  // (5 per digit class) to maximize learnings per batch; genai stays at 20.
+  if (Number.isFinite(demo.defaultK)) {
+    const runK = document.getElementById('runTriggerBatchSize');
+    if (runK && !runK.dataset.userEdited) runK.value = String(demo.defaultK);
+    const scoreK = document.getElementById('scoreKPerSplit');
+    if (scoreK && !scoreK.dataset.userEdited) scoreK.value = String(demo.defaultK);
+  }
   const benchmark = document.getElementById('benchmarkComparison');
   if (benchmark) benchmark.hidden = demo.id !== 'mnist';
   const provenance = document.getElementById('gp0Provenance');
