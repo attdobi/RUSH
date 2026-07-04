@@ -369,6 +369,7 @@ function renderStats() {
   $('#demoStats').innerHTML = [
     ['Sampled records', summary.total ?? (summary.n_dev_golden + summary.n_holdout), 'default N = 100 per split'],
     ['Truth tier', 'gold candidates', 'SME quality assumed for demo'],
+    ['Label', 'LLM labeling comes next', 'This preview makes no model calls; bulk LLM labeling comes next, then SME/human override feeds the policy graph.'],
     ['Source', summary.source || demoState.source, summary.samplingVersion ? `manifest ${summary.samplingVersion}` : 'real manifests if available'],
     ['Leakage check', demoState.result.leakageChecks?.ok ? 'pass' : 'review', 'dev/holdout path + hash separation']
   ].map(([label, value, note]) => `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note)}</p></article>`).join('') +
