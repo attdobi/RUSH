@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RUSH GenAI Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-v4" />
-  <script src="demos.js?v=demo-mnist-v4"></script>
+  <title>RUSH Demo</title>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-v5" />
+  <script src="demos.js?v=demo-mnist-v5"></script>
 </head>
 <body>
   <header class="hero">
@@ -40,7 +40,7 @@
       <div class="hero-copy">
         <p class="eyebrow" id="heroEyebrow">Bulk LLM image audit with SME policy</p>
         <h1 id="heroH1">RUSH turns SME policy into a repeatable image-audit loop.</h1>
-        <p class="lede">Sample images, seed a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
+        <p class="lede" id="heroLede">Sample images, seed a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
         <div class="hero-actions">
           <a class="primary-action" id="heroCta" href="#sample">Start GenAI demo</a>
         </div>
@@ -59,11 +59,12 @@
     <section id="sample" class="section demo-shell">
       <div class="section-head compact">
         <p class="eyebrow">§1 Sample</p>
-        <h2>Sample the golden set.</h2>
-        <p>Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
+        <h2 id="sampleH2">Sample the golden set.</h2>
+        <p id="sampleSub">Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
       </div>
 
       <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
+      <div id="mnistConfusionStrip" class="mnist-confusion-strip" hidden></div>
       <details class="sampling-settings">
         <summary>Sampling settings <span class="muted">(seed, N, mode, leakage)</span></summary>
         <div class="demo-controls" aria-label="Sampler controls">
@@ -104,11 +105,11 @@
       <div class="section-head compact">
         <p class="eyebrow">§2 Grow the policy</p>
         <h2>Make policy growth the demo loop.</h2>
-        <p>Seed → label → propose → accept → back to labeling. The graph is versioned, and every accepted SME update strengthens the next run.</p>
+        <p id="growSub">Seed → label → propose → accept → back to labeling. The graph is versioned, and every accepted SME update strengthens the next run.</p>
       </div>
       <div class="growth-loop-strip" aria-label="Policy growth loop steps">
         <article><span>1</span><strong>Seed</strong><p>Start from a cold policy graph or choose a warm version.</p></article>
-        <article><span>2</span><strong>Run a labeling pass</strong><p>Jump to §3 for the default 20-image train+test batch.</p></article>
+        <article><span>2</span><strong>Run a labeling pass</strong><p id="growLoopStep2Body">Jump to §3 for the default 20-image train+test batch.</p></article>
         <article><span>3</span><strong>Propose updates</strong><p>Use disagreements from the selected run to draft a graph diff.</p></article>
         <article><span>4</span><strong>Accept / reject</strong><p>SMEs promote good diffs, then the loop starts again.</p></article>
       </div>
@@ -117,7 +118,7 @@
         <div class="policy-graph-copy">
           <div>
             <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
-            <p class="body-copy">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
+            <p class="body-copy" id="policyGraphBlurb">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
           </div>
           <div class="run-controls compact-run-controls" aria-label="Policy graph version picker">
             <label>Policy version
@@ -165,8 +166,8 @@
     <section id="label" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
-        <h2>Run the next labeling round.</h2>
-        <p>Default: both training and testing portions, N=20 images, selected panel models, then scored results feed proposals and decision quality.</p>
+        <h2 id="labelH2">Run the next labeling round.</h2>
+        <p id="labelSub">Default: both training and testing portions, N=20 images, selected panel models, then scored results feed proposals and decision quality.</p>
       </div>
       <div class="label-block label-run-trigger compact-label-runner">
         <div class="label-run-head">
@@ -184,8 +185,8 @@
           </fieldset>
           <div class="run-default-card" aria-label="Default run settings">
             <span>Default batch</span>
-            <strong>N=20 · training + testing</strong>
-            <p>Uses split <code>all</code>, latest selected policy version, and true batched labeling for the demo loop.</p>
+            <strong id="labelDefaultBatch">N=20 · training + testing</strong>
+            <p id="labelDefaultDetail">Uses split <code>all</code>, latest selected policy version, and true batched labeling for the demo loop.</p>
           </div>
         </div>
         <details class="run-trigger-advanced">
@@ -247,7 +248,7 @@
       <div class="section-head compact">
         <p class="eyebrow">§4 Score</p>
         <h2>Per-image audit.</h2>
-        <p>Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
+        <p id="scoreSub">Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
       </div>
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
@@ -255,8 +256,8 @@
         <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
       </div>
       <div class="score-tab-panel" data-score-panel="consensus" role="tabpanel" aria-labelledby="scoreTabConsensus">
-        <h3>What did the panel decide — together?</h3>
-        <p class="body-copy">Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
+        <h3 id="consensusH3">What did the panel decide — together?</h3>
+        <p class="body-copy" id="consensusSub">Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
 <div class="run-controls" aria-label="Consensus filter">
         <label>Filter
           <select id="consensusFilter">
@@ -273,14 +274,14 @@
       <div id="consensusTable" class="misalignment-table"></div>
       </div>
       <div class="score-tab-panel" data-score-panel="misalignment" role="tabpanel" aria-labelledby="scoreTabMisalignment" hidden>
-        <h3>Model vs SME disagreement, ranked for review.</h3>
-        <p class="body-copy">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
+        <h3 id="misalignmentH3">Model vs SME disagreement, ranked for review.</h3>
+        <p class="body-copy" id="misalignmentSub">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
 <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
       </div>
       <div class="score-tab-panel" data-score-panel="borderline" role="tabpanel" aria-labelledby="scoreTabBorderline" hidden>
-        <h3>Where models hedge, SMEs decide.</h3>
-        <p class="body-copy">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
+        <h3 id="borderlineH3">Where models hedge, SMEs decide.</h3>
+        <p class="body-copy" id="borderlineSub">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
 <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
       </div>
@@ -288,8 +289,8 @@
     <section id="quality" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§5 Quality</p>
-        <h2>Decision quality is the gate for policy growth.</h2>
-        <p>After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
+        <h2 id="qualityH2">Decision quality is the gate for policy growth.</h2>
+        <p id="qualitySub">After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
       </div>
       <div class="run-controls" aria-label="Decision quality filters">
         <label>Run
@@ -306,12 +307,20 @@
       <div id="decisionQualityNarrative" class="dq-narrative" hidden></div>
       <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="decisionQualityChart" class="api-panel"></div>
+      <div id="benchmarkComparison" class="benchmark-comparison" hidden>
+        <div>
+          <span>Benchmark comparison</span>
+          <strong>RUSH MNIST result pending</strong>
+          <p>Reserved for a scored MNIST run. Current external anchor: 99.91% top-1 accuracy / 0.09% error on the standard 10k MNIST test set (An et al., 2020). RUSH scores stay empty until a real run writes multiclass decision-quality output.</p>
+        </div>
+        <a href="../docs/mnist-benchmarks-v0.md">Benchmark spec</a>
+      </div>
     </section>
     <section id="insights" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§6 Insights</p>
-        <h2>Where the panel disagreed with SMEs.</h2>
-        <p>Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
+        <h2 id="insightsH2">Where the panel disagreed with SMEs.</h2>
+        <p id="insightsSub">Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
       </div>
       <div class="run-controls" aria-label="Insights filters">
         <label>Run
@@ -379,16 +388,16 @@
     </section>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-v4"></script>
-  <script src="app.js?v=demo-mnist-v4"></script>
-  <script src="run-trigger.js?v=demo-mnist-v4"></script>
-  <script src="decision-quality.js?v=demo-mnist-v4"></script>
-  <script src="insights.js?v=demo-mnist-v4"></script>
-  <script src="policy-diff.js?v=demo-mnist-v4"></script>
-  <script src="policy-grow.js?v=demo-mnist-v4"></script>
+  <script src="genai-sampler.js?v=demo-mnist-v5"></script>
+  <script src="app.js?v=demo-mnist-v5"></script>
+  <script src="run-trigger.js?v=demo-mnist-v5"></script>
+  <script src="decision-quality.js?v=demo-mnist-v5"></script>
+  <script src="insights.js?v=demo-mnist-v5"></script>
+  <script src="policy-diff.js?v=demo-mnist-v5"></script>
+  <script src="policy-grow.js?v=demo-mnist-v5"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-v4"></script>
-  <script src="justifications.js?v=demo-mnist-v4"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-v4"></script>
+  <script src="policy-graph.js?v=demo-mnist-v5"></script>
+  <script src="justifications.js?v=demo-mnist-v5"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-v5"></script>
 </body>
 </html>

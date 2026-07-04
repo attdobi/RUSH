@@ -301,6 +301,116 @@ table.misalignment .muted { color: var(--muted); }
 .badge.consensus-unanimous { color: #6cd49b; background: rgba(108,212,155,.12); border: 1px solid rgba(108,212,155,.45); }
 .badge.consensus-majority { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.45); }
 .badge.consensus-tie { color: #ffba6b; background: rgba(255,186,107,.12); border: 1px solid rgba(255,186,107,.5); }
+
+/* MNIST digit badges — one hue per class. Kept desaturated so ten badges can
+   coexist without visual noise; digit–10 pair with confused_with color hints
+   in the policy graph. */
+.badge[class*="digit-"] {
+  color: #edf4ff;
+  background: rgba(125,176,255,.10);
+  border: 1px solid rgba(125,176,255,.28);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 900;
+}
+.badge.digit-0 { color:#a8e6cf; background:rgba(168,230,207,.12); border-color:rgba(168,230,207,.38); }
+.badge.digit-1 { color:#dcedc1; background:rgba(220,237,193,.12); border-color:rgba(220,237,193,.34); }
+.badge.digit-2 { color:#ffd166; background:rgba(255,209,102,.12); border-color:rgba(255,209,102,.38); }
+.badge.digit-3 { color:#ffb4a2; background:rgba(255,180,162,.12); border-color:rgba(255,180,162,.38); }
+.badge.digit-4 { color:#82b5ff; background:rgba(130,181,255,.14); border-color:rgba(130,181,255,.40); }
+.badge.digit-5 { color:#d394ff; background:rgba(211,148,255,.13); border-color:rgba(211,148,255,.38); }
+.badge.digit-6 { color:#4de0a6; background:rgba(77,224,166,.13); border-color:rgba(77,224,166,.38); }
+.badge.digit-7 { color:#94ecff; background:rgba(148,236,255,.13); border-color:rgba(148,236,255,.38); }
+.badge.digit-8 { color:#ff6f91; background:rgba(255,111,145,.13); border-color:rgba(255,111,145,.38); }
+.badge.digit-9 { color:#f0abfc; background:rgba(240,171,252,.13); border-color:rgba(240,171,252,.38); }
+
+/* MNIST confusion-pair strip lives above the sample gallery and mirrors the
+   pair filters shown in the sample chip row. */
+.mnist-confusion-strip {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+  border: 1px solid rgba(255,183,77,.28);
+  background: rgba(255,183,77,.06);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.mnist-confusion-strip[hidden] { display: none; }
+.mnist-confusion-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; color: #ffe0a3; font-size: 12px; }
+.mnist-confusion-head strong { text-transform: uppercase; letter-spacing: .08em; font-weight: 950; }
+.mnist-confusion-head span { color: var(--muted); font-weight: 800; }
+.mnist-confusion-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+.mnist-confusion-card {
+  text-align: left;
+  border: 1px solid rgba(255,183,77,.32);
+  border-radius: 12px;
+  background: rgba(16,26,49,.55);
+  color: #dce8ff;
+  padding: 10px 12px;
+  cursor: pointer;
+  font: inherit;
+  transition: filter .16s ease, border-color .16s ease, transform .08s ease;
+}
+.mnist-confusion-card:hover, .mnist-confusion-card:focus-visible {
+  filter: brightness(1.08);
+  border-color: rgba(255,209,102,.6);
+}
+.mnist-confusion-card.active {
+  border-color: rgba(255,209,102,.9);
+  background: rgba(255,209,102,.12);
+  color: #fff3c4;
+  box-shadow: inset 0 0 0 1px rgba(255,209,102,.35);
+}
+.mnist-confusion-card strong { display: block; margin-bottom: 4px; font-weight: 950; letter-spacing: .02em; }
+.mnist-confusion-card span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+/* Divider label between primary chips and pair chips (multiclass demos). */
+.filter-chip-divider {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+
+.benchmark-comparison {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+  border: 1px dashed rgba(255,209,102,.42);
+  background: rgba(255,209,102,.07);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.benchmark-comparison[hidden] { display: none; }
+.benchmark-comparison span {
+  display: block;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.benchmark-comparison strong { display: block; margin: 4px 0; }
+.benchmark-comparison p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.benchmark-comparison a {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255,209,102,.38);
+  border-radius: 999px;
+  color: #fff3c4;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .dist-chip { display: inline-block; padding: 2px 8px; margin-right: 4px; border-radius: 999px; font-size: 12px; font-family: var(--mono, monospace); }
 .dist-chip.gen-ai { color: var(--gold); background: rgba(255,209,102,.12); border: 1px solid rgba(255,209,102,.3); }
 .dist-chip.not-gen-ai { color: var(--blue); background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.3); }
@@ -596,6 +706,9 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .policy-link { stroke: rgba(216,226,242,.34); stroke-linecap: round; }
 .policy-link.same-family { stroke: rgba(77,224,166,.45); }
 .policy-link.cross-family { stroke: rgba(255,183,77,.42); stroke-dasharray: 4 2; }
+/* confused_with edges (MNIST): visually distinct from cross-family so
+   boundary pairs pop even at a glance. */
+.policy-link.confused-with { stroke: rgba(255,111,145,.72); stroke-dasharray: 6 3; stroke-width: 2px; }
 .policy-link.highlighted { opacity: 1; stroke: #dce8ff; stroke-width: 2.4px; }
 
 /* Persistent selection (click) — set by applySelection() */

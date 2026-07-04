@@ -1,0 +1,196 @@
+# MNIST V0 — Generic Labeler Prompt Spec
+
+> Versioned prompt spec for the MNIST_Digits demo track.
+> Version: **v0** · Policy graph: `MNIST_Digits.v0.1` · Status: draft.
+>
+> This document is provider-agnostic: it is the contract every mode
+> (`openai`, `anthropic`, `gemini`, mock, human replay) must satisfy when
+> asked to classify a single MNIST digit against the bound
+> `MNIST_Digits.v0.1` policy graph. It is the MNIST counterpart to
+> [`docs/llm-prompt-template.md`](llm-prompt-template.md) and
+> [`docs/llm-prompt-output-section.md`](llm-prompt-output-section.md),
+> which cover the GenAI (binary) track.
+
+---
+
+## 1. Purpose
+
+Classify a single 28×28 grayscale handwritten-digit image into one of
+ten digit classes `{0,1,2,3,4,5,6,7,8,9}` using **only** the supplied
+policy document and policy-graph context pack. Justifications must be
+grounded in that policy — not in outside priors about MNIST or
+digit-recognition folklore.
+
+## 2. Input contract
+
+Each labeling request MUST include:
+
+- **Image** — the MNIST sample to classify (single 28×28 grayscale glyph,
+  possibly upsampled/JPEG-prepared by the pipeline).
+- **Policy document** — the authoritative `MNIST_Digits.v0.1` markdown
+  bundle (`policy-graph/MNIST_Digits/v0.1/MD.root.md` plus each
+  `MD.digit.N.md`). Treat this bundle as authoritative.
+- **Graph context pack** — the same policy graph rendered as a
+  navigable structure:
+  - the root node `MD.root` with the label hierarchy,
+  - one `digit_class` node per digit (`MD.digit.0` … `MD.digit.9`),
+    each with positive criteria, distinguishing features, and
+    `confused_with` edges,
+  - any canonical examples attached to a node (empty in v0.1).
+
+The labeler must not invent digit classes outside the ten listed, and
+must not rely on metadata (filename, index, sampling manifest) to
+choose a label.
+
+## 3. Output contract
+
+Return **exactly one JSON object** with these six fields — no prose,
+no markdown fences, no additional keys:
+
+```json
+{
+  "label": "0|1|2|3|4|5|6|7|8|9|abstain",
+  "justification": "Two enclosed loops joined at a central pinch (upper smaller, lower larger); both loops close on the left, matching MD.digit.8 positive criteria and ruling out MD.digit.3 (open-left bumps) and MD.digit.0 (single loop).",
+  "difficulty": "low|medium|high",
+  "confidence": 0.86,
+  "is_boundary": false
+}
+```
+
+### 3.1 Field definitions
+
+- **`label`** — the primary decision. One of `"0"` … `"9"` (string
+  digit, matching the `classes` tuple in
+  `pipeline/scoring/tasks.py::MNIST_MULTICLASS`), or `"abstain"` when
+  evidence is insufficient. Do not use integers; do not invent classes.
+- **`justification`** — a dense, policy-grounded argument. It MUST:
+  1. name the winning `MD.digit.N` node explicitly (by id, verbatim),
+  2. cite at least one of that node's *Positive criteria* or
+     *Distinguishing features*, and
+  3. when a `confused_with` sibling was plausible, name that sibling
+     node id and give the distinguishing feature that ruled it out.
+
+  Soft cap: ~350 tokens / ~1500 characters, matching the GenAI prompt
+  cap enforced by
+  `pipeline/providers/_prompts.py::MAX_JUSTIFICATION_CHARS`. Substance
+  over length: a 120-token justification that names the right node and
+  the right distinguishing feature is preferred over a padded one.
+- **`difficulty`** — self-assessment of how hard the call was:
+  - `"low"` — glyph is clean, only one digit class satisfies the
+    positive criteria.
+  - `"medium"` — one class wins after applying a distinguishing feature
+    from a `confused_with` edge (e.g. "closed left side rules out 3").
+  - `"high"` — multiple classes remain plausible after the graph is
+    fully applied; the writer is at a boundary between siblings.
+- **`confidence`** — number in `[0, 1]`. Reserve `> 0.9` for
+  unambiguous glyphs; `< 0.5` should typically accompany
+  `difficulty: "high"` and/or `label: "abstain"`.
+- **`is_boundary`** — `true` when the sample sits on a documented
+  boundary between digit classes (any `confused_with` edge in
+  `MNIST_Digits.v0.1` counts), OR when the policy graph is silent on a
+  feature the labeler had to decide on. `false` otherwise. This is the
+  most important signal for policy ambiguity reduction — do not deflate
+  it to look more confident.
+
+### 3.2 Abstain policy
+
+Prefer `label: "abstain"` when:
+
+- the glyph is too degraded, cropped, or noisy to support any single
+  digit class more than the others,
+- two or more digit classes tie after all positive criteria and
+  distinguishing features are applied,
+- the sample is out-of-distribution (not a single handwritten digit).
+
+When abstaining, still populate a policy-grounded justification: name
+the nodes you compared and the specific criterion that failed to break
+the tie.
+
+## 4. Generic prompt skeleton
+
+The following skeleton is generic to any provider mode. Wrap it in the
+provider's system/user turn convention as needed. The `[POLICY
+DOCUMENT]` and `[GRAPH CONTEXT PACK]` blocks are the same authoritative
+bundle described in §2.
+
+```text
+You are RUSH's policy-graph MNIST digit labeler.
+
+Classify the supplied image as one of the ten digit classes defined in
+MNIST_Digits.v0.1, using ONLY the policy document and graph context
+pack below. Do not import outside priors about MNIST, do not rely on
+filenames, indices, or metadata. If the policy is silent on something
+you observe, say so and abstain.
+
+[IMAGE]
+{{image}}
+
+[POLICY DOCUMENT]
+{{policy_document_markdown}}   # MD.root.md + MD.digit.0..9.md
+
+[GRAPH CONTEXT PACK]
+Nodes:
+{{node_context}}               # id, title, positive criteria, distinguishing features
+Confused-with edges:
+{{confused_with_edges}}        # e.g. 8 ↔ 3, 8 ↔ 0, per MD.digit.8.md
+Canonical examples:
+{{canonical_examples}}         # empty in v0.1
+
+Workflow (hidden reasoning; only the final JSON is returned):
+1. Inspect the glyph. Note observable features: loops (enclosed
+   regions), strokes, crossbars, tails, top/bottom bowls, symmetry.
+2. For each MD.digit.N node, check whether the Positive criteria are
+   satisfied.
+3. If more than one node's positive criteria are satisfied, walk each
+   confused_with edge and apply the Distinguishing feature that
+   separates the pair (e.g. "8 vs 3: closed left side → 8; open left
+   side → 3").
+4. Commit to the digit whose criteria are most fully satisfied. If two
+   or more remain tied, abstain.
+5. Set difficulty by how many distinguishing steps you needed; set
+   is_boundary=true if you traversed any confused_with edge; set
+   confidence honestly.
+
+Return EXACTLY this JSON shape and no extra text:
+{
+  "label": "0|1|2|3|4|5|6|7|8|9|abstain",
+  "justification": "<policy-grounded rationale naming MD.digit.N and, if used, the confused_with sibling>",
+  "difficulty": "low|medium|high",
+  "confidence": <number in [0,1]>,
+  "is_boundary": <true|false>
+}
+```
+
+## 5. Relationship to the GenAI track
+
+This v0 spec deliberately **omits** the extra fields required on the
+GenAI (binary) track — `l2_label`, `policy_citations`, `policy_quotes`
+— because MNIST_Digits.v0.1 is inherently flat: the label *is* the L2
+node (`"5"` ↔ `MD.digit.5`), and quoting policy verbatim is
+low-information for a 10-way flat classifier.
+
+Downstream code that consumes the six MNIST fields:
+
+- `pipeline/scoring/tasks.py::MNIST_MULTICLASS` — `classes = ("0" …
+  "9")`, no positive class, multiclass dispatch.
+- `pipeline/scoring/decision_quality_multiclass.py` — per-class + macro
+  metrics + confusion matrix; treats any string outside the class set
+  (other than `"abstain"`) as wrong.
+- `schemas/llm-output.schema.json` — the shared output schema already
+  permits string `label`; MNIST uses `"0"…"9"` there. `l2_label` is
+  currently required by the shared schema and MAY be populated with
+  `"MD.digit.N"` (i.e. `"MD.digit." + label`) by the pipeline
+  coercer for backward compatibility; the model itself does not need
+  to emit it. Future versions of this spec may drop the shared
+  `l2_label` requirement once the schema splits per task.
+
+## 6. Change log
+
+- **v0 (2026-07-03)** — initial cold-start spec for the
+  `feat/mnist-ux-polish` branch. Locks the six-field output shape
+  (`label`, `justification`, `difficulty`, `confidence`,
+  `is_boundary`), pins the policy graph to `MNIST_Digits.v0.1`, and
+  documents the confused-with traversal workflow. Not yet wired into
+  `pipeline/providers/_prompts.py`; the shared GenAI prompt still
+  ships as the default. Future revisions should track policy-graph
+  version bumps (e.g. `v0.2` when SME edits land).

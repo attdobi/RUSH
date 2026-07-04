@@ -160,11 +160,17 @@ function buildSummary(devGolden, holdout, options, source, manifestSummary = nul
 
 async function runRealOrSyntheticSampler() {
   const options = readSamplerOptions();
+  // The warm-start / seed-mismatch guards below only add value when a
+  // browser-side synthetic fallback is available (GenAI only). For demos
+  // without a synthetic sampler (e.g. mnist) throwing here just surfaces a
+  // confusing "Sampler failed" instead of showing the real local manifest
+  // data, so we skip the guards for those demos.
+  const hasSyntheticFallback = activeDemo().id === 'genai' && !!window.RushGenaiSampler?.runDemoReset;
   try {
     const local = await loadLocalManifests();
     const manifestSeed = Number.parseInt(local.manifestSummary?.seed, 10);
-    if (options.mode !== 'cold_start') throw new Error('Local manifests are cold-start only; using synthetic fallback for warm-start preview.');
-    if (manifestSeed && options.seed !== manifestSeed) throw new Error('Requested seed differs from local manifest seed; using synthetic fallback so sampling changes visibly.');
+    if (hasSyntheticFallback && options.mode !== 'cold_start') throw new Error('Local manifests are cold-start only; using synthetic fallback for warm-start preview.');
+    if (hasSyntheticFallback && manifestSeed && options.seed !== manifestSeed) throw new Error('Requested seed differs from local manifest seed; using synthetic fallback so sampling changes visibly.');
     const devGolden = take(local.devGolden, options.nDev);
     const holdout = take(local.holdout, options.nHoldout);
     return {
@@ -195,7 +201,13 @@ async function runRealOrSyntheticSampler() {
 }
 
 function labelBadge(row) {
-  return row.label === 'ai_generated' ? 'ai-generated' : 'not-ai';
+  const label = String(row?.label || '').trim();
+  if (label === 'ai_generated') return 'ai-generated';
+  if (label === 'not_ai_generated') return 'not-ai';
+  // Multiclass demos (mnist): render one badge class per digit / class.
+  const classes = activeDemo().classes || [];
+  if (classes.includes(label)) return `digit-${label.replace(/[^a-z0-9_-]/gi, '')}`;
+  return 'dev';
 }
 
 function overrideFor(sampleId) {
@@ -282,13 +294,45 @@ function renderThumb(row) {
   return fallback;
 }
 
+// Return a demo-specific short policy cue for a sample row. GenAI keeps its
+// original binary framing; multiclass demos (mnist) use the per-class
+// classHint from demos.js when available.
+function policyCueForRow(row) {
+  const demo = activeDemo();
+  const label = String(row?.label || '');
+  if (demo.kind === 'binary') {
+    return label === demo.positiveClass ? 'positive evidence search' : 'boundary / hard-negative check';
+  }
+  const hint = demo.classHint?.[label];
+  if (hint) return `“${label}”: ${hint}`;
+  return `class “${label}” evidence check`;
+}
+
+// Confusion partner(s) for a class label under the active demo, e.g. '4' -> ['9'].
+function confusionPartnersForLabel(label) {
+  const pairs = activeDemo().confusionPairs || [];
+  const partners = new Set();
+  for (const entry of pairs) {
+    const [a, b] = entry.pair || [];
+    if (a === label) partners.add(b);
+    if (b === label) partners.add(a);
+  }
+  return Array.from(partners);
+}
+
 function renderSampleCard(row, compact = false) {
   const demo = activeDemo();
   const override = overrideFor(row.sample_id);
   const locked = row.split === 'holdout';
-  const policyCue = demo.kind === 'binary'
-    ? (row.label === demo.positiveClass ? 'positive evidence search' : 'boundary / hard-negative check')
-    : `class “${row.label}” evidence check`;
+  const policyCue = policyCueForRow(row);
+  const partners = demo.id === 'mnist' ? confusionPartnersForLabel(row.label) : [];
+  const partnersLine = partners.length
+    ? `<br><strong>Confuses with:</strong> ${partners.map(p => esc(p)).join(', ')} (see policy node)`
+    : '';
+  const policyNodeId = demo.classNodeId ? demo.classNodeId(row.label) : '';
+  const policyChip = policyNodeId
+    ? `<button type="button" class="policy-citation-chip" data-policy-node-id="${attr(policyNodeId)}" title="Open policy node ${attr(policyNodeId)}">${esc(policyNodeId)}</button>`
+    : '';
   // Override options: 'none', every class in the active demo, then 'needs_review'.
   const overrideOptions = ['none', ...(Array.isArray(demo.classes) ? demo.classes : []), 'needs_review'];
   const dirLabel = row.source_label_dir || row.dataset || 'source';
@@ -298,10 +342,11 @@ function renderSampleCard(row, compact = false) {
       <div class="sample-badges">
         <span class="badge ${locked ? 'holdout' : 'dev'}">${locked ? 'locked holdout' : 'dev golden'}</span>
         <span class="badge ${labelBadge(row)}">${esc(row.label)}</span>
+        ${policyChip}
       </div>
       <details class="sample-details">
         <summary>Details</summary>
-        <p><strong>Directory label:</strong> ${esc(dirLabel)} → ${esc(row.label)}<br><strong>Policy cue:</strong> ${esc(policyCue)}<br><strong>LLM status:</strong> pending bulk labeling</p>
+        <p><strong>Directory label:</strong> ${esc(dirLabel)} → ${esc(row.label)}<br><strong>Policy cue:</strong> ${esc(policyCue)}${partnersLine}<br><strong>LLM status:</strong> pending bulk labeling</p>
       </details>
       ${compact ? '' : `<div class="override-controls">
         <label>SME/human override
@@ -379,18 +424,26 @@ function zipSplits(devGolden = [], holdout = []) {
 }
 
 function interleaveByLabel(records) {
-  const buckets = {
-    ai_generated: records.filter(row => row.label === 'ai_generated'),
-    not_ai_generated: records.filter(row => row.label === 'not_ai_generated'),
-    other: records.filter(row => row.label !== 'ai_generated' && row.label !== 'not_ai_generated')
-  };
-  const rows = [];
-  const max = Math.max(buckets.ai_generated.length, buckets.not_ai_generated.length);
-  for (let index = 0; index < max; index += 1) {
-    if (buckets.ai_generated[index]) rows.push(buckets.ai_generated[index]);
-    if (buckets.not_ai_generated[index]) rows.push(buckets.not_ai_generated[index]);
+  const demo = activeDemo();
+  const classes = Array.isArray(demo.classes) && demo.classes.length
+    ? demo.classes
+    : ['ai_generated', 'not_ai_generated'];
+  // One bucket per known class; extra ones fall into 'other' and get appended.
+  const buckets = new Map(classes.map(cls => [cls, []]));
+  const other = [];
+  for (const row of records) {
+    if (buckets.has(row.label)) buckets.get(row.label).push(row);
+    else other.push(row);
   }
-  return rows.concat(buckets.other);
+  const rows = [];
+  const max = Math.max(0, ...Array.from(buckets.values()).map(list => list.length));
+  for (let index = 0; index < max; index += 1) {
+    for (const cls of classes) {
+      const list = buckets.get(cls);
+      if (list && list[index]) rows.push(list[index]);
+    }
+  }
+  return rows.concat(other);
 }
 
 function isNeedsReview(row) {
@@ -404,6 +457,12 @@ function galleryRecords() {
   const filter = demoState.galleryFilter || 'all';
   if (filter === 'all') return ordered;
   if (filter === 'needs_review') return ordered.filter(isNeedsReview);
+  // pair:X-Y filters (multiclass demos, e.g. mnist confusion pairs)
+  if (filter.startsWith('pair:')) {
+    const [a, b] = filter.slice('pair:'.length).split('-');
+    if (!a || !b) return ordered;
+    return ordered.filter(row => row.label === a || row.label === b);
+  }
   return ordered.filter(row => row.label === filter);
 }
 
@@ -1125,20 +1184,101 @@ function initScoreTabs() {
   });
 }
 
-// Apply demo-specific page chrome: title, hero copy, selector value, body flag.
+// Set text/html for an element if it exists and a value was supplied.
+function setNodeText(id, value) {
+  if (value == null) return;
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+function setNodeHtml(id, value) {
+  if (value == null) return;
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = value;
+}
+
+// Apply demo-specific page chrome: title, hero copy, selector value, body flag,
+// plus per-section MNIST copy overrides. GenAI keeps its HTML defaults because
+// its sectionCopy is unset.
 function applyDemoChrome() {
   const demo = activeDemo();
   const hero = demo.heroCopy || {};
+  const copy = demo.sectionCopy || {};
   document.title = demo.title ? `RUSH · ${demo.title}` : 'RUSH Demo';
-  const eyebrow = document.getElementById('heroEyebrow');
-  if (eyebrow && hero.eyebrow) eyebrow.textContent = hero.eyebrow;
-  const h1 = document.getElementById('heroH1');
-  if (h1 && hero.h1) h1.textContent = hero.h1;
-  const cta = document.getElementById('heroCta');
-  if (cta && hero.cta) cta.textContent = hero.cta;
+  setNodeText('heroEyebrow', hero.eyebrow);
+  setNodeText('heroH1', hero.h1);
+  setNodeText('heroLede', hero.lede);
+  setNodeText('heroCta', hero.cta);
+  // Section copy overrides (only set when a value is provided).
+  setNodeText('sampleH2', copy.sampleH2);
+  setNodeText('sampleSub', copy.sampleSub);
+  setNodeText('growSub', copy.growSub);
+  setNodeText('growLoopStep2Body', copy.growLoopStep2Body);
+  setNodeText('labelH2', copy.labelH2);
+  setNodeText('labelSub', copy.labelSub);
+  setNodeText('labelStartButton', copy.labelStartButton);
+  const startBtn = document.getElementById('startLabelingRun');
+  if (startBtn && copy.labelStartButton) startBtn.textContent = copy.labelStartButton;
+  setNodeText('labelDefaultBatch', copy.labelDefaultBatch);
+  setNodeHtml('labelDefaultDetail', copy.labelDefaultDetail);
+  setNodeText('scoreSub', copy.scoreSub);
+  setNodeText('consensusH3', copy.consensusH3);
+  setNodeText('consensusSub', copy.consensusSub);
+  setNodeText('misalignmentH3', copy.misalignmentH3);
+  setNodeText('misalignmentSub', copy.misalignmentSub);
+  setNodeText('borderlineH3', copy.borderlineH3);
+  setNodeHtml('borderlineSub', copy.borderlineSub);
+  setNodeText('qualityH2', copy.qualityH2);
+  setNodeText('qualitySub', copy.qualitySub);
+  setNodeText('insightsH2', copy.insightsH2);
+  setNodeText('insightsSub', copy.insightsSub);
+  if (copy.policyGraphTitle) setNodeText('policyGraphTitle', copy.policyGraphTitle);
+  if (copy.policyGraphBlurb) setNodeHtml('policyGraphBlurb', copy.policyGraphBlurb);
   const selector = document.getElementById('demoSelector');
   if (selector) selector.value = demo.id;
   document.body.dataset.rushDemo = demo.id;
+  const benchmark = document.getElementById('benchmarkComparison');
+  if (benchmark) benchmark.hidden = demo.id !== 'mnist';
+  rebuildConsensusFilter();
+  renderMnistConfusionStrip();
+}
+
+// Rebuild the §4 consensus filter <select> from demo.consensusFilters when the
+// demo supplies them (e.g. mnist adds pair:X-Y options). GenAI keeps its
+// four hardcoded options untouched.
+function rebuildConsensusFilter() {
+  const demo = activeDemo();
+  const select = document.getElementById('consensusFilter');
+  const options = Array.isArray(demo.consensusFilters) ? demo.consensusFilters : null;
+  if (!select || !options || !options.length) return;
+  const current = runState.consensusFilter || select.value || 'all';
+  select.innerHTML = options.map(opt =>
+    `<option value="${attr(opt.value)}">${esc(opt.label)}</option>`
+  ).join('');
+  if (options.some(opt => opt.value === current)) select.value = current;
+}
+
+// Render the MNIST confusion-pair strip. Static, click-to-filter. Hidden for
+// demos without confusionPairs.
+function renderMnistConfusionStrip() {
+  const strip = document.getElementById('mnistConfusionStrip');
+  if (!strip) return;
+  const demo = activeDemo();
+  const pairs = Array.isArray(demo.confusionPairs) ? demo.confusionPairs : [];
+  if (!pairs.length) {
+    strip.hidden = true;
+    strip.innerHTML = '';
+    return;
+  }
+  const cards = pairs.map(entry => {
+    const filterValue = `pair:${entry.id}`;
+    const active = demoState.galleryFilter === filterValue;
+    return `<button type="button" class="mnist-confusion-card${active ? ' active' : ''}" data-gallery-filter="${attr(filterValue)}" aria-pressed="${active ? 'true' : 'false'}">
+      <strong>${esc(entry.label)}</strong>
+      <span>${esc(entry.reason)}</span>
+    </button>`;
+  }).join('');
+  strip.innerHTML = `<div class="mnist-confusion-head"><strong>Boundary / confusion pairs</strong><span>Click a pair to filter the gallery below to just those digits.</span></div><div class="mnist-confusion-cards">${cards}</div>`;
+  strip.hidden = false;
 }
 
 // The gallery filter chips are hardcoded for the binary GenAI label space in
@@ -1151,11 +1291,15 @@ function rebuildGalleryFilterChips() {
   const container = document.querySelector('.gallery-filter-chips');
   if (!container) return;
   const classes = Array.isArray(demo.classes) ? demo.classes : [];
-  const chips = [['all', 'All'], ...classes.map(c => [c, c]), ['needs_review', 'Needs review']];
-  container.innerHTML = chips.map(([value, label]) => {
+  const pairs = Array.isArray(demo.confusionPairs) ? demo.confusionPairs : [];
+  const primary = [['all', 'All'], ...classes.map(c => [c, c]), ['needs_review', 'Needs review']];
+  const pairChips = pairs.map(entry => [`pair:${entry.id}`, entry.label]);
+  const chip = ([value, label]) => {
     const active = value === (demoState.galleryFilter || 'all');
     return `<button type="button" class="filter-chip${active ? ' active' : ''}" data-gallery-filter="${attr(value)}" aria-pressed="${active ? 'true' : 'false'}">${esc(label)}</button>`;
-  }).join('');
+  };
+  container.innerHTML = primary.map(chip).join('')
+    + (pairChips.length ? `<span class="filter-chip-divider" aria-hidden="true">pairs</span>${pairChips.map(chip).join('')}` : '');
 }
 
 // Header demo selector: persist choice and reload with ?demo= (simple + robust).
@@ -1174,12 +1318,18 @@ function bindDemoSelector() {
 
 function bindControls() {
   $('#runSampler')?.addEventListener('click', runSamplerDemo);
-  document.querySelectorAll('[data-gallery-filter]').forEach(button => {
-    button.addEventListener('click', () => {
-      demoState.galleryFilter = button.dataset.galleryFilter || 'all';
-      demoState.galleryVisibleCount = 24;
-      renderGallery();
-    });
+  // Delegated so buttons rebuilt by applyDemoChrome / renderMnistConfusionStrip
+  // (chips + confusion cards) still respond.
+  document.body.addEventListener('click', event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const trigger = target.closest('[data-gallery-filter]');
+    if (!trigger) return;
+    demoState.galleryFilter = trigger.dataset.galleryFilter || 'all';
+    demoState.galleryVisibleCount = 24;
+    // Refresh confusion strip active-state (only relevant for MNIST).
+    if (typeof renderMnistConfusionStrip === 'function') renderMnistConfusionStrip();
+    renderGallery();
   });
   $('#galleryLoadMore')?.addEventListener('click', () => {
     demoState.galleryVisibleCount = Math.max(24, (demoState.galleryVisibleCount || 24) * 2);

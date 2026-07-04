@@ -1,4 +1,4 @@
-"""Shared thumbnail path helpers for GenAI source images.
+"""Shared thumbnail path helpers for demo source images.
 
 Thumbnails use a human-inspectable path-mirroring scheme: a source image at
 ``data/images/genai-classification/source-datasets/<dataset>/<label>/foo.png``
@@ -11,6 +11,12 @@ from pathlib import Path, PurePosixPath
 
 SOURCE_ROOT_REL = Path("data/images/genai-classification/source-datasets")
 THUMBNAIL_ROOT_REL = Path("data/images/genai-classification/derived/thumbnails")
+SOURCE_THUMBNAIL_ROOTS: tuple[tuple[Path, Path | None], ...] = (
+    (SOURCE_ROOT_REL, THUMBNAIL_ROOT_REL),
+    # MNIST samples are already tiny local PNGs; no derived thumbnail tree is
+    # required for the demo, but the path still needs to pass validation.
+    (Path("data/images/mnist-classification/source-datasets"), None),
+)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 
@@ -30,19 +36,25 @@ def validate_source_repo_path(repo_root: Path | str, repo_rel_path: str | Path) 
     ``repo_root``.
     """
     rel_posix = _repo_rel_posix(repo_rel_path)
-    source_root_posix = PurePosixPath(SOURCE_ROOT_REL.as_posix())
-    try:
-        rel_posix.relative_to(source_root_posix)
-    except ValueError as exc:
-        raise ValueError(f"image path must be under {SOURCE_ROOT_REL.as_posix()}") from exc
+    allowed_root: Path | None = None
+    for source_root, _thumbnail_root in SOURCE_THUMBNAIL_ROOTS:
+        try:
+            rel_posix.relative_to(PurePosixPath(source_root.as_posix()))
+        except ValueError:
+            continue
+        allowed_root = source_root
+        break
+    if allowed_root is None:
+        roots = ", ".join(root.as_posix() for root, _thumb in SOURCE_THUMBNAIL_ROOTS)
+        raise ValueError(f"image path must be under one of: {roots}")
     if rel_posix.suffix.lower() not in IMAGE_SUFFIXES:
         raise ValueError(f"unsupported image suffix: {rel_posix.suffix!r}")
 
     root = Path(repo_root).resolve()
     candidate = (root / Path(*rel_posix.parts)).resolve(strict=False)
-    source_root = (root / SOURCE_ROOT_REL).resolve(strict=False)
+    source_root = (root / allowed_root).resolve(strict=False)
     if source_root != candidate and source_root not in candidate.parents:
-        raise ValueError(f"image path must be under {SOURCE_ROOT_REL.as_posix()}")
+        raise ValueError(f"image path must be under {allowed_root.as_posix()}")
     return Path(*rel_posix.parts)
 
 
@@ -56,6 +68,16 @@ def thumbnail_rel_path_for_source(
     source_rel = Path(str(_repo_rel_posix(source_repo_rel_path)))
     source_root = Path(source_root_rel)
     output_root = Path(output_root_rel)
+    for candidate_source_root, candidate_output_root in SOURCE_THUMBNAIL_ROOTS:
+        try:
+            source_rel.relative_to(candidate_source_root)
+        except ValueError:
+            continue
+        if candidate_output_root is None:
+            return source_rel
+        source_root = candidate_source_root
+        output_root = candidate_output_root
+        break
     rel_inside_source = source_rel.relative_to(source_root)
     return (output_root / rel_inside_source).with_suffix(".jpg")
 
@@ -63,6 +85,7 @@ def thumbnail_rel_path_for_source(
 __all__ = [
     "IMAGE_SUFFIXES",
     "SOURCE_ROOT_REL",
+    "SOURCE_THUMBNAIL_ROOTS",
     "THUMBNAIL_ROOT_REL",
     "thumbnail_rel_path_for_source",
     "validate_source_repo_path",

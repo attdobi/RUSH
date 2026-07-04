@@ -25,12 +25,23 @@
   function policyGraphArea() {
     return activeDemo()?.policyGraph?.area || 'Generative_AI';
   }
-  function showNotImplemented() {
-    const wrap = qs('#policyGraphSvgWrap');
-    if (wrap) wrap.innerHTML = '<div class="empty-state">MNIST policy graph browser not implemented yet.</div>';
-    const title = qs('#policyGraphTitle');
-    if (title) title.textContent = 'MNIST policy graph';
-    status('MNIST policy graph browser not implemented yet.');
+  function policyGraphVersion() {
+    return activeDemo()?.policyGraph?.version || currentVersion || 'v0.1';
+  }
+  function policyGraphRootId() {
+    return activeDemo()?.policyGraph?.rootId || 'GA.root';
+  }
+  // Static, no-API path for demos whose policy graph lives entirely in the
+  // repo (e.g. MNIST_Digits/v0.1). We read edges.json + per-node .md over
+  // regular fetch() and skip /api/policy/*.
+  function demoUsesLocalPolicyGraph() {
+    return isMnistDemo();
+  }
+  function localPolicyBase() {
+    const demo = activeDemo();
+    if (!demo) return '';
+    const path = demo.policyGraph?.path || 'policy-graph/MNIST_Digits/v0.1';
+    return `../${path}`;
   }
 
   function qs(selector) {
@@ -61,7 +72,8 @@
     const id = String(node.id || '');
     const type = String(node.node_type || '').toLowerCase();
     const polarity = String(node.polarity || '').toLowerCase();
-    if (type === 'root' || id === 'GA.root') return COLORS.root;
+    if (type === 'root' || id === 'GA.root' || id === 'MD.root') return COLORS.root;
+    if (id.startsWith('MD.digit.') || type === 'digit_class') return COLORS.positive;
     if (id.includes('.boundary.') || type === 'boundary') return COLORS.boundary;
     if (id.includes('.exception.') || type === 'exception') return COLORS.exception;
     if (id.includes('.negative.') || polarity === 'negative') return COLORS.negative;
@@ -94,7 +106,7 @@
 
   function depthOf(id) {
     const value = String(id || '');
-    if (value === 'GA.root') return 0;
+    if (value === 'GA.root' || value === 'MD.root') return 0;
     return Math.max(1, value.split('.').length - 1);
   }
 
@@ -120,7 +132,7 @@
   }
 
   function nodeRadius(node, nodes) {
-    if (node.id === 'GA.root' || String(node.node_type).toLowerCase() === 'root') return 14;
+    if (node.id === 'GA.root' || node.id === 'MD.root' || String(node.node_type).toLowerCase() === 'root') return 14;
     if (hasChildren(node, nodes) || depthOf(node.id) <= 2) return 10;
     return 7;
   }
@@ -216,9 +228,13 @@
     qs('#policyGraphClear')?.addEventListener('click', () => applySelection(null));
 
     try {
-      const version = currentVersion || currentPayload?.version || '';
-      const path = `/policy-graph/${encodeURIComponent(policyGraphArea())}/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
-      const response = await fetch(path);
+      const version = currentVersion || currentPayload?.version || policyGraphVersion();
+      // Local-file demos (mnist) load static Markdown from the repo; GenAI keeps
+      // the /policy-graph/... HTTP path served by the local API server.
+      const path = demoUsesLocalPolicyGraph()
+        ? `${localPolicyBase()}/${encodeURIComponent(node.id)}.md`
+        : `/policy-graph/${encodeURIComponent(policyGraphArea())}/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
+      const response = await fetch(cacheBust ? cacheBust(path) : path, { cache: 'no-store' });
       if (!response.ok) throw new Error(`Markdown not found (${response.status})`);
       const markdown = await response.text();
       const body = qs('#policyNodeMarkdown');
@@ -349,9 +365,12 @@
     });
 
     function linkClass(edge) {
+      const type = String(edge.type || edge.edge_type || '').toLowerCase();
+      if (type === 'confused_with') return 'confused-with';
       const sourceFamily = familyOf(edge.sourceId);
       const targetFamily = familyOf(edge.targetId);
       if (edge.sourceId === 'GA.root' || edge.targetId === 'GA.root') return 'root-link';
+      if (edge.sourceId === 'MD.root' || edge.targetId === 'MD.root') return 'root-link';
       return sourceFamily === targetFamily ? 'same-family' : 'cross-family';
     }
 
@@ -531,11 +550,70 @@
     return payload;
   }
 
+  // Build a static payload for a demo that keeps its policy graph in the
+  // repo. Reads edges.json for subtype_of edges, then adds virtual
+  // confused_with edges from the active demo config so the boundary pairs
+  // show up as dashed cross-links.
+  async function loadStaticLocalGraph() {
+    const demo = activeDemo();
+    const base = localPolicyBase();
+    const rootId = policyGraphRootId();
+    const classes = Array.isArray(demo.classes) ? demo.classes : [];
+    const nodeIdFor = typeof demo.classNodeId === 'function' ? demo.classNodeId : (c => `MD.digit.${c}`);
+    // 1) Fetch edges.json (subtype_of edges).
+    let baseEdges = [];
+    try {
+      const url = `${base}/edges.json`;
+      const response = await fetch(cacheBust ? cacheBust(url) : url, { cache: 'no-store' });
+      if (response.ok) baseEdges = await response.json();
+    } catch (error) {
+      baseEdges = [];
+    }
+    // 2) Synthesize node stubs (root + one per class).
+    const nodes = [
+      { id: rootId, title: 'MNIST Digits — root', node_type: 'root', polarity: 'mixed', parent: null },
+      ...classes.map(cls => ({
+        id: nodeIdFor(cls),
+        title: `Digit ${cls}`,
+        node_type: 'digit_class',
+        polarity: 'positive',
+        parent: rootId,
+        digit: cls
+      }))
+    ];
+    // 3) Confused_with virtual edges from demos.js confusionPairs.
+    const confusedEdges = (demo.confusionPairs || []).flatMap(entry => {
+      const [a, b] = entry.pair || [];
+      if (!a || !b) return [];
+      return [{ source_node_id: nodeIdFor(a), target_node_id: nodeIdFor(b), edge_type: 'confused_with', provenance: 'demo config', synthetic: true }];
+    });
+    return {
+      title: demo.sectionCopy?.policyGraphTitle || 'Cold-start MNIST digit policy',
+      version: demo.policyGraph?.version || 'v0.1',
+      available_versions: [demo.policyGraph?.version || 'v0.1'],
+      nodes,
+      edges: [...baseEdges, ...confusedEdges]
+    };
+  }
+
   async function loadGraph(version = '') {
-    // The current d3 loader is GenAI-specific. For other demos (mnist) show a
-    // clear placeholder instead of loading/crashing on a GA-shaped payload.
-    if (isMnistDemo()) {
-      showNotImplemented();
+    // Static-local demos (mnist) render straight from repo files — no /api needed.
+    if (demoUsesLocalPolicyGraph()) {
+      try {
+        status('Loading policy graph…');
+        const payload = await loadStaticLocalGraph();
+        backfillParentEdges(payload);
+        currentFocus = null;
+        currentVersion = payload.version || version;
+        populateVersions(payload.available_versions, payload.version);
+        renderGraph(payload, null);
+        const confusedCount = payload.edges.filter(e => (e.edge_type || e.type) === 'confused_with').length;
+        status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s) (${confusedCount} confused_with).`);
+      } catch (error) {
+        const wrap = qs('#policyGraphSvgWrap');
+        if (wrap) wrap.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+        status(`Policy graph failed: ${error.message}`, true);
+      }
       return;
     }
     if (!window.RUSH_API?.available) {
@@ -562,8 +640,10 @@
   }
 
   async function initPolicyGraph(api) {
-    if (isMnistDemo()) {
-      showNotImplemented();
+    // Static-local demos (mnist) render regardless of API availability.
+    if (demoUsesLocalPolicyGraph()) {
+      qs('#policyGraphVersion')?.addEventListener('change', event => loadGraph(event.target.value));
+      await loadGraph(policyGraphVersion());
       return;
     }
     if (!api.available) {
@@ -578,7 +658,8 @@
 
   rushApiOnReady(initPolicyGraph);
   window.addEventListener('rush-api-catalog', event => {
-    if (isMnistDemo()) return;
+    // Static-local demos ignore the API catalog stream.
+    if (demoUsesLocalPolicyGraph()) return;
     const versions = event.detail?.policyVersions || [];
     const latestItem = versions[versions.length - 1];
     const latest = event.detail?.currentPolicyVersion || latestItem?.version || latestItem || '';

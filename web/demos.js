@@ -30,9 +30,73 @@ window.RUSH_DEMOS = {
       summary: '../data/images/mnist-classification/manifests/sampling_summary.json'
     },
     thumbnailsDir: 'data/images/mnist-classification/source-datasets/mnist',
+    // Confusion pairs surfaced from the v0.1 MD frontmatter (confused_with edges).
+    // Order = the pairs the demo copy calls out; do not reorder without also
+    // updating hero/sample copy and the confusion-pair strip.
+    confusionPairs: [
+      { pair: ['4', '9'], id: '4-9', label: '4 vs 9', reason: 'Angular top wedge vs a closed rounded loop.' },
+      { pair: ['3', '5'], id: '3-5', label: '3 vs 5', reason: 'Two open right-facing bumps vs a top bar + lower bowl.' },
+      { pair: ['7', '1'], id: '7-1', label: '7 vs 1', reason: 'Horizontal top bar + long diagonal vs a single vertical stroke.' },
+      { pair: ['8', '3'], id: '8-3', label: '8 vs 3', reason: 'Two closed stacked loops vs open right-facing bumps.' }
+    ],
+    // Map a digit class label to the corresponding policy-graph node id.
+    classNodeId: cls => `MD.digit.${cls}`,
+    // Tiny distinguishing-feature summary used by sample cards. Sourced from
+    // policy-graph/MNIST_Digits/v0.1/MD.digit.*.md "Positive criteria".
+    classHint: {
+      '0': 'single closed loop, no crossbar',
+      '1': 'single vertical stroke (optional top flag / base)',
+      '2': 'top curve + descending diagonal + flat base',
+      '3': 'two stacked right-facing bumps, open on the left',
+      '4': 'two verticals joined by a horizontal crossbar',
+      '5': 'flat top bar, stem, lower right-facing bowl',
+      '6': 'left-leaning stroke curling into a closed bottom loop',
+      '7': 'horizontal top bar + long descending diagonal',
+      '8': 'two stacked closed loops meeting at a pinch',
+      '9': 'closed top loop with a descending tail'
+    },
+    // Consensus filter options for §4. Each entry ends up as an <option>.
+    // pair:X-Y filters to images whose SME truth is X or Y (surfaces confusion pairs).
+    consensusFilters: [
+      { value: 'all', label: 'All images' },
+      { value: 'unanimous', label: 'Unanimous only' },
+      { value: 'split', label: 'Split only' },
+      { value: 'boundary', label: 'Boundary-flagged' },
+      { value: 'pair:4-9', label: 'Pair 4 vs 9' },
+      { value: 'pair:3-5', label: 'Pair 3 vs 5' },
+      { value: 'pair:7-1', label: 'Pair 7 vs 1' },
+      { value: 'pair:8-3', label: 'Pair 8 vs 3' }
+    ],
+    // Text overrides applied by app.js applyDemoChrome() — leave English strings
+    // stable; ids that receive them are defined in web/index.html.
+    sectionCopy: {
+      sampleH2: 'Sample the MNIST golden set.',
+      sampleSub: 'Start with a balanced 10-class slice: 200 train + 50 holdout images per digit, sourced from the local MNIST manifests.',
+      growSub: 'Seed a per-digit policy graph → label a batch → propose graph updates → accept → label again. Each accepted SME update sharpens the next digit-classification run.',
+      growLoopStep2Body: 'Jump to §3 for the default 20-image train+holdout batch of MNIST digits.',
+      labelH2: 'Run the next digit-labeling round.',
+      labelSub: 'Default: 20 MNIST digits drawn from both training and holdout splits, scored against SME digit truth.',
+      labelStartButton: 'Start 20-image train+holdout run',
+      labelDefaultBatch: 'N=20 · train + holdout',
+      labelDefaultDetail: 'Uses split <code>all</code>, latest selected policy version, and true batched labeling of MNIST digits.',
+      scoreSub: 'Consensus, misalignment, and confusion-pair views share the selected run and stay in one digit-audit surface.',
+      consensusH3: 'What did the panel decide about each digit?',
+      consensusSub: 'Every model votes 0–9 per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.',
+      misalignmentH3: 'Model vs SME digit disagreement, ranked for review.',
+      misalignmentSub: 'Per-image SME digit truth vs model labels. Confusion between the seed pairs (4/9, 3/5, 7/1, 8/3) rises to the top; policy-node citations link straight to the digit node whose criteria were cited.',
+      borderlineH3: 'Where the panel hedges between digits, SMEs decide.',
+      borderlineSub: 'Hard cases grouped by the confused digit (e.g. a 4 that could be a 9, a 3 that could be a 5). Will fan out as the graph grows.',
+      qualityH2: 'Digit-classification quality is the gate for policy growth.',
+      qualitySub: 'Compare per-digit accuracy, macro F1, per-class precision/recall, review burden, and cost by labeler, run, and policy version.',
+      insightsH2: 'Where the panel disagreed with SME digit truth.',
+      insightsSub: 'Start with majority-wrong digits. Open More cuts for model disagreement, confusion-pair concentration (4/9, 3/5, 7/1, 8/3), and recurring pair disagreement.',
+      policyGraphTitle: 'Cold-start MNIST digit policy',
+      policyGraphBlurb: 'Ten digit nodes (0–9) under a root, with confused_with edges surfacing the boundary pairs the demo optimizes for. Hover to trace neighbors; click to drill into a digit\u2019s criteria.'
+    },
     heroCopy: {
       eyebrow: 'Multiclass digit audit with SME policy',
-      h1: 'RUSH scales SME digit-classification policy.',
+      h1: 'RUSH turns SME digit criteria into a repeatable MNIST audit loop.',
+      lede: 'Sample MNIST digits, seed a per-digit policy graph, run a 20-image LLM panel, then use disagreement — especially confusion pairs 4/9, 3/5, 7/1, 8/3 — to propose SME-reviewed updates.',
       cta: 'Start MNIST demo'
     }
   }
