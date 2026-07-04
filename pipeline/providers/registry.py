@@ -70,8 +70,8 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "reasoning_effort": "xhigh",
             # Chat Completions exposes only max_completion_tokens, which is a
             # COMBINED budget (hidden reasoning + visible JSON). Do NOT cap it
-            # at the ~768 visible budget or reasoning gets truncated. Bound it
-            # at reasoning headroom + ~768 visible: ~4000 for high/xhigh.
+            # at the visible-only budget or reasoning gets truncated. Bound it
+            # at reasoning headroom + visible output: ~4000 for high/xhigh.
             "max_completion_tokens": 4000,
         },
     ),
@@ -95,8 +95,19 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "max_completion_tokens": 4000,
         },
     ),
+    # Medium reasoning; combined budget = medium headroom + visible.
+    "openai/gpt-5.5-medium": ModelSpec(
+        model_id="openai/gpt-5.5-medium",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 2000,
+        },
+    ),
     # Low-reasoning gpt-5.5 variant: cheapest reasoning tier of the 5.5 family.
-    # Combined budget = low-reasoning headroom + ~768 visible ~= 2000.
+    # Combined budget = low-reasoning headroom + visible ~= 2000.
     "openai/gpt-5.5-low": ModelSpec(
         model_id="openai/gpt-5.5-low",
         provider="openai",
@@ -115,7 +126,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         params={
             # Gemini SEPARATES thinking from visible output: thinking_budget is
             # its own pool, and max_output_tokens caps only the visible JSON.
-            # Keep the thinking pool generous; cap visible output at ~768.
+            # Keep the thinking pool generous; cap visible output at 1000.
             "thinking_budget_tokens": 8000,
             "max_output_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
         },
@@ -156,7 +167,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "xhigh",
-            # Combined budget: reasoning headroom + ~768 visible.
+            # Combined budget: reasoning headroom + visible output.
             "max_completion_tokens": 4000,
         },
     ),
@@ -168,6 +179,17 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         params={
             "reasoning_effort": "high",
             "max_completion_tokens": 4000,
+        },
+    ),
+    # Medium reasoning; combined budget = medium headroom + visible.
+    "openai/gpt-5.4-mini-medium": ModelSpec(
+        model_id="openai/gpt-5.4-mini-medium",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 2000,
         },
     ),
     # Cheap mini at low reasoning — sane cheapest default for a fast sweep.
@@ -192,29 +214,50 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             # No thinking_budget_tokens: standard (non-extended) reasoning.
         },
     ),
-    # Cheap Sonnet 5 — LOW reasoning (small/no thinking budget). Anthropic
-    # max_tokens is a clean VISIBLE cap (separate from thinking), so ~768 is
-    # safe here. INTRO pricing 2.0/10.0 through 2026-08-31 (see pricing.py).
-    "anthropic/claude-sonnet-5": ModelSpec(
-        model_id="anthropic/claude-sonnet-5",
+    # Cheap Sonnet 5 — LOW reasoning, small/minimal thinking. Anthropic
+    # max_tokens is a clean VISIBLE cap (separate from thinking). INTRO pricing
+    # 2.0/10.0 through 2026-08-31 (standard 3/15 after, +30% tokenizer) — see
+    # pricing.py.
+    "anthropic/claude-sonnet-5-low": ModelSpec(
+        model_id="anthropic/claude-sonnet-5-low",
         provider="anthropic",
         provider_model_name="claude-sonnet-5",
         phase=2,
         params={
             "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
-            # No thinking_budget_tokens: low/standard (non-extended) reasoning.
         },
     ),
-    # Anthropic's cheap/fast VISION model (200K ctx, vision-capable) — the
-    # recommended gpt-5.4-mini equivalent for image labeling. Pricing 1.0/5.0.
-    "anthropic/claude-haiku-4-5": ModelSpec(
-        model_id="anthropic/claude-haiku-4-5",
+    # Cheap Sonnet 5 — MEDIUM reasoning (extended thinking budget).
+    "anthropic/claude-sonnet-5-medium": ModelSpec(
+        model_id="anthropic/claude-sonnet-5-medium",
+        provider="anthropic",
+        provider_model_name="claude-sonnet-5",
+        phase=2,
+        params={
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            "thinking_budget_tokens": 4000,
+        },
+    ),
+    # Anthropic's cheap/fast VISION model (200K ctx, vision-capable) — Haiku
+    # 4.5 cheap/fast vision, LOW (no extended thinking). Pricing 1.0/5.0.
+    "anthropic/claude-haiku-4-5-low": ModelSpec(
+        model_id="anthropic/claude-haiku-4-5-low",
         provider="anthropic",
         provider_model_name="claude-haiku-4-5",
         phase=2,
         params={
             "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
-            # No thinking_budget_tokens: fast, non-extended reasoning.
+        },
+    ),
+    # Haiku 4.5 MEDIUM (extended thinking budget).
+    "anthropic/claude-haiku-4-5-medium": ModelSpec(
+        model_id="anthropic/claude-haiku-4-5-medium",
+        provider="anthropic",
+        provider_model_name="claude-haiku-4-5",
+        phase=2,
+        params={
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            "thinking_budget_tokens": 4000,
         },
     ),
     # Latest Gemini flash (GA). Mid-tier: output $9/Mtok.

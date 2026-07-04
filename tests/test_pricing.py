@@ -57,6 +57,11 @@ def test_reasoning_variant_prices_match_base_models() -> None:
         )
 
 
+def test_openai_medium_variant_prices_match_base_models() -> None:
+    assert price_for("openai/gpt-5.5-medium") == price_for("openai/gpt-5.5")
+    assert price_for("openai/gpt-5.4-mini-medium") == price_for("openai/gpt-5.4-mini")
+
+
 def test_opus_pricing_corrected_2026() -> None:
     # Verified 2026 rates: Opus 4.6 (dated but kept) and 4.7 both list at 5 / 25.
     for model_id in ("anthropic/claude-opus-4-6", "anthropic/claude-opus-4-7"):
@@ -92,16 +97,18 @@ def test_new_hosted_models_priced() -> None:
 
 def test_new_models_priced() -> None:
     # Sonnet 5 intro pricing (2.0/10.0) and Haiku 4.5 (1.0/5.0).
-    assert price_for("anthropic/claude-sonnet-5") == {
-        "input_per_mtok": 2.0,
-        "output_per_mtok": 10.0,
-        "image_per_image": 0.0,
-    }
-    assert price_for("anthropic/claude-haiku-4-5") == {
-        "input_per_mtok": 1.0,
-        "output_per_mtok": 5.0,
-        "image_per_image": 0.0,
-    }
+    for model_id in ("anthropic/claude-sonnet-5-low", "anthropic/claude-sonnet-5-medium"):
+        assert price_for(model_id) == {
+            "input_per_mtok": 2.0,
+            "output_per_mtok": 10.0,
+            "image_per_image": 0.0,
+        }
+    for model_id in ("anthropic/claude-haiku-4-5-low", "anthropic/claude-haiku-4-5-medium"):
+        assert price_for(model_id) == {
+            "input_per_mtok": 1.0,
+            "output_per_mtok": 5.0,
+            "image_per_image": 0.0,
+        }
 
 
 def _parse_js_pricing() -> dict[str, dict[str, float]]:

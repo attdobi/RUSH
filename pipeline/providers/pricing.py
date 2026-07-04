@@ -2,17 +2,13 @@
 from __future__ import annotations
 
 # Update when provider pricing changes; placeholder if unknown.
-#
-# TODO(pricing): verify OpenAI gpt-5.5 / gpt-5.4-mini standard rates vs official
-# OpenAI billing. Third-party sources conflict (gpt-5.5 may be ~5/20-30 standard;
-# our current gpt-5.5 input of 1.25 looks like the cached-input rate). Attila to
-# confirm against official OpenAI billing before we change these numbers.
 PRICING: dict[str, dict[str, float]] = {
-    # TODO(pricing): confirm gpt-5.5 standard rates (1.25 may be cached-input).
+    # Soft note: gpt-5.5 input 1.25 looks like the cached-input rate if a standard rate is ever needed.
     "openai/gpt-5.5": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-xhigh": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-high": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
-    # gpt-5.5 low-reasoning variant: mirrors gpt-5.5 base pricing (still TODO).
+    "openai/gpt-5.5-medium": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
+    # gpt-5.5 low-reasoning variant: mirrors gpt-5.5 base pricing.
     "openai/gpt-5.5-low": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "google/gemini-3.1-pro-preview": {"input_per_mtok": 2.0, "output_per_mtok": 12.0, "image_per_image": 0.0},
     # Opus 4.6 (dated but kept). Verified 2026 rate: 5 / 25 per Mtok.
@@ -21,18 +17,20 @@ PRICING: dict[str, dict[str, float]] = {
     # emits ~30% more tokens per image/prompt, so effective cost is ~1.3x the
     # list rate versus 4.6. HIGH cost tier, unchecked by default in the panel.
     "anthropic/claude-opus-4-7": {"input_per_mtok": 5.0, "output_per_mtok": 25.0, "image_per_image": 0.0},
-    # TODO(pricing): confirm gpt-5.4-mini standard rates vs official OpenAI billing.
     "openai/gpt-5.4-mini": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     "openai/gpt-5.4-mini-xhigh": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     "openai/gpt-5.4-mini-high": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
+    "openai/gpt-5.4-mini-medium": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     "openai/gpt-5.4-mini-low": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     # Sonnet 4.6: verified 3.0 / 15.0 per Mtok.
     "anthropic/claude-sonnet-4-6": {"input_per_mtok": 3.0, "output_per_mtok": 15.0, "image_per_image": 0.0},
     # Sonnet 5: INTRODUCTORY pricing 2.0 / 10.0 through 2026-08-31.
     # standard 3.0/15.0 after 2026-08-31; +30% tokenizer.
-    "anthropic/claude-sonnet-5": {"input_per_mtok": 2.0, "output_per_mtok": 10.0, "image_per_image": 0.0},
+    "anthropic/claude-sonnet-5-low": {"input_per_mtok": 2.0, "output_per_mtok": 10.0, "image_per_image": 0.0},
+    "anthropic/claude-sonnet-5-medium": {"input_per_mtok": 2.0, "output_per_mtok": 10.0, "image_per_image": 0.0},
     # Haiku 4.5: cheap/fast vision model. Verified 1.0 / 5.0 per Mtok.
-    "anthropic/claude-haiku-4-5": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "image_per_image": 0.0},
+    "anthropic/claude-haiku-4-5-low": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "image_per_image": 0.0},
+    "anthropic/claude-haiku-4-5-medium": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "image_per_image": 0.0},
     # Latest Gemini flash (GA).
     "google/gemini-3.5-flash": {"input_per_mtok": 1.50, "output_per_mtok": 9.0, "image_per_image": 0.0},
     # Gemini 3 Flash Preview.

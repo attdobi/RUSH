@@ -894,11 +894,16 @@ class TestRegistry:
             assert model_id in MODEL_REGISTRY
 
     def test_new_models_registered(self) -> None:
-        # gpt-5.5-low (HIGH tier, phase 1), sonnet-5 + haiku-4-5 (phase 2).
+        # gpt-5.5-low (HIGH tier, phase 1), sonnet-5 + haiku-4-5 variants (phase 2).
         assert MODEL_REGISTRY["openai/gpt-5.5-low"].phase == 1
         assert MODEL_REGISTRY["openai/gpt-5.5-low"].provider_model_name == "gpt-5.5"
-        assert MODEL_REGISTRY["anthropic/claude-sonnet-5"].provider == "anthropic"
-        assert MODEL_REGISTRY["anthropic/claude-haiku-4-5"].provider == "anthropic"
+        for model_id in (
+            "anthropic/claude-sonnet-5-low",
+            "anthropic/claude-sonnet-5-medium",
+            "anthropic/claude-haiku-4-5-low",
+            "anthropic/claude-haiku-4-5-medium",
+        ):
+            assert MODEL_REGISTRY[model_id].provider == "anthropic"
 
     def test_gpt55_low_reasoning_config(self) -> None:
         client = build_client(
@@ -910,15 +915,24 @@ class TestRegistry:
         assert client.config.max_completion_tokens == 2000
 
     def test_new_anthropic_models_visible_cap_and_no_extended_thinking(self) -> None:
-        for model_id in ("anthropic/claude-sonnet-5", "anthropic/claude-haiku-4-5"):
+        for model_id in ("anthropic/claude-sonnet-5-low", "anthropic/claude-haiku-4-5-low"):
             client = build_client(
                 model_id,
                 client=_RecordingAnthropicClient(_fake_anthropic_response()),
             )
             assert isinstance(client, AnthropicClient)
-            # Visible output capped at the shared ~768 budget; no extended think.
-            assert client.config.max_tokens == 768
+            # Visible output capped at the shared 1000 budget; no extended think.
+            assert client.config.max_tokens == 1000
             assert client.config.thinking_budget_tokens is None
+
+        for model_id in ("anthropic/claude-sonnet-5-medium", "anthropic/claude-haiku-4-5-medium"):
+            client = build_client(
+                model_id,
+                client=_RecordingAnthropicClient(_fake_anthropic_response()),
+            )
+            assert isinstance(client, AnthropicClient)
+            assert client.config.max_tokens == 1000
+            assert client.config.thinking_budget_tokens == 4000
 
     def test_build_client_local_routes_to_openai_with_base_url(self) -> None:
         from pipeline.providers.registry import local_base_url
@@ -1013,15 +1027,37 @@ class TestRegistry:
         )
         assert isinstance(gemini, GeminiClient)
         assert gemini.config.thinking_budget_tokens == 8000
-        # Visible output cap lowered to the shared ~768 budget; thinking pool
+        # Visible output cap set to the shared 1000 budget; thinking pool
         # (8000) is separate and unchanged, so reasoning still has room.
-        assert gemini.config.max_output_tokens == 768
+        assert gemini.config.max_output_tokens == 1000
+
+    @pytest.mark.parametrize(
+        ("model_id", "vendor_model"),
+        [
+            ("openai/gpt-5.5-medium", "gpt-5.5"),
+            ("openai/gpt-5.4-mini-medium", "gpt-5.4-mini"),
+        ],
+    )
+    def test_openai_medium_reasoning_variants_build_client_config(
+        self,
+        model_id: str,
+        vendor_model: str,
+    ) -> None:
+        client = build_client(
+            model_id,
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+
+        assert isinstance(client, OpenAIClient)
+        assert client.config.model_name == vendor_model
+        assert client.config.reasoning_effort == "medium"
+        assert client.config.max_completion_tokens == 2000
 
     @pytest.mark.parametrize(
         ("model_id", "vendor_model", "reasoning_effort", "max_completion_tokens"),
         [
             # Combined (reasoning+visible) budget lowered from 10000 to a sane
-            # bound = reasoning headroom + ~768 visible. High/xhigh -> 4000.
+            # bound = reasoning headroom + visible output. High/xhigh -> 4000.
             ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 4000),
             ("openai/gpt-5.5-high", "gpt-5.5", "high", 4000),
             ("openai/gpt-5.5-low", "gpt-5.5", "low", 2000),

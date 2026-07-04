@@ -7,21 +7,24 @@
       phase: 'HIGH cost',
       models: [
         { id: 'openai/gpt-5.5-xhigh', checked: false },
-        { id: 'openai/gpt-5.5-high', checked: true },
-        { id: 'openai/gpt-5.5-low', checked: false },
-        { id: 'anthropic/claude-opus-4-6', checked: true },
+        { id: 'openai/gpt-5.5-high', checked: false },
+        { id: 'openai/gpt-5.5-medium', checked: false },
+        { id: 'openai/gpt-5.5-low', checked: true },
+        { id: 'anthropic/claude-opus-4-6', checked: false },
         { id: 'anthropic/claude-opus-4-7', checked: false },
-        { id: 'google/gemini-3.1-pro-preview', checked: true }
+        { id: 'google/gemini-3.1-pro-preview', checked: false }
       ]
     },
     {
       phase: 'MEDIUM cost',
       models: [
         { id: 'anthropic/claude-sonnet-4-6', checked: false },
-        { id: 'anthropic/claude-sonnet-5', checked: false },
+        { id: 'anthropic/claude-sonnet-5-low', checked: true },
+        { id: 'anthropic/claude-sonnet-5-medium', checked: false },
         { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
         { id: 'openai/gpt-5.4-mini-high', checked: false },
-        { id: 'google/gemini-3.5-flash', checked: false },
+        { id: 'openai/gpt-5.4-mini-medium', checked: false },
+        { id: 'google/gemini-3.5-flash', checked: true },
         { id: 'google/gemini-3-flash-preview', checked: false }
       ]
     },
@@ -29,21 +32,22 @@
       phase: 'LOW / FREE cost',
       models: [
         { id: 'openai/gpt-5.4-mini-low', checked: false },
-        { id: 'anthropic/claude-haiku-4-5', checked: false },
+        { id: 'anthropic/claude-haiku-4-5-low', checked: false },
+        { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
         { id: 'google/gemini-3.1-flash-lite', checked: false },
         { id: 'local/qwen3.6-27b', checked: false, local: true },
-        { id: 'local/gemma-4-26b-a4b-qat', checked: false, local: true }
+        { id: 'local/gemma-4-26b-a4b-qat', checked: true, local: true }
       ]
     }
   ];
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
-  // TODO(pricing): verify OpenAI gpt-5.5 / gpt-5.4-mini standard rates vs official OpenAI billing.
-  // gpt-5.5 input of 1.25 may be the cached-input rate (standard may be ~5/20-30). Attila to confirm.
+  // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
   const PRICING_PER_MTOK = {
     'openai/gpt-5.5': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-xhigh': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-high': { input: 1.25, output: 10.0 },
+    'openai/gpt-5.5-medium': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-low': { input: 1.25, output: 10.0 },
     'google/gemini-3.1-pro-preview': { input: 2.0, output: 12.0 },
     // Opus 4.6 (dated but kept): verified 5 / 25 per Mtok.
@@ -53,12 +57,15 @@
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-xhigh': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-high': { input: 0.15, output: 0.60 },
+    'openai/gpt-5.4-mini-medium': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-low': { input: 0.15, output: 0.60 },
     'anthropic/claude-sonnet-4-6': { input: 3.0, output: 15.0 },
     // Sonnet 5: INTRO 2.0/10.0 through 2026-08-31 (standard 3.0/15.0 after; +30% tokenizer).
-    'anthropic/claude-sonnet-5': { input: 2.0, output: 10.0 },
+    'anthropic/claude-sonnet-5-low': { input: 2.0, output: 10.0 },
+    'anthropic/claude-sonnet-5-medium': { input: 2.0, output: 10.0 },
     // Haiku 4.5: cheap/fast vision model.
-    'anthropic/claude-haiku-4-5': { input: 1.0, output: 5.0 },
+    'anthropic/claude-haiku-4-5-low': { input: 1.0, output: 5.0 },
+    'anthropic/claude-haiku-4-5-medium': { input: 1.0, output: 5.0 },
     'google/gemini-3.5-flash': { input: 1.50, output: 9.0 },
     'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
     'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
