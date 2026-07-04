@@ -176,6 +176,37 @@
     return String(markdown || '').replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim();
   }
 
+  function parseFrontmatter(markdown) {
+    const match = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(String(markdown || ''));
+    if (!match) return {};
+    const fields = {};
+    for (const line of match[1].split(/\r?\n/)) {
+      const item = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+      if (!item) continue;
+      let value = item[2].trim();
+      if (value === 'null') value = null;
+      else value = value.replace(/^['"]|['"]$/g, '');
+      fields[item[1]] = value;
+    }
+    return fields;
+  }
+
+  function markdownSection(markdown, heading) {
+    const lines = stripFrontmatter(markdown).split(/\r?\n/);
+    const start = lines.findIndex(line => line.trim().toLowerCase() === `## ${heading}`.toLowerCase());
+    if (start < 0) return '';
+    const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+    return lines.slice(start + 1, end < 0 ? undefined : end).join('\n').trim();
+  }
+
+  function cacheBustedUrl(url) {
+    return typeof window.cacheBust === 'function' ? window.cacheBust(url) : url;
+  }
+
+  async function fetchNoStore(url) {
+    return fetch(cacheBustedUrl(url), { cache: 'no-store' });
+  }
+
   function inlineMarkdown(text) {
     return esc(text)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -242,8 +273,16 @@
   async function openPanel(node) {
     const panel = qs('#policyGraphPanel');
     if (!panel || !node) return;
-    panel.innerHTML = panelShell(node);
+    const hasMarkdown = typeof node.markdown === 'string' && node.markdown.trim();
+    const localMarkdownMissing = demoUsesLocalPolicyGraph() && node.markdown_loaded === false;
+    const initialMarkdown = hasMarkdown
+      ? renderMarkdown(node.markdown)
+      : localMarkdownMissing
+        ? '<p class="muted">No markdown body found.</p>'
+        : '<p class="muted">Loading node markdown…</p>';
+    panel.innerHTML = panelShell(node, initialMarkdown);
     qs('#policyGraphClear')?.addEventListener('click', () => applySelection(null));
+    if (hasMarkdown || localMarkdownMissing) return;
 
     try {
       const version = currentVersion || currentPayload?.version || policyGraphVersion();
@@ -252,9 +291,10 @@
       const path = demoUsesLocalPolicyGraph()
         ? `${localPolicyBase()}/${encodeURIComponent(node.id)}.md`
         : `/policy-graph/${encodeURIComponent(policyGraphArea())}/${encodeURIComponent(version)}/${encodeURIComponent(node.id)}.md`;
-      const response = await fetch(cacheBust ? cacheBust(path) : path, { cache: 'no-store' });
+      const response = await fetchNoStore(path);
       if (!response.ok) throw new Error(`Markdown not found (${response.status})`);
       const markdown = await response.text();
+      node.markdown = markdown;
       const body = qs('#policyNodeMarkdown');
       if (body) body.innerHTML = renderMarkdown(markdown);
     } catch (error) {
@@ -342,15 +382,27 @@
       .map(edge => ({ ...edge, source: edgeSource(edge), target: edgeTarget(edge), sourceId: edgeSource(edge), targetId: edgeTarget(edge) }))
       .filter(edge => nodeSet.has(edge.sourceId) && nodeSet.has(edge.targetId));
 
-    const legendItems = [
-      ['root', COLORS.root],
-      ['positive', COLORS.positive],
-      ['boundary', COLORS.boundary],
-      ['exception', COLORS.exception],
-      ['negative', COLORS.negative],
-      ['provenance', COLORS.provenance],
-      ['other', COLORS.fallback]
-    ].map(([label, color]) => `<span><i style="background:${color}"></i>${esc(label)}</span>`).join('');
+    const legendBase = isMnistDemo()
+      ? [
+          ['root', COLORS.root],
+          ['digit_class', COLORS.positive],
+          ['other', COLORS.fallback]
+        ]
+      : [
+          ['root', COLORS.root],
+          ['positive', COLORS.positive],
+          ['boundary', COLORS.boundary],
+          ['exception', COLORS.exception],
+          ['negative', COLORS.negative],
+          ['provenance', COLORS.provenance],
+          ['other', COLORS.fallback]
+        ];
+    const legendItems = legendBase
+      .map(([label, color]) => `<span><i style="background:${color}"></i>${esc(label)}</span>`)
+      .join('');
+    const edgeLegend = links.some(edge => String(edge.type || edge.edge_type || '').toLowerCase() === 'confused_with')
+      ? '<span><i class="policy-legend-line confused-with"></i>confused_with</span>'
+      : '';
 
     wrap.innerHTML = `<div class="policy-graph-layout">
         <div class="policy-graph-canvas" aria-label="Interactive policy force graph">
@@ -361,7 +413,7 @@
           <p class="muted">Hover a node to trace its neighbors. Click a node to see its lineage to the root and read its Markdown.</p>
         </aside>
       </div>
-      <div class="policy-graph-legend">${legendItems}</div>`;
+      <div class="policy-graph-legend">${legendItems}${edgeLegend}</div>`;
 
     qs('#policyGraphTitle').textContent = payload.title || 'Cold-start GenAI policy';
 
@@ -578,27 +630,63 @@
     const rootId = policyGraphRootId();
     const classes = Array.isArray(demo.classes) ? demo.classes : [];
     const nodeIdFor = typeof demo.classNodeId === 'function' ? demo.classNodeId : (c => `MD.digit.${c}`);
+    const version = demo.policyGraph?.version || 'v0.1';
+    const hydrateNodeFromMarkdown = async fallback => {
+      const url = `${base}/${encodeURIComponent(fallback.id)}.md`;
+      try {
+        const response = await fetchNoStore(url);
+        if (!response.ok) throw new Error(`Markdown not found (${response.status})`);
+        const markdown = await response.text();
+        const frontmatter = parseFrontmatter(markdown);
+        return {
+          ...fallback,
+          ...frontmatter,
+          id: frontmatter.id || fallback.id,
+          title: frontmatter.title || fallback.title,
+          node_type: frontmatter.node_type || fallback.node_type,
+          polarity: frontmatter.polarity || fallback.polarity,
+          parent: Object.prototype.hasOwnProperty.call(frontmatter, 'parent') ? frontmatter.parent : fallback.parent,
+          version: frontmatter.version || fallback.version || version,
+          markdown,
+          markdown_body: stripFrontmatter(markdown),
+          positive_criteria: markdownSection(markdown, 'Positive criteria'),
+          distinguishing_features: markdownSection(markdown, 'Distinguishing features'),
+          confused_with: markdownSection(markdown, 'Hard negatives / confusions'),
+          markdown_loaded: true
+        };
+      } catch (error) {
+        return {
+          ...fallback,
+          version: fallback.version || version,
+          markdown: '',
+          markdown_error: error.message,
+          markdown_loaded: false
+        };
+      }
+    };
     // 1) Fetch edges.json (subtype_of edges).
     let baseEdges = [];
     try {
       const url = `${base}/edges.json`;
-      const response = await fetch(cacheBust ? cacheBust(url) : url, { cache: 'no-store' });
+      const response = await fetchNoStore(url);
       if (response.ok) baseEdges = await response.json();
     } catch (error) {
       baseEdges = [];
     }
-    // 2) Synthesize node stubs (root + one per class).
-    const nodes = [
-      { id: rootId, title: 'MNIST Digits — root', node_type: 'root', polarity: 'mixed', parent: null },
+    // 2) Build nodes from their live markdown files, falling back to stubs if missing.
+    const nodeStubs = [
+      { id: rootId, title: 'MNIST Digits — root', node_type: 'root', polarity: 'mixed', parent: null, version },
       ...classes.map(cls => ({
         id: nodeIdFor(cls),
         title: `Digit ${cls}`,
         node_type: 'digit_class',
         polarity: 'positive',
         parent: rootId,
-        digit: cls
+        digit: cls,
+        version
       }))
     ];
+    const nodes = await Promise.all(nodeStubs.map(hydrateNodeFromMarkdown));
     // 3) Confused_with virtual edges from demos.js confusionPairs.
     const confusedEdges = (demo.confusionPairs || []).flatMap(entry => {
       const [a, b] = entry.pair || [];
@@ -607,8 +695,8 @@
     });
     return {
       title: demo.sectionCopy?.policyGraphTitle || 'Cold-start MNIST digit policy',
-      version: demo.policyGraph?.version || 'v0.1',
-      available_versions: [demo.policyGraph?.version || 'v0.1'],
+      version,
+      available_versions: [version],
       nodes,
       edges: [...baseEdges, ...confusedEdges]
     };
