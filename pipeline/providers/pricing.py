@@ -1,6 +1,12 @@
 """Provider pricing helpers for cost tracking."""
 from __future__ import annotations
 
+# Pricing registry version. BUMP THIS whenever any rate in ``PRICING`` changes
+# so the durable cost ledger can record which rate table produced each row and
+# analysis can filter/segment by pricing epoch. Historical run rows may carry a
+# different (or absent) pricing_version — do NOT rewrite history silently.
+PRICING_VERSION = "2026-07-04"
+
 # Update when provider pricing changes; placeholder if unknown.
 PRICING: dict[str, dict[str, float]] = {
     # TODO(attila): gpt-5.5 input 1.25 looks like the CACHED-input rate, not the
@@ -47,88 +53,67 @@ PRICING: dict[str, dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# Reasoning-aware cost model (X4 — pricing/cost-model specialist).
+# Measured-token cost model (X4 — pricing/cost-model specialist).
 #
-# WHY THE OLD UNIFORM MODEL WAS WRONG
-# -----------------------------------
-# The previous model assumed EVERY model emits the same token counts
-# (input=800, output=400), scaled only by a per-tier multiplier. That cannot
-# capture the real driver of cross-family cost: how many *reasoning* tokens a
-# model burns. It made anthropic/claude-haiku-4-5-medium look ~11x pricier
-# ($1.96/1k) than openai/gpt-5.4-mini-low ($0.18/1k) when real pricing
-# calculators put them ~EQUAL (~$0.0042 vs ~$0.0039 per image). The per-token
-# RATES were correct; the token-COUNT model was the bug.
+# WHY THE OLD "APPETITE" MODEL WAS FANTASY
+# ---------------------------------------
+# The previous model invented a REASONING_TOKEN_APPETITE (efficient=70,
+# heavy=11200) plus a flat input=2200. That produced pure fiction:
+# gpt-5.4-mini-xhigh came out ~$10.6/1k (≈ Opus!), which is absurd for a
+# $0.15/$0.60 model. The invented 11,200-token "appetite" dwarfed reality.
 #
-# THE REALISTIC MODEL
-# -------------------
-# total_output_tokens = VISIBLE_output (~constant JSON + short justification)
-#                       + reasoning_tokens(model_family, effort_tier)
+# WHAT REAL DATA SAYS (aggregated from data/runs/*/llm_outputs.jsonl,
+# per-record input_tokens / output_tokens / model_id; medians):
+#   opus-4-6:        in ~8194  out ~360
+#   gemini-3.1-pro:  in ~7560  out ~198
+#   gpt-5.5:         in ~6323  out ~948
+#   gpt-5.5-high:    in ~7836  out ~1159
+#   gpt-5.5-xhigh:   in ~7832  out ~1670
 #
-#   * Efficient / near-linear models (Haiku 4.5, Gemini flash / flash-lite,
-#     local gemma/qwen) emit mostly VISIBLE tokens with a TINY reasoning tail.
-#   * Heavy reasoners (gpt-5.4-mini, gpt-5.5, opus/sonnet reasoning, gemini
-#     pro) burn THOUSANDS of hidden reasoning tokens. This is exactly why a
-#     cheap-per-token heavy reasoner (gpt-5.4-mini) converges in $/img with a
-#     pricier-per-token near-linear model (Haiku).
+# KEY TRUTHS:
+#   * INPUT ~6,300–8,200 tokens (the ontology/policy prompt dominates and is
+#     ~model-independent) — NOT 2200. This is the cost driver: cost is
+#     INPUT-DOMINATED.
+#   * OUTPUT ~200–1,670 tokens — NOT 11,200. Reasoning grows OUTPUT modestly
+#     by effort tier (low < medium < high < xhigh).
 #
-# reasoning_tokens = REASONING_TOKEN_APPETITE[family] × REASONING_TIER_MULTIPLIERS[tier]
+# THE MEASURED MODEL
+# ------------------
+#   estimate_$/1k = (input_rate * INPUT_TOKENS_PER_LABEL
+#                    + output_rate * OUTPUT_TOKENS_BY_TIER[tier]) / 1000
 #
-# CALIBRATION ANCHORS (Attila's real-world calculator, ~2200 input tokens):
-#   * Haiku-4.5 (efficient)      ≈ $0.0042/img (~$4.2/1k) → ~400 output tokens.
-#   * gpt-5.4-mini-low (heavy)   ≈ $0.0039/img (~$3.9/1k) → ~5,950 output tokens.
-#
-# All constants below are named, documented and tunable, and mirrored in
-# web/run-trigger.js (sync-tested).
-#
-# Within-family reasoning monotonicity + Attila's ratios are preserved on the
-# REASONING-token component (anchor high = 1.0):
-#   low  ≈ 0.5 × high     (0.5 / 1.0)
-#   low  ≈ 0.7 × medium   (0.5 / 0.7 ≈ 0.714 → low is ~-29% vs medium)
-REASONING_TIER_MULTIPLIERS: dict[str, float] = {
-    "xhigh": 1.5,
-    "high": 1.0,   # anchor
-    "medium": 0.7,
-    "low": 0.5,
-    # Base / non-reasoning models: a documented "none" baseline between low and
-    # medium (a plain call still spends some hidden tokens).
-    "none": 0.6,
+# INPUT_TOKENS_PER_LABEL: the measured median input across the real corpus
+# (~7,500). Tunable; it is PROMPT-DRIVEN, so it will grow as the ontology
+# grows — bump this when the policy prompt gets larger.
+INPUT_TOKENS_PER_LABEL = 7500
+
+# OUTPUT tokens by effort tier, calibrated to the real gpt-5.5 reasoning family
+# (base/none ~300, and rising with effort). Within-family monotonic:
+# none < low < medium < high < xhigh. Non-reasoning models use "none".
+# Where we have sufficient per-model measured data we prefer the measured
+# median (see MEASURED_OUTPUT_TOKENS); otherwise we fall back to this table.
+OUTPUT_TOKENS_BY_TIER: dict[str, int] = {
+    "none": 300,
+    "low": 450,
+    "medium": 950,
+    "high": 1160,
+    "xhigh": 1670,
 }
 
-# Baseline per-label token assumptions used only for the panel *estimate*
-# (not for actual billing, which uses real usage via compute_call_cost).
-#
-# INPUT: one image + labeling prompt. A single ~512px vision tile plus the
-# policy/justification prompt lands around ~2200 tokens across providers. This
-# is the a-priori assumption the calculator anchors on; tune here.
-ESTIMATE_INPUT_TOKENS_PER_LABEL = 2200
-# VISIBLE output: the JSON verdict + <=300-word justification (~350 tokens),
-# near-constant across models/tiers. Reasoning tokens are added on TOP of this.
-ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL = 350
+# Optional per-model measured OUTPUT medians (from llm_outputs.jsonl) used when
+# n is sufficient. Left conservative/empty by default so the panel anchors to
+# the calibrated tier table (which matches Attila's corrected target prices to
+# the cent). Populate a model here only when a run has enough samples AND the
+# measured value keeps the family monotonic. INPUT stays prompt-driven
+# (INPUT_TOKENS_PER_LABEL) since it is ~model-independent.
+MEASURED_OUTPUT_TOKENS: dict[str, int] = {}
 
-# Per-FAMILY reasoning-token appetite at the anchor tier (high = 1.0). This is
-# the knob that captures cross-family realism.
-#   * "efficient": near-linear vision models with a tiny reasoning tail. Anchored
-#     so Haiku-medium (0.7×) lands ~400 total output tokens → ~$4.2/1k.
-#   * "heavy": deliberate reasoners that burn thousands of hidden tokens.
-#     Anchored so gpt-5.4-mini-low (0.5×) lands ~5,950 total output tokens
-#     (~5,600 reasoning) → ~$3.9/1k.
-REASONING_TOKEN_APPETITE: dict[str, float] = {
-    "efficient": 70.0,
-    "heavy": 11200.0,
-}
-
-# Cost buckets derived from the computed reasoning-adjusted $/1k-label estimate.
-# Under the realistic model, cheap models cluster in the low single digits, so
-# thresholds are set to keep meaningful separation: cheap near-linear + cheap
-# reasoners (Haiku, gpt-5.4-mini-low, flash-lite) land LOW; mid land MEDIUM;
-# premium/heavy-reasoning models land HIGH. Locals get their own tier.
-COST_TIER_THRESHOLDS: dict[str, float] = {"high": 8.0, "medium": 5.0}
+# Cost buckets on the REAL (input-dominated) scale. On measured tokens the
+# hosted models spread across ~$1–$45/1k, so: HIGH >= $20, MEDIUM >= $5, else
+# LOW (mini/flash-lite land LOW; locals get their own LOCAL tier).
+COST_TIER_THRESHOLDS: dict[str, float] = {"high": 20.0, "medium": 5.0}
 
 _REASONING_SUFFIXES = ("xhigh", "high", "medium", "low")
-
-# Substrings that mark a model as belonging to the EFFICIENT (near-linear)
-# family. Everything else is treated as a HEAVY reasoner.
-_EFFICIENT_FAMILY_MARKERS = ("haiku", "flash", "local/")
 
 
 def price_for(model_id: str) -> dict[str, float] | None:
@@ -142,51 +127,40 @@ def reasoning_tier_for(model_id: str) -> str:
     return tail if tail in _REASONING_SUFFIXES else "none"
 
 
-def reasoning_multiplier_for(model_id: str) -> float:
-    """Return the reasoning-tier cost multiplier for ``model_id``."""
-    return REASONING_TIER_MULTIPLIERS[reasoning_tier_for(model_id)]
+def estimate_output_tokens_for(model_id: str) -> int:
+    """Estimated OUTPUT tokens for ``model_id``.
 
-
-def reasoning_family_for(model_id: str) -> str:
-    """Classify ``model_id`` into a reasoning-appetite family.
-
-    Returns ``"efficient"`` for near-linear vision models (Haiku, Gemini flash
-    variants, local models) and ``"heavy"`` for deliberate reasoners.
+    Prefers a per-model measured median (``MEASURED_OUTPUT_TOKENS``) when
+    present; otherwise falls back to the effort-tier table
+    (``OUTPUT_TOKENS_BY_TIER``). Non-reasoning models resolve to ``none``.
     """
-    mid = str(model_id or "").lower()
-    if any(marker in mid for marker in _EFFICIENT_FAMILY_MARKERS):
-        return "efficient"
-    return "heavy"
+    measured = MEASURED_OUTPUT_TOKENS.get(model_id)
+    if measured is not None:
+        return int(measured)
+    return OUTPUT_TOKENS_BY_TIER[reasoning_tier_for(model_id)]
 
 
-def reasoning_tokens_for(model_id: str) -> float:
-    """Estimated hidden REASONING tokens for ``model_id``.
+def estimate_input_tokens_for(model_id: str) -> int:
+    """Estimated INPUT tokens for ``model_id``.
 
-    ``REASONING_TOKEN_APPETITE[family] * REASONING_TIER_MULTIPLIERS[tier]``.
-    Preserves Attila's within-family ratios on the reasoning component
-    (low = 0.5x high, low = 0.7x medium).
+    Input is prompt-driven and ~model-independent, so all models share
+    ``INPUT_TOKENS_PER_LABEL`` (the measured corpus median).
     """
-    appetite = REASONING_TOKEN_APPETITE[reasoning_family_for(model_id)]
-    return appetite * reasoning_multiplier_for(model_id)
-
-
-def estimate_output_tokens_for(model_id: str) -> float:
-    """Estimated TOTAL output tokens = visible output + reasoning tokens."""
-    return ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL + reasoning_tokens_for(model_id)
+    return INPUT_TOKENS_PER_LABEL
 
 
 def estimate_per_thousand_labels(model_id: str) -> float | None:
-    """Estimate USD per 1k labels using the reasoning-aware token model.
+    """Estimate USD per 1k labels using the REAL measured-token model.
 
-    Input tokens are ~constant; output tokens = visible + per-family reasoning
-    tokens scaled by the effort tier. Returns ``None`` for unknown models.
-    Local (free) models return ``0.0``.
+    Cost is input-dominated: input tokens are ~constant (prompt-driven) and
+    output tokens grow modestly by effort tier. Returns ``None`` for unknown
+    models; local (free) models return ``0.0``.
     """
     pricing = price_for(model_id)
     if pricing is None:
         return None
     per_label = (
-        pricing["input_per_mtok"] * ESTIMATE_INPUT_TOKENS_PER_LABEL
+        pricing["input_per_mtok"] * estimate_input_tokens_for(model_id)
         + pricing["output_per_mtok"] * estimate_output_tokens_for(model_id)
     ) / 1_000_000
     return per_label * 1000
@@ -247,18 +221,16 @@ def compute_call_cost(
 
 __all__ = [
     "PRICING",
+    "PRICING_VERSION",
     "price_for",
     "compute_call_cost",
-    "REASONING_TIER_MULTIPLIERS",
-    "REASONING_TOKEN_APPETITE",
-    "ESTIMATE_INPUT_TOKENS_PER_LABEL",
-    "ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL",
+    "INPUT_TOKENS_PER_LABEL",
+    "OUTPUT_TOKENS_BY_TIER",
+    "MEASURED_OUTPUT_TOKENS",
     "COST_TIER_THRESHOLDS",
     "reasoning_tier_for",
-    "reasoning_multiplier_for",
-    "reasoning_family_for",
-    "reasoning_tokens_for",
     "estimate_output_tokens_for",
+    "estimate_input_tokens_for",
     "estimate_per_thousand_labels",
     "is_local_model",
     "cost_tier_for",

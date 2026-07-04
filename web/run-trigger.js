@@ -40,23 +40,22 @@
     LOCAL: 'LOCAL (free · on-device GPU)'
   };
 
-  // ---- Reasoning-aware cost model (mirror of pipeline/providers/pricing.py) ----
-  // Keep multipliers/tokens/appetites/thresholds in EXACT sync with Python
-  // (sync-tested). Realistic model: total output = visible + per-family
-  // reasoning tokens (efficient models emit tiny reasoning; heavy reasoners burn
-  // thousands), so Haiku ≈ gpt-5.4-mini-low instead of ~11x apart.
-  // Calibration (Attila, anchor high=1.0): low≈0.5×high, low≈0.7×medium on the
-  // reasoning component. Anchors (~2200 input): Haiku-med ≈ $4.2/1k,
-  // gpt-5.4-mini-low ≈ $3.9/1k. These are the tunable knobs.
-  const REASONING_TIER_MULTIPLIERS = { xhigh: 1.5, high: 1.0, medium: 0.7, low: 0.5, none: 0.6 };
-  const ESTIMATE_INPUT_TOKENS_PER_LABEL = 2200;
-  const ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL = 350;
-  // Per-family reasoning-token appetite at anchor tier (high=1.0).
-  const REASONING_TOKEN_APPETITE = { efficient: 70.0, heavy: 11200.0 };
-  const COST_TIER_THRESHOLDS = { high: 8.0, medium: 5.0 };
+  // ---- Measured-token cost model (mirror of pipeline/providers/pricing.py) ----
+  // Keep tokens/tiers/thresholds in EXACT sync with Python (sync-tested).
+  // The old "appetite" model was fantasy (heavy=11200 output tokens made
+  // gpt-5.4-mini-xhigh ~$10.6/1k). REAL data (data/runs/*/llm_outputs.jsonl):
+  // input ~6,300-8,200 (ontology prompt dominates, ~model-independent), output
+  // ~200-1,670 (grows modestly by effort tier). Cost is INPUT-DOMINATED.
+  //   estimate_$/1k = (input_rate*INPUT + output_rate*OUTPUT_BY_TIER[tier]) / 1000
+  // INPUT_TOKENS_PER_LABEL is the measured median; prompt-driven (grows with
+  // ontology size). OUTPUT_TOKENS_BY_TIER calibrated to the real gpt-5.5 family.
+  const INPUT_TOKENS_PER_LABEL = 7500;
+  const OUTPUT_TOKENS_BY_TIER = { none: 300, low: 450, medium: 950, high: 1160, xhigh: 1670 };
+  // Optional per-model measured medians; empty by default (anchor to tiers).
+  const MEASURED_OUTPUT_TOKENS = {};
+  // Buckets on the real input-dominated scale: HIGH>=$20, MEDIUM>=$5, else LOW.
+  const COST_TIER_THRESHOLDS = { high: 20.0, medium: 5.0 };
   const REASONING_SUFFIXES = ['xhigh', 'high', 'medium', 'low'];
-  // Substrings marking the EFFICIENT (near-linear) family; else HEAVY reasoner.
-  const EFFICIENT_FAMILY_MARKERS = ['haiku', 'flash', 'local/'];
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
   // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
@@ -103,28 +102,20 @@
     return REASONING_SUFFIXES.includes(tail) ? tail : 'none';
   }
 
-  function reasoningMultiplierFor(model) {
-    return REASONING_TIER_MULTIPLIERS[reasoningTierFor(model)];
+  // Estimated OUTPUT tokens: measured median when present, else the tier table.
+  function estimateOutputTokensFor(model) {
+    const measured = MEASURED_OUTPUT_TOKENS[model];
+    if (measured !== undefined) return measured;
+    return OUTPUT_TOKENS_BY_TIER[reasoningTierFor(model)];
   }
 
-  // Classify into a reasoning-appetite family (efficient near-linear vs heavy).
-  function reasoningFamilyFor(model) {
-    const mid = String(model || '').toLowerCase();
-    return EFFICIENT_FAMILY_MARKERS.some(m => mid.includes(m)) ? 'efficient' : 'heavy';
-  }
-
-  // Estimated hidden reasoning tokens = appetite[family] * tier multiplier.
-  function reasoningTokensFor(model) {
-    return REASONING_TOKEN_APPETITE[reasoningFamilyFor(model)] * reasoningMultiplierFor(model);
-  }
-
-  // Reasoning-aware estimate: input ~constant; output = visible + per-family
-  // reasoning tokens scaled by the effort tier.
+  // Measured-token estimate: input ~constant (prompt-driven), output by tier.
+  // Cost is input-dominated.
   function estimatePerThousandLabels(model) {
     const pricing = PRICING_PER_MTOK[model];
     if (!pricing) return null;
-    const outputTokens = ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL + reasoningTokensFor(model);
-    const perLabel = (pricing.input * ESTIMATE_INPUT_TOKENS_PER_LABEL
+    const outputTokens = estimateOutputTokensFor(model);
+    const perLabel = (pricing.input * INPUT_TOKENS_PER_LABEL
       + pricing.output * outputTokens) / 1_000_000;
     return perLabel * 1000;
   }
