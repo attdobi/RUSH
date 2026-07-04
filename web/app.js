@@ -938,6 +938,112 @@ function scoreSplitPhrase(split) {
   return split || 'all';
 }
 
+function decisionQualityLabelers(payload) {
+  return Array.isArray(payload?.labelers) ? payload.labelers : [];
+}
+
+function decisionQualityMetric(row, key) {
+  return metricNumber(row?.metrics?.[key] ?? row?.[key]);
+}
+
+function decisionQualityImageCount(payload) {
+  const own = metricNumber(payload?.n_images);
+  if (own !== null) return own;
+  const nValues = decisionQualityLabelers(payload)
+    .map(row => decisionQualityMetric(row, 'n'))
+    .filter(value => value !== null);
+  return nValues.length ? Math.max(...nValues) : '—';
+}
+
+function decisionQualityHeadlineLabeler(payload) {
+  const labelers = decisionQualityLabelers(payload);
+  return labelers.find(row => window.rushIsEnsembleRow(row))
+    || labelers.find(row => String(row?.labeler_id || '').toLowerCase() === 'majority_vote')
+    || labelers.find(row => row);
+}
+
+function decisionQualityLabelerName(row) {
+  return row?.labeler_id || row?.model_id || 'majority_vote';
+}
+
+function renderScoreReportedMetrics() {
+  const target = $('#scoreReportedMetrics');
+  if (!target) return;
+  const summary = runState.summary || {};
+  if (!summary.reported || typeof summary.reported !== 'object') {
+    target.innerHTML = '';
+    return;
+  }
+  const reported = summary.reported;
+  const reportedRow = decisionQualityHeadlineLabeler(reported);
+  const reportedAccuracy = decisionQualityMetric(reportedRow, 'accuracy');
+  const reportedF1 = decisionQualityMetric(reportedRow, 'f1');
+  const reportedSplit = String(summary.reported_split || 'test').toUpperCase();
+  const cards = [
+    ['TEST set · reported', decisionQualityImageCount(reported), `${reportedSplit} only; train rows excluded from headline`],
+    ['Reported majority accuracy', rushApiFormatMetric(reportedAccuracy), `${decisionQualityLabelerName(reportedRow)} · test only`]
+  ];
+  if (reportedF1 !== null) cards.push(['Reported majority F1', rushApiFormatMetric(reportedF1), 'test-only decision quality']);
+
+  const train = summary.by_split?.train;
+  if (train && typeof train === 'object') {
+    const trainRow = decisionQualityHeadlineLabeler(train);
+    const trainAccuracy = decisionQualityMetric(trainRow, 'accuracy');
+    const trainNote = trainAccuracy !== null
+      ? `secondary reference · majority accuracy ${rushApiFormatMetric(trainAccuracy)}`
+      : 'secondary reference only';
+    cards.push(['train (updates, not reported)', decisionQualityImageCount(train), trainNote]);
+  }
+
+  target.innerHTML = cards.map(([k, v, n]) =>
+    `<article class="stat-card"><span>${esc(k)}</span><strong>${esc(v)}</strong><p>${esc(n || '')}</p></article>`
+  ).join('');
+}
+
+function renderScoreUpdateCandidates() {
+  const target = $('#scoreUpdateCandidates');
+  if (!target) return;
+  const candidates = Array.isArray(runState.summary?.update_candidates) ? runState.summary.update_candidates : [];
+  if (!candidates.length) {
+    target.innerHTML = '';
+    return;
+  }
+  const rows = candidates.slice(0, 8).map(candidate => `
+    <tr>
+      <td><strong>${esc(candidate.image_id || candidate.sample_id || '—')}</strong></td>
+      <td>${esc(candidate.misalignment_type || '—')}</td>
+      <td>${esc(candidate.severity || '—')}</td>
+    </tr>`).join('');
+  const clipped = candidates.length > 8 ? `<p class="row-meta">Showing 8 of ${candidates.length} train-derived update candidate(s).</p>` : '';
+  target.innerHTML = `
+    <article class="score-algo-lane train-lane">
+      <span>TRAIN update candidates</span>
+      <strong>Policy/prompt updates are driven by these training misalignments.</strong>
+      <p>Live backend input is exported here; SME review and applying the proposal remain the manual next step.</p>
+      <div class="misalignment-table residual-table">
+        <table class="misalignment"><thead><tr><th>image</th><th>misalignment</th><th>severity</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+      ${clipped}
+    </article>`;
+}
+
+function renderScoreAlgorithmState() {
+  const summary = runState.summary || {};
+  const hasReported = !!summary.reported && typeof summary.reported === 'object';
+  const badge = $('#scoreAlgoBadge');
+  if (badge) {
+    badge.textContent = hasReported ? 'live · test-reported / train-updates' : 'intended pipeline · defined-not-executed';
+  }
+  const rule = $('#scoreAlgoRule');
+  if (rule) {
+    rule.textContent = hasReported
+      ? 'Learn from train, report on test — never leak. Live split-separated export loaded: TEST decision quality is reported, while TRAIN residuals and update candidates drive policy work.'
+      : 'Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.';
+  }
+  renderScoreReportedMetrics();
+  renderScoreUpdateCandidates();
+}
+
 function renderScoreAlgorithmControls() {
   const k = scoreKPerSplitValue();
   const split = scoreSplitValue();
@@ -1013,12 +1119,15 @@ function renderResidualMisalignments() {
   const trainRows = annotated.filter(entry => splitKind(entry.split) === 'train');
   const testRows = annotated.filter(entry => splitKind(entry.split) === 'test');
   const unknownRows = annotated.filter(entry => !splitKind(entry.split));
-  const splitExported = trainRows.length + testRows.length > 0;
+  const splitExported = rows.some(row => Object.prototype.hasOwnProperty.call(row, 'split') && splitKind(row.split));
   const status = rows.length
     ? `${rows.length} real residual row(s) in the selected run export${splitExported ? ', grouped by split where available.' : ', but per-row split is not exported in the current scoring payload.'}`
     : 'No residual misalignment rows are available for the selected run.';
+  const splitState = splitExported
+    ? 'Live: train residuals drive policy updates; test residuals are reported-only.'
+    : 'Train/update vs test/report separation remains the intended pipeline until per-row split is exported.';
   target.innerHTML = `
-    <div class="residual-misalign-status">${esc(status)} Backend train/update vs test/report separation remains intended pipeline · defined-not-executed.</div>
+    <div class="residual-misalign-status">${esc(status)} ${esc(splitState)}</div>
     <article class="residual-lane train-lane">
       <header><span>TRAIN residuals</span><strong>${trainRows.length}</strong></header>
       ${residualRowTable(trainRows, 'No split-tagged training residual rows are exported for this run yet.')}
@@ -1319,6 +1428,7 @@ function renderConsensus() {
 function renderRun() {
   if (!document.querySelector('.score-tab-panel:not([hidden])')) selectScoreTab('consensus');
   renderScoreAlgorithmControls();
+  renderScoreAlgorithmState();
   renderRunPicker();
   renderRunSummary();
   renderBorderline();
