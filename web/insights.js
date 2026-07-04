@@ -88,13 +88,21 @@
       const id = vote.labeler_id || vote.model_id || 'unknown';
       const label = vote.label || vote.vote || '—';
       const suffix = window.rushIsEnsembleRow(vote) ? ' <small class="muted">· ensemble</small>' : '';
-      return `<span class="mini-chip">${esc(id)}${suffix}: ${labelBadge(label)}</span>`;
+      return `<span class="mini-chip">${esc(id)}${suffix}: ${labelBadge(label)}${boundaryPairChip(vote)}</span>`;
     }).join(' ');
   }
 
   function labelsHtml(labels) {
     if (!Array.isArray(labels) || !labels.length) return '<span class="muted">—</span>';
     return labels.slice(0, 6).map(label => labelBadge(label)).join(' ');
+  }
+
+  function boundaryPairChip(record) {
+    const pair = record?.is_boundary === true && Array.isArray(record?.is_boundary_between) && record.is_boundary_between.length === 2
+      ? record.is_boundary_between
+      : null;
+    if (!pair) return '';
+    return `<span class="boundary-pair-chip" title="boundary pair">${esc(pair[0])} ↔ ${esc(pair[1])}</span>`;
   }
 
   function isMissingScoringError(error) {

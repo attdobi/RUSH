@@ -839,6 +839,15 @@ function voteBool(value) {
   return '—';
 }
 
+function boundaryPairChip(record) {
+  const pair = record?.is_boundary === true && Array.isArray(record?.is_boundary_between) && record.is_boundary_between.length === 2
+    ? record.is_boundary_between
+    : null;
+  if (!pair) return '';
+  return `<span class="boundary-pair-chip" title="boundary pair">${esc(pair[0])} ↔ ${esc(pair[1])}</span>`;
+}
+window.rushBoundaryPairChip = boundaryPairChip;
+
 function voteToken(vote, key) {
   const value = vote?.[key];
   if (value == null || value === '') return '—';
@@ -1097,12 +1106,13 @@ function residualRowTable(entries, emptyMessage) {
     const id = row.image_id || row.sample_id || '';
     const sme = row.sme_truth || row.truth || '—';
     const reason = row.disagreement_reason || row.reason || row.misalignment_type || '—';
+    const pairChip = boundaryPairChip(row);
     return `<tr>
       <td><strong>${esc(id)}</strong></td>
       <td>${esc(splitLabel(entry.split))}</td>
       <td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td>
       <td>${majorityPill(row)}</td>
-      <td>${esc(reason)}</td>
+      <td>${esc(reason)}${pairChip ? `<div class="boundary-pair-row">${pairChip}</div>` : ''}</td>
       <td><button type="button" class="residual-label-update" disabled title="Coming soon: update a human label before guideline building so one bad label does not propagate.">Update human label</button></td>
     </tr>`;
   }).join('');
@@ -1161,7 +1171,7 @@ function renderInlineJustificationsRow(panel, row, colSpan) {
         <dt>label</dt><dd><span class="badge ${labelBadgeClass(vote.label)}">${esc(vote.label || '—')}</span></dd>
         <dt>l2_label</dt><dd><code>${esc(vote.l2_label || '—')}</code></dd>
         <dt>confidence</dt><dd><code>${voteNumber(vote.confidence)}</code></dd>
-        <dt>boundary</dt><dd>${esc(voteBool(vote.is_boundary))}</dd>
+        <dt>boundary</dt><dd>${esc(voteBool(vote.is_boundary))}${boundaryPairChip(vote)}</dd>
         <dt>difficulty</dt><dd>${esc(vote.difficulty || '—')}${vote.justification_too_long ? ' <span class="mini-chip">too long</span>' : ''}</dd>
         <dt>input</dt><dd><code>${voteToken(vote, 'input_tokens')}</code></dd>
         <dt>output</dt><dd><code>${voteToken(vote, 'output_tokens')}</code></dd>
@@ -1282,7 +1292,7 @@ function renderMisalignment() {
       const cls = labelBadgeClass(vote);
       const cost = formatCost(voteRow?.cost_usd);
       const title = cost ? ` title="${attr(cost)}"` : '';
-      return `<td${title}><span class="badge ${cls}">${esc(vote)}</span></td>`;
+      return `<td${title}><span class="badge ${cls}">${esc(vote)}</span>${boundaryPairChip(voteRow)}</td>`;
     }).join('');
     const agreement = row.agreement || (row.unanimous ? 'unanimous' : (row.misalignment_type || 'split'));
     const reason = row.disagreement_reason || row.reason || '';
@@ -1409,7 +1419,7 @@ function renderConsensus() {
       const conf = isNumber(v.confidence) ? ` (${v.confidence.toFixed(2)})` : '';
       const rawCost = Number(v.cost_usd);
       const cost = v.cost_usd != null && Number.isFinite(rawCost) ? ` · cost $${rawCost.toFixed(4)}` : '';
-      return `<td><span class="badge ${cls}" title="confidence${conf}${boundary}${cost}">${esc(v.label)}</span></td>`;
+      return `<td><span class="badge ${cls}" title="confidence${conf}${boundary}${cost}">${esc(v.label)}</span>${boundaryPairChip(v)}</td>`;
     }).join('');
     const distChips = Object.entries(r.vote_distribution || {})
       .sort((a, b) => b[1] - a[1])

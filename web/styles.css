@@ -282,6 +282,20 @@ main { padding: 0 clamp(18px, 4vw, 58px) 70px; }
 .row-meta { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; letter-spacing: .04em; }
 .prepared-meta { color: var(--muted); font-size: 11px; margin: 6px 0 0; line-height: 1.4; }
 .prepared-meta strong { color: #dce8ff; }
+.boundary-pair-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-left: 6px;
+  border: 1px solid rgba(255,209,102,.34);
+  border-radius: 999px;
+  background: rgba(255,209,102,.10);
+  color: #ffe0a3;
+  padding: 2px 6px;
+  font: 850 10px/1.25 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+.boundary-pair-row .boundary-pair-chip { margin: 5px 0 0; }
 
 .misalignment-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(8, 16, 31, .55); }
 table.misalignment { width: 100%; border-collapse: collapse; font-size: 13px; }

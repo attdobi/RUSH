@@ -102,6 +102,14 @@
     return isNumber(value) ? `$${value.toFixed(5)}` : '—';
   }
 
+  function boundaryPairChip(record) {
+    const pair = record?.is_boundary === true && Array.isArray(record?.is_boundary_between) && record.is_boundary_between.length === 2
+      ? record.is_boundary_between
+      : null;
+    if (!pair) return '';
+    return `<span class="boundary-pair-chip" title="boundary pair">${esc(pair[0])} ↔ ${esc(pair[1])}</span>`;
+  }
+
   function renderVote(vote) {
     const stats = voteStats(vote);
     const model = vote.labeler_id || vote.model_id || 'unknown model';
@@ -116,7 +124,7 @@
         <dt>label</dt><dd>${esc(vote.label || '—')}</dd>
         <dt>confidence</dt><dd>${esc(conf)}</dd>
         <dt>l2_label</dt><dd><code>${esc(vote.l2_label || '—')}</code></dd>
-        <dt>boundary</dt><dd>${esc(boundary)}</dd>
+        <dt>boundary</dt><dd>${esc(boundary)}${boundaryPairChip(vote)}</dd>
         <dt>tokens</dt><dd>${esc(stats.total ?? '—')} total (${esc(stats.input ?? '—')} in / ${esc(stats.output ?? '—')} out)</dd>
       </dl>
       <p>${esc(vote.justification || 'No justification text available for this vote.')}</p>
