@@ -8,6 +8,16 @@ The first pilot is cold-start **Generative AI image classification**: start with
 
 ![RUSH system loop](docs/visuals/rush-system.svg)
 
+## Main outcomes
+
+RUSH exists to deliver three headline outcomes:
+
+- **RLHF with minimal human intervention.** Humans are spent only where they move the needle: the loop highlights and routes images on the **decision boundaries** for SME re-review, instead of asking people to re-label the easy majority.
+- **A self-improving policy loop.** Each iteration re-runs the **generator** prompt, grows the **knowledge graph (KG)**, and **enhances decision quality** — misalignments and boundary cases become versioned policy updates that raise the next round's accuracy.
+- **A multi-LLM price-optimization system.** The "easy"/aligned cases (the majority) are resolved cheaply by **consensus** across low-cost models. On **misalignment**, RUSH escalates to a **high-reasoning model** (or a **judge system** of models when needed). **Boundary / difficult / lack-of-consensus** cases are flagged for **human re-review and intervention**.
+
+**Cost per batch is the measuring stick.** Every run records per-image and per-batch cost in `run_manifest.json` (usage tokens x `pipeline/providers/pricing.py`; local models = $0) and surfaces it live in §3. Because spend is tracked at each iteration, the price-optimization above is *measurable*: you can watch cost fall as consensus absorbs the easy cases and expensive high-reasoning calls stay reserved for the boundary.
+
 ## Repo contents
 
 - `web/` - dependency-free demo UI for GenAI sampling, policy graph building, future bulk LLM labeling, and decision-quality review. `web/genai-sampler.js` is the fallback when manifests are missing.
