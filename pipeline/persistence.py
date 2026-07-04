@@ -166,6 +166,16 @@ def append_llm_output(paths: RunPaths, output: dict[str, Any], *, image_id: str,
     _append_jsonl(paths.llm_outputs, envelope)
 
 
+def append_cost_row(paths: RunPaths, row: dict[str, Any]) -> None:
+    """Append one row to the durable per-image cost ledger (costs.jsonl).
+
+    The ledger is analysis data (not a validated schema artifact); rows are
+    self-describing (rates + pricing_version). Never raises on content — a
+    ledger write must not break a labeling run.
+    """
+    _append_jsonl(paths.costs, row)
+
+
 def append_error(
     paths: RunPaths,
     *,

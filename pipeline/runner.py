@@ -34,7 +34,8 @@ from typing import Callable, Iterable
 from . import persistence
 from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
-from .providers.pricing import compute_call_cost
+from .providers.pricing import compute_call_cost, PRICING_VERSION
+from .scoring.cost_ledger import build_cost_row, rollup_cost_rows
 from .io_paths import (
     DEFAULT_POLICY_GRAPH_DIR,
     DEFAULT_POLICY_GRAPH_VERSION,
@@ -573,7 +574,12 @@ def run_labeling(
 
     write_lock = threading.Lock()  # keeps JSONL appends from interleaving
 
-    def _persist_response(response: LabelResponse) -> bool:
+    # Durable per-image cost ledger rows (X1). Written to costs.jsonl with
+    # LIVE registry rates + pricing_version so future analysis has current,
+    # self-describing cost data (not stale historical cost_usd).
+    cost_rows: list[dict] = []
+
+    def _persist_response(response: LabelResponse, batch_index: int = 0) -> bool:
         if response.cost_usd is None:
             response.cost_usd = compute_call_cost(
                 response.model_id,
@@ -611,6 +617,20 @@ def run_labeling(
                     model_id=response.model_id,
                 )
                 persistence.append_label_vote(paths, label_vote)
+                # Durable, analysis-ready cost row: LIVE registry rates +
+                # pricing_version (recomputed, not the possibly-stale
+                # provider/response cost).
+                cost_row = build_cost_row(
+                    run_id=rid,
+                    batch_index=batch_index,
+                    image_id=response.image_id,
+                    model_id=response.model_id,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    recorded_at=_utcnow_iso(),
+                )
+                persistence.append_cost_row(paths, cost_row)
+                cost_rows.append(cost_row)
             return True
         except persistence.PersistenceError:
             return False
@@ -695,7 +715,7 @@ def run_labeling(
         errored = 0
         batch_cost: float | None = None
         for response in responses:
-            if _persist_response(response):
+            if _persist_response(response, batch_index=batch_index):
                 completed += 1
                 if response.cost_usd is not None:
                     batch_cost = (batch_cost or 0.0) + float(response.cost_usd)
@@ -733,6 +753,8 @@ def run_labeling(
         b["images"] for b in per_batch_costs if b["cost_usd"] is not None
     )
     summary.total_cost_usd = total_cost
+    # Per-LLM breakdown + pricing_version stamp from the durable ledger rows.
+    ledger = rollup_cost_rows(cost_rows)
     cost_block = {
         "total_cost_usd": total_cost,
         "cost_per_image_usd": (total_cost / total_images) if total_images else None,
@@ -741,6 +763,10 @@ def run_labeling(
             1 for b in per_batch_costs if b["cost_usd"] is None
         ),
         "per_batch": per_batch_costs,
+        # Per-LLM breakdown (analysis-ready) recomputed from LIVE registry.
+        "per_model": ledger["per_model"],
+        "pricing_version": PRICING_VERSION,
+        "pricing_versions_present": ledger["pricing_versions"],
     }
     final_manifest = dict(manifest)
     final_manifest["finished_at"] = summary.finished_at

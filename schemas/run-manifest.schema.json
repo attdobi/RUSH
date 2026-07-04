@@ -133,6 +133,17 @@
             },
             "additionalProperties": false
           }
+        },
+        "per_model": {
+          "type": "object",
+          "description": "Per-LLM cost breakdown recomputed from the LIVE pricing registry at finalization.",
+          "additionalProperties": {"type": "object"}
+        },
+        "pricing_version": {"type": "string", "description": "Pricing registry version used to compute this run's ledger."},
+        "pricing_versions_present": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Distinct pricing_version stamps present in the durable ledger rows (mixed => legacy rows present)."
         }
       },
       "additionalProperties": false

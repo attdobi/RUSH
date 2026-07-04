@@ -78,6 +78,11 @@ class RunPaths:
         return self.root / "errors.jsonl"
 
     @property
+    def costs(self) -> Path:
+        """Durable per-image-per-model cost ledger (analysis-ready)."""
+        return self.root / "costs.jsonl"
+
+    @property
     def scoring_dir(self) -> Path:
         return self.root / "scoring"
 
