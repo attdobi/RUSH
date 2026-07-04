@@ -123,6 +123,7 @@ def build_misalignment_web(misalignment: dict[str, Any]) -> dict[str, Any]:
                 "image_id": r["image_id"],
                 "repo_rel_path": r.get("repo_rel_path", ""),
                 "sme_truth": r["sme_truth"],
+                "split": r.get("split", ""),
                 "misalignment_type": r["misalignment_type"],
                 "severity": r["severity"],
                 "votes": [_slim_vote(v) for v in r.get("votes", [])],

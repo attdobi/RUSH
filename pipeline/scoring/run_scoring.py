@@ -34,6 +34,42 @@ def _atomic_write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     tmp.replace(path)
 
 
+def _build_update_candidates(misalignment: dict[str, Any], *, cap: int = 50) -> list[dict[str, Any]]:
+    severity_rank = {"high": 0, "medium": 1, "low": 2}
+    type_rank = {"consensus_wrong": 0, "model_vs_sme": 1, "model_vs_model": 2}
+    rows: list[dict[str, Any]] = []
+    for record in misalignment.get("records", []):
+        if not isinstance(record, dict):
+            continue
+        if dq_mod.split_kind(record.get("split")) != "train":
+            continue
+        misalignment_type = record.get("misalignment_type")
+        if misalignment_type == "all_agree":
+            continue
+        votes = record.get("votes", [])
+        rows.append(
+            {
+                "image_id": record.get("image_id"),
+                "sme_truth": record.get("sme_truth"),
+                "misalignment_type": misalignment_type,
+                "severity": record.get("severity"),
+                "split": "train",
+                "is_boundary": any(
+                    bool(v.get("is_boundary", False)) for v in votes if isinstance(v, dict)
+                ),
+                "repo_rel_path": record.get("repo_rel_path", ""),
+            }
+        )
+    rows.sort(
+        key=lambda r: (
+            severity_rank.get(str(r.get("severity") or ""), 9),
+            type_rank.get(str(r.get("misalignment_type") or ""), 9),
+            str(r.get("image_id") or ""),
+        )
+    )
+    return rows[:cap]
+
+
 def run_scoring(
     run_id: str,
     repo_root: Path,
@@ -104,6 +140,7 @@ def run_scoring(
     votes_raw = load_label_votes(votes_path)
     cost_summary = cost_mod.aggregate_per_call_costs(votes_raw)
     dq = cost_mod.attach_cost_to_labelers(dq, cost_summary)
+    dq["update_candidates"] = _build_update_candidates(mis)
     if schemas_dir is not None:
         errs = try_validate(dq, schemas_dir / "decision-quality.schema.json", label="decision-quality")
         if errs:
@@ -119,6 +156,7 @@ def run_scoring(
         if gt:
             record["repo_rel_path"] = gt.repo_rel_path
             record["sme_truth"] = gt.label
+            record["split"] = gt.split
     consensus_rollup = consensus_mod.build_cohort_rollups(consensus_records, ground_truth=truth)
     consensus_summary = {
         "run_id": run_id,
@@ -154,6 +192,7 @@ def run_scoring(
         "borderline_summary": bord.get("summary", {}),
         "consensus_summary": consensus_rollup,
         "cost_summary": cost_summary,
+        "update_candidates_count": len(dq.get("update_candidates", [])),
     }
 
 
@@ -216,6 +255,7 @@ def run_scoring_multiclass(
         if gt:
             record["repo_rel_path"] = gt.repo_rel_path
             record["sme_truth"] = gt.label
+            record["split"] = gt.split
     consensus_rollup = consensus_mod.build_cohort_rollups(consensus_records, ground_truth=truth)
     consensus_summary = {
         "run_id": run_id,

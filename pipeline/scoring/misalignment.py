@@ -127,6 +127,7 @@ def compute_misalignment(
                 "image_id": image_id,
                 "repo_rel_path": gt.repo_rel_path,
                 "sme_truth": gt.label,
+                "split": gt.split,
                 "misalignment_type": misalignment_type,
                 "severity": severity,
                 "votes": [_vote_block(v) for v in sorted_votes],

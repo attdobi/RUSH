@@ -22,6 +22,17 @@ from typing import Any
 
 from . import _common
 
+TRAIN_SPLIT_ALIASES = {"dev_golden", "train", "training", "development"}
+TEST_SPLIT_ALIASES = {
+    "holdout",
+    "val",
+    "validation",
+    "test",
+    "testing",
+    "locked_holdout",
+    "locked_holdout_decision_quality",
+}
+
 
 def _safe_div(num: float, den: float) -> float | None:
     if den == 0:
@@ -94,20 +105,21 @@ def _majority_vote(per_labeler_pred: dict[str, str]) -> str | None:
     return counts[0][0]
 
 
-def compute_decision_quality(
-    label_votes_path: Path,
-    manifest_path: Path,
-    *,
-    policy_graph_version: str,
-    ground_truth_tier: tuple[str, ...] = ("gold",),
-    schemas_dir: Path | None = None,
-) -> dict[str, Any]:
-    """Compute the DecisionQualitySnapshot dict matching the schema."""
-    truth = _common.load_ground_truth(
-        manifest_path, truth_tiers=ground_truth_tier or ("gold",)
-    )
-    votes = _common.load_label_votes(label_votes_path)
+def split_kind(split: str | None) -> str | None:
+    normalized = str(split or "").strip().lower()
+    if normalized in TRAIN_SPLIT_ALIASES:
+        return "train"
+    if normalized in TEST_SPLIT_ALIASES:
+        return "test"
+    return None
 
+
+def _compute_labelers_block(
+    votes: list[dict[str, Any]],
+    truth: dict[str, _common.GroundTruth],
+    *,
+    image_ids: set[str] | None = None,
+) -> tuple[list[dict[str, Any]], int, dict[str, int]]:
     # per-labeler aligned predictions vs truth
     by_labeler: dict[str, list[tuple[str, str]]] = defaultdict(list)
     abstain_counts: dict[str, int] = defaultdict(int)
@@ -118,6 +130,8 @@ def compute_decision_quality(
         image_id = v.get("image_id")
         gt = truth.get(image_id) if image_id else None
         if not gt:
+            continue
+        if image_ids is not None and image_id not in image_ids:
             continue
         labeler = _common.labeler_id_for(v)
         label = v.get("label", _common.ABSTAIN)
@@ -161,16 +175,49 @@ def compute_decision_quality(
             }
         )
 
+    return labelers_block, len(per_image), dict(sorted(abstain_counts.items()))
+
+
+def compute_decision_quality(
+    label_votes_path: Path,
+    manifest_path: Path,
+    *,
+    policy_graph_version: str,
+    ground_truth_tier: tuple[str, ...] = ("gold",),
+    schemas_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Compute the DecisionQualitySnapshot dict matching the schema."""
+    truth = _common.load_ground_truth(
+        manifest_path, truth_tiers=ground_truth_tier or ("gold",)
+    )
+    votes = _common.load_label_votes(label_votes_path)
+
+    labelers_block, _n_images_all, abstain_counts = _compute_labelers_block(votes, truth)
+    split_image_ids: dict[str, set[str]] = {"train": set(), "test": set()}
+    for image_id, gt in truth.items():
+        kind = split_kind(gt.split)
+        if kind in split_image_ids:
+            split_image_ids[kind].add(image_id)
+    by_split: dict[str, dict[str, Any]] = {}
+    for kind in ("train", "test"):
+        split_labelers, n_images, _split_abstain_counts = _compute_labelers_block(
+            votes, truth, image_ids=split_image_ids[kind]
+        )
+        by_split[kind] = {"labelers": split_labelers, "n_images": n_images}
+
     snapshot: dict[str, Any] = {
         "policy_graph_version": policy_graph_version,
         "ground_truth_tier": [t for t in ground_truth_tier if t in {"gold", "platinum"}]
         or ["gold"],
         "labelers": labelers_block,
+        "by_split": by_split,
+        "reported_split": "test",
+        "reported": by_split["test"],
     }
     # Carry abstain rates as a non-schema sidecar so the schema stays exact.
     if abstain_counts:
         snapshot["warning"] = json.dumps(
-            {"abstain_counts": dict(sorted(abstain_counts.items()))},
+            {"abstain_counts": abstain_counts},
             sort_keys=True,
         )
 

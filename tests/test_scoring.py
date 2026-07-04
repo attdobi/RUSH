@@ -248,6 +248,7 @@ def test_exporters_preserve_prep_metadata(votes_path, manifest_path, tmp_path):
     assert all(r["misalignment_type"] != "all_agree" for r in mis_web["records"])
     # severity 'high' rows must come first
     assert mis_web["records"][0]["severity"] == "high"
+    assert mis_web["records"][0]["split"] == "dev_golden"
 
     bord_web = json.loads(paths["borderline"].read_text())
     # find the gpt vote on img_pos_1 in either misalignment or borderline web export

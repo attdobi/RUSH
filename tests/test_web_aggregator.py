@@ -274,6 +274,57 @@ def test_aggregate_decision_quality_filters_by_policy_version(tmp_path: Path) ->
     assert [run["run_id"] for run in payload["runs"]] == ["run-early"]
 
 
+def test_aggregate_decision_quality_surfaces_split_reported_and_update_candidates(tmp_path: Path) -> None:
+    runs_root = tmp_path / "runs"
+    run_dir = _make_run(
+        runs_root,
+        "run-split",
+        started_at="2026-05-10T03:00:00Z",
+        policy_version="Generative_AI.v0.1",
+    )
+    reported = {
+        "labelers": [
+            {"labeler_id": "model-a", "labeler_type": "llm", "metrics": {"accuracy": 1.0, "n": 2}},
+            {"labeler_id": "majority_vote", "labeler_type": "ensemble", "metrics": {"accuracy": 1.0, "n": 2}},
+        ],
+        "n_images": 2,
+    }
+    by_split = {
+        "train": {"labelers": [], "n_images": 1},
+        "test": reported,
+    }
+    update_candidates = [
+        {
+            "image_id": "img-train",
+            "sme_truth": "gen_ai",
+            "misalignment_type": "consensus_wrong",
+            "severity": "high",
+            "split": "train",
+            "is_boundary": True,
+            "repo_rel_path": "images/img-train.png",
+        }
+    ]
+    dq_path = run_dir / "scoring" / "decision_quality.json"
+    dq = json.loads(dq_path.read_text(encoding="utf-8"))
+    dq.update(
+        {
+            "reported": reported,
+            "by_split": by_split,
+            "reported_split": "test",
+            "update_candidates": update_candidates,
+        }
+    )
+    _write_json(dq_path, dq)
+
+    payload = aggregator.aggregate_decision_quality(runs_root)
+    run = payload["runs"][0]
+
+    assert run["reported"] == reported
+    assert run["by_split"] == by_split
+    assert run["reported_split"] == "test"
+    assert run["update_candidates"] == update_candidates
+
+
 def test_compute_insights_returns_documented_capped_lists(tmp_path: Path) -> None:
     runs_root = _runs_fixture(tmp_path)
     payload = aggregator.compute_insights(runs_root / "run-early")
