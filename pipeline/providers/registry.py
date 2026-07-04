@@ -268,6 +268,17 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={},
     ),
+    # TODO(attila-confirm): gemini-3.1-flash is UNVERIFIED. Public sources show
+    # the 3.1 gen as Pro + Flash-Lite only (full Flash is 3.5); this may be the
+    # SAME SKU as gemini-3-flash-preview (identical 0.50/3.00 rate). Confirm the
+    # real 3.1-flash model name/rate — or drop it — before trusting results.
+    "google/gemini-3.1-flash": ModelSpec(
+        model_id="google/gemini-3.1-flash",
+        provider="gemini",
+        provider_model_name="gemini-3.1-flash",
+        phase=2,
+        params={},
+    ),
     # Gemini 3 Flash Preview — cheaper than 3.5 flash ($0.50/$3.00).
     "google/gemini-3-flash-preview": ModelSpec(
         model_id="google/gemini-3-flash-preview",
