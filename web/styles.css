@@ -1096,7 +1096,16 @@ table.misalignment a:focus-visible {
   align-items: stretch;
 }
 .compact-model-picker { background: rgba(7,16,31,.54); }
+/* Vertical stack of self-contained provider groups (header + its own grid). */
 .compact-model-picker .model-picker-list {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.model-picker-group { display: grid; gap: 4px; }
+/* Each provider's models: compact 2-up density, ROW-MAJOR so high->low reads
+   left-to-right then down (xhigh,high / medium,low). */
+.model-picker-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 12px;
 }
@@ -1149,7 +1158,7 @@ table.misalignment a:focus-visible {
   .start-run-button { width: 100%; white-space: normal; }
 }
 @media (max-width: 720px) {
-  .compact-model-picker .model-picker-list { grid-template-columns: 1fr; }
+  .compact-model-picker .model-picker-grid { grid-template-columns: 1fr; }
 }
 
 /* X2 demo-polish-v2: label runner, grow loop, tidy JSON, insights */
@@ -1213,7 +1222,8 @@ table.misalignment a:focus-visible {
   gap: 12px;
   align-items: stretch;
 }
-.compact-model-picker .model-picker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.compact-model-picker .model-picker-list { grid-template-columns: 1fr; gap: 10px; }
+.compact-model-picker .model-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
 .compact-model-picker .model-pick { align-items: flex-start; padding: 2px 0; }
 .compact-model-picker .model-pick code { overflow-wrap: anywhere; }
 .run-default-card {
@@ -1304,7 +1314,7 @@ table.misalignment a:focus-visible {
 @media (max-width: 1220px) {
   .growth-loop-strip, .run-trigger-summary, .run-summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .run-trigger-primary-row { grid-template-columns: 1fr; }
-  .compact-model-picker .model-picker-list, .insights-more-grid { grid-template-columns: 1fr; }
+  .compact-model-picker .model-picker-grid, .insights-more-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
   .growth-loop-strip, .run-trigger-form, .run-trigger-summary, .run-summary-metrics { grid-template-columns: 1fr; }

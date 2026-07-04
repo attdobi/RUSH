@@ -198,9 +198,16 @@
       if (!entries.length) return '';
       entries.sort((a, b) => (estimatePerThousandLabels(b.id) || 0) - (estimatePerThousandLabels(a.id) || 0));
       const localClass = group === 'Local / Open' ? ' model-picker-provider--local' : '';
+      // Each provider is a SELF-CONTAINED block: a full-width header sitting
+      // directly above a 2-up grid of ONLY that provider's model rows. Groups
+      // stack vertically so a header can never split away from its models
+      // across a column break (Attila's screenshot bug).
+      const rows = entries.map(entry => renderModelPick(entry.id, entry.checked === true, isLocalModel(entry.id))).join('');
       return `
-      <div class="model-picker-provider${localClass}">${esc(group)}</div>
-      ${entries.map(entry => renderModelPick(entry.id, entry.checked === true, isLocalModel(entry.id))).join('')}`;
+      <div class="model-picker-group">
+        <div class="model-picker-provider${localClass}">${esc(group)}</div>
+        <div class="model-picker-grid">${rows}</div>
+      </div>`;
     }).join('');
   }
 
