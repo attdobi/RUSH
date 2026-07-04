@@ -599,6 +599,17 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .model-pick--local code { color:#8ef0cf; }
 .model-pick--local .rough-estimate { color:#38d39f; }
 .model-pick--local { border-left:2px solid #1f4a3c; padding-left:8px; border-radius:4px; }
+/* Provider-grouped panel (Attila's reorg): scan by family, cost badge per row. */
+.model-picker-provider { margin-top:12px; color:#cdd6e4; font-size:11px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; border-bottom:1px solid #1f2733; padding-bottom:4px; }
+.model-picker-provider:first-child { margin-top:0; }
+.model-picker-provider--local { color:#38d39f; border-bottom-color:#1f4a3c; }
+.model-pick-body { display:flex; flex-direction:column; min-width:0; }
+/* Compact per-row cost-tier badge, pushed to the right edge of the row. */
+.model-pick .cost-badge { margin-left:auto; padding:1px 8px; font-size:10px; letter-spacing:.04em; flex:0 0 auto; }
+.cost-badge--high { background:#3a1f24; color:#ff8f9c; }
+.cost-badge--medium { background:#3a3320; color:#f2c56b; }
+.cost-badge--low { background:#1c2b26; color:#6fe0b0; }
+.cost-badge--local { background:#123227; color:#38d39f; }
 .nav-pills.active a, .nav-pills a.active { color:#4de0a6; }
 
 /* X2 DQ table */

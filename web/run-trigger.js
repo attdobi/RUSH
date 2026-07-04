@@ -2,9 +2,10 @@
   const POLL_MS = 2000;
   const MAX_POLL_MS = 30 * 60 * 1000;
 
-  // Flat model list. Buckets are NOT hand-wired anymore — each model's tier is
-  // DERIVED from its computed reasoning-adjusted estimate (see costTierFor), so
-  // the bucket a model appears under always matches the price shown next to it.
+  // Flat model list. The panel groups these by PROVIDER (see populateModels),
+  // ordering each family cheapest-first. Each row still shows its computed
+  // $/1k estimate PLUS a cost-tier badge (HIGH/MEDIUM/LOW/LOCAL) derived from
+  // that estimate via costTierFor, so relative cost stays visible at a glance.
   // Only the default-checked selection (a cheap, diverse set) is curated here.
   const MODEL_LIST = [
     { id: 'openai/gpt-5.5-xhigh', checked: false },
@@ -22,6 +23,10 @@
     { id: 'openai/gpt-5.4-mini-medium', checked: false },
     { id: 'openai/gpt-5.4-mini-low', checked: false },
     { id: 'google/gemini-3.5-flash', checked: true },
+    // TODO(attila-confirm): distinct gemini-3.1-flash SKU/rate is UNVERIFIED
+    // (public sources show the 3.1 gen as Pro + Flash-Lite; the full Flash is
+    // 3.5). Rate mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
+    { id: 'google/gemini-3.1-flash', checked: false },
     { id: 'google/gemini-3-flash-preview', checked: false },
     { id: 'anthropic/claude-haiku-4-5-low', checked: false },
     { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
@@ -30,15 +35,18 @@
     { id: 'local/gemma-4-26b-a4b-qat', checked: true }
   ];
 
-  // Ordered display buckets. LOCAL is its own dedicated tier (Bug 3), distinct
-  // from hosted LOW. Labels are shown in the panel header for each bucket.
-  const COST_TIER_ORDER = ['HIGH', 'MEDIUM', 'LOW', 'LOCAL'];
-  const COST_TIER_LABELS = {
-    HIGH: 'HIGH cost',
-    MEDIUM: 'MEDIUM cost',
-    LOW: 'LOW cost',
-    LOCAL: 'LOCAL (free · on-device GPU)'
-  };
+  // Ordered PROVIDER display groups (Attila's reorg): scan by family, not by
+  // cost tier. Each row still carries a cost-tier BADGE so relative price is
+  // never lost. Within a group, rows sort cheapest-first.
+  const PROVIDER_GROUP_ORDER = ['OpenAI', 'Anthropic', 'Gemini', 'Local / Open'];
+
+  function providerGroupFor(modelId) {
+    const id = String(modelId || '');
+    if (id.startsWith('openai/')) return 'OpenAI';
+    if (id.startsWith('anthropic/')) return 'Anthropic';
+    if (id.startsWith('google/')) return 'Gemini';
+    return 'Local / Open';
+  }
 
   // ---- Measured-token cost model (mirror of pipeline/providers/pricing.py) ----
   // Keep tokens/tiers/thresholds in EXACT sync with Python (sync-tested).
@@ -83,6 +91,10 @@
     'anthropic/claude-haiku-4-5-low': { input: 1.0, output: 5.0 },
     'anthropic/claude-haiku-4-5-medium': { input: 1.0, output: 5.0 },
     'google/gemini-3.5-flash': { input: 1.50, output: 9.0 },
+    // TODO(attila-confirm): gemini-3.1-flash rate UNVERIFIED — mirrors
+    // gemini-3-flash-preview (0.50/3.00); may be the same SKU. Keep in sync
+    // with pipeline/providers/pricing.py (sync-tested).
+    'google/gemini-3.1-flash': { input: 0.50, output: 3.0 },
     'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
     'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
     'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
@@ -155,35 +167,39 @@
   }
 
   function renderModelPick(model, checked, isLocal) {
+    const badgeTier = isLocal ? 'LOCAL' : costTierFor(model);
     let estimateText;
     if (isLocal) {
-      estimateText = '$0.00 / 1k labels (local · free)';
+      estimateText = '$0.00 / 1k labels · free';
     } else {
       const estimate = estimatePerThousandLabels(model);
       const tier = reasoningTierFor(model);
       const tierNote = tier === 'none' ? 'rough estimate' : `${tier} reasoning · rough estimate`;
-      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (${tierNote})`;
+      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(2)} / 1k labels (${tierNote})`;
     }
     const localClass = isLocal ? ' model-pick--local' : '';
-    return `<label class="model-pick${localClass}"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span></label>`;
+    const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}">${esc(badgeTier)}</span>`;
+    return `<label class="model-pick${localClass}"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span class="model-pick-body"><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span>${badge}</label>`;
   }
 
   function populateModels() {
     const picker = $('#runTriggerModels');
     if (!picker) return;
-    // Bucket every model by its COMPUTED tier so the bucket always matches the
-    // shown price. Within a bucket, sort cheapest-last for a clean gradient.
-    const buckets = new Map(COST_TIER_ORDER.map(tier => [tier, []]));
+    // Group every model by PROVIDER so a family is easy to scan (Attila's
+    // reorg). Within a group, sort cheapest-first; each row still carries its
+    // computed $/1k estimate and a cost-tier badge.
+    const groups = new Map(PROVIDER_GROUP_ORDER.map(group => [group, []]));
     for (const entry of MODEL_LIST) {
-      buckets.get(costTierFor(entry.id)).push(entry);
+      const group = providerGroupFor(entry.id);
+      (groups.get(group) || groups.get('Local / Open')).push(entry);
     }
-    picker.innerHTML = COST_TIER_ORDER.map(tier => {
-      const entries = buckets.get(tier);
+    picker.innerHTML = PROVIDER_GROUP_ORDER.map(group => {
+      const entries = groups.get(group);
       if (!entries.length) return '';
-      entries.sort((a, b) => (estimatePerThousandLabels(b.id) || 0) - (estimatePerThousandLabels(a.id) || 0));
-      const localClass = tier === 'LOCAL' ? ' model-picker-phase--local' : '';
+      entries.sort((a, b) => (estimatePerThousandLabels(a.id) || 0) - (estimatePerThousandLabels(b.id) || 0));
+      const localClass = group === 'Local / Open' ? ' model-picker-provider--local' : '';
       return `
-      <div class="model-picker-phase${localClass}">${esc(COST_TIER_LABELS[tier])}</div>
+      <div class="model-picker-provider${localClass}">${esc(group)}</div>
       ${entries.map(entry => renderModelPick(entry.id, entry.checked === true, isLocalModel(entry.id))).join('')}`;
     }).join('');
   }
