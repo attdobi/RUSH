@@ -214,7 +214,17 @@ def validate_schema_expectations(errors: list[str]) -> None:
     for field in ["policy_graph_version", "ground_truth_tier", "labelers"]:
         if field not in decision_quality.get("required", []):
             errors.append(f"decision-quality schema must require {field}")
-    labeler_props = decision_quality.get("properties", {}).get("labelers", {}).get("items", {}).get("properties", {})
+    labeler_items = decision_quality.get("properties", {}).get("labelers", {}).get("items", {})
+    # labelers.items may be an inline object or a $ref into $defs (schema evolved to reuse
+    # the labeler_row definition); resolve the local $ref before reading the enum.
+    ref = labeler_items.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/"):
+        target: Any = decision_quality
+        for part in ref[2:].split("/"):
+            if isinstance(target, dict):
+                target = target.get(part, {})
+        labeler_items = target if isinstance(target, dict) else {}
+    labeler_props = labeler_items.get("properties", {})
     if set(labeler_props.get("labeler_type", {}).get("enum", [])) != {"llm", "ensemble", "human"}:
         errors.append("decision-quality schema labeler_type enum must be llm/ensemble/human")
     dq_metrics = decision_quality.get("$defs", {}).get("decision_quality_metrics", {})
@@ -367,11 +377,14 @@ def validate_static_web(errors: list[str]) -> None:
         return
 
     scripts = re.findall(r'<script\s+[^>]*src="([^"]+)"', index_html)
+    # Scripts are loaded with cache-buster query strings (e.g. app.js?v=demo-mnist-kdd);
+    # normalize to bare filenames for membership + ordering checks.
+    script_names = [script.split("?", 1)[0] for script in scripts]
     for script in ["genai-sampler.js", "app.js"]:
-        if script not in scripts:
+        if script not in script_names:
             errors.append(f"web/index.html must load {script}")
-    if "genai-sampler.js" in scripts and "app.js" in scripts:
-        if scripts.index("genai-sampler.js") > scripts.index("app.js"):
+    if "genai-sampler.js" in script_names and "app.js" in script_names:
+        if script_names.index("genai-sampler.js") > script_names.index("app.js"):
             errors.append("web/index.html must load genai-sampler.js before app.js")
     for script in scripts:
         if script.startswith(("http://", "https://", "//")):
