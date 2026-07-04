@@ -19,14 +19,15 @@
         { id: 'anthropic/claude-sonnet-4-6', checked: false },
         { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
         { id: 'openai/gpt-5.4-mini-high', checked: false },
-        { id: 'google/gemini-3.1-flash', checked: false }
+        { id: 'google/gemini-3.5-flash', checked: false },
+        { id: 'google/gemini-3-flash-preview', checked: false }
       ]
     },
     {
       phase: 'LOW / FREE cost',
       models: [
         { id: 'openai/gpt-5.4-mini-low', checked: false },
-        { id: 'google/gemini-3.1-flash-lite-preview', checked: false },
+        { id: 'google/gemini-3.1-flash-lite', checked: false },
         { id: 'local/qwen3.6-27b', checked: false, local: true },
         { id: 'local/gemma-4-26b-a4b-qat', checked: false, local: true }
       ]
@@ -38,7 +39,7 @@
     'openai/gpt-5.5': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-xhigh': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-high': { input: 1.25, output: 10.0 },
-    'google/gemini-3.1-pro-preview': { input: 1.25, output: 5.0 },
+    'google/gemini-3.1-pro-preview': { input: 2.0, output: 12.0 },
     'anthropic/claude-opus-4-6': { input: 15.0, output: 75.0 },
     'anthropic/claude-opus-4-7': { input: 15.0, output: 75.0 },
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
@@ -46,8 +47,9 @@
     'openai/gpt-5.4-mini-high': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-low': { input: 0.15, output: 0.60 },
     'anthropic/claude-sonnet-4-6': { input: 3.0, output: 15.0 },
-    'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 },
-    'google/gemini-3.1-flash': { input: 0.30, output: 1.20 },
+    'google/gemini-3.5-flash': { input: 1.50, output: 9.0 },
+    'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
+    'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
     'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };

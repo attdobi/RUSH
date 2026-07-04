@@ -13,7 +13,7 @@ The five entries below cover the v1 plan:
   ``google/gemini-3.1-pro-preview``, ``anthropic/claude-opus-4-6``,
   ``anthropic/claude-opus-4-7``.
 * phase 2 (cheaper sweep / fanout): ``openai/gpt-5.4-mini``,
-  ``google/gemini-3.1-flash-lite-preview``.
+  ``google/gemini-3.1-flash-lite``.
 
 We keep the model_id string intentionally shaped as ``<provider>/<model>``
 so it doubles as the persistence key and the registry key.
@@ -178,18 +178,27 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             # No thinking_budget_tokens: standard (non-extended) reasoning.
         },
     ),
-    "google/gemini-3.1-flash-lite-preview": ModelSpec(
-        model_id="google/gemini-3.1-flash-lite-preview",
+    # Latest Gemini flash (GA). Mid-tier: output $9/Mtok.
+    "google/gemini-3.5-flash": ModelSpec(
+        model_id="google/gemini-3.5-flash",
         provider="gemini",
-        provider_model_name="gemini-3.1-flash-lite-preview",
+        provider_model_name="gemini-3.5-flash",
         phase=2,
         params={},
     ),
-    # Standard flash (cheaper than pro-preview).
-    "google/gemini-3.1-flash": ModelSpec(
-        model_id="google/gemini-3.1-flash",
+    # Gemini 3 Flash Preview — cheaper than 3.5 flash ($0.50/$3.00).
+    "google/gemini-3-flash-preview": ModelSpec(
+        model_id="google/gemini-3-flash-preview",
         provider="gemini",
-        provider_model_name="gemini-3.1-flash",
+        provider_model_name="gemini-3-flash-preview",
+        phase=2,
+        params={},
+    ),
+    # Cheapest Gemini: Flash-Lite GA ($0.25/$1.50).
+    "google/gemini-3.1-flash-lite": ModelSpec(
+        model_id="google/gemini-3.1-flash-lite",
+        provider="gemini",
+        provider_model_name="gemini-3.1-flash-lite",
         phase=2,
         params={},
     ),

@@ -6,7 +6,7 @@ PRICING: dict[str, dict[str, float]] = {
     "openai/gpt-5.5": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-xhigh": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-high": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
-    "google/gemini-3.1-pro-preview": {"input_per_mtok": 1.25, "output_per_mtok": 5.0, "image_per_image": 0.0},
+    "google/gemini-3.1-pro-preview": {"input_per_mtok": 2.0, "output_per_mtok": 12.0, "image_per_image": 0.0},
     "anthropic/claude-opus-4-6": {"input_per_mtok": 15.0, "output_per_mtok": 75.0, "image_per_image": 0.0},
     "anthropic/claude-opus-4-7": {"input_per_mtok": 15.0, "output_per_mtok": 75.0, "image_per_image": 0.0},
     "openai/gpt-5.4-mini": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
@@ -15,9 +15,12 @@ PRICING: dict[str, dict[str, float]] = {
     "openai/gpt-5.4-mini-low": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     # PLACEHOLDER pricing for Sonnet 4.6 (confirm with Attila): ~3.0 / 15.0 per Mtok.
     "anthropic/claude-sonnet-4-6": {"input_per_mtok": 3.0, "output_per_mtok": 15.0, "image_per_image": 0.0},
-    "google/gemini-3.1-flash-lite-preview": {"input_per_mtok": 0.10, "output_per_mtok": 0.40, "image_per_image": 0.0},
-    # PLACEHOLDER pricing for standard flash (confirm): cheaper than pro, dearer than flash-lite.
-    "google/gemini-3.1-flash": {"input_per_mtok": 0.30, "output_per_mtok": 1.20, "image_per_image": 0.0},
+    # Latest Gemini flash (GA).
+    "google/gemini-3.5-flash": {"input_per_mtok": 1.50, "output_per_mtok": 9.0, "image_per_image": 0.0},
+    # Gemini 3 Flash Preview.
+    "google/gemini-3-flash-preview": {"input_per_mtok": 0.50, "output_per_mtok": 3.0, "image_per_image": 0.0},
+    # Cheapest Gemini: Flash-Lite GA.
+    "google/gemini-3.1-flash-lite": {"input_per_mtok": 0.25, "output_per_mtok": 1.50, "image_per_image": 0.0},
     # Local GPU (LM Studio) — free.
     "local/qwen3.6-27b": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},
     "local/gemma-4-26b-a4b-qat": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},

@@ -62,4 +62,10 @@ def test_new_hosted_models_priced() -> None:
         "output_per_mtok": 15.0,
         "image_per_image": 0.0,
     }
-    assert price_for("google/gemini-3.1-flash") is not None
+    assert price_for("google/gemini-3.5-flash") is not None
+    assert price_for("google/gemini-3-flash-preview") is not None
+    assert price_for("google/gemini-3.1-flash-lite") == {
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 1.50,
+        "image_per_image": 0.0,
+    }
