@@ -27,6 +27,7 @@ from pipeline.policy_diff import (
     reject_proposal,
     seed_cold_start_proposal,
 )
+from pipeline.web.demo_area import normalize_policy_area
 
 _VERSION_RE = re.compile(r"^v\d+\.\d+$")
 
@@ -264,8 +265,8 @@ def _heading_title(body: str, fallback: str) -> str:
     return fallback
 
 
-def _policy_version_names(repo_root: Path | str) -> tuple[list[str], str | None]:
-    payload = list_policy_versions(repo_root=repo_root)
+def _policy_version_names(repo_root: Path | str, domain: str) -> tuple[list[str], str | None]:
+    payload = list_policy_versions(repo_root=repo_root, domain=domain)
     versions = [str(item["version"]) for item in payload.get("versions", [])]
     current = payload.get("current")
     return versions, str(current) if current else None
@@ -287,13 +288,70 @@ def _normalize_edge(edge: Any) -> dict[str, Any] | None:
     return normalized
 
 
+def _parse_inline_mapping(text: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for part in text.split(","):
+        key, sep, value = part.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        if key:
+            out[key] = value
+    return out
+
+
+def _frontmatter_edges(text: str, source_node_id: str) -> list[dict[str, Any]]:
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
+        return []
+    edges: list[dict[str, Any]] = []
+    in_edges = False
+    for line in match.group(1).splitlines():
+        if line.startswith((" ", "\t")):
+            stripped = line.strip()
+            if in_edges and stripped.startswith("- {") and stripped.endswith("}"):
+                mapping = _parse_inline_mapping(stripped[3:-1])
+                target = mapping.get("to") or mapping.get("target")
+                edge_type = mapping.get("type") or mapping.get("edge_type")
+                if target and edge_type and edge_type != "subtype_of":
+                    raw_edge = dict(mapping)
+                    raw_edge["source"] = source_node_id
+                    raw_edge["target"] = target
+                    raw_edge["edge_type"] = edge_type
+                    edges.append(raw_edge)
+            continue
+        in_edges = line.strip() == "edges:"
+    return edges
+
+
+def _dedupe_edges(edges: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for edge in edges:
+        key = (
+            str(edge.get("source") or ""),
+            str(edge.get("target") or ""),
+            str(edge.get("edge_type") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(edge)
+    return out
+
+
 def handle_policy_graph(
     repo_root: Path | str,
     version: str | None,
+    area: str | None = None,
 ) -> tuple[int, dict[str, Any]]:
     """Return policy graph nodes and edges for the browser graph view."""
     try:
-        versions, current = _policy_version_names(repo_root)
+        domain = normalize_policy_area(area)
+        versions, current = _policy_version_names(repo_root, domain)
         if not versions:
             return 404, {"error": "no policy versions found"}
         selected = (version or current or "").strip()
@@ -303,20 +361,24 @@ def handle_policy_graph(
             return 404, {"error": f"unknown policy version: {selected}"}
 
         root = _root(repo_root)
-        source = root / "policy-graph" / "Generative_AI" / selected
+        source = root / "policy-graph" / domain / selected
         nodes: list[dict[str, Any]] = []
-        md_paths = sorted(
-            (p for p in source.glob("*.md") if p.is_file()),
-            key=lambda p: (p.name != "GA.root.md", p.name),
-        )
-        if source.is_dir() and not md_paths:
+        md_items: list[tuple[Path, dict[str, str], str, str]] = []
+        for path in source.glob("*.md") if source.is_dir() else []:
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8")
+            meta, body = _parse_frontmatter(text)
+            node_id = meta.get("id") or path.stem
+            md_items.append((path, meta, body, node_id))
+        md_items.sort(key=lambda item: (_nullish(item[1].get("parent")) is not None, item[0].name))
+        if source.is_dir() and not md_items:
             return 500, {
                 "error": f"policy version {selected} is incomplete (no .md files)",
                 "error_type": "IncompletePolicyVersion",
             }
-        for path in md_paths:
-            meta, body = _parse_frontmatter(path.read_text(encoding="utf-8"))
-            node_id = meta.get("id") or path.stem
+        frontmatter_edges: list[dict[str, Any]] = []
+        for path, meta, body, node_id in md_items:
             title = meta.get("title") or _heading_title(body, node_id)
             nodes.append(
                 {
@@ -328,6 +390,7 @@ def handle_policy_graph(
                     "status": meta.get("status") or "unknown",
                 }
             )
+            frontmatter_edges.extend(_frontmatter_edges(path.read_text(encoding="utf-8"), node_id))
 
         edges_path = source / "edges.json"
         raw_edges = (
@@ -337,21 +400,31 @@ def handle_policy_graph(
         )
         if not isinstance(raw_edges, list):
             raw_edges = []
-        edges = [edge for edge in (_normalize_edge(item) for item in raw_edges) if edge]
+        edges = [
+            edge
+            for edge in (_normalize_edge(item) for item in [*raw_edges, *frontmatter_edges])
+            if edge
+        ]
         return 200, {
             "version": selected,
-            "title": f"Cold-start GenAI policy {selected}",
+            "area": domain,
+            "title": f"Cold-start {'MNIST digit' if domain == 'MNIST_Digits' else 'GenAI'} policy {selected}",
             "nodes": nodes,
-            "edges": edges,
+            "edges": _dedupe_edges(edges),
             "available_versions": versions,
         }
+    except ValueError as exc:
+        return _bad_request(exc)
     except Exception as exc:  # noqa: BLE001 - surface to local web UI
         return _error(500, exc)
 
 
-def handle_policy_versions(repo_root: Path | str) -> tuple[int, dict[str, Any]]:
+def handle_policy_versions(repo_root: Path | str, area: str | None = None) -> tuple[int, dict[str, Any]]:
     try:
-        return 200, list_policy_versions(repo_root=repo_root)
+        domain = normalize_policy_area(area)
+        return 200, list_policy_versions(repo_root=repo_root, domain=domain)
+    except ValueError as exc:
+        return _bad_request(exc)
     except Exception as exc:  # noqa: BLE001 - surface to local web UI
         return _error(500, exc)
 
@@ -539,9 +612,13 @@ def handle_build_pdf(
     version = body.get("version", "v0.1")
     if not isinstance(version, str) or "/" in version or ".." in version:
         return 400, {"error": "invalid version"}
+    try:
+        area = normalize_policy_area(body.get("area") if isinstance(body.get("area"), str) else None)
+    except ValueError as exc:
+        return _bad_request(exc)
 
     root = _root(repo_root)
-    source = root / "policy-graph" / "Generative_AI" / version
+    source = root / "policy-graph" / area / version
     if not source.is_dir():
         return 404, {"error": f"unknown policy version: {version}"}
     output = source / "policy.pdf"
@@ -554,7 +631,7 @@ def handle_build_pdf(
         "--output",
         str(output),
         "--policy-graph-version",
-        f"Generative_AI.{version}",
+        f"{area}.{version}",
         "--json",
     ]
     try:

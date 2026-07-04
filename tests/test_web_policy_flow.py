@@ -171,3 +171,54 @@ def test_policy_proposals_route_forwards_include_errors_query(tmp_path: Path, mo
         _stop(server, thread)
 
     assert calls == [False, True]
+
+
+def test_runs_route_filters_by_demo_query(tmp_path: Path) -> None:
+    class MixedRegistry(FakeRegistry):
+        def list_runs(self) -> list[dict[str, Any]]:
+            return [
+                {"run_id": "genai-1", "policy_graph_version": "Generative_AI.v0.3"},
+                {"run_id": "old-genai-1", "policy_graph_version": "v0.1"},
+                {"run_id": "mnist-1", "policy_graph_version": "MNIST_Digits.v0.1"},
+            ]
+
+    server, thread = _serve(tmp_path, MixedRegistry())
+    try:
+        status, body = _request_json(server, "GET", "/api/runs?demo=mnist")
+        assert status == 200
+        assert [run["run_id"] for run in body["runs"]] == ["mnist-1"]
+
+        status, body = _request_json(server, "GET", "/api/runs")
+        assert status == 200
+        assert [run["run_id"] for run in body["runs"]] == ["genai-1", "old-genai-1"]
+    finally:
+        _stop(server, thread)
+
+
+def test_policy_routes_forward_area_query(tmp_path: Path, monkeypatch) -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    def fake_versions(repo_root, area=None):  # noqa: ARG001
+        calls.append(("versions", area))
+        return 200, {"versions": [{"version": "v0.1"}], "current": "v0.1"}
+
+    def fake_graph(repo_root, version, area=None):  # noqa: ARG001
+        calls.append(("graph", area))
+        return 200, {"version": version, "area": area, "nodes": [], "edges": []}
+
+    monkeypatch.setattr(handlers_policy, "handle_policy_versions", fake_versions)
+    monkeypatch.setattr(handlers_policy, "handle_policy_graph", fake_graph)
+
+    server, thread = _serve(tmp_path)
+    try:
+        status, body = _request_json(server, "GET", "/api/policy/versions?area=MNIST_Digits")
+        assert status == 200
+        assert body["current"] == "v0.1"
+
+        status, body = _request_json(server, "GET", "/api/policy/graph?version=v0.1&area=MNIST_Digits")
+        assert status == 200
+        assert body["area"] == "MNIST_Digits"
+    finally:
+        _stop(server, thread)
+
+    assert calls == [("versions", "MNIST_Digits"), ("graph", "MNIST_Digits")]

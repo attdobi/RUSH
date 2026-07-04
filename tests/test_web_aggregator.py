@@ -6,9 +6,6 @@ from pathlib import Path
 from pipeline.web import aggregator
 from pipeline.web import handlers_dq
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -311,6 +308,16 @@ def test_handle_decision_quality_ok_and_not_found(tmp_path: Path, monkeypatch) -
     assert "error" in body
 
 
+def test_handle_decision_quality_mnist_demo_returns_empty_runs(tmp_path: Path, monkeypatch) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+
+    status, body = handlers_dq.handle_decision_quality({"demo": ["mnist"]})
+
+    assert status == 200
+    assert body == {"runs": [], "policy_versions": []}
+
+
 def test_handle_insights_requires_run_id_and_returns_payload(tmp_path: Path, monkeypatch) -> None:
     runs_root = _runs_fixture(tmp_path)
     monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
@@ -324,11 +331,50 @@ def test_handle_insights_requires_run_id_and_returns_payload(tmp_path: Path, mon
     assert body["run_id"] == "run-early"
 
 
+def test_handle_insights_rejects_run_from_other_demo(tmp_path: Path, monkeypatch) -> None:
+    runs_root = _runs_fixture(tmp_path)
+    monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
+
+    status, body = handlers_dq.handle_insights({"run_id": ["run-early"], "demo": ["mnist"]})
+
+    assert status == 404
+    assert "No scored runs matched" in body["error"]
+
+
 def test_handle_insights_auto_scores_when_artifacts_are_missing(tmp_path: Path, monkeypatch) -> None:
     runs_root = tmp_path / "runs"
     run_dir = _make_autoscore_run(runs_root, "run-auto")
+    manifest_path = (
+        tmp_path
+        / "data"
+        / "images"
+        / "genai-classification"
+        / "manifests"
+        / "combined_labels.jsonl"
+    )
+    _write_jsonl(
+        manifest_path,
+        [
+            {
+                "sample_id": "dev_golden_0001",
+                "repo_rel_path": "images/dev_golden_0001.png",
+                "split": "dev_golden",
+                "label": "ai_generated",
+                "label_int": 1,
+                "truth_tier": "gold",
+            },
+            {
+                "sample_id": "dev_golden_0002",
+                "repo_rel_path": "images/dev_golden_0002.png",
+                "split": "dev_golden",
+                "label": "ai_generated",
+                "label_int": 1,
+                "truth_tier": "gold",
+            },
+        ],
+    )
     monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)
-    monkeypatch.setattr(handlers_dq, "REPO_ROOT", ROOT)
+    monkeypatch.setattr(handlers_dq, "REPO_ROOT", tmp_path)
 
     assert not (run_dir / "scoring").exists()
     status, body = handlers_dq.handle_insights({"run_id": ["run-auto"]})

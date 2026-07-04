@@ -19,6 +19,7 @@ from pipeline.thumbnails import thumbnail_rel_path_for_source, validate_source_r
 from . import handlers_dq, handlers_policy
 from ._safety import APIError, read_json_body, validate_start_payload
 from .build_id import get_build_id
+from .demo_area import area_from_query, policy_version_matches_area
 from .run_registry import RunRegistry
 
 
@@ -65,6 +66,22 @@ def handle_thumbnail(handler) -> None:
     _redirect(handler, f"{location}{separator}v={get_build_id()}")
 
 
+def _filter_runs_for_query(
+    runs: list[dict[str, Any]], query: dict[str, list[str]]
+) -> tuple[int, dict[str, Any]]:
+    try:
+        area = area_from_query(query)
+    except ValueError as exc:
+        return 400, {"error": str(exc)}
+    return 200, {
+        "runs": [
+            row
+            for row in runs
+            if policy_version_matches_area(row.get("policy_graph_version"), area)
+        ]
+    }
+
+
 def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
     path = urlsplit(handler.path).path.rstrip("/") or "/"
     try:
@@ -90,7 +107,9 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             return
 
         if method == "GET" and path == "/api/runs":
-            send_json(handler, 200, {"runs": registry.list_runs()})
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            status, body = _filter_runs_for_query(registry.list_runs(), query)
+            send_json(handler, status, body)
             return
 
         if method == "GET" and path == "/api/thumbnail":
@@ -141,14 +160,18 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
 
         # ----- X3: policy versions / proposals ---------------------------
         if method == "GET" and path == "/api/policy/versions":
-            status, body = handlers_policy.handle_policy_versions(handler.repo_root)
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            status, body = handlers_policy.handle_policy_versions(
+                handler.repo_root, (query.get("area") or [None])[0]
+            )
             send_json(handler, status, body)
             return
         if method == "GET" and path == "/api/policy/graph":
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             version = (query.get("version") or [None])[0]
+            area = (query.get("area") or [None])[0]
             status, body = handlers_policy.handle_policy_graph(
-                handler.repo_root, version
+                handler.repo_root, version, area
             )
             send_json(handler, status, body)
             return

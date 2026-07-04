@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.web.handlers_policy import handle_policy_graph
+from pipeline.web.handlers_policy import handle_policy_graph, handle_policy_versions
 
 
 def _write_node(path: Path, *, node_id: str, title: str, node_type: str, polarity: str, parent: str = "GA.root") -> None:
@@ -98,3 +98,96 @@ def test_handle_policy_graph_rejects_unknown_version(tmp_path: Path) -> None:
 
     assert status == 404
     assert "unknown policy version" in payload["error"]
+
+
+def test_handle_policy_versions_filters_mnist_area(tmp_path: Path) -> None:
+    genai = tmp_path / "policy-graph" / "Generative_AI"
+    mnist = tmp_path / "policy-graph" / "MNIST_Digits"
+    (genai / "v0.1").mkdir(parents=True)
+    (genai / "v0.3").mkdir()
+    (mnist / "v0.1").mkdir(parents=True)
+    _write_node(genai / "v0.1" / "GA.root.md", node_id="GA.root", title="GA Root", node_type="root", polarity="mixed", parent="null")
+    _write_node(genai / "v0.3" / "GA.root.md", node_id="GA.root", title="GA Root", node_type="root", polarity="mixed", parent="null")
+    _write_node(mnist / "v0.1" / "MD.root.md", node_id="MD.root", title="MNIST Root", node_type="root", polarity="mixed", parent="null")
+
+    status, payload = handle_policy_versions(tmp_path, area="MNIST_Digits")
+
+    assert status == 200
+    assert payload["domain"] == "MNIST_Digits"
+    assert [item["version"] for item in payload["versions"]] == ["v0.1"]
+    assert payload["current"] == "v0.1"
+
+
+def test_handle_policy_graph_reads_mnist_root_and_confusion_edges(tmp_path: Path) -> None:
+    graph_dir = tmp_path / "policy-graph" / "MNIST_Digits" / "v0.1"
+    graph_dir.mkdir(parents=True)
+    _write_node(
+        graph_dir / "MD.root.md",
+        node_id="MD.root",
+        title="MNIST Root",
+        node_type="root",
+        polarity="mixed",
+        parent="null",
+    )
+    _write_node(
+        graph_dir / "MD.digit.0.md",
+        node_id="MD.digit.0",
+        title="Digit 0",
+        node_type="digit_class",
+        polarity="positive",
+        parent="MD.root",
+    )
+    (graph_dir / "MD.digit.0.md").write_text(
+        """---
+id: MD.digit.0
+title: Digit 0
+node_type: digit_class
+parent: MD.root
+polarity: positive
+status: draft
+edges:
+  - {type: subtype_of, to: MD.root}
+  - {type: confused_with, to: MD.digit.6}
+---
+# Digit 0
+""",
+        encoding="utf-8",
+    )
+    (graph_dir / "MD.digit.6.md").write_text(
+        """---
+id: MD.digit.6
+title: Digit 6
+node_type: digit_class
+parent: MD.root
+polarity: positive
+status: draft
+edges:
+  - {type: subtype_of, to: MD.root}
+  - {type: confused_with, to: MD.digit.0}
+---
+# Digit 6
+""",
+        encoding="utf-8",
+    )
+    (graph_dir / "edges.json").write_text(
+        json.dumps(
+            [
+                {
+                    "source_node_id": "MD.digit.0",
+                    "target_node_id": "MD.root",
+                    "edge_type": "subtype_of",
+                    "confidence": 1.0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    status, payload = handle_policy_graph(tmp_path, "v0.1", area="MNIST_Digits")
+
+    assert status == 200
+    assert payload["area"] == "MNIST_Digits"
+    assert payload["title"] == "Cold-start MNIST digit policy v0.1"
+    assert payload["nodes"][0]["id"] == "MD.root"
+    assert "GA.root" not in {node["id"] for node in payload["nodes"]}
+    assert any(edge["edge_type"] == "confused_with" for edge in payload["edges"])

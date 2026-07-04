@@ -113,10 +113,21 @@ def _split_labelers(labelers: list[dict[str, Any]]) -> tuple[list[dict[str, Any]
     return labelers, majority
 
 
+def _matches_policy_area(version: Any, manifest_version: Any, policy_area: str | None) -> bool:
+    if policy_area is None:
+        return True
+    from pipeline.web.demo_area import policy_version_matches_area  # noqa: PLC0415
+
+    return policy_version_matches_area(version, policy_area) or policy_version_matches_area(
+        manifest_version, policy_area
+    )
+
+
 def aggregate_decision_quality(
     runs_root: Path,
     run_id: str | None = None,
     policy_version: str | None = None,
+    policy_area: str | None = None,
 ) -> dict[str, Any]:
     """Aggregate scored run decision-quality snapshots for the web API."""
     root = runs_root.resolve()
@@ -129,6 +140,8 @@ def aggregate_decision_quality(
         rid = str(manifest.get("run_id") or run_dir.name)
         version = _policy_version(manifest, dq)
         manifest_version = manifest.get("policy_graph_version")
+        if not _matches_policy_area(version, manifest_version, policy_area):
+            continue
         if version:
             discovered_policy_versions.add(str(version))
         if run_id is not None and rid != run_id:

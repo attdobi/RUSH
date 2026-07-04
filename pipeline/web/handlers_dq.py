@@ -5,25 +5,62 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.web.aggregator import aggregate_decision_quality, compute_insights
+from pipeline.web.demo_area import area_from_query, first_query_value, policy_version_matches_area
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNS_ROOT = Path("data/runs")
 
 
-def _first(query: dict[str, list[str]], key: str) -> str | None:
-    values = query.get(key)
-    if not values:
-        return None
-    value = values[0]
-    return value if value != "" else None
+def _empty_insights() -> dict[str, Any]:
+    return {
+        "run_id": None,
+        "majority_wrong": [],
+        "model_disagreement": [],
+        "boundary_concentration": [],
+        "consistent_pair_disagreement": [],
+    }
+
+
+def _query_has_area_filter(query: dict[str, list[str]]) -> bool:
+    return bool(first_query_value(query, "area") or first_query_value(query, "demo"))
+
+
+def _read_json_if_exists(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    import json
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data if isinstance(data, dict) else {}
+
+
+def _run_policy_graph_version(run_dir: Path) -> str | None:
+    manifest = _read_json_if_exists(run_dir / "run_manifest.json")
+    dq = _read_json_if_exists(run_dir / "scoring" / "decision_quality.json")
+    return (
+        str(dq.get("policy_graph_version"))
+        if dq.get("policy_graph_version") is not None
+        else (
+            str(manifest.get("policy_graph_version"))
+            if manifest.get("policy_graph_version") is not None
+            else None
+        )
+    )
 
 
 def handle_decision_quality(query: dict[str, list[str]]) -> tuple[int, dict[str, Any]]:
-    run_id = _first(query, "run_id")
-    policy_version = _first(query, "policy_version")
+    run_id = first_query_value(query, "run_id")
+    policy_version = first_query_value(query, "policy_version")
+    try:
+        area = area_from_query(query)
+    except ValueError as exc:
+        return 400, {"error": str(exc)}
     try:
         payload = aggregate_decision_quality(
-            RUNS_ROOT, run_id=run_id, policy_version=policy_version
+            RUNS_ROOT,
+            run_id=run_id,
+            policy_version=policy_version,
+            policy_area=area,
         )
     except ValueError as exc:
         return 400, {"error": str(exc)}
@@ -43,9 +80,19 @@ def _auto_score_run(run_id: str) -> dict[str, Any]:
 
 
 def handle_insights(query: dict[str, list[str]]) -> tuple[int, dict[str, Any]]:
-    run_id = _first(query, "run_id")
+    run_id = first_query_value(query, "run_id")
     if not run_id:
+        if _query_has_area_filter(query):
+            try:
+                area_from_query(query)
+            except ValueError as exc:
+                return 400, {"error": str(exc)}
+            return 200, _empty_insights()
         return 400, {"error": "run_id is required"}
+    try:
+        area = area_from_query(query)
+    except ValueError as exc:
+        return 400, {"error": str(exc)}
     runs_root = RUNS_ROOT.resolve()
     run_dir = (RUNS_ROOT / run_id).resolve()
     if not run_dir.is_relative_to(runs_root):
@@ -53,6 +100,9 @@ def handle_insights(query: dict[str, list[str]]) -> tuple[int, dict[str, Any]]:
     consensus_path = run_dir / "scoring" / "consensus.json"
     if not run_dir.exists():
         return 404, {"error": f"Run not found: {run_id}"}
+    version = _run_policy_graph_version(run_dir)
+    if not policy_version_matches_area(version, area):
+        return 404, {"error": "No scored runs matched the requested filters."}
     if not consensus_path.exists():
         if _run_has_score_inputs(run_dir):
             try:
