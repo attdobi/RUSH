@@ -27,7 +27,7 @@ from pipeline.policy_diff import (
     reject_proposal,
     seed_cold_start_proposal,
 )
-from pipeline.web.demo_area import normalize_policy_area
+from pipeline.web.demo_area import normalize_policy_area, policy_version_matches_area
 
 _VERSION_RE = re.compile(r"^v\d+\.\d+$")
 
@@ -484,9 +484,20 @@ def handle_list_proposals(
     repo_root: Path | str,
     *,
     include_errors: bool = False,
+    area: str | None = None,
 ) -> tuple[int, dict[str, Any]]:
     try:
-        return 200, list_proposals(repo_root=repo_root, include_errors=include_errors)
+        body = list_proposals(repo_root=repo_root, include_errors=include_errors)
+        if area is not None:
+            domain = normalize_policy_area(area)
+            body["proposals"] = [
+                proposal
+                for proposal in body.get("proposals", [])
+                if policy_version_matches_area(proposal.get("base_version"), domain)
+            ]
+        return 200, body
+    except ValueError as exc:
+        return _bad_request(exc)
     except Exception as exc:  # noqa: BLE001
         return _error(500, exc)
 

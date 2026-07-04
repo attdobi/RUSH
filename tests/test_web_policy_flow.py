@@ -62,6 +62,31 @@ def _stop(server, thread) -> None:
     server.server_close()
 
 
+def _write_policy_proposal(
+    root: Path,
+    proposal_id: str,
+    *,
+    base_version: str,
+    created_at: str = "2026-05-19T12:00:00+00:00",
+) -> None:
+    proposal_dir = root / "data" / "policy_proposals" / proposal_id
+    proposal_dir.mkdir(parents=True, exist_ok=True)
+    (proposal_dir / "proposal.json").write_text(
+        json.dumps(
+            {
+                "proposal_id": proposal_id,
+                "status": "pending",
+                "created_at": created_at,
+                "base_version": base_version,
+                "files_changed": [],
+                "files_added": [],
+                "files_removed": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_compute_alias_covers_insights_score_button(tmp_path: Path) -> None:
     registry = FakeRegistry()
     server, thread = _serve(tmp_path, registry)
@@ -144,10 +169,10 @@ def test_policy_growth_and_review_routes_are_wired(tmp_path: Path, monkeypatch) 
 
 
 def test_policy_proposals_route_forwards_include_errors_query(tmp_path: Path, monkeypatch) -> None:
-    calls: list[bool] = []
+    calls: list[tuple[bool, str | None]] = []
 
-    def fake_list(repo_root, *, include_errors=False):  # noqa: ARG001
-        calls.append(include_errors)
+    def fake_list(repo_root, *, include_errors=False, area=None):  # noqa: ARG001
+        calls.append((include_errors, area))
         return 200, {
             "proposals": [],
             "hidden_error_count": 0,
@@ -170,7 +195,32 @@ def test_policy_proposals_route_forwards_include_errors_query(tmp_path: Path, mo
     finally:
         _stop(server, thread)
 
-    assert calls == [False, True]
+    assert calls == [(False, None), (True, None)]
+
+
+def test_policy_proposals_route_filters_by_area(tmp_path: Path) -> None:
+    _write_policy_proposal(tmp_path, "GA.bare-1", base_version="v0.1")
+    _write_policy_proposal(tmp_path, "GA.prefixed-1", base_version="Generative_AI.v0.2")
+    _write_policy_proposal(tmp_path, "MNIST_Digits.proposal-1", base_version="MNIST_Digits.v0.1")
+
+    server, thread = _serve(tmp_path)
+    try:
+        status, body = _request_json(server, "GET", "/api/policy/proposals?area=MNIST_Digits")
+        assert status == 200
+        assert [p["proposal_id"] for p in body["proposals"]] == ["MNIST_Digits.proposal-1"]
+        assert all(
+            p["base_version"].startswith("MNIST_Digits.")
+            for p in body["proposals"]
+        )
+
+        status, body = _request_json(server, "GET", "/api/policy/proposals?area=Generative_AI")
+        assert status == 200
+        assert sorted(p["proposal_id"] for p in body["proposals"]) == [
+            "GA.bare-1",
+            "GA.prefixed-1",
+        ]
+    finally:
+        _stop(server, thread)
 
 
 def test_runs_route_filters_by_demo_query(tmp_path: Path) -> None:

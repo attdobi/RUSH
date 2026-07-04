@@ -498,7 +498,8 @@
     }
     try {
       status('Loading proposals…');
-      const payload = await rushApiGetJson('/api/policy/proposals?include_errors=true');
+      const area = (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.area) || 'Generative_AI';
+      const payload = await rushApiGetJson(`/api/policy/proposals?include_errors=true&area=${encodeURIComponent(area)}`);
       state.proposals = Array.isArray(payload.proposals) ? payload.proposals : [];
       if (selectFirst && !state.selected && state.proposals.length) state.selected = defaultProposalId();
       populateProposalPicker();

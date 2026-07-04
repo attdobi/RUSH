@@ -182,8 +182,9 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
                 "true",
                 "yes",
             }
+            area = (query.get("area") or [None])[0]
             status, body = handlers_policy.handle_list_proposals(
-                handler.repo_root, include_errors=include_errors
+                handler.repo_root, include_errors=include_errors, area=area
             )
             send_json(handler, status, body)
             return
