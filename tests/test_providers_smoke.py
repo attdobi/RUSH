@@ -595,6 +595,36 @@ class TestOpenAIClient:
         with pytest.raises(ProviderError):
             client._build_api_params(messages=[])
 
+    def test_default_response_format_is_json_object(self) -> None:
+        # Hosted OpenAI/compat behavior must remain exactly json_object.
+        client = OpenAIClient(
+            config=OpenAIClientConfig(model_name="gpt-5.5"),
+            client=object(),
+        )
+        params = client._build_api_params(messages=[])
+        assert params["response_format"] == {"type": "json_object"}
+
+    def test_config_honors_non_json_object_response_format(self) -> None:
+        client = OpenAIClient(
+            config=OpenAIClientConfig(
+                model_name="local-model",
+                response_format={"type": "text"},
+            ),
+            client=object(),
+        )
+        params = client._build_api_params(messages=[])
+        assert params["response_format"] == {"type": "text"}
+
+    def test_none_response_format_omits_param(self) -> None:
+        client = OpenAIClient(
+            config=OpenAIClientConfig(
+                model_name="gpt-5.5", response_format=None
+            ),
+            client=object(),
+        )
+        params = client._build_api_params(messages=[])
+        assert "response_format" not in params
+
     @pytest.mark.parametrize("effort", ["minimal", "low", "medium", "high", "xhigh"])
     def test_cheap_reasoning_efforts_accepted(self, effort: str) -> None:
         client = OpenAIClient(
@@ -875,6 +905,11 @@ class TestRegistry:
             assert isinstance(client, OpenAIClient)
             assert client.config.model_name == vendor
             assert client.config.base_url == local_base_url()
+            # LM Studio rejects json_object; local path must wire text mode
+            # and _build_api_params must emit it on the wire.
+            assert client.config.response_format == {"type": "text"}
+            params = client._build_api_params(messages=[])
+            assert params["response_format"] == {"type": "text"}
 
     def test_local_base_url_env_override(self, monkeypatch) -> None:
         from pipeline.providers import registry as _registry

@@ -68,6 +68,13 @@ class OpenAIClientConfig(ClientConfig):
     # optional — local servers ignore auth, so we never hard-fail on a missing
     # secret for this path.
     base_url: str | None = None
+    # Structured-output request shape. Hosted OpenAI accepts json_object; some
+    # OpenAI-compatible servers (LM Studio) reject it and require
+    # {"type": "text"} or a json_schema. Default preserves hosted behavior
+    # exactly. Set to None to omit response_format entirely.
+    response_format: dict[str, Any] | None = field(
+        default_factory=lambda: {"type": "json_object"}
+    )
 
 
 class OpenAIClient(LabelClient):
@@ -166,8 +173,9 @@ class OpenAIClient(LabelClient):
             "model": self.config.model_name,
             "messages": messages,
             "max_completion_tokens": self.config.max_completion_tokens,
-            "response_format": {"type": "json_object"},
         }
+        if self.config.response_format is not None:
+            params["response_format"] = self.config.response_format
         if self.config.reasoning_effort:
             params["reasoning_effort"] = self.config.reasoning_effort
         # GPT-5.5 reasoning models do not accept custom temperature; never

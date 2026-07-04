@@ -200,7 +200,11 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="qwen/qwen3.6-27b",
         phase=2,
         params={
-            "max_completion_tokens": 4000,
+            # These local models are reasoning models: hidden reasoning eats
+            # completion tokens before the visible JSON. Against the full
+            # policy bundle 4000 truncated the JSON (finish_reason=length) ->
+            # parse_failed. Keep generous headroom for reasoning + JSON.
+            "max_completion_tokens": 12000,
         },
     ),
     "local/gemma-4-26b-a4b-qat": ModelSpec(
@@ -209,7 +213,9 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="google/gemma-4-26b-a4b-qat",
         phase=2,
         params={
-            "max_completion_tokens": 4000,
+            # Reasoning model: keep generous headroom so visible JSON is not
+            # truncated by hidden reasoning token spend.
+            "max_completion_tokens": 12000,
         },
     ),
 }
@@ -321,6 +327,11 @@ def build_client(
             reasoning_effort=configured_reasoning_effort,
             max_completion_tokens=max_completion_tokens,
             base_url=local_base_url(),
+            # LM Studio rejects response_format={"type": "json_object"} with
+            # HTTP 400 (only "json_schema" or "text" are accepted). Use "text";
+            # the shared parse_label_json handles the fenced JSON these local
+            # reasoning models emit.
+            response_format={"type": "text"},
             extra_params=params,
         )
         return OpenAIClient(config=config, client=client)
