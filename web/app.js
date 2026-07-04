@@ -490,6 +490,7 @@ function renderGallery() {
 function renderAll() {
   renderStats();
   renderGallery();
+  renderResidualMisalignments();
 }
 
 function setSamplerLoading(isLoading) {
@@ -883,6 +884,153 @@ function majorityPill(row) {
   return `<span class="badge ${labelBadgeClass(t.label)}">${esc(t.label)}</span>`;
 }
 
+const TRAIN_SPLIT_ALIASES = new Set(['dev_golden', 'train', 'training', 'development']);
+const TEST_SPLIT_ALIASES = new Set(['holdout', 'val', 'validation', 'test', 'testing', 'locked_holdout', 'locked_holdout_decision_quality']);
+
+function splitKind(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (TRAIN_SPLIT_ALIASES.has(normalized)) return 'train';
+  if (TEST_SPLIT_ALIASES.has(normalized)) return 'test';
+  return '';
+}
+
+function splitLabel(value) {
+  const kind = splitKind(value);
+  if (kind === 'train') return 'training';
+  if (kind === 'test') return 'testing';
+  return value ? String(value) : 'not exported';
+}
+
+function manifestSplitLookup() {
+  const rows = Array.isArray(demoState.result?.combined) ? demoState.result.combined : [];
+  const byId = new Map();
+  for (const row of rows) {
+    const split = row.split || row.policy_use || '';
+    for (const key of [row.sample_id, row.image_id]) {
+      if (key) byId.set(String(key), split);
+    }
+  }
+  return byId;
+}
+
+function splitForScoredRow(row, lookup = manifestSplitLookup()) {
+  const direct = row?.split || row?.dataset_split || row?.policy_use || '';
+  if (direct) return direct;
+  const id = row?.sample_id || row?.image_id || '';
+  return id ? (lookup.get(String(id)) || '') : '';
+}
+
+function scoreKPerSplitValue() {
+  const own = Number.parseInt($('#scoreKPerSplit')?.value, 10);
+  if (Number.isInteger(own) && own > 0) return own;
+  const run = Number.parseInt($('#runTriggerBatchSize')?.value, 10);
+  return Number.isInteger(run) && run > 0 ? run : 20;
+}
+
+function scoreSplitValue() {
+  return $('#scoreSplitMirror')?.value || $('#runTriggerSplit')?.value || 'all';
+}
+
+function scoreSplitPhrase(split) {
+  if (split === 'all') return 'training + testing';
+  if (splitKind(split) === 'train') return 'training only';
+  if (splitKind(split) === 'test') return 'testing only';
+  return split || 'all';
+}
+
+function renderScoreAlgorithmControls() {
+  const k = scoreKPerSplitValue();
+  const split = scoreSplitValue();
+  const note = $('#scoreKNote');
+  if (note) {
+    const total = split === 'all' ? `up to ${k} training + ${k} test images` : `up to ${k} ${scoreSplitPhrase(split)} images`;
+    note.textContent = `Mirrors §3 Batch size and Split for the next run. k=${k} per split means ${total}. Set k=10 for a 10+10 pass. §1 N per class builds the candidate pool.`;
+  }
+  const defaultBatch = $('#labelDefaultBatch');
+  if (defaultBatch) defaultBatch.textContent = `k=${k} per split · ${scoreSplitPhrase(split)}`;
+}
+
+function syncScoreControlsFromRunTrigger() {
+  const kInput = $('#scoreKPerSplit');
+  const splitMirror = $('#scoreSplitMirror');
+  const runK = $('#runTriggerBatchSize')?.value || '20';
+  const runSplit = $('#runTriggerSplit')?.value || 'all';
+  if (kInput && kInput.value !== runK) kInput.value = runK;
+  if (splitMirror && splitMirror.value !== runSplit) splitMirror.value = runSplit;
+  renderScoreAlgorithmControls();
+}
+
+function pushScoreControlsToRunTrigger() {
+  const k = scoreKPerSplitValue();
+  const split = scoreSplitValue();
+  const runK = $('#runTriggerBatchSize');
+  const runSplit = $('#runTriggerSplit');
+  if (runK) runK.value = String(k);
+  if (runSplit) runSplit.value = split;
+  renderScoreAlgorithmControls();
+}
+
+function bindScoreAlgorithmControls() {
+  syncScoreControlsFromRunTrigger();
+  $('#scoreKPerSplit')?.addEventListener('input', pushScoreControlsToRunTrigger);
+  $('#scoreSplitMirror')?.addEventListener('change', pushScoreControlsToRunTrigger);
+  $('#runTriggerBatchSize')?.addEventListener('input', syncScoreControlsFromRunTrigger);
+  $('#runTriggerSplit')?.addEventListener('change', syncScoreControlsFromRunTrigger);
+}
+
+function residualRows() {
+  const data = runState.misalignment;
+  const rows = Array.isArray(data?.rows) ? data.rows : (Array.isArray(data?.records) ? data.records : []);
+  return rows.filter(row => row && row.misalignment_type !== 'all_agree');
+}
+
+function residualRowTable(entries, emptyMessage) {
+  if (!entries.length) return `<div class="empty-state">${esc(emptyMessage)}</div>`;
+  const body = entries.slice(0, 30).map(entry => {
+    const row = entry.row;
+    const id = row.image_id || row.sample_id || '';
+    const sme = row.sme_truth || row.truth || '—';
+    const reason = row.disagreement_reason || row.reason || row.misalignment_type || '—';
+    return `<tr>
+      <td><strong>${esc(id)}</strong></td>
+      <td>${esc(splitLabel(entry.split))}</td>
+      <td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td>
+      <td>${majorityPill(row)}</td>
+      <td>${esc(reason)}</td>
+      <td><button type="button" class="residual-label-update" disabled title="Coming soon: update a human label before guideline building so one bad label does not propagate.">Update human label</button></td>
+    </tr>`;
+  }).join('');
+  const clipped = entries.length > 30 ? `<p class="row-meta">Showing 30 of ${entries.length} residual row(s).</p>` : '';
+  return `<div class="misalignment-table residual-table"><table class="misalignment"><thead><tr><th>image</th><th>split</th><th>human label</th><th>majority</th><th>residual</th><th>human label</th></tr></thead><tbody>${body}</tbody></table></div>${clipped}`;
+}
+
+function renderResidualMisalignments() {
+  const target = $('#residualMisalignments');
+  if (!target) return;
+  const rows = residualRows();
+  const lookup = manifestSplitLookup();
+  const annotated = rows.map(row => ({ row, split: splitForScoredRow(row, lookup) }));
+  const trainRows = annotated.filter(entry => splitKind(entry.split) === 'train');
+  const testRows = annotated.filter(entry => splitKind(entry.split) === 'test');
+  const unknownRows = annotated.filter(entry => !splitKind(entry.split));
+  const splitExported = trainRows.length + testRows.length > 0;
+  const status = rows.length
+    ? `${rows.length} real residual row(s) in the selected run export${splitExported ? ', grouped by split where available.' : ', but per-row split is not exported in the current scoring payload.'}`
+    : 'No residual misalignment rows are available for the selected run.';
+  target.innerHTML = `
+    <div class="residual-misalign-status">${esc(status)} Backend train/update vs test/report separation remains intended pipeline · defined-not-executed.</div>
+    <article class="residual-lane train-lane">
+      <header><span>TRAIN residuals</span><strong>${trainRows.length}</strong></header>
+      ${residualRowTable(trainRows, 'No split-tagged training residual rows are exported for this run yet.')}
+    </article>
+    <article class="residual-lane test-lane">
+      <header><span>TEST residuals</span><strong>${testRows.length}</strong></header>
+      ${residualRowTable(testRows, 'No split-tagged test residual rows are exported for this run yet.')}
+    </article>
+    ${unknownRows.length ? `<article class="residual-lane residual-unknown"><header><span>Unassigned residual rows</span><strong>${unknownRows.length}</strong></header><p class="row-meta">Real misalignment rows from the current export; split could not be assigned from row data or the loaded manifest.</p>${residualRowTable(unknownRows, '')}</article>` : ''}
+  `;
+}
+
 function policyCitationHtml(citation) {
   const id = String(citation || '').trim();
   if (!id) return '';
@@ -1170,11 +1318,13 @@ function renderConsensus() {
 
 function renderRun() {
   if (!document.querySelector('.score-tab-panel:not([hidden])')) selectScoreTab('consensus');
+  renderScoreAlgorithmControls();
   renderRunPicker();
   renderRunSummary();
   renderBorderline();
   renderMisalignment();
   renderConsensus();
+  renderResidualMisalignments();
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
@@ -1406,6 +1556,7 @@ function init() {
   bindDemoSelector();
   bindControls();
   bindRunControls();
+  bindScoreAlgorithmControls();
   initScoreTabs();
   initActiveNav();
   initApi();

@@ -2012,6 +2012,185 @@ main { padding-bottom: 82px; }
   .provenance-prompt-block pre { max-height: 420px; padding: 12px; }
   .provenance-prompt-block code { font-size: 11px; }
 }
+
+/* ----- X3 §4 train/test scoring algorithm ----- */
+.score-algo-card,
+.residual-misalign-block {
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(170,184,211,.20);
+  border-radius: 8px;
+  background: rgba(16,26,49,.30);
+  padding: clamp(14px, 2vw, 18px);
+  margin: 0 0 16px;
+}
+.score-algo-head,
+.residual-misalign-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+.score-algo-head h3,
+.residual-misalign-head h3 {
+  margin: 0 0 7px;
+  color: #edf4ff;
+  font-size: 17px;
+}
+.score-algo-head p,
+.residual-misalign-head p,
+.score-algo-lane p,
+.score-algo-rule {
+  margin: 0;
+  color: #c4d3ef;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.score-algo-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid rgba(255,209,102,.38);
+  border-radius: 999px;
+  background: rgba(255,209,102,.10);
+  color: #ffe0a3;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.score-algo-controls {
+  display: grid;
+  grid-template-columns: minmax(120px, .28fr) minmax(220px, .42fr) minmax(280px, 1fr);
+  gap: 12px;
+  align-items: end;
+  border-top: 1px solid rgba(170,184,211,.14);
+  border-bottom: 1px solid rgba(170,184,211,.14);
+  padding: 12px 0;
+}
+.score-algo-controls label {
+  display: grid;
+  gap: 7px;
+  color: #dce8ff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.score-algo-controls input,
+.score-algo-controls select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #07101f;
+  color: var(--text);
+  padding: 10px 11px;
+}
+.score-algo-controls p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.score-algo-lanes,
+.residual-misalign-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.score-algo-lane,
+.residual-lane {
+  border: 1px solid rgba(170,184,211,.18);
+  border-radius: 8px;
+  background: rgba(7,16,31,.48);
+  padding: 14px;
+}
+.score-algo-lane span,
+.residual-lane header span {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.score-algo-lane strong {
+  display: block;
+  margin-bottom: 7px;
+  color: #edf4ff;
+  font-size: 15px;
+}
+.train-lane { border-color: rgba(77,224,166,.34); }
+.train-lane > span,
+.train-lane header span { color: #a8f4cd; }
+.test-lane { border-color: rgba(130,181,255,.38); }
+.test-lane > span,
+.test-lane header span { color: #b8d4ff; }
+.score-algo-rule {
+  border-left: 3px solid rgba(255,209,102,.52);
+  padding-left: 11px;
+  color: #ffe0a3;
+  font-weight: 850;
+}
+.residual-misalign-block { margin-top: 16px; }
+.residual-misalign-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.residual-misalign-status,
+.residual-unknown {
+  grid-column: 1 / -1;
+}
+.residual-misalign-status {
+  border: 1px solid rgba(255,209,102,.26);
+  border-radius: 8px;
+  background: rgba(255,209,102,.08);
+  color: #ffe0a3;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.45;
+}
+.residual-lane {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.residual-lane header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.residual-lane header strong {
+  color: #edf4ff;
+  font-size: 18px;
+}
+.residual-table { border-radius: 8px; }
+.residual-label-update {
+  border: 1px solid rgba(170,184,211,.22);
+  border-radius: 8px;
+  background: rgba(170,184,211,.08);
+  color: #aab8d3;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: not-allowed;
+}
+.residual-label-update:disabled { opacity: .72; }
+@media (max-width: 900px) {
+  .score-algo-head,
+  .residual-misalign-head,
+  .score-algo-controls {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+  .score-algo-badge { white-space: normal; }
+  .score-algo-lanes,
+  .residual-misalign-grid {
+    grid-template-columns: 1fr;
+  }
+}
 /* === end X2 === */
 
 /* X2 generator prompt + policy graph polish */
