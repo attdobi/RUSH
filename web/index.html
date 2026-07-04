@@ -190,7 +190,7 @@
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
         <h2 id="labelH2">Run the next labeling round.</h2>
-        <p id="labelSub">Default: both training and testing portions, N=20 images, selected panel models, then scored results feed proposals and decision quality.</p>
+        <p id="labelSub">Default: both training and testing portions, k=20 images per split, selected panel models, then scored results feed proposals and decision quality.</p>
       </div>
       <div class="label-block label-run-trigger compact-label-runner">
         <div class="label-run-head">
@@ -198,7 +198,7 @@
             <h3>Start a new run</h3>
             <p class="body-copy">Quick path keeps the demo moving; advanced controls stay tucked away until needed.</p>
           </div>
-          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start 20-image train+test run</button>
+          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start k=20 per-split run</button>
         </div>
         <div class="run-trigger-compact" aria-label="Start labeling run">
         <div class="run-trigger-primary-row">
@@ -208,7 +208,7 @@
           </fieldset>
           <div class="run-default-card" aria-label="Default run settings">
             <span>Default batch</span>
-            <strong id="labelDefaultBatch">N=20 · training + testing</strong>
+            <strong id="labelDefaultBatch">k=20 per split · training + testing</strong>
             <p id="labelDefaultDetail">Uses split <code>all</code>, latest selected policy version, and true batched labeling for the demo loop.</p>
           </div>
         </div>
@@ -273,6 +273,41 @@
         <h2>Per-image audit.</h2>
         <p id="scoreSub">Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
       </div>
+      <div class="score-algo-card" aria-labelledby="scoreAlgoTitle">
+        <div class="score-algo-head">
+          <div>
+            <h3 id="scoreAlgoTitle">Train/Test algorithm</h3>
+            <p>Intended round: take <strong>k images from TRAINING</strong>, classify with the panel, measure decision quality vs human labels, and surface boundary cases, misalignments, and lack-of-consensus. Also take <strong>k images from TEST</strong> and compute the decision-quality metric reported for the round.</p>
+          </div>
+          <span class="score-algo-badge">intended pipeline · defined-not-executed</span>
+        </div>
+        <div class="score-algo-controls" aria-label="Score algorithm controls">
+          <label>k per split
+            <input id="scoreKPerSplit" type="number" min="1" max="200" value="20" />
+          </label>
+          <label>Next-run split
+            <select id="scoreSplitMirror">
+              <option value="all" selected>all · training + testing</option>
+              <option value="dev_golden">dev_golden/train · training only</option>
+              <option value="holdout">holdout/val · testing only</option>
+            </select>
+          </label>
+          <p id="scoreKNote">Mirrors §3 Batch size and Split for the next run. k=20 means up to 20 training + 20 test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
+        </div>
+        <div class="score-algo-lanes" aria-label="Train test separation">
+          <article class="score-algo-lane train-lane">
+            <span>TRAIN &rarr; drives PROMPT UPDATES</span>
+            <strong>Hardest training disagreements become policy work.</strong>
+            <p>Prompt/policy updates are driven by boundary cases, lack-of-consensus rows, and SME/model misalignments in the training split.</p>
+          </article>
+          <article class="score-algo-lane test-lane">
+            <span>TEST &rarr; drives REPORTED METRICS</span>
+            <strong>Held-out decision quality is the reported score.</strong>
+            <p>Reported metrics should be computed on the test split after the round, separate from the training rows that suggested updates.</p>
+          </article>
+        </div>
+        <p class="score-algo-rule">Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.</p>
+      </div>
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
@@ -307,6 +342,16 @@
         <p class="body-copy" id="borderlineSub">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
 <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
+      </div>
+      <div class="residual-misalign-block" aria-labelledby="residualMisalignTitle">
+        <div class="residual-misalign-head">
+          <div>
+            <h3 id="residualMisalignTitle">Residual misalignments</h3>
+            <p>After the selected round, remaining train and test disagreements should be visible separately. Current rows are split-tagged when the export or loaded manifest can support it.</p>
+          </div>
+          <span class="score-algo-badge">label-cleanup hook coming soon</span>
+        </div>
+        <div id="residualMisalignments" class="residual-misalign-grid"></div>
       </div>
     </section>
     <section id="quality" class="section api-section">

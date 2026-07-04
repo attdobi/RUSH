@@ -267,7 +267,7 @@
     bind();
     await rushApiLoadCatalog();
     populatePolicies();
-    status('Local API connected. Default run is N=20 across train+test (split=all).');
+    status('Local API connected. Default run is k=20 per split (split=all: train + test).');
   }
 
   rushApiOnReady(initRunTrigger);
