@@ -2,6 +2,7 @@
   const DEFAULT_MODEL = 'openai/gpt-5.5';
   const ALT_MODEL = 'anthropic/claude-opus-4-6';
   const DEFAULT_TASK_DESCRIPTION = 'Classify whether a given image is AI-generated. Use visual evidence (hand/finger anatomy, text/typography glitches, surface texture, scene geometry/reflections) as positive evidence; treat conventional photo edits, CGI/game renders, and low-quality uncertain inputs as boundaries; surface explicit synthetic provenance as a separate evidence class.';
+  const MNIST_TASK_DESCRIPTION = 'Classify a handwritten MNIST glyph as one digit from 0-9. Use stroke topology, loops, bowls, tails, crossbars, and the confused_with pairs in the MNIST_Digits policy graph; abstain only when the digit criteria remain tied.';
 
   const state = {
     mode: 'warm',
@@ -36,7 +37,8 @@
 
   function modeBaseVersion(mode = state.mode) {
     if (mode === 'cold_start') return null;
-    return qs('#runTriggerPolicyVersion')?.value || qs('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
+    const demoVersion = (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.version) || 'v0.1';
+    return qs('#runTriggerPolicyVersion')?.value || qs('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || demoVersion;
   }
 
   function latestRunId() {
@@ -47,6 +49,11 @@
     return [DEFAULT_MODEL, ALT_MODEL]
       .map(model => `<option value="${attr(model)}"${model === selected ? ' selected' : ''}>${esc(model)}</option>`)
       .join('');
+  }
+
+  function taskDescriptionForDemo() {
+    const demo = typeof window.rushActiveDemo === 'function' ? window.rushActiveDemo() : null;
+    return demo?.id === 'mnist' ? MNIST_TASK_DESCRIPTION : DEFAULT_TASK_DESCRIPTION;
   }
 
   function setBusy(busy) {
@@ -69,7 +76,7 @@
 
       <div class="policy-grow-mode-cold" data-policy-grow-panel="cold">
         <label>Task brief
-          <textarea id="policyGrowTaskDescription" rows="4">${esc(DEFAULT_TASK_DESCRIPTION)}</textarea>
+          <textarea id="policyGrowTaskDescription" rows="4">${esc(taskDescriptionForDemo())}</textarea>
           <small class="muted">Describe what the graph should classify; this becomes the seed proposal prompt.</small>
         </label>
         <div class="policy-grow-form-row policy-grow-form-row--cold">

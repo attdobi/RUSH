@@ -8,6 +8,21 @@
   const SECONDARY_PANELS = PANELS.slice(1);
 
   const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
+  const MNIST_EMPTY_RUN_MESSAGE = 'No scored MNIST run yet — run labeling to populate.';
+
+  function activeDemo() {
+    return typeof window.rushActiveDemo === 'function'
+      ? window.rushActiveDemo()
+      : { id: 'genai', classes: ['gen_ai', 'not_gen_ai'] };
+  }
+
+  function activeDemoId() {
+    return activeDemo().id || 'genai';
+  }
+
+  function isMnistDemo() {
+    return activeDemoId() === 'mnist';
+  }
 
   function status(message, isError = false) {
     rushApiStatus('#insightsStatus', message, isError);
@@ -27,10 +42,13 @@
   }
 
   function labelBadgeClass(label) {
+    const value = String(label || '');
+    const classes = Array.isArray(activeDemo().classes) ? activeDemo().classes.map(String) : [];
+    if (isMnistDemo() && classes.includes(value)) return `digit-${value.replace(/[^a-z0-9_-]/gi, '')}`;
     const globalClass = window.labelBadgeClass || window.rushLabelBadgeClass;
     if (typeof globalClass === 'function') return globalClass(label);
-    if (!label || !KNOWN_LABELS.includes(label)) return 'dev';
-    return String(label).replaceAll('_', '-');
+    if (!value || !KNOWN_LABELS.includes(value)) return 'dev';
+    return value.replaceAll('_', '-');
   }
 
   function labelBadge(label) {
@@ -171,6 +189,11 @@
   function renderInsights(payload) {
     const target = $('#insightsPanels');
     if (!target) return;
+    const hasRows = PANELS.some(([key]) => Array.isArray(payload?.[key]) && payload[key].length > 0);
+    if (isMnistDemo() && !hasRows) {
+      target.innerHTML = `<div class="empty-state">${esc(MNIST_EMPTY_RUN_MESSAGE)}</div>`;
+      return;
+    }
     const majority = renderPanel('majority_wrong', 'Majority wrong — review these first', payload?.majority_wrong);
     const secondary = SECONDARY_PANELS.map(([key, title]) => renderPanel(key, title, payload?.[key])).join('');
     target.innerHTML = `${majority}<details class="insights-more"><summary>More cuts <span class="muted">model disagreement, boundary concentration, pair disagreement</span></summary><div class="insights-more-grid">${secondary}</div></details>`;
@@ -182,18 +205,23 @@
       return;
     }
     const runId = $('#insightsRunId')?.value || '';
-    if (!runId) {
-      $('#insightsPanels').innerHTML = '<div class="empty-state">Select a scored run to load insights.</div>';
+    if (!runId && !isMnistDemo()) {
+      $('#insightsPanels').innerHTML = `<div class="empty-state">${esc(isMnistDemo() ? MNIST_EMPTY_RUN_MESSAGE : 'Select a scored run to load insights.')}</div>`;
       status('Select a run.');
       return;
     }
     try {
-      status(`Loading insights for ${runId}…`);
-      const payload = await rushApiGetJson(`/api/insights?run_id=${encodeURIComponent(runId)}`);
+      status(runId ? `Loading insights for ${runId}…` : 'Checking MNIST insights…');
+      const params = new URLSearchParams();
+      params.set('demo', activeDemoId());
+      if (runId) params.set('run_id', runId);
+      const payload = await rushApiGetJson(`/api/insights?${params.toString()}`);
       renderInsights(payload);
-      status(`Loaded insights for ${payload.run_id || runId}.`);
+      status(runId ? `Loaded insights for ${payload.run_id || runId}.` : 'No scored MNIST run yet.');
     } catch (error) {
-      $('#insightsPanels').innerHTML = isMissingScoringError(error)
+      $('#insightsPanels').innerHTML = isMnistDemo()
+        ? `<div class="empty-state">${esc(MNIST_EMPTY_RUN_MESSAGE)}</div>`
+        : isMissingScoringError(error)
         ? renderScoreRunEmpty(runId, error.message)
         : `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Insights failed: ${error.message}`, true);

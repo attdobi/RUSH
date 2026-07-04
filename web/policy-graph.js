@@ -145,13 +145,31 @@
   function populateVersions(versions, selected) {
     const select = qs('#policyGraphVersion');
     if (!select) return;
-    const list = Array.isArray(versions) ? versions : [];
+    const list = (Array.isArray(versions) ? versions : [])
+      .map(version => version?.version || version)
+      .filter(Boolean);
     if (!list.length) {
       select.innerHTML = rushApiOptionHtml('', 'No policy versions found', true);
       return;
     }
     select.innerHTML = list.map(version => rushApiOptionHtml(version, version, version === selected)).join('');
     select.value = selected || list[list.length - 1];
+  }
+
+  async function loadPolicyVersionsForArea() {
+    const fallbackVersion = policyGraphVersion();
+    if (!window.RUSH_API?.available) {
+      return { versions: [fallbackVersion], current: fallbackVersion };
+    }
+    try {
+      const area = policyGraphArea();
+      const payload = await rushApiGetJson(`/api/policy/versions?area=${encodeURIComponent(area)}`);
+      const versions = Array.isArray(payload.versions) ? payload.versions : [];
+      const current = payload.current || versions[versions.length - 1]?.version || versions[versions.length - 1] || fallbackVersion;
+      return { versions: versions.length ? versions : [fallbackVersion], current };
+    } catch (error) {
+      return { versions: [fallbackVersion], current: fallbackVersion };
+    }
   }
 
   function stripFrontmatter(markdown) {
@@ -597,8 +615,10 @@
   }
 
   async function loadGraph(version = '') {
-    // Static-local demos (mnist) render straight from repo files — no /api needed.
-    if (demoUsesLocalPolicyGraph()) {
+    // Static-local demos (mnist) can render straight from repo files when the
+    // API is unavailable. When the API is present, still prefer the area-scoped
+    // /api/policy/* endpoints so selectors never mix versions across demos.
+    if (demoUsesLocalPolicyGraph() && !window.RUSH_API?.available) {
       try {
         status('Loading policy graph…');
         const payload = await loadStaticLocalGraph();
@@ -621,18 +641,35 @@
       return;
     }
     try {
-      const query = version ? `?version=${encodeURIComponent(version)}` : '';
+      const params = new URLSearchParams();
+      if (version) params.set('version', version);
+      params.set('area', policyGraphArea());
+      const query = `?${params.toString()}`;
       status('Loading policy graph…');
       const payload = await rushApiGetJson(`/api/policy/graph${query}`);
       backfillParentEdges(payload);
       currentFocus = null;
       currentVersion = payload.version || version;
-      populateVersions(payload.available_versions, payload.version);
+      populateVersions(payload.available_versions || window.RUSH_API?.catalog?.policyVersions || [currentVersion], payload.version || currentVersion);
       renderGraph(payload, null);
       const backfilled = payload._backfilled_edges;
       const backfillNote = backfilled ? ` · backfilled ${backfilled.explicit + backfilled.prefix + backfilled.root} parent edge(s)` : '';
       status(`Loaded ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s)${backfillNote}.`);
     } catch (error) {
+      if (demoUsesLocalPolicyGraph()) {
+        try {
+          const payload = await loadStaticLocalGraph();
+          backfillParentEdges(payload);
+          currentFocus = null;
+          currentVersion = payload.version || version;
+          populateVersions(payload.available_versions, payload.version);
+          renderGraph(payload, null);
+          status(`Loaded local fallback ${payload.nodes?.length || 0} node(s), ${payload.edges?.length || 0} edge(s).`);
+          return;
+        } catch (fallbackError) {
+          // Surface the original API error below; fallback only improves offline/old-backend demos.
+        }
+      }
       const wrap = qs('#policyGraphSvgWrap');
       if (wrap) wrap.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Policy graph failed: ${error.message}`, true);
@@ -640,8 +677,8 @@
   }
 
   async function initPolicyGraph(api) {
-    // Static-local demos (mnist) render regardless of API availability.
-    if (demoUsesLocalPolicyGraph()) {
+    // Static-local demos (mnist) render from repo files if the API is offline.
+    if (demoUsesLocalPolicyGraph() && !api.available) {
       qs('#policyGraphVersion')?.addEventListener('change', event => loadGraph(event.target.value));
       await loadGraph(policyGraphVersion());
       return;
@@ -650,16 +687,19 @@
       setUnavailable();
       return;
     }
-    await rushApiLoadCatalog();
-    const selected = qs('#policyGraphVersion')?.value || window.RUSH_API?.catalog?.currentPolicyVersion || '';
+    const versionPayload = await loadPolicyVersionsForArea();
+    populateVersions(versionPayload.versions, versionPayload.current);
+    if (window.RUSH_API?.catalog) {
+      window.RUSH_API.catalog.policyVersions = versionPayload.versions;
+      window.RUSH_API.catalog.currentPolicyVersion = versionPayload.current;
+    }
+    const selected = qs('#policyGraphVersion')?.value || versionPayload.current || '';
     qs('#policyGraphVersion')?.addEventListener('change', event => loadGraph(event.target.value));
     await loadGraph(selected);
   }
 
   rushApiOnReady(initPolicyGraph);
   window.addEventListener('rush-api-catalog', event => {
-    // Static-local demos ignore the API catalog stream.
-    if (demoUsesLocalPolicyGraph()) return;
     const versions = event.detail?.policyVersions || [];
     const latestItem = versions[versions.length - 1];
     const latest = event.detail?.currentPolicyVersion || latestItem?.version || latestItem || '';

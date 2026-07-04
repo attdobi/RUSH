@@ -47,6 +47,8 @@ function activeDemo() {
 }
 function activeDemoIsMnist() { return activeDemo().id === 'mnist'; }
 function activeManifests() { return activeDemo().manifests; }
+function activeDemoId() { return activeDemo().id || 'genai'; }
+function activePolicyGraphArea() { return activeDemo().policyGraph?.area || 'Generative_AI'; }
 
 
 const demoState = {
@@ -550,12 +552,20 @@ async function runSamplerDemo() {
 const RUNS_INDEX_URL = '../data/runs/index.json';
 const RUNS_DIR_URL = '../data/runs/';
 const KNOWN_LABELS = ['gen_ai', 'not_gen_ai', 'abstain'];
+const MNIST_EMPTY_RUN_MESSAGE = 'No scored MNIST run yet — run labeling to populate.';
 
 // Single source of truth for label → CSS class.
 // IMPORTANT: replaceAll, not replace — `not_gen_ai` has TWO underscores.
 function labelBadgeClass(label) {
-  if (!label || !KNOWN_LABELS.includes(label)) return 'dev';
-  return label.replaceAll('_', '-');
+  const value = String(label || '');
+  if (!value) return 'dev';
+  const classes = Array.isArray(activeDemo().classes) ? activeDemo().classes.map(String) : [];
+  if (classes.includes(value)) {
+    if (activeDemoIsMnist()) return `digit-${value.replace(/[^a-z0-9_-]/gi, '')}`;
+    return value.replaceAll('_', '-');
+  }
+  if (KNOWN_LABELS.includes(value)) return value.replaceAll('_', '-');
+  return 'dev';
 }
 window.rushLabelBadgeClass = labelBadgeClass;
 
@@ -584,26 +594,63 @@ async function fetchJsonOptional(path) {
 async function discoverRuns() {
   if (window.RUSH_API?.ready) await window.RUSH_API.ready.catch(() => null);
   if (window.RUSH_API?.available) {
-    const payload = await rushApiGetJson('/api/runs').catch(() => null);
+    const payload = await rushApiGetJson(`/api/runs?demo=${encodeURIComponent(activeDemoId())}`)
+      .catch(() => rushApiGetJson('/api/runs').catch(() => null));
     if (payload && Array.isArray(payload.runs)) {
-      return payload.runs.filter(r => r && r.run_id).map(r => ({
+      return filterRunsForActiveDemo(payload.runs).filter(r => r && r.run_id).map(r => ({
+        ...r,
         run_id: r.run_id,
         label: r.label || r.run_id,
         started_at: r.started_at || null,
-        scoring_done: !!r.scoring_done
+        scoring_done: r.scoring_done === false ? false : (r.scoring_done === true ? true : undefined)
       })).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
     }
   }
   // Fallback: an index file produced by the runner / scoring exporter.
   const index = await fetchJsonOptional(RUNS_INDEX_URL);
   if (index && Array.isArray(index.runs)) {
-    return index.runs.filter(r => r && r.run_id).map(r => ({
+    return filterRunsForActiveDemo(index.runs).filter(r => r && r.run_id).map(r => ({
+      ...r,
       run_id: r.run_id,
       label: r.label || r.run_id,
       started_at: r.started_at || null
     })).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
   }
   return [];
+}
+
+function runDemoTokens(run) {
+  return [
+    run?.demo,
+    run?.demo_id,
+    run?.track,
+    run?.area,
+    run?.policy_area,
+    run?.policy_graph_area,
+    run?.domain,
+    run?.policy_domain,
+    run?.policy_graph?.area
+  ].filter(value => value != null).map(value => String(value).toLowerCase());
+}
+
+function runIdSuggestsDemo(run, demoId) {
+  return String(run?.run_id || run?.label || '').toLowerCase().includes(demoId);
+}
+
+function runMatchesActiveDemo(run) {
+  const demo = activeDemo();
+  const demoId = String(demo.id || 'genai').toLowerCase();
+  const area = String(demo.policyGraph?.area || '').toLowerCase();
+  const tokens = runDemoTokens(run);
+  const hasExplicitDemoToken = tokens.length > 0;
+  const matchesActive = tokens.some(token => token === demoId || token === area) || runIdSuggestsDemo(run, demoId);
+  if (demoId === 'mnist') return matchesActive;
+  const isExplicitMnist = tokens.some(token => token === 'mnist' || token === 'mnist_digits') || runIdSuggestsDemo(run, 'mnist');
+  return hasExplicitDemoToken ? matchesActive || !isExplicitMnist : !isExplicitMnist;
+}
+
+function filterRunsForActiveDemo(runs) {
+  return (Array.isArray(runs) ? runs : []).filter(runMatchesActiveDemo);
 }
 
 async function loadRun(runId) {
@@ -765,6 +812,11 @@ function normalizedBorderlineGroups(groups) {
 
 function showComputeEmpty(empty, panel, reason) {
   if (!empty) return;
+  if (activeDemoIsMnist()) {
+    empty.hidden = false;
+    empty.textContent = MNIST_EMPTY_RUN_MESSAGE;
+    return;
+  }
   if (!runState.selectedRunId) {
     empty.hidden = true;
     return;
@@ -1152,7 +1204,7 @@ async function refreshRuns(autoSelectMostRecent = true) {
   runState.available = await discoverRuns();
   if (status) {
     if (!runState.available.length) {
-      status.textContent = 'No runs found yet. Use the Run panel above to start one.';
+      status.textContent = activeDemoIsMnist() ? MNIST_EMPTY_RUN_MESSAGE : 'No runs found yet. Use the Run panel above to start one.';
     } else {
       status.textContent = `Found ${runState.available.length} run(s).`;
     }
@@ -1238,6 +1290,8 @@ function applyDemoChrome() {
   document.body.dataset.rushDemo = demo.id;
   const benchmark = document.getElementById('benchmarkComparison');
   if (benchmark) benchmark.hidden = demo.id !== 'mnist';
+  const provenance = document.getElementById('gp0Provenance');
+  if (provenance) provenance.hidden = demo.id !== 'mnist';
   rebuildConsensusFilter();
   renderMnistConfusionStrip();
 }
@@ -1540,22 +1594,28 @@ function rushApiOptionHtml(value, label = value, selected = false) {
 
 async function rushApiLoadCatalog() {
   if (!window.RUSH_API?.available) return window.RUSH_API?.catalog || { runs: [], policyVersions: [], currentPolicyVersion: '' };
+  const demoId = activeDemoId();
+  const area = activePolicyGraphArea();
   const [runsPayload, versionsPayload] = await Promise.all([
-    rushApiGetJson('/api/runs').catch(() => ({ runs: [] })),
-    rushApiGetJson('/api/policy/versions').catch(() => ({ versions: [], current: '' }))
+    rushApiGetJson(`/api/runs?demo=${encodeURIComponent(demoId)}`)
+      .catch(() => rushApiGetJson('/api/runs').catch(() => ({ runs: [] }))),
+    rushApiGetJson(`/api/policy/versions?area=${encodeURIComponent(area)}`)
+      .catch(() => ({ versions: [{ version: activeDemo().policyGraph?.version || 'v0.1' }], current: activeDemo().policyGraph?.version || 'v0.1' }))
   ]);
-  const versions = Array.isArray(versionsPayload.versions) ? versionsPayload.versions : [];
+  const versions = (Array.isArray(versionsPayload.versions) ? versionsPayload.versions : [])
+    .map(version => (typeof version === 'string' ? { version } : version))
+    .filter(version => version?.version);
   window.RUSH_API.catalog = {
-    runs: Array.isArray(runsPayload.runs) ? runsPayload.runs : [],
+    runs: filterRunsForActiveDemo(Array.isArray(runsPayload.runs) ? runsPayload.runs : []),
     policyVersions: versions,
-    currentPolicyVersion: versionsPayload.current || versions[0]?.version || ''
+    currentPolicyVersion: versionsPayload.current || versions[0]?.version || activeDemo().policyGraph?.version || ''
   };
   window.dispatchEvent(new CustomEvent('rush-api-catalog', { detail: window.RUSH_API.catalog }));
   return window.RUSH_API.catalog;
 }
 
 function rushApiRunOptions(selected = '', includeAll = false, allLabel = 'All scored runs') {
-  const runs = window.RUSH_API?.catalog?.runs || [];
+  const runs = filterRunsForActiveDemo(window.RUSH_API?.catalog?.runs || []);
   const prefix = includeAll ? rushApiOptionHtml('', allLabel, !selected) : '';
   if (!runs.length) return prefix || rushApiOptionHtml('', 'No runs found', true);
   return prefix + runs.map(run => {
