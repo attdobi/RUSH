@@ -893,6 +893,33 @@ class TestRegistry:
         ):
             assert model_id in MODEL_REGISTRY
 
+    def test_new_models_registered(self) -> None:
+        # gpt-5.5-low (HIGH tier, phase 1), sonnet-5 + haiku-4-5 (phase 2).
+        assert MODEL_REGISTRY["openai/gpt-5.5-low"].phase == 1
+        assert MODEL_REGISTRY["openai/gpt-5.5-low"].provider_model_name == "gpt-5.5"
+        assert MODEL_REGISTRY["anthropic/claude-sonnet-5"].provider == "anthropic"
+        assert MODEL_REGISTRY["anthropic/claude-haiku-4-5"].provider == "anthropic"
+
+    def test_gpt55_low_reasoning_config(self) -> None:
+        client = build_client(
+            "openai/gpt-5.5-low",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+        assert isinstance(client, OpenAIClient)
+        assert client.config.reasoning_effort == "low"
+        assert client.config.max_completion_tokens == 2000
+
+    def test_new_anthropic_models_visible_cap_and_no_extended_thinking(self) -> None:
+        for model_id in ("anthropic/claude-sonnet-5", "anthropic/claude-haiku-4-5"):
+            client = build_client(
+                model_id,
+                client=_RecordingAnthropicClient(_fake_anthropic_response()),
+            )
+            assert isinstance(client, AnthropicClient)
+            # Visible output capped at the shared ~768 budget; no extended think.
+            assert client.config.max_tokens == 768
+            assert client.config.thinking_budget_tokens is None
+
     def test_build_client_local_routes_to_openai_with_base_url(self) -> None:
         from pipeline.providers.registry import local_base_url
 
@@ -986,15 +1013,21 @@ class TestRegistry:
         )
         assert isinstance(gemini, GeminiClient)
         assert gemini.config.thinking_budget_tokens == 8000
-        assert gemini.config.max_output_tokens == 10000
+        # Visible output cap lowered to the shared ~768 budget; thinking pool
+        # (8000) is separate and unchanged, so reasoning still has room.
+        assert gemini.config.max_output_tokens == 768
 
     @pytest.mark.parametrize(
         ("model_id", "vendor_model", "reasoning_effort", "max_completion_tokens"),
         [
-            ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 10000),
-            ("openai/gpt-5.5-high", "gpt-5.5", "high", 10000),
-            ("openai/gpt-5.4-mini-xhigh", "gpt-5.4-mini", "xhigh", 10000),
-            ("openai/gpt-5.4-mini-high", "gpt-5.4-mini", "high", 10000),
+            # Combined (reasoning+visible) budget lowered from 10000 to a sane
+            # bound = reasoning headroom + ~768 visible. High/xhigh -> 4000.
+            ("openai/gpt-5.5-xhigh", "gpt-5.5", "xhigh", 4000),
+            ("openai/gpt-5.5-high", "gpt-5.5", "high", 4000),
+            ("openai/gpt-5.5-low", "gpt-5.5", "low", 2000),
+            ("openai/gpt-5.4-mini-xhigh", "gpt-5.4-mini", "xhigh", 4000),
+            ("openai/gpt-5.4-mini-high", "gpt-5.4-mini", "high", 4000),
+            ("openai/gpt-5.4-mini-low", "gpt-5.4-mini", "low", 2000),
         ],
     )
     def test_openai_reasoning_variants_build_client_config(

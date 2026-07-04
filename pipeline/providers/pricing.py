@@ -12,6 +12,8 @@ PRICING: dict[str, dict[str, float]] = {
     "openai/gpt-5.5": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-xhigh": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "openai/gpt-5.5-high": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
+    # gpt-5.5 low-reasoning variant: mirrors gpt-5.5 base pricing (still TODO).
+    "openai/gpt-5.5-low": {"input_per_mtok": 1.25, "output_per_mtok": 10.0, "image_per_image": 0.0},
     "google/gemini-3.1-pro-preview": {"input_per_mtok": 2.0, "output_per_mtok": 12.0, "image_per_image": 0.0},
     # Opus 4.6 (dated but kept). Verified 2026 rate: 5 / 25 per Mtok.
     "anthropic/claude-opus-4-6": {"input_per_mtok": 5.0, "output_per_mtok": 25.0, "image_per_image": 0.0},
@@ -26,6 +28,11 @@ PRICING: dict[str, dict[str, float]] = {
     "openai/gpt-5.4-mini-low": {"input_per_mtok": 0.15, "output_per_mtok": 0.60, "image_per_image": 0.0},
     # Sonnet 4.6: verified 3.0 / 15.0 per Mtok.
     "anthropic/claude-sonnet-4-6": {"input_per_mtok": 3.0, "output_per_mtok": 15.0, "image_per_image": 0.0},
+    # Sonnet 5: INTRODUCTORY pricing 2.0 / 10.0 through 2026-08-31.
+    # standard 3.0/15.0 after 2026-08-31; +30% tokenizer.
+    "anthropic/claude-sonnet-5": {"input_per_mtok": 2.0, "output_per_mtok": 10.0, "image_per_image": 0.0},
+    # Haiku 4.5: cheap/fast vision model. Verified 1.0 / 5.0 per Mtok.
+    "anthropic/claude-haiku-4-5": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "image_per_image": 0.0},
     # Latest Gemini flash (GA).
     "google/gemini-3.5-flash": {"input_per_mtok": 1.50, "output_per_mtok": 9.0, "image_per_image": 0.0},
     # Gemini 3 Flash Preview.

@@ -54,10 +54,21 @@ Rendering the policy as a graph keeps coverage and ambiguity visible to SMEs (Ob
 
 ## Considerations
 
-- **Model panel + cost tiers.** §3 exposes a cost-tiered model picker: **HIGH** (e.g. Opus 4.6/4.7, GPT-5.5 high, Gemini 3.1 Pro), **MEDIUM** (Sonnet 4.6, GPT-5.4-mini high/xhigh, Gemini flash), and **LOW / FREE** (GPT-5.4-mini low, Gemini flash-lite, local models). High-tier models are unchecked by default so demo spend stays intentional. Note: Opus 4.7+ uses a newer tokenizer that emits ~30% more tokens, so its effective cost is ~1.3x its list rate.
+- **Model panel + cost tiers.** §3 exposes a cost-tiered model picker: **HIGH** (e.g. Opus 4.6/4.7, GPT-5.5 high/low, Gemini 3.1 Pro), **MEDIUM** (Sonnet 4.6, Sonnet 5, GPT-5.4-mini high/xhigh, Gemini flash), and **LOW / FREE** (GPT-5.4-mini low, Haiku 4.5, Gemini flash-lite, local models). High-tier models are unchecked by default so demo spend stays intentional. Note: Opus 4.7+ uses a newer tokenizer that emits ~30% more tokens, so its effective cost is ~1.3x its list rate. Claude Haiku 4.5 is the cheap/fast vision model recommended for image labeling; Sonnet 5 lists at intro pricing (2.0/10.0) through 2026-08-31.
 - **Local GPU support.** Local models via **LM Studio** run free: `gemma` (fast) and `qwen` (slower, higher quality) are wired as `local/*` at $0.00, useful for offline iteration and cost-free sweeps.
-- **Cost tracking + batching.** Per-call USD cost is tracked from usage tokens (`pipeline/providers/pricing.py`, mirrored in `web/run-trigger.js` — kept in exact sync). Cost is amortized two ways: **multi-image request amortization** (many images per request share fixed prompt overhead) and provider **Batch APIs** (~50% discount for asynchronous throughput).
+- **Cost tracking + batching.** Per-call USD cost is tracked from usage tokens (`pipeline/providers/pricing.py`, mirrored in `web/run-trigger.js` — kept in exact sync). Cost is amortized two ways: **multi-image request amortization** (see below) and provider **Batch APIs** (~50% discount for asynchronous throughput). See *Image batching* below.
+- **Output-token budgets (reasoning-safe).** The justification prompt enforces a hard **≤ 300-word (~400 token)** cap. Providers that expose a clean *visible*-output cap separate from hidden reasoning (Anthropic `max_tokens`, Gemini `max_output_tokens`) are set to **~768** visible tokens, with thinking budgets kept separate and untouched. OpenAI reasoning models use a *combined* budget (`max_completion_tokens`), so they are **not** hard-capped at the visible size — they are bounded at reasoning headroom + ~768 visible (~2000 for low reasoning, ~4000 for high/xhigh). Local models keep 4000–6000 so `gemma` stays snappy and `qwen` does not truncate.
 - **Train drives updates / test drives metrics.** The training split drives policy/prompt **updates**; the test split drives **decision-quality metrics** only and never leaks into prompt tuning or adaptive node discovery.
+
+### Image batching (multi-image request amortization)
+
+`OpenAIClient.batch_label` (`pipeline/providers/openai_client.py`) sends **N images in a single request** that share **one** policy + system + user-instructions block, and the model returns one JSON `items` array (one entry per image, echoing `image_id` in input order). The recommended batch size is **5 images per request**.
+
+**Why it saves money:** the policy bundle is large (~3.7k tokens) and is otherwise re-sent for every single-image call. Batching sends it **once** and amortizes it across all N images; the images themselves stay ~700 input tokens each. That collapses input roughly **~3x** for a batch of 5, which works out to roughly **25–50% total per-image cost savings** — nearer the high end for cheap/short-output models (input dominates) and nearer the low end for reasoning-heavy models (output/reasoning dominates).
+
+> **FOLLOW-UP (decision quality):** confirm decision quality does not degrade under image batching — run a batched-vs-single-image A/B before making batching the default for scored runs.
+
+**Future option — provider async Batch APIs.** OpenAI, Anthropic, and Gemini each offer asynchronous **Batch APIs** (~50% off list, ~24h turnaround). These are complementary to request-level amortization and are **not implemented yet** — documented here as a future throughput/cost lever only.
 
 ## Dataset images are local-only
 

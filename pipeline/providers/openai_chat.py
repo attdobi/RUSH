@@ -13,6 +13,9 @@ from pipeline.providers import auth
 from pipeline.providers.registry import MODEL_REGISTRY
 
 
+# Policy DRAFTING is a different workload than image LABELING: proposals can be
+# long, so this path keeps a generous combined budget and intentionally does NOT
+# inherit the (much lower) per-model labeling max_completion_tokens caps.
 _DEFAULT_MAX_COMPLETION_TOKENS = 10000
 logger = logging.getLogger(__name__)
 
@@ -23,9 +26,10 @@ def _spec_for(model_id: str) -> tuple[str, int]:
         raise KeyError(f"unknown model_id: {model_id}")
     if spec.provider != "openai":
         raise ValueError(f"model_id is not OpenAI-backed: {model_id}")
-    return spec.provider_model_name, int(
-        spec.params.get("max_completion_tokens", _DEFAULT_MAX_COMPLETION_TOKENS)
-    )
+    # Floor the labeling cap up to the policy-drafting budget so shrinking the
+    # labeling caps never truncates policy generation.
+    labeling_cap = int(spec.params.get("max_completion_tokens", _DEFAULT_MAX_COMPLETION_TOKENS))
+    return spec.provider_model_name, max(labeling_cap, _DEFAULT_MAX_COMPLETION_TOKENS)
 
 
 def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:

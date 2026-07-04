@@ -27,7 +27,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pipeline.thumbnails import IMAGE_SUFFIXES, SOURCE_ROOT_REL, THUMBNAIL_ROOT_REL, thumbnail_rel_path_for_source
+from pipeline.thumbnails import (
+    DEMO_THUMBNAIL_ROOTS,
+    IMAGE_SUFFIXES,
+    SOURCE_ROOT_REL,
+    THUMBNAIL_ROOT_REL,
+    thumbnail_rel_path_for_source,
+)
 
 
 @dataclass
@@ -126,9 +132,16 @@ def build_all(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build 192px JPEG thumbnails for GenAI source images.")
-    parser.add_argument("--source-root", default=str(SOURCE_ROOT_REL), help="Repo-relative source image root")
-    parser.add_argument("--output-root", default=str(THUMBNAIL_ROOT_REL), help="Repo-relative thumbnail output root")
+    parser = argparse.ArgumentParser(description="Build 192px JPEG thumbnails for a demo's source images.")
+    parser.add_argument(
+        "--demo",
+        choices=sorted(DEMO_THUMBNAIL_ROOTS),
+        default=None,
+        help="Demo/area to build thumbnails for; sets source/output roots. "
+        "Overridden by explicit --source-root/--output-root.",
+    )
+    parser.add_argument("--source-root", default=None, help="Repo-relative source image root")
+    parser.add_argument("--output-root", default=None, help="Repo-relative thumbnail output root")
     parser.add_argument("--max-edge", type=int, default=192, help="Maximum thumbnail edge in pixels")
     parser.add_argument("--quality", type=int, default=78, help="JPEG quality")
     parser.add_argument("--limit", type=int, default=None, help="Optional max source images to scan (testing)")
@@ -139,8 +152,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     repo_root = Path.cwd().resolve()
-    source_root = (repo_root / args.source_root).resolve()
-    output_root = (repo_root / args.output_root).resolve()
+    # Resolve roots: explicit flags win; else per-demo roots; else GenAI default.
+    demo_source, demo_output = DEMO_THUMBNAIL_ROOTS.get(args.demo or "genai")
+    source_root_rel = args.source_root or str(demo_source)
+    output_root_rel = args.output_root or str(demo_output)
+    source_root = (repo_root / source_root_rel).resolve()
+    output_root = (repo_root / output_root_rel).resolve()
     if not source_root.is_dir():
         raise SystemExit(f"source root not found: {source_root}")
     summary = build_all(

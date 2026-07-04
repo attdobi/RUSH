@@ -50,7 +50,7 @@ def test_policy_chat_callable_maps_messages_without_live_call(monkeypatch: Any) 
     assert len(_FakeAnthropic.instances) == 1
     call = _FakeAnthropic.instances[0].messages.calls[0]
     assert call["model"] == "claude-opus-4-7"
-    assert call["max_tokens"] == 2000
+    assert call["max_tokens"] == 8000
     assert call["system"] == "system prompt"
     assert call["messages"] == [
         {"role": "user", "content": "draft a policy"},

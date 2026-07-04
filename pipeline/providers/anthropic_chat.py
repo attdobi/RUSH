@@ -14,6 +14,8 @@ from pipeline.providers.registry import MODEL_REGISTRY
 
 
 _DEFAULT_MAX_TOKENS = LABELING_VISIBLE_OUTPUT_TOKENS
+# Generous budget for policy DRAFTING (distinct from image labeling output caps).
+_POLICY_MAX_TOKENS = 8000
 logger = logging.getLogger(__name__)
 
 
@@ -79,7 +81,11 @@ def _spec_for(model_id: str) -> tuple[str, int]:
         raise KeyError(f"unknown model_id: {model_id}")
     if spec.provider != "anthropic":
         raise ValueError(f"model_id is not Anthropic-backed: {model_id}")
-    return spec.provider_model_name, int(spec.params.get("max_tokens", _DEFAULT_MAX_TOKENS))
+    # Policy DRAFTING can be long: floor the (small) labeling visible-output cap
+    # up to a generous policy-generation budget so shrinking labeling max_tokens
+    # never truncates policy proposals.
+    labeling_cap = int(spec.params.get("max_tokens", _DEFAULT_MAX_TOKENS))
+    return spec.provider_model_name, max(labeling_cap, _POLICY_MAX_TOKENS)
 
 
 def policy_chat_callable(model_id: str) -> ChatCallable:

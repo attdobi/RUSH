@@ -346,6 +346,16 @@ class OpenAIClient(LabelClient):
         The current transport uses Chat Completions, but the provider call is
         genuinely batched: one request contains the shared policy text plus all
         prepared image blocks, and the model returns one JSON ``items`` array.
+
+        Cost note (see README "Image batching"): the shared policy+system+
+        instructions block (~3.7k tokens) is sent ONCE and amortized across all
+        N images (each ~700 input tokens). Recommended batch size is ~5/request,
+        which cuts input ~3x -> roughly 25-50% total per-image savings (more for
+        cheap/short-output models, less for reasoning-heavy ones).
+        FOLLOW-UP: confirm decision quality does not degrade under batching
+        (batched vs single-image A/B) before defaulting scored runs to batching.
+        Provider async Batch APIs (~50% off, ~24h) are a documented FUTURE
+        option, not implemented here.
         """
         if not requests:
             return []

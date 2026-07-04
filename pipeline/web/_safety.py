@@ -36,12 +36,12 @@ _STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
         "data/images/mnist-classification/manifests",
     ),
     (
-        "/data/images/mnist-classification/source-datasets/",
-        "data/images/mnist-classification/source-datasets",
+        "/data/images/mnist-classification/derived/thumbnails/",
+        "data/images/mnist-classification/derived/thumbnails",
     ),
     (
-        "/data/images/mnist-classification/thumbnails/",
-        "data/images/mnist-classification/thumbnails",
+        "/data/images/mnist-classification/source-datasets/",
+        "data/images/mnist-classification/source-datasets",
     ),
     ("/data/runs/", "data/runs"),
     ("/policy-graph/", "policy-graph"),

@@ -8,10 +8,16 @@ from __future__ import annotations
 
 LABELING_TEMPERATURE: float = 0.1
 
-# Target visible-output ceiling for provider APIs that expose a clean output cap.
-# OpenAI Chat Completions only exposes max_completion_tokens, which includes
-# hidden reasoning, so registry entries reserve additional headroom there.
-LABELING_VISIBLE_OUTPUT_TOKENS: int = 2000
+# Target VISIBLE-output ceiling for provider APIs that expose a clean output cap
+# separate from hidden reasoning (Anthropic max_tokens, Gemini max_output_tokens).
+# The justification prompt caps at <=300 words (~400 tokens), so ~768 visible
+# tokens comfortably fits the JSON + justification without truncation.
+#
+# NOTE: OpenAI Chat Completions only exposes max_completion_tokens, which is a
+# COMBINED budget (hidden reasoning + visible JSON). Those registry entries set
+# their own higher max_completion_tokens and do NOT use this visible-only cap,
+# so lowering this value never truncates OpenAI reasoning.
+LABELING_VISIBLE_OUTPUT_TOKENS: int = 768
 
 
 def resolve_temperature(model_id: str, override: float | None = None) -> float | None:

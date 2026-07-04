@@ -14,13 +14,13 @@ in :func:`pipeline.providers.base.coerce_label_fields` and persisted on
 :class:`pipeline.providers.base.LabelResponse` so reviewers can trace
 **why** a label happened, not just what it was.
 
-Justification length is treated as a CAP, not a floor: ~350 tokens
-(≈1500 characters) is the soft upper bound. The prompt instructs models
-to stay under it; :func:`coerce_label_fields` flags responses that
+Justification length is treated as a hard CAP, not a floor: <= 300 words
+(~400 tokens, ≈1500 characters) is the upper bound. The prompt instructs
+models to stay under it; :func:`coerce_label_fields` flags responses that
 exceed it via ``justification_too_long`` so downstream scoring can spot
 models that ignored the cap. Substance trumps length — a tight 200-token
 justification that cites the right policy nodes is preferred over a
-padded 350-token one.
+padded one at the cap.
 """
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ from __future__ import annotations
 
 # --- Tunables ---------------------------------------------------------------
 
-# Soft *upper* bound on justification length. ~350 tokens × ~4 chars/token.
-# This is a cap, not a floor: we want dense, precise reasoning, not padding.
+# Hard *upper* bound on justification length: <= 300 words (~400 tokens,
+# ~1500 chars). This is a cap, not a floor: we want dense reasoning, not padding.
 # Models may go under; the ≥10-char sanity check in coerce_label_fields is
 # the only hard minimum. ``justification_too_long`` flags runaway output so
 # scoring/reviewers can spot models that ignored the cap.
@@ -113,7 +113,8 @@ LABELING_SYSTEM_PROMPT: str = (
     "                    classification (e.g. \"GA.visual_artifacts."
     "anatomy.hands\"); empty string only if label=abstain\n"
     "  justification     a precise, dense argument grounded in the policy. "
-    "                    Keep it UNDER ~350 tokens (≈1500 characters). No "
+    "                    HARD CAP: keep it to <= 300 words (~400 tokens, "
+    "                    ≈1500 characters). No "
     "                    padding, no restating the image, no narrative "
     "                    flourishes. Name the policy nodes you invoked "
     "                    inline and reference the clauses you leaned on. "
@@ -136,8 +137,8 @@ LABELING_SYSTEM_PROMPT: str = (
     "\n"
     "QUALITY BAR.\n"
     "- Substance, not word count. A 200-token justification that names the "
-    "  right nodes and quotes the right clauses beats a 350-token "
-    "  justification that meanders.\n"
+    "  right nodes and quotes the right clauses beats a longer "
+    "  justification at the 300-word cap that meanders.\n"
     "- Quote, do not paraphrase, when populating policy_quotes.\n"
     "- Cite at least one positive-evidence node (or one boundary/exception "
     "  node when abstaining). Never cite a node you didn't actually use.\n"
@@ -156,7 +157,8 @@ LABELING_USER_INSTRUCTIONS: str = (
     "Classify this image against the policy document below.\n"
     "\n"
     "Return ONE JSON object matching the schema in the system prompt. "
-    "Keep justification under ~350 tokens; cite specific policy nodes by "
+    "Keep the justification to a HARD CAP of <= 300 words (~400 tokens); "
+    "cite specific policy nodes by "
     "id (policy_citations); include verbatim policy quotes (policy_quotes) "
     "lifted from the markdown.\n"
     "\n"

@@ -68,10 +68,11 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "xhigh",
-            # Chat Completions exposes only max_completion_tokens, which counts
-            # hidden reasoning plus visible JSON. Keep ~8k reasoning headroom
-            # while targeting a ~2k visible-output budget via the shared prompt.
-            "max_completion_tokens": 10000,
+            # Chat Completions exposes only max_completion_tokens, which is a
+            # COMBINED budget (hidden reasoning + visible JSON). Do NOT cap it
+            # at the ~768 visible budget or reasoning gets truncated. Bound it
+            # at reasoning headroom + ~768 visible: ~4000 for high/xhigh.
+            "max_completion_tokens": 4000,
         },
     ),
     "openai/gpt-5.5-xhigh": ModelSpec(
@@ -81,7 +82,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "xhigh",
-            "max_completion_tokens": 10000,
+            "max_completion_tokens": 4000,
         },
     ),
     "openai/gpt-5.5-high": ModelSpec(
@@ -91,7 +92,19 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=1,
         params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 10000,
+            "max_completion_tokens": 4000,
+        },
+    ),
+    # Low-reasoning gpt-5.5 variant: cheapest reasoning tier of the 5.5 family.
+    # Combined budget = low-reasoning headroom + ~768 visible ~= 2000.
+    "openai/gpt-5.5-low": ModelSpec(
+        model_id="openai/gpt-5.5-low",
+        provider="openai",
+        provider_model_name="gpt-5.5",
+        phase=1,
+        params={
+            "reasoning_effort": "low",
+            "max_completion_tokens": 2000,
         },
     ),
     "google/gemini-3.1-pro-preview": ModelSpec(
@@ -100,11 +113,11 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="gemini-3.1-pro-preview",
         phase=1,
         params={
-            # Gemini counts hidden thinking tokens against max_output_tokens;
-            # reserve reasoning headroom while leaving the shared ~2k visible
-            # JSON budget available for the final answer.
+            # Gemini SEPARATES thinking from visible output: thinking_budget is
+            # its own pool, and max_output_tokens caps only the visible JSON.
+            # Keep the thinking pool generous; cap visible output at ~768.
             "thinking_budget_tokens": 8000,
-            "max_output_tokens": 10000,
+            "max_output_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
         },
     ),
     "anthropic/claude-opus-4-6": ModelSpec(
@@ -143,7 +156,8 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "xhigh",
-            "max_completion_tokens": 10000,
+            # Combined budget: reasoning headroom + ~768 visible.
+            "max_completion_tokens": 4000,
         },
     ),
     "openai/gpt-5.4-mini-high": ModelSpec(
@@ -153,7 +167,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "high",
-            "max_completion_tokens": 10000,
+            "max_completion_tokens": 4000,
         },
     ),
     # Cheap mini at low reasoning — sane cheapest default for a fast sweep.
@@ -164,7 +178,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "reasoning_effort": "low",
-            "max_completion_tokens": 4000,
+            "max_completion_tokens": 2000,
         },
     ),
     # Cheap Sonnet 4.6 — low/standard reasoning (NO extended thinking budget).
@@ -176,6 +190,31 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         params={
             "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
             # No thinking_budget_tokens: standard (non-extended) reasoning.
+        },
+    ),
+    # Cheap Sonnet 5 — LOW reasoning (small/no thinking budget). Anthropic
+    # max_tokens is a clean VISIBLE cap (separate from thinking), so ~768 is
+    # safe here. INTRO pricing 2.0/10.0 through 2026-08-31 (see pricing.py).
+    "anthropic/claude-sonnet-5": ModelSpec(
+        model_id="anthropic/claude-sonnet-5",
+        provider="anthropic",
+        provider_model_name="claude-sonnet-5",
+        phase=2,
+        params={
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            # No thinking_budget_tokens: low/standard (non-extended) reasoning.
+        },
+    ),
+    # Anthropic's cheap/fast VISION model (200K ctx, vision-capable) — the
+    # recommended gpt-5.4-mini equivalent for image labeling. Pricing 1.0/5.0.
+    "anthropic/claude-haiku-4-5": ModelSpec(
+        model_id="anthropic/claude-haiku-4-5",
+        provider="anthropic",
+        provider_model_name="claude-haiku-4-5",
+        phase=2,
+        params={
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            # No thinking_budget_tokens: fast, non-extended reasoning.
         },
     ),
     # Latest Gemini flash (GA). Mid-tier: output $9/Mtok.
@@ -209,11 +248,10 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="qwen/qwen3.6-27b",
         phase=2,
         params={
-            # These local models are reasoning models: hidden reasoning eats
-            # completion tokens before the visible JSON. Against the full
-            # policy bundle 4000 truncated the JSON (finish_reason=length) ->
-            # parse_failed. Keep generous headroom for reasoning + JSON.
-            "max_completion_tokens": 12000,
+            # Local reasoning model: hidden reasoning eats completion tokens
+            # before the visible JSON. qwen needs more headroom than gemma so
+            # the JSON is not truncated (finish_reason=length -> parse_failed).
+            "max_completion_tokens": 6000,
         },
     ),
     "local/gemma-4-26b-a4b-qat": ModelSpec(
@@ -222,9 +260,9 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="google/gemma-4-26b-a4b-qat",
         phase=2,
         params={
-            # Reasoning model: keep generous headroom so visible JSON is not
-            # truncated by hidden reasoning token spend.
-            "max_completion_tokens": 12000,
+            # Reasoning model, but gemma is compact: a ~4000 combined budget
+            # keeps it snappy while leaving room for reasoning + visible JSON.
+            "max_completion_tokens": 4000,
         },
     ),
 }
