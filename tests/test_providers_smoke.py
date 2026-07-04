@@ -588,12 +588,21 @@ class TestOpenAIClient:
 
     def test_invalid_reasoning_effort_raises_provider_error(self) -> None:
         client = OpenAIClient(
-            config=OpenAIClientConfig(model_name="gpt-5.5", reasoning_effort="medium"),
+            config=OpenAIClientConfig(model_name="gpt-5.5", reasoning_effort="ultra"),
             client=object(),
         )
 
         with pytest.raises(ProviderError):
             client._build_api_params(messages=[])
+
+    @pytest.mark.parametrize("effort", ["minimal", "low", "medium", "high", "xhigh"])
+    def test_cheap_reasoning_efforts_accepted(self, effort: str) -> None:
+        client = OpenAIClient(
+            config=OpenAIClientConfig(model_name="gpt-5.4-mini", reasoning_effort=effort),
+            client=object(),
+        )
+        params = client._build_api_params(messages=[])
+        assert params["reasoning_effort"] == effort
 
     def test_raw_payload_omits_image_messages(
         self, label_request: LabelRequest
@@ -839,8 +848,55 @@ class TestGeminiClient:
 class TestRegistry:
     def test_all_specs_have_known_provider(self) -> None:
         for spec in MODEL_REGISTRY.values():
-            assert spec.provider in {"openai", "anthropic", "gemini"}
+            assert spec.provider in {"openai", "anthropic", "gemini", "local"}
             assert spec.phase in {1, 2}
+
+    def test_cheap_and_local_specs_registered(self) -> None:
+        for model_id in (
+            "openai/gpt-5.4-mini-low",
+            "anthropic/claude-sonnet-4-6",
+            "google/gemini-3.1-flash",
+            "local/qwen3.6-27b",
+            "local/gemma-4-26b-a4b-qat",
+        ):
+            assert model_id in MODEL_REGISTRY
+
+    def test_build_client_local_routes_to_openai_with_base_url(self) -> None:
+        from pipeline.providers.registry import local_base_url
+
+        for model_id, vendor in (
+            ("local/qwen3.6-27b", "qwen/qwen3.6-27b"),
+            ("local/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat"),
+        ):
+            client = build_client(
+                model_id,
+                client=_RecordingOpenAIClient(_fake_openai_response()),
+            )
+            assert isinstance(client, OpenAIClient)
+            assert client.config.model_name == vendor
+            assert client.config.base_url == local_base_url()
+
+    def test_local_base_url_env_override(self, monkeypatch) -> None:
+        from pipeline.providers import registry as _registry
+
+        monkeypatch.setenv("RUSH_LOCAL_BASE_URL", "http://example:9999/v1")
+        assert _registry.local_base_url() == "http://example:9999/v1"
+
+    def test_sonnet_spec_has_no_extended_thinking(self) -> None:
+        client = build_client(
+            "anthropic/claude-sonnet-4-6",
+            client=_RecordingAnthropicClient(_fake_anthropic_response()),
+        )
+        assert isinstance(client, AnthropicClient)
+        assert client.config.thinking_budget_tokens is None
+
+    def test_mini_low_reasoning_config(self) -> None:
+        client = build_client(
+            "openai/gpt-5.4-mini-low",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+        assert isinstance(client, OpenAIClient)
+        assert client.config.reasoning_effort == "low"
 
     def test_list_models_filter_by_phase(self) -> None:
         cold = list_models(phase=1)

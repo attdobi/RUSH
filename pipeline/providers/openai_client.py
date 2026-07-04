@@ -63,6 +63,11 @@ class OpenAIClientConfig(ClientConfig):
     api_key_env_var: str = auth.OPENAI_API_KEY_VAR
     max_completion_tokens: int = 10000
     image_detail: str = "high"
+    # Optional OpenAI-compatible endpoint override. When set (e.g. a local
+    # LM Studio server), the SDK is pointed at ``base_url`` and the API key is
+    # optional — local servers ignore auth, so we never hard-fail on a missing
+    # secret for this path.
+    base_url: str | None = None
 
 
 class OpenAIClient(LabelClient):
@@ -96,6 +101,19 @@ class OpenAIClient(LabelClient):
             from openai import OpenAI  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover - env-dependent
             raise ProviderError("openai SDK not installed") from exc
+        if self.config.base_url is not None:
+            # Local / self-hosted OpenAI-compatible endpoint. Do not hard-fail
+            # when the API key is absent; LM Studio and friends ignore it.
+            api_key = (
+                auth.get_secret(self.config.api_key_env_var, required=False)
+                or "local-no-key"
+            )
+            self._client = OpenAI(
+                api_key=api_key,
+                base_url=self.config.base_url,
+                timeout=self.config.request_timeout_s,
+            )
+            return self._client
         api_key = auth.get_secret(self.config.api_key_env_var)
         self._client = OpenAI(api_key=api_key, timeout=self.config.request_timeout_s)
         return self._client
@@ -133,10 +151,16 @@ class OpenAIClient(LabelClient):
         *,
         messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        if self.config.reasoning_effort and self.config.reasoning_effort not in {"high", "xhigh"}:
+        if self.config.reasoning_effort and self.config.reasoning_effort not in {
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+        }:
             raise ProviderError(
-                "OpenAI reasoning_effort must be one of: high, xhigh "
-                f"(got {self.config.reasoning_effort!r})"
+                "OpenAI reasoning_effort must be one of: minimal, low, medium, "
+                f"high, xhigh (got {self.config.reasoning_effort!r})"
             )
         params: dict[str, Any] = {
             "model": self.config.model_name,

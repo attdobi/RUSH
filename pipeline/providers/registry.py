@@ -21,11 +21,21 @@ so it doubles as the persistence key and the registry key.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Final
 
 from pipeline.providers._config import LABELING_VISIBLE_OUTPUT_TOKENS
 from pipeline.providers.base import LabelClient
+
+# Local OpenAI-compatible endpoint (LM Studio). Overridable via env so the
+# same code runs against a remote box if Attila moves the server.
+DEFAULT_LOCAL_BASE_URL: Final[str] = "http://127.0.0.1:1234/v1"
+
+
+def local_base_url() -> str:
+    """Resolve the local OpenAI-compatible base URL (env-overridable)."""
+    return os.environ.get("RUSH_LOCAL_BASE_URL", DEFAULT_LOCAL_BASE_URL)
 
 
 @dataclass(frozen=True)
@@ -146,12 +156,61 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "max_completion_tokens": 10000,
         },
     ),
+    # Cheap mini at low reasoning — sane cheapest default for a fast sweep.
+    "openai/gpt-5.4-mini-low": ModelSpec(
+        model_id="openai/gpt-5.4-mini-low",
+        provider="openai",
+        provider_model_name="gpt-5.4-mini",
+        phase=2,
+        params={
+            "reasoning_effort": "low",
+            "max_completion_tokens": 4000,
+        },
+    ),
+    # Cheap Sonnet 4.6 — low/standard reasoning (NO extended thinking budget).
+    "anthropic/claude-sonnet-4-6": ModelSpec(
+        model_id="anthropic/claude-sonnet-4-6",
+        provider="anthropic",
+        provider_model_name="claude-sonnet-4-6",
+        phase=2,
+        params={
+            "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            # No thinking_budget_tokens: standard (non-extended) reasoning.
+        },
+    ),
     "google/gemini-3.1-flash-lite-preview": ModelSpec(
         model_id="google/gemini-3.1-flash-lite-preview",
         provider="gemini",
         provider_model_name="gemini-3.1-flash-lite-preview",
         phase=2,
         params={},
+    ),
+    # Standard flash (cheaper than pro-preview).
+    "google/gemini-3.1-flash": ModelSpec(
+        model_id="google/gemini-3.1-flash",
+        provider="gemini",
+        provider_model_name="gemini-3.1-flash",
+        phase=2,
+        params={},
+    ),
+    # --- Local GPU (LM Studio, free) -------------------------------------
+    "local/qwen3.6-27b": ModelSpec(
+        model_id="local/qwen3.6-27b",
+        provider="local",
+        provider_model_name="qwen/qwen3.6-27b",
+        phase=2,
+        params={
+            "max_completion_tokens": 4000,
+        },
+    ),
+    "local/gemma-4-26b-a4b-qat": ModelSpec(
+        model_id="local/gemma-4-26b-a4b-qat",
+        provider="local",
+        provider_model_name="google/gemma-4-26b-a4b-qat",
+        phase=2,
+        params={
+            "max_completion_tokens": 4000,
+        },
     ),
 }
 
@@ -247,6 +306,25 @@ def build_client(
         )
         return GeminiClient(config=config, client=client)
 
+    if spec.provider == "local":
+        # Local OpenAI-compatible endpoint (LM Studio). Reuse OpenAIClient with
+        # a base_url override; auth is optional for local servers.
+        from pipeline.providers.openai_client import (
+            OpenAIClient,
+            OpenAIClientConfig,
+        )
+
+        configured_reasoning_effort = params.pop("reasoning_effort", None)
+        max_completion_tokens = params.pop("max_completion_tokens", 4000)
+        config = OpenAIClientConfig(
+            model_name=spec.provider_model_name,
+            reasoning_effort=configured_reasoning_effort,
+            max_completion_tokens=max_completion_tokens,
+            base_url=local_base_url(),
+            extra_params=params,
+        )
+        return OpenAIClient(config=config, client=client)
+
     raise ValueError(f"unsupported provider: {spec.provider}")
 
 
@@ -255,4 +333,6 @@ __all__ = [
     "MODEL_REGISTRY",
     "list_models",
     "build_client",
+    "local_base_url",
+    "DEFAULT_LOCAL_BASE_URL",
 ]
