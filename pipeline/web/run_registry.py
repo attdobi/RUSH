@@ -415,6 +415,10 @@ class RunRegistry:
         finished_at = manifest.get("finished_at") or (state or {}).get("finished_at")
         started_at = manifest.get("started_at") or (state or {}).get("started_at")
         progress = (completed / expected) if expected else 0.0
+        manifest_cost = manifest.get("cost") if isinstance(manifest.get("cost"), dict) else None
+        recorded_cost = (
+            manifest_cost.get("total_cost_usd") if manifest_cost else None
+        )
 
         return {
             "run_id": run_id or token,
@@ -427,6 +431,8 @@ class RunRegistry:
             "errored_calls": errored,
             "progress": progress,
             "running_cost_usd_estimate": running_cost_usd_estimate,
+            "cost": manifest_cost,
+            "recorded_cost_usd": recorded_cost,
             "scoring_done": bool(run_dir and (run_dir / "scoring" / "decision_quality.json").exists()),
             "returncode": (state or {}).get("returncode"),
             "log_tail": self.log_tail(token),

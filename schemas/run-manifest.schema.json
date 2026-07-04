@@ -110,6 +110,33 @@
       },
       "additionalProperties": false
     },
+    "cost": {
+      "type": "object",
+      "description": "Per-batch + per-image cost ledger recorded at run finalization. Local models are $0; unknown-pricing batches carry null cost_usd.",
+      "required": ["total_cost_usd", "per_batch"],
+      "properties": {
+        "total_cost_usd": {"type": "number", "minimum": 0},
+        "cost_per_image_usd": {"type": ["number", "null"], "minimum": 0},
+        "priced_images": {"type": "integer", "minimum": 0},
+        "batches_with_unknown_cost": {"type": "integer", "minimum": 0},
+        "per_batch": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["batch_index", "model_id", "images", "cost_usd"],
+            "properties": {
+              "batch_index": {"type": "integer", "minimum": 0},
+              "model_id": {"type": "string"},
+              "images": {"type": "integer", "minimum": 0},
+              "cost_usd": {"type": ["number", "null"], "minimum": 0},
+              "cost_per_image_usd": {"type": ["number", "null"], "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "dry_run": {
       "type": "boolean",
       "description": "True if the run was executed with a deterministic fake client (no real provider calls)."

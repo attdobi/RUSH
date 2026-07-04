@@ -186,6 +186,22 @@
     return isNumber(value) ? `$${value.toFixed(value >= 1 ? 2 : 4)}` : '—';
   }
 
+  // Prefer the manifest-recorded per-batch total once the run finalizes; fall
+  // back to the live running estimate summed from label votes mid-run.
+  function costValue(payload) {
+    if (payload && isNumber(payload.recorded_cost_usd)) return payload.recorded_cost_usd;
+    return payload ? payload.running_cost_usd_estimate : undefined;
+  }
+
+  function costNote(payload) {
+    const cost = payload && payload.cost;
+    if (cost && Array.isArray(cost.per_batch) && cost.per_batch.length) {
+      const cpi = isNumber(cost.cost_per_image_usd) ? `$${cost.cost_per_image_usd.toFixed(4)}/img` : '—/img';
+      return `${cost.per_batch.length} batch(es) recorded · ${cpi}`;
+    }
+    return 'estimated live spend';
+  }
+
   function compactModelName(model) {
     return String(model || 'unknown')
       .replace(/^openai\//, 'OpenAI ')
@@ -207,7 +223,7 @@
       ['Images', imageCount, `split ${$('#runTriggerSplit')?.value || 'all'}`],
       ['Models', modelCount, modelBreakdown],
       ['Time', finished === 'running' ? 'Running' : finished, `started ${started}`],
-      ['Cost', formatUsd(payload.running_cost_usd_estimate), 'estimated live spend'],
+      ['Cost', formatUsd(costValue(payload)), costNote(payload)],
       ['Calls', `${succeeded}/${expected || '—'}`, errored ? `${errored} error(s)` : 'no errors reported']
     ];
     target.innerHTML = cards.map(([label, value, note]) => `
@@ -234,8 +250,9 @@
     if (progressEl) progressEl.textContent = `${completed} / ${expected || '—'} calls${errored ? ` · ${errored} errored` : ''}`;
     const costBadge = $('#runTriggerCostBadge');
     if (costBadge) {
-      if (isNumber(payload.running_cost_usd_estimate)) {
-        costBadge.textContent = `$${payload.running_cost_usd_estimate.toFixed(4)} spent`;
+      const cv = costValue(payload);
+      if (isNumber(cv)) {
+        costBadge.textContent = `$${cv.toFixed(4)} ${isNumber(payload.recorded_cost_usd) ? 'recorded' : 'spent'}`;
         costBadge.hidden = false;
       } else {
         costBadge.hidden = true;

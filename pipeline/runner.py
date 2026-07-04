@@ -99,6 +99,8 @@ class RunSummary:
     dry_run: bool = False
     batch_size: int = 20
     effective_batches: int = 0
+    total_cost_usd: float = 0.0
+    per_batch_costs: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -547,6 +549,11 @@ def run_labeling(
         effective_batches=effective_batches,
     )
 
+    # Per-batch cost ledger (batch_index -> record). Keyed by index so the
+    # manifest stays deterministic regardless of concurrent completion order.
+    batch_costs: dict[int, dict] = {}
+    cost_lock = threading.Lock()
+
     # Per-provider client cache + semaphore (cap in-flight per provider).
     client_cache: dict[str, LabelClient] = {}
     provider_locks: dict[str, threading.Semaphore] = {}
@@ -608,7 +615,27 @@ def run_labeling(
         except persistence.PersistenceError:
             return False
 
-    def _process_batch(batch: list[tuple[SampleRecord, ModelSpec]]) -> tuple[int, int]:
+    def _record_batch_cost(
+        batch_index: int,
+        model_id: str,
+        images: int,
+        cost: float | None,
+    ) -> None:
+        with cost_lock:
+            batch_costs[batch_index] = {
+                "batch_index": batch_index,
+                "model_id": model_id,
+                "images": images,
+                "cost_usd": cost,
+                "cost_per_image_usd": (
+                    (cost / images) if (cost is not None and images > 0) else None
+                ),
+            }
+
+    def _process_batch(
+        batch_index: int,
+        batch: list[tuple[SampleRecord, ModelSpec]],
+    ) -> tuple[int, int]:
         # Every batch is homogeneous by model/provider (except historical
         # singleton batches, where homogeneity is trivially true).
         _, spec = batch[0]
@@ -645,6 +672,7 @@ def run_labeling(
                             model_id=model_spec.model_id,
                             reason=f"{type(exc).__name__}: {exc}",
                         )
+                _record_batch_cost(batch_index, spec.model_id, len(batch), None)
                 return 0, len(batch)
 
         if len(responses) != len(requests):
@@ -660,20 +688,25 @@ def run_labeling(
                             f"expected {len(requests)}, got {len(responses)}"
                         ),
                     )
+            _record_batch_cost(batch_index, spec.model_id, len(batch), None)
             return 0, len(batch)
 
         completed = 0
         errored = 0
+        batch_cost: float | None = None
         for response in responses:
             if _persist_response(response):
                 completed += 1
+                if response.cost_usd is not None:
+                    batch_cost = (batch_cost or 0.0) + float(response.cost_usd)
             else:
                 errored += 1
+        _record_batch_cost(batch_index, spec.model_id, len(batch), batch_cost)
         return completed, errored
 
     if concurrency == 1:
-        for batch in batches:
-            completed, errored = _process_batch(batch)
+        for batch_index, batch in enumerate(batches):
+            completed, errored = _process_batch(batch_index, batch)
             summary.completed_calls += completed
             summary.errored_calls += errored
     else:
@@ -681,14 +714,34 @@ def run_labeling(
         # in-flight logical batches capped at `concurrency`.
         providers = {batch[0][1].provider for batch in batches}
         with ThreadPoolExecutor(max_workers=concurrency * max(1, len(providers))) as pool:
-            futures: list[Future] = [pool.submit(_process_batch, batch) for batch in batches]
+            futures: list[Future] = [
+                pool.submit(_process_batch, batch_index, batch)
+                for batch_index, batch in enumerate(batches)
+            ]
             for fut in futures:
                 completed, errored = fut.result()
                 summary.completed_calls += completed
                 summary.errored_calls += errored
 
-    # 5. Finalize manifest.
+    # 5. Finalize manifest (including per-batch + per-image cost ledger).
     summary.finished_at = _utcnow_iso()
+    per_batch_costs = [batch_costs[i] for i in sorted(batch_costs)]
+    summary.per_batch_costs = per_batch_costs
+    known_costs = [b["cost_usd"] for b in per_batch_costs if b["cost_usd"] is not None]
+    total_cost = float(sum(known_costs)) if known_costs else 0.0
+    total_images = sum(
+        b["images"] for b in per_batch_costs if b["cost_usd"] is not None
+    )
+    summary.total_cost_usd = total_cost
+    cost_block = {
+        "total_cost_usd": total_cost,
+        "cost_per_image_usd": (total_cost / total_images) if total_images else None,
+        "priced_images": total_images,
+        "batches_with_unknown_cost": sum(
+            1 for b in per_batch_costs if b["cost_usd"] is None
+        ),
+        "per_batch": per_batch_costs,
+    }
     final_manifest = dict(manifest)
     final_manifest["finished_at"] = summary.finished_at
     final_manifest["totals"] = {
@@ -696,6 +749,7 @@ def run_labeling(
         "completed_calls": summary.completed_calls,
         "errored_calls": summary.errored_calls,
     }
+    final_manifest["cost"] = cost_block
     persistence.write_run_manifest(paths, final_manifest)
     return summary
 
