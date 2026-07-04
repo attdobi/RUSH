@@ -6,32 +6,33 @@
   // ordering each family cheapest-first. Each row still shows its computed
   // $/1k estimate PLUS a cost-tier badge (HIGH/MEDIUM/LOW/LOCAL) derived from
   // that estimate via costTierFor, so relative cost stays visible at a glance.
-  // Only the default-checked selection (a cheap, diverse set) is curated here.
+  // Default-checked = the single CHEAPEST hosted model per provider + BOTH free
+  // locals (Attila's init preference). Everything else off by default.
   const MODEL_LIST = [
     { id: 'openai/gpt-5.5-xhigh', checked: false },
     { id: 'openai/gpt-5.5-high', checked: false },
     { id: 'openai/gpt-5.5-medium', checked: false },
-    { id: 'openai/gpt-5.5-low', checked: true },
+    { id: 'openai/gpt-5.5-low', checked: false },
     { id: 'anthropic/claude-opus-4-6', checked: false },
     { id: 'anthropic/claude-opus-4-7', checked: false },
     { id: 'google/gemini-3.1-pro-preview', checked: false },
     { id: 'anthropic/claude-sonnet-4-6', checked: false },
-    { id: 'anthropic/claude-sonnet-5-low', checked: true },
+    { id: 'anthropic/claude-sonnet-5-low', checked: false },
     { id: 'anthropic/claude-sonnet-5-medium', checked: false },
     { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
     { id: 'openai/gpt-5.4-mini-high', checked: false },
     { id: 'openai/gpt-5.4-mini-medium', checked: false },
-    { id: 'openai/gpt-5.4-mini-low', checked: false },
-    { id: 'google/gemini-3.5-flash', checked: true },
+    { id: 'openai/gpt-5.4-mini-low', checked: true },
+    { id: 'google/gemini-3.5-flash', checked: false },
     // TODO(attila-confirm): distinct gemini-3.1-flash SKU/rate is UNVERIFIED
     // (public sources show the 3.1 gen as Pro + Flash-Lite; the full Flash is
     // 3.5). Rate mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
     { id: 'google/gemini-3.1-flash', checked: false },
     { id: 'google/gemini-3-flash-preview', checked: false },
-    { id: 'anthropic/claude-haiku-4-5-low', checked: false },
+    { id: 'anthropic/claude-haiku-4-5-low', checked: true },
     { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
-    { id: 'google/gemini-3.1-flash-lite', checked: false },
-    { id: 'local/qwen3.6-27b', checked: false },
+    { id: 'google/gemini-3.1-flash-lite', checked: true },
+    { id: 'local/qwen3.6-27b', checked: true },
     { id: 'local/gemma-4-26b-a4b-qat', checked: true }
   ];
 

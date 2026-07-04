@@ -5,10 +5,14 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# Default init = single cheapest hosted model per provider + BOTH free locals
+# (Attila's preference). Cheapest-per-provider: gpt-5.4-mini-low (OpenAI),
+# haiku-4-5-low (Anthropic), gemini-3.1-flash-lite (Gemini).
 EXPECTED_DEFAULT_CHECKED = {
-    "openai/gpt-5.5-low",
-    "anthropic/claude-sonnet-5-low",
-    "google/gemini-3.5-flash",
+    "openai/gpt-5.4-mini-low",
+    "anthropic/claude-haiku-4-5-low",
+    "google/gemini-3.1-flash-lite",
+    "local/qwen3.6-27b",
     "local/gemma-4-26b-a4b-qat",
 }
 
