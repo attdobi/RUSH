@@ -48,6 +48,16 @@ def test_reasoning_variant_prices_match_base_models() -> None:
         )
 
 
+def test_opus_pricing_corrected_2026() -> None:
+    # Verified 2026 rates: Opus 4.6 (dated but kept) and 4.7 both list at 5 / 25.
+    for model_id in ("anthropic/claude-opus-4-6", "anthropic/claude-opus-4-7"):
+        assert price_for(model_id) == {
+            "input_per_mtok": 5.0,
+            "output_per_mtok": 25.0,
+            "image_per_image": 0.0,
+        }
+
+
 def test_local_models_are_free() -> None:
     for model_id in ("local/qwen3.6-27b", "local/gemma-4-26b-a4b-qat"):
         pricing = price_for(model_id)

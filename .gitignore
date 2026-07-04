@@ -23,6 +23,14 @@ policy-graph/**/.obsidian/
 policy-graph/**/*.canvas
 policy-graph/Generative_AI/[0-9]*.md
 
+# Dataset image bytes are local-only: track manifests, never image files.
+# (docs/visuals/* architecture assets are intentionally NOT covered here.)
+data/images/**/*.png
+data/images/**/*.jpg
+data/images/**/*.jpeg
+data/images/**/*.webp
+data/images/**/*.gif
+
 # Bulk-labeling run output (X2): per-run artifacts are not committed.
 data/runs/
 

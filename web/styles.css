@@ -1211,6 +1211,21 @@ table.misalignment a:focus-visible {
 .run-default-card strong { display: block; margin: 5px 0; font-size: 18px; }
 .run-default-card p { margin: 0; color: #cfeedd; font-size: 12px; line-height: 1.4; }
 .run-default-card code { background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 5px; }
+.run-k-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: start;
+  border: 1px solid rgba(77,224,166,.28);
+  background: rgba(77,224,166,.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #dfffee;
+}
+.run-k-control label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 950; }
+.run-k-control input { width: 88px; background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.22); border-radius: 8px; color: #eaf3ff; padding: 6px 8px; font-size: 16px; font-weight: 800; }
+.run-k-hint { color: #cfeedd; font-size: 11px; line-height: 1.35; }
+.run-k-hint code { background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 5px; }
 .run-trigger-advanced { border: 1px solid rgba(170,184,211,.14); border-radius: 14px; background: rgba(7,16,31,.34); padding: 10px 12px; }
 .run-trigger-advanced summary { cursor: pointer; color: #dce8ff; font-size: 13px; font-weight: 950; }
 .run-trigger-advanced summary::marker { color: var(--green); }

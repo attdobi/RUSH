@@ -191,7 +191,7 @@
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
         <h2 id="labelH2">Run the next labeling round.</h2>
-        <p id="labelSub">Default: both training and testing portions, k=20 images per split, selected panel models, then scored results feed proposals and decision quality.</p>
+        <p id="labelSub">Set k images per split, pick the panel models, and run. Scored results feed proposals and decision quality.</p>
       </div>
       <div class="label-block label-run-trigger compact-label-runner">
         <div class="label-run-head">
@@ -199,7 +199,7 @@
             <h3>Start a new run</h3>
             <p class="body-copy">Quick path keeps the demo moving; advanced controls stay tucked away until needed.</p>
           </div>
-          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Start k=20 per-split run</button>
+          <button id="startLabelingRun" class="primary-action start-run-button" type="button">Run panel · k=20</button>
         </div>
         <div class="run-trigger-compact" aria-label="Start labeling run">
         <div class="run-trigger-primary-row">
@@ -207,14 +207,14 @@
             <legend>Panel models</legend>
             <div id="runTriggerModels" class="model-picker-list"></div>
           </fieldset>
-          <div class="run-default-card" aria-label="Default run settings">
-            <span>Default batch</span>
-            <strong id="labelDefaultBatch">k=20 per split · training + testing</strong>
-            <p id="labelDefaultDetail">Uses split <code>all</code>, latest selected policy version, and true batched labeling for the demo loop.</p>
+          <div class="run-k-control" aria-label="Run size">
+            <label for="runTriggerBatchSize">k per split</label>
+            <input id="runTriggerBatchSize" type="number" min="1" max="200" value="20" />
+            <span id="labelDefaultBatch" class="run-k-hint">split <code>all</code> → up to k train + k test</span>
           </div>
         </div>
         <details class="run-trigger-advanced">
-          <summary>Advanced controls <span class="muted">(split, batch size, sample IDs, policy version, mode, spend)</span></summary>
+          <summary>Advanced controls <span class="muted">(split, sample IDs, policy version, mode, spend)</span></summary>
           <div class="api-form-grid run-trigger-form">
             <label>Split
               <select id="runTriggerSplit">
@@ -222,9 +222,6 @@
                 <option value="dev_golden">dev_golden · training only</option>
                 <option value="holdout">holdout · testing only</option>
               </select>
-            </label>
-            <label>Batch size
-              <input id="runTriggerBatchSize" type="number" min="1" max="200" value="20" />
             </label>
             <label class="sample-id-field">Sample IDs
               <textarea id="runTriggerSampleIds" rows="2" placeholder="Optional CSV list; clear batch size when using IDs"></textarea>
@@ -293,7 +290,7 @@
               <option value="holdout">holdout/val · testing only</option>
             </select>
           </label>
-          <p id="scoreKNote">Mirrors §3 Batch size and Split for the next run. k=20 per split means up to 20 training + 20 test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
+          <p id="scoreKNote">Mirrors §3 k per split and Split for the next run. k per split means up to k training + k test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
         </div>
         <div id="scoreReportedMetrics" class="run-summary-metrics" aria-live="polite"></div>
         <div class="score-algo-lanes" aria-label="Train test separation">

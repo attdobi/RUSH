@@ -19,6 +19,50 @@ The first pilot is a **cold-start Generative AI image-classification policy**. W
 
 ![RUSH system loop](docs/visuals/rush-system.svg)
 
+## Demos and the §1→§4 flow
+
+The web interface ships two self-contained demos, selectable from the demo picker:
+
+- **Generative_AI** — the flagship cold-start pilot: binary `gen_ai` / `not_gen_ai` detection with expandable L2 subcategories and boundary/hard-negative nodes.
+- **MNIST_Digits** — a multiclass reference demo (digits 0–9) that shows the same policy-graph machinery generalizing beyond binary decisions.
+
+Both demos walk the same four-section loop:
+
+1. **§1 Data preview** — sample and preview the image pool (N per class) for the active project's splits (dev golden / holdout).
+2. **§2 Seed the Generator Prompt `v_k`** — grow/seed the policy graph version that renders into the labeling prompt. Each version `v_k` is an explicit, reviewable artifact.
+3. **§3 Run panel** — pick panel models and a settable **k per split**, then launch a labeling pass. `split=all` runs up to *k* training + *k* test images; the run button reflects the current k (e.g. `Run panel · k=20`).
+4. **§4 Decision-quality audit** — score the run and review train/test decision quality and SME/LLM misalignments, which feed policy diffs.
+
+## Ontology
+
+RUSH keeps the **ontology per project**, so the same engine serves different decision shapes:
+
+- **Generative_AI** — a binary L1 decision (`gen_ai` / `not_gen_ai`) with expandable **L2 subcategories** (e.g. `GA.visual_artifacts.anatomy.hands`, `GA.surface_texture.plastic_skin`) plus boundary/hard-negative nodes.
+- **MNIST_Digits** — a **multiclass** ontology (one node per digit) demonstrating that the framework is not limited to yes/no labels.
+
+Cross-cutting ontology primitives make ambiguity first-class: `is_boundary` marks a node as a boundary/gray-zone concept, and `is_boundary_between` links the two (or more) classes a case sits between. This structure generalizes naturally beyond classification to **rating and relevance scales** (e.g. relevance graded 1–5, quality tiers), where boundaries live between adjacent grades.
+
+## Knowledge graph / policy graph
+
+The generator prompt is not an opaque string — it is a **knowledge graph rendered as an Obsidian-style Markdown node graph**, versioned as `v_k`:
+
+- **Nodes:** a single `MD.root` (project root, e.g. `GA.root`) plus one node per class/subcategory. Each node is a Markdown file with machine-readable frontmatter (definitions, criteria, hard negatives, coverage targets, examples, source anchors) and human-readable policy text.
+- **Edges:** typed relationships between nodes. `confused_with` edges capture empirically observed confusions between classes and directly inform audit priority and prompt context packs.
+- **Roadmap:** a dedicated **boundary node-type** to represent gray-zone concepts natively (paired with the `is_boundary` / `is_boundary_between` ontology primitives), so boundaries become first-class graph citizens rather than annotations.
+
+Rendering the policy as a graph keeps coverage and ambiguity visible to SMEs (Obsidian backlinks + graph view) while staying trivially compilable into prompts.
+
+## Considerations
+
+- **Model panel + cost tiers.** §3 exposes a cost-tiered model picker: **HIGH** (e.g. Opus 4.6/4.7, GPT-5.5 high, Gemini 3.1 Pro), **MEDIUM** (Sonnet 4.6, GPT-5.4-mini high/xhigh, Gemini flash), and **LOW / FREE** (GPT-5.4-mini low, Gemini flash-lite, local models). High-tier models are unchecked by default so demo spend stays intentional. Note: Opus 4.7+ uses a newer tokenizer that emits ~30% more tokens, so its effective cost is ~1.3x its list rate.
+- **Local GPU support.** Local models via **LM Studio** run free: `gemma` (fast) and `qwen` (slower, higher quality) are wired as `local/*` at $0.00, useful for offline iteration and cost-free sweeps.
+- **Cost tracking + batching.** Per-call USD cost is tracked from usage tokens (`pipeline/providers/pricing.py`, mirrored in `web/run-trigger.js` — kept in exact sync). Cost is amortized two ways: **multi-image request amortization** (many images per request share fixed prompt overhead) and provider **Batch APIs** (~50% discount for asynchronous throughput).
+- **Train drives updates / test drives metrics.** The training split drives policy/prompt **updates**; the test split drives **decision-quality metrics** only and never leaks into prompt tuning or adaptive node discovery.
+
+## Dataset images are local-only
+
+Dataset image bytes are **not committed to git**. The repository tracks lightweight **manifests** that reference local images under `data/images/**`; the actual `.png`/`.jpg`/`.jpeg` files stay on the machine and are excluded via `.gitignore`. Generate/refresh local manifests with the sampler CLIs (see *GenAI sampler paths* below); they read local image files and write ignored manifests without adding image bytes to git.
+
 ## Design principles
 
 1. **SME-reviewed labels are truth; LLM consensus is signal.** 3/3 model agreement can still be a correlated failure, so it should feed audit priority rather than become silent ground truth.

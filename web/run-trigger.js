@@ -34,14 +34,18 @@
     }
   ];
 
-  // Mirror of pipeline/providers/pricing.py — keep in sync. GPT reasoning variants mirror their base model prices.
+  // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
+  // TODO(pricing): verify OpenAI gpt-5.5 / gpt-5.4-mini standard rates vs official OpenAI billing.
+  // gpt-5.5 input of 1.25 may be the cached-input rate (standard may be ~5/20-30). Attila to confirm.
   const PRICING_PER_MTOK = {
     'openai/gpt-5.5': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-xhigh': { input: 1.25, output: 10.0 },
     'openai/gpt-5.5-high': { input: 1.25, output: 10.0 },
     'google/gemini-3.1-pro-preview': { input: 2.0, output: 12.0 },
-    'anthropic/claude-opus-4-6': { input: 15.0, output: 75.0 },
-    'anthropic/claude-opus-4-7': { input: 15.0, output: 75.0 },
+    // Opus 4.6 (dated but kept): verified 5 / 25 per Mtok.
+    'anthropic/claude-opus-4-6': { input: 5.0, output: 25.0 },
+    // Opus 4.7: same list price, but newer tokenizer emits ~30% more tokens (effective ~1.3x).
+    'anthropic/claude-opus-4-7': { input: 5.0, output: 25.0 },
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-xhigh': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-high': { input: 0.15, output: 0.60 },
@@ -270,9 +274,23 @@
     }
   }
 
+  function currentK() {
+    const raw = Number.parseInt(($('#runTriggerBatchSize')?.value || '').trim(), 10);
+    return Number.isInteger(raw) && raw > 0 ? raw : 20;
+  }
+
+  function refreshRunButtonLabel() {
+    const btn = $('#startLabelingRun');
+    if (!btn) return;
+    const ids = ($('#runTriggerSampleIds')?.value || '').trim();
+    btn.textContent = ids ? 'Run panel · sample IDs' : `Run panel · k=${currentK()}`;
+  }
+
   function bind() {
     $('#startLabelingRun')?.addEventListener('click', startRun);
     $('#scoreRunNow')?.addEventListener('click', scoreRun);
+    $('#runTriggerBatchSize')?.addEventListener('input', refreshRunButtonLabel);
+    $('#runTriggerSampleIds')?.addEventListener('input', refreshRunButtonLabel);
   }
 
   async function initRunTrigger(api) {
@@ -287,9 +305,10 @@
     if (hint) hint.hidden = true;
     populateModels();
     bind();
+    refreshRunButtonLabel();
     await rushApiLoadCatalog();
     populatePolicies();
-    status('Local API connected. Default run is k=20 per split (split=all: train + test).');
+    status('Local API connected. Set k per split (split=all runs up to k train + k test).');
   }
 
   rushApiOnReady(initRunTrigger);
