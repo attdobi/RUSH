@@ -280,7 +280,7 @@
             <h3 id="scoreAlgoTitle">Train/Test algorithm</h3>
             <p>Intended round: take <strong>k images from TRAINING</strong>, classify with the panel, measure decision quality vs human labels, and surface boundary cases, misalignments, and lack-of-consensus. Also take <strong>k images from TEST</strong> and compute the decision-quality metric reported for the round.</p>
           </div>
-          <span class="score-algo-badge">intended pipeline · defined-not-executed</span>
+          <span id="scoreAlgoBadge" class="score-algo-badge">intended pipeline · defined-not-executed</span>
         </div>
         <div class="score-algo-controls" aria-label="Score algorithm controls">
           <label>k per split
@@ -293,8 +293,9 @@
               <option value="holdout">holdout/val · testing only</option>
             </select>
           </label>
-          <p id="scoreKNote">Mirrors §3 Batch size and Split for the next run. k=20 means up to 20 training + 20 test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
+          <p id="scoreKNote">Mirrors §3 Batch size and Split for the next run. k=20 per split means up to 20 training + 20 test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
         </div>
+        <div id="scoreReportedMetrics" class="run-summary-metrics" aria-live="polite"></div>
         <div class="score-algo-lanes" aria-label="Train test separation">
           <article class="score-algo-lane train-lane">
             <span>TRAIN &rarr; drives PROMPT UPDATES</span>
@@ -307,7 +308,8 @@
             <p>Reported metrics should be computed on the test split after the round, separate from the training rows that suggested updates.</p>
           </article>
         </div>
-        <p class="score-algo-rule">Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.</p>
+        <div id="scoreUpdateCandidates"></div>
+        <p id="scoreAlgoRule" class="score-algo-rule">Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.</p>
       </div>
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
