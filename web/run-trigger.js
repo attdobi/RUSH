@@ -2,44 +2,53 @@
   const POLL_MS = 2000;
   const MAX_POLL_MS = 30 * 60 * 1000;
 
-  const MODEL_GROUPS = [
-    {
-      phase: 'HIGH cost',
-      models: [
-        { id: 'openai/gpt-5.5-xhigh', checked: false },
-        { id: 'openai/gpt-5.5-high', checked: false },
-        { id: 'openai/gpt-5.5-medium', checked: false },
-        { id: 'openai/gpt-5.5-low', checked: true },
-        { id: 'anthropic/claude-opus-4-6', checked: false },
-        { id: 'anthropic/claude-opus-4-7', checked: false },
-        { id: 'google/gemini-3.1-pro-preview', checked: false }
-      ]
-    },
-    {
-      phase: 'MEDIUM cost',
-      models: [
-        { id: 'anthropic/claude-sonnet-4-6', checked: false },
-        { id: 'anthropic/claude-sonnet-5-low', checked: true },
-        { id: 'anthropic/claude-sonnet-5-medium', checked: false },
-        { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
-        { id: 'openai/gpt-5.4-mini-high', checked: false },
-        { id: 'openai/gpt-5.4-mini-medium', checked: false },
-        { id: 'google/gemini-3.5-flash', checked: true },
-        { id: 'google/gemini-3-flash-preview', checked: false }
-      ]
-    },
-    {
-      phase: 'LOW / FREE cost',
-      models: [
-        { id: 'openai/gpt-5.4-mini-low', checked: false },
-        { id: 'anthropic/claude-haiku-4-5-low', checked: false },
-        { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
-        { id: 'google/gemini-3.1-flash-lite', checked: false },
-        { id: 'local/qwen3.6-27b', checked: false, local: true },
-        { id: 'local/gemma-4-26b-a4b-qat', checked: true, local: true }
-      ]
-    }
+  // Flat model list. Buckets are NOT hand-wired anymore — each model's tier is
+  // DERIVED from its computed reasoning-adjusted estimate (see costTierFor), so
+  // the bucket a model appears under always matches the price shown next to it.
+  // Only the default-checked selection (a cheap, diverse set) is curated here.
+  const MODEL_LIST = [
+    { id: 'openai/gpt-5.5-xhigh', checked: false },
+    { id: 'openai/gpt-5.5-high', checked: false },
+    { id: 'openai/gpt-5.5-medium', checked: false },
+    { id: 'openai/gpt-5.5-low', checked: true },
+    { id: 'anthropic/claude-opus-4-6', checked: false },
+    { id: 'anthropic/claude-opus-4-7', checked: false },
+    { id: 'google/gemini-3.1-pro-preview', checked: false },
+    { id: 'anthropic/claude-sonnet-4-6', checked: false },
+    { id: 'anthropic/claude-sonnet-5-low', checked: true },
+    { id: 'anthropic/claude-sonnet-5-medium', checked: false },
+    { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
+    { id: 'openai/gpt-5.4-mini-high', checked: false },
+    { id: 'openai/gpt-5.4-mini-medium', checked: false },
+    { id: 'openai/gpt-5.4-mini-low', checked: false },
+    { id: 'google/gemini-3.5-flash', checked: true },
+    { id: 'google/gemini-3-flash-preview', checked: false },
+    { id: 'anthropic/claude-haiku-4-5-low', checked: false },
+    { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
+    { id: 'google/gemini-3.1-flash-lite', checked: false },
+    { id: 'local/qwen3.6-27b', checked: false },
+    { id: 'local/gemma-4-26b-a4b-qat', checked: true }
   ];
+
+  // Ordered display buckets. LOCAL is its own dedicated tier (Bug 3), distinct
+  // from hosted LOW. Labels are shown in the panel header for each bucket.
+  const COST_TIER_ORDER = ['HIGH', 'MEDIUM', 'LOW', 'LOCAL'];
+  const COST_TIER_LABELS = {
+    HIGH: 'HIGH cost',
+    MEDIUM: 'MEDIUM cost',
+    LOW: 'LOW cost',
+    LOCAL: 'LOCAL (free · on-device GPU)'
+  };
+
+  // ---- Reasoning-aware cost model (mirror of pipeline/providers/pricing.py) ----
+  // Keep multipliers/tokens/thresholds in EXACT sync with Python (sync-tested).
+  // Calibration (Attila, anchor high=1.0): low≈0.5×high, low≈0.7×medium.
+  // These are the tunable knob — Attila will tune them.
+  const REASONING_TIER_MULTIPLIERS = { xhigh: 1.5, high: 1.0, medium: 0.7, low: 0.5, none: 0.6 };
+  const ESTIMATE_INPUT_TOKENS_PER_LABEL = 800;
+  const ESTIMATE_OUTPUT_TOKENS_PER_LABEL = 400;
+  const COST_TIER_THRESHOLDS = { high: 5.0, medium: 1.0 };
+  const REASONING_SUFFIXES = ['xhigh', 'high', 'medium', 'low'];
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
   // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
@@ -81,10 +90,34 @@
       : { id: 'genai', policyGraph: { area: 'Generative_AI' } };
   }
 
+  function reasoningTierFor(model) {
+    const tail = String(model || '').split('-').pop();
+    return REASONING_SUFFIXES.includes(tail) ? tail : 'none';
+  }
+
+  function reasoningMultiplierFor(model) {
+    return REASONING_TIER_MULTIPLIERS[reasoningTierFor(model)];
+  }
+
+  // Reasoning-adjusted estimate: whole per-label cost scaled by the tier
+  // multiplier so distinct tiers show distinct, monotonic prices.
   function estimatePerThousandLabels(model) {
     const pricing = PRICING_PER_MTOK[model];
     if (!pricing) return null;
-    return ((pricing.input * 800 + pricing.output * 400) / 1_000_000) * 1000;
+    const basePerLabel = (pricing.input * ESTIMATE_INPUT_TOKENS_PER_LABEL
+      + pricing.output * ESTIMATE_OUTPUT_TOKENS_PER_LABEL) / 1_000_000;
+    return basePerLabel * reasoningMultiplierFor(model) * 1000;
+  }
+
+  // Derive the display bucket from the computed estimate (Bug 2). Locals get
+  // their own dedicated tier (Bug 3).
+  function costTierFor(model) {
+    if (isLocalModel(model)) return 'LOCAL';
+    const estimate = estimatePerThousandLabels(model);
+    if (estimate === null) return 'LOW';
+    if (estimate >= COST_TIER_THRESHOLDS.high) return 'HIGH';
+    if (estimate >= COST_TIER_THRESHOLDS.medium) return 'MEDIUM';
+    return 'LOW';
   }
 
   function selectedModels() {
@@ -116,18 +149,32 @@
       estimateText = '$0.00 / 1k labels (local · free)';
     } else {
       const estimate = estimatePerThousandLabels(model);
-      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (rough estimate)`;
+      const tier = reasoningTierFor(model);
+      const tierNote = tier === 'none' ? 'rough estimate' : `${tier} reasoning · rough estimate`;
+      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (${tierNote})`;
     }
-    return `<label class="model-pick"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span></label>`;
+    const localClass = isLocal ? ' model-pick--local' : '';
+    return `<label class="model-pick${localClass}"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span></label>`;
   }
 
   function populateModels() {
     const picker = $('#runTriggerModels');
     if (!picker) return;
-    picker.innerHTML = MODEL_GROUPS.map(group => `
-      <div class="model-picker-phase">${esc(group.phase)}</div>
-      ${group.models.map(model => renderModelPick(model.id || model, model.checked ?? group.checked, (model.local ?? group.local) === true)).join('')}
-    `).join('');
+    // Bucket every model by its COMPUTED tier so the bucket always matches the
+    // shown price. Within a bucket, sort cheapest-last for a clean gradient.
+    const buckets = new Map(COST_TIER_ORDER.map(tier => [tier, []]));
+    for (const entry of MODEL_LIST) {
+      buckets.get(costTierFor(entry.id)).push(entry);
+    }
+    picker.innerHTML = COST_TIER_ORDER.map(tier => {
+      const entries = buckets.get(tier);
+      if (!entries.length) return '';
+      entries.sort((a, b) => (estimatePerThousandLabels(b.id) || 0) - (estimatePerThousandLabels(a.id) || 0));
+      const localClass = tier === 'LOCAL' ? ' model-picker-phase--local' : '';
+      return `
+      <div class="model-picker-phase${localClass}">${esc(COST_TIER_LABELS[tier])}</div>
+      ${entries.map(entry => renderModelPick(entry.id, entry.checked === true, isLocalModel(entry.id))).join('')}`;
+    }).join('');
   }
 
   function populatePolicies() {

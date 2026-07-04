@@ -35,7 +35,7 @@ NEW_PANEL_IDS = {
 
 def _extract_model_groups() -> str:
     text = (_REPO_ROOT / "web" / "run-trigger.js").read_text(encoding="utf-8")
-    start = text.index("const MODEL_GROUPS = [")
+    start = text.index("const MODEL_LIST = [")
     body = text[start:]
     depth = 0
     for i, ch in enumerate(body):
@@ -45,7 +45,7 @@ def _extract_model_groups() -> str:
             depth -= 1
             if depth == 0:
                 return body[body.index("[") : i + 1]
-    raise AssertionError("Could not parse MODEL_GROUPS")
+    raise AssertionError("Could not parse MODEL_LIST")
 
 
 def _panel_entries() -> dict[str, bool]:
