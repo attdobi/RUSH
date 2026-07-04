@@ -1,6 +1,6 @@
 (() => {
-  const WIDTH = 720;
-  const HEIGHT = 460;
+  const WIDTH = 760;
+  const HEIGHT = 500;
   const COLORS = {
     root: '#4d9bff',
     positive: '#4de0a6',
@@ -14,6 +14,7 @@
   let currentPayload = null;
   let currentVersion = '';
   let currentFocus = null;
+  let availableVersions = [];
   const pendingPulseNodeIds = new Set();
 
   function activeDemo() {
@@ -137,6 +138,20 @@
     return 7;
   }
 
+  function nodeLabel(node) {
+    if (isMnistDemo()) {
+      if (node.id === 'MD.root') return 'Prompt root';
+      if (node.digit) return String(node.digit);
+      const digit = /^MD\.digit\.(\d)$/.exec(String(node.id || ''));
+      if (digit) return digit[1];
+    }
+    return truncate(node.id || node.title || '?', 28);
+  }
+
+  function promptVersionLabel(version = currentVersion) {
+    return `Generator Prompt ${version || 'v_n'} (rendered)`;
+  }
+
   function truncate(text, max = 26) {
     const value = String(text || '');
     return value.length > max ? `${value.slice(0, max - 1)}…` : value;
@@ -148,12 +163,64 @@
     const list = (Array.isArray(versions) ? versions : [])
       .map(version => version?.version || version)
       .filter(Boolean);
+    availableVersions = list;
     if (!list.length) {
-      select.innerHTML = rushApiOptionHtml('', 'No policy versions found', true);
+      select.innerHTML = rushApiOptionHtml('', 'No generator prompt versions found', true);
+      updateVersionStepper('');
       return;
     }
     select.innerHTML = list.map(version => rushApiOptionHtml(version, version, version === selected)).join('');
     select.value = selected || list[list.length - 1];
+    updateVersionStepper(select.value);
+  }
+
+  function setupVersionStepper() {
+    const prev = qs('#policyGraphPrevVersion');
+    const next = qs('#policyGraphNextVersion');
+    if (prev && prev.dataset.policyStepperReady !== 'true') {
+      prev.dataset.policyStepperReady = 'true';
+      prev.addEventListener('click', () => stepVersion(-1));
+    }
+    if (next && next.dataset.policyStepperReady !== 'true') {
+      next.dataset.policyStepperReady = 'true';
+      next.addEventListener('click', () => stepVersion(1));
+    }
+  }
+
+  function stepVersion(delta) {
+    const select = qs('#policyGraphVersion');
+    if (!select || !availableVersions.length) return;
+    const current = select.value || currentVersion || availableVersions[availableVersions.length - 1];
+    const index = Math.max(0, availableVersions.indexOf(current));
+    const nextIndex = index + delta;
+    if (nextIndex < 0 || nextIndex >= availableVersions.length) return;
+    select.value = availableVersions[nextIndex];
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    updateVersionStepper(select.value);
+  }
+
+  function updateVersionStepper(selected = currentVersion) {
+    setupVersionStepper();
+    const prev = qs('#policyGraphPrevVersion');
+    const next = qs('#policyGraphNextVersion');
+    const note = qs('#policyGraphNextNote');
+    const list = availableVersions.filter(Boolean);
+    const current = selected || qs('#policyGraphVersion')?.value || currentVersion || list[list.length - 1] || '';
+    const index = list.indexOf(current);
+    const hasPrevious = index > 0;
+    const hasNext = index >= 0 && index < list.length - 1;
+    if (prev) {
+      prev.disabled = !hasPrevious;
+      prev.textContent = hasPrevious ? `Previous: ${list[index - 1]}` : 'Previous';
+    }
+    if (next) {
+      next.disabled = !hasNext;
+      next.textContent = hasNext ? `Next: ${list[index + 1]}` : 'Next version';
+      next.setAttribute('aria-label', hasNext ? `Load generator prompt ${list[index + 1]}` : 'Next generator prompt version is defined but not executed in this demo');
+    }
+    if (note) {
+      note.textContent = hasNext ? 'loaded version available' : 'next version defined-not-executed';
+    }
   }
 
   async function loadPolicyVersionsForArea() {
@@ -404,9 +471,13 @@
       ? '<span><i class="policy-legend-line confused-with"></i>confused_with</span>'
       : '';
 
-    wrap.innerHTML = `<div class="policy-graph-layout">
+    wrap.innerHTML = `<div class="policy-graph-render-caption">
+        <span>${esc(promptVersionLabel(payload.version || currentVersion))}</span>
+        <p>The rendered graph below is the active generator prompt. Accepted SME diffs create later versions; future growth slots stay explicit until executed.</p>
+      </div>
+      <div class="policy-graph-layout">
         <div class="policy-graph-canvas" aria-label="Interactive policy force graph">
-          <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Policy graph ${esc(payload.version || '')}"></svg>
+          <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Generator prompt policy graph ${esc(payload.version || '')}"></svg>
         </div>
         <aside id="policyGraphPanel" class="policy-graph-panel" aria-live="polite">
           <h3>Policy node details</h3>
@@ -415,7 +486,7 @@
       </div>
       <div class="policy-graph-legend">${legendItems}${edgeLegend}</div>`;
 
-    qs('#policyGraphTitle').textContent = payload.title || 'Cold-start GenAI policy';
+    qs('#policyGraphTitle').textContent = payload.title || 'Generator Prompt v_n (policy graph)';
 
     const svg = d3.select('#policyGraphSvg');
     const viewport = svg.append('g').attr('class', 'policy-graph-viewport');
@@ -477,7 +548,7 @@
       .attr('text-anchor', 'middle')
       .attr('font-size', 9.5)
       .style('opacity', 1)
-      .text(d => d.id || d.title || '?');
+      .text(d => nodeLabel(d));
 
     node.on('mouseover', (_, d) => highlight(d.id))
       .on('mouseout', clearHighlight)
@@ -492,11 +563,53 @@
         }
       });
 
+    const digitNodes = nodes.filter(d => String(d.id || '').startsWith('MD.digit.'));
+    const digitOrder = new Map(digitNodes
+      .slice()
+      .sort((a, b) => Number(a.digit ?? String(a.id).split('.').pop()) - Number(b.digit ?? String(b.id).split('.').pop()))
+      .map((d, index) => [d.id, index]));
+    if (isMnistDemo()) {
+      const radius = 178;
+      nodes.forEach(d => {
+        if (d.id === 'MD.root') {
+          d.x = WIDTH / 2;
+          d.y = HEIGHT / 2;
+          return;
+        }
+        const index = digitOrder.get(d.id);
+        if (Number.isFinite(index)) {
+          const angle = (-Math.PI / 2) + (index / Math.max(1, digitOrder.size)) * Math.PI * 2;
+          d.x = WIDTH / 2 + Math.cos(angle) * radius;
+          d.y = HEIGHT / 2 + Math.sin(angle) * radius;
+        }
+      });
+    }
+
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(80).strength(0.58))
-      .force('charge', d3.forceManyBody().strength(-200))
+      .force('link', d3.forceLink(links).id(d => d.id)
+        .distance(edge => String(edge.type || edge.edge_type || '').toLowerCase() === 'confused_with' ? 175 : 104)
+        .strength(edge => String(edge.type || edge.edge_type || '').toLowerCase() === 'confused_with' ? 0.18 : 0.62))
+      .force('charge', d3.forceManyBody().strength(isMnistDemo() ? -360 : -230))
       .force('center', d3.forceCenter(WIDTH / 2, HEIGHT / 2))
-      .force('collision', d3.forceCollide().radius(d => nodeRadius(d, allNodes) + (hasChildren(d, allNodes) ? 42 : 28)));
+      .force('collision', d3.forceCollide().radius(d => nodeRadius(d, allNodes) + (isMnistDemo() ? 46 : hasChildren(d, allNodes) ? 42 : 28)));
+
+    if (isMnistDemo()) {
+      simulation
+        .force('x', d3.forceX(d => {
+          if (d.id === 'MD.root') return WIDTH / 2;
+          const index = digitOrder.get(d.id);
+          if (!Number.isFinite(index)) return WIDTH / 2;
+          const angle = (-Math.PI / 2) + (index / Math.max(1, digitOrder.size)) * Math.PI * 2;
+          return WIDTH / 2 + Math.cos(angle) * 178;
+        }).strength(0.18))
+        .force('y', d3.forceY(d => {
+          if (d.id === 'MD.root') return HEIGHT / 2;
+          const index = digitOrder.get(d.id);
+          if (!Number.isFinite(index)) return HEIGHT / 2;
+          const angle = (-Math.PI / 2) + (index / Math.max(1, digitOrder.size)) * Math.PI * 2;
+          return HEIGHT / 2 + Math.sin(angle) * 178;
+        }).strength(0.18));
+    }
 
     simulation.on('tick', () => {
       link
@@ -694,7 +807,7 @@
       return [{ source_node_id: nodeIdFor(a), target_node_id: nodeIdFor(b), edge_type: 'confused_with', provenance: 'demo config', synthetic: true }];
     });
     return {
-      title: demo.sectionCopy?.policyGraphTitle || 'Cold-start MNIST digit policy',
+      title: demo.sectionCopy?.policyGraphTitle || 'MNIST Generator Prompt v0.1 (policy graph)',
       version,
       available_versions: [version],
       nodes,

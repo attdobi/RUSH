@@ -43,17 +43,17 @@
       <div class="hero-copy">
         <p class="eyebrow" id="heroEyebrow">Bulk LLM image audit with SME policy</p>
         <h1 id="heroH1">RUSH turns SME policy into a repeatable image-audit loop.</h1>
-        <p class="lede" id="heroLede">Sample images, seed a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
+        <p class="lede" id="heroLede">Sample images, author Generator Prompt V0 as a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
         <div class="hero-actions">
           <a class="primary-action" id="heroCta" href="#sample">Start GenAI demo</a>
         </div>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
         <div class="loop-step active"><strong>1</strong><span>Sample images</span></div>
-        <div class="loop-step"><strong>2</strong><span>Seed the policy graph</span></div>
+        <div class="loop-step"><strong>2</strong><span>Seed the Generator Prompt</span></div>
         <div class="loop-step"><strong>3</strong><span>Label a 20-image batch</span></div>
-        <div class="loop-step"><strong>4</strong><span>Propose graph updates</span></div>
-        <div class="loop-step"><strong>5</strong><span>Accept updates → label again</span></div>
+        <div class="loop-step"><strong>4</strong><span>Propose prompt updates</span></div>
+        <div class="loop-step"><strong>5</strong><span>Accept → next version</span></div>
       </aside>
     </section>
   </header>
@@ -102,34 +102,39 @@
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
     <section id="grow" class="section grow-section">
       <div class="section-head compact">
-        <p class="eyebrow">§2 Grow the policy</p>
-        <h2>Make policy growth the demo loop.</h2>
-        <p id="growSub">Seed → label → propose → accept → back to labeling. The graph is versioned, and every accepted SME update strengthens the next run.</p>
+        <p class="eyebrow">§2 Grow the generator prompt</p>
+        <h2>Make generator-prompt growth the demo loop.</h2>
+        <p id="growSub">Seed Generator Prompt V0 → label → propose → accept → label again. The policy graph is the generator prompt, versioned as v_n, and every accepted SME update strengthens the next run.</p>
       </div>
       <div class="growth-loop-strip" aria-label="Policy growth loop steps">
-        <article><span>1</span><strong>Seed</strong><p>Start from a cold policy graph or choose a warm version.</p></article>
-        <article><span>2</span><strong>Run a labeling pass</strong><p id="growLoopStep2Body">Jump to §3 for the default 20-image train+test batch.</p></article>
-        <article><span>3</span><strong>Propose updates</strong><p>Use disagreements from the selected run to draft a graph diff.</p></article>
-        <article><span>4</span><strong>Accept / reject</strong><p>SMEs promote good diffs, then the loop starts again.</p></article>
+        <article><span>1</span><strong>Seed Generator Prompt V0</strong><p>Author the first version as a policy graph.</p></article>
+        <article><span>2</span><strong>Run a labeling pass</strong><p id="growLoopStep2Body">Jump to §3 and label a small batch with the selected generator prompt version.</p></article>
+        <article><span>3</span><strong>Propose prompt updates</strong><p>Use disagreements from the run to draft an SME-reviewable graph diff.</p></article>
+        <article><span>4</span><strong>Accept / reject</strong><p>Approved diffs become the next generator prompt version.</p></article>
       </div>
       <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
       <div class="policy-graph-block policy-graph-spotlight">
         <div class="policy-graph-copy">
           <div>
-            <h3 id="policyGraphTitle">Cold-start GenAI policy</h3>
-            <p class="body-copy" id="policyGraphBlurb">Policy nodes and edges read live from <code>policy-graph/Generative_AI/&lt;v&gt;/*.md</code>. Hover to trace neighbors; click to drill into subtrees.</p>
+            <h3 id="policyGraphTitle">Generator Prompt v_n as policy graph</h3>
+            <p class="body-copy" id="policyGraphBlurb">This rendered graph is the current generator prompt version: Markdown nodes plus edges that the labeling model must cite. Hover to trace neighbors; click to drill into criteria.</p>
           </div>
-          <div class="run-controls compact-run-controls" aria-label="Policy graph version picker">
-            <label>Policy version
+          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Generator prompt version picker">
+            <label>Generator prompt version
               <select id="policyGraphVersion"></select>
             </label>
+            <div class="policy-graph-version-stepper" aria-label="Generator prompt version stepper">
+              <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
+              <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
+              <span id="policyGraphNextNote">defined-not-executed</span>
+            </div>
             <span id="policyGraphStatus" class="status-line" role="status"></span>
           </div>
         </div>
         <article id="gp0Provenance" class="gp0-provenance" hidden>
           <div class="gp0-provenance-head">
             <p class="eyebrow">MNIST §2 task brief</p>
-            <h4>Gp-0 provenance — MNIST cold-start seed policy</h4>
+            <h4>Gp-0 provenance — MNIST Generator Prompt V0</h4>
           </div>
           <p class="body-copy">The V0 MNIST policy (MNIST_Digits v0.1) is a cold-start SEED authored by an agent running on Claude Opus 4-8 (commit 6b985a35), derived from digit stroke/topology knowledge — it was NOT generated by a model labeling images.</p>
           <div class="gp0-schema-block" aria-label="Gp-0 generator labeler prompt output schema">

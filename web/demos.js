@@ -72,8 +72,8 @@ window.RUSH_DEMOS = {
     sectionCopy: {
       sampleH2: 'Sample the MNIST golden set.',
       sampleSub: 'Start with a balanced 10-class slice: 200 train + 50 holdout images per digit, sourced from the local MNIST manifests.',
-      growSub: 'Seed a per-digit policy graph → label a batch → propose graph updates → accept → label again. Each accepted SME update sharpens the next digit-classification run.',
-      growLoopStep2Body: 'Jump to §3 for the default 20-image train+holdout batch of MNIST digits.',
+      growSub: 'Seed the MNIST Generator Prompt V0 as a per-digit policy graph → label a batch → propose prompt updates → accept → label again. Each accepted SME update creates the next generator prompt version.',
+      growLoopStep2Body: 'Jump to §3 for the default 20-image train+holdout batch, labeled with the selected generator prompt version.',
       labelH2: 'Run the next digit-labeling round.',
       labelSub: 'Default: 20 MNIST digits drawn from both training and holdout splits, scored against SME digit truth.',
       labelStartButton: 'Start 20-image train+holdout run',
@@ -90,13 +90,13 @@ window.RUSH_DEMOS = {
       qualitySub: 'Compare per-digit accuracy, macro F1, per-class precision/recall, review burden, and cost by labeler, run, and policy version.',
       insightsH2: 'Where the panel disagreed with SME digit truth.',
       insightsSub: 'Start with majority-wrong digits. Open More cuts for model disagreement, confusion-pair concentration (4/9, 3/5, 7/1, 8/3), and recurring pair disagreement.',
-      policyGraphTitle: 'Cold-start MNIST digit policy',
-      policyGraphBlurb: 'Ten digit nodes (0–9) under a root, with confused_with edges surfacing the boundary pairs the demo optimizes for. Hover to trace neighbors; click to drill into a digit\u2019s criteria.'
+      policyGraphTitle: 'MNIST Generator Prompt v0.1 (policy graph)',
+      policyGraphBlurb: 'This graph is the current MNIST generator prompt version: ten digit nodes (0–9) under a root, plus confused_with edges for the boundary pairs the demo optimizes. Hover to trace neighbors; click to drill into a digit\u2019s criteria.'
     },
     heroCopy: {
       eyebrow: 'Multiclass digit audit with SME policy',
       h1: 'RUSH turns SME digit criteria into a repeatable MNIST audit loop.',
-      lede: 'Sample MNIST digits, seed a per-digit policy graph, run a 20-image LLM panel, then use disagreement — especially confusion pairs 4/9, 3/5, 7/1, 8/3 — to propose SME-reviewed updates.',
+      lede: 'Sample MNIST digits, seed Generator Prompt V0 as a per-digit policy graph, run a 20-image LLM panel, then use disagreement — especially confusion pairs 4/9, 3/5, 7/1, 8/3 — to propose SME-reviewed updates.',
       cta: 'Start MNIST demo'
     }
   }
