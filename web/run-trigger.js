@@ -37,7 +37,7 @@
 
   // Ordered PROVIDER display groups (Attila's reorg): scan by family, not by
   // cost tier. Each row still carries a cost-tier BADGE so relative price is
-  // never lost. Within a group, rows sort cheapest-first.
+  // never lost. Within a group, rows sort by price high-to-low.
   const PROVIDER_GROUP_ORDER = ['OpenAI', 'Anthropic', 'Gemini', 'Local / Open'];
 
   function providerGroupFor(modelId) {
@@ -186,7 +186,7 @@
     const picker = $('#runTriggerModels');
     if (!picker) return;
     // Group every model by PROVIDER so a family is easy to scan (Attila's
-    // reorg). Within a group, sort cheapest-first; each row still carries its
+    // reorg). Within a group, sort by price high-to-low; each row still carries its
     // computed $/1k estimate and a cost-tier badge.
     const groups = new Map(PROVIDER_GROUP_ORDER.map(group => [group, []]));
     for (const entry of MODEL_LIST) {
@@ -196,7 +196,7 @@
     picker.innerHTML = PROVIDER_GROUP_ORDER.map(group => {
       const entries = groups.get(group);
       if (!entries.length) return '';
-      entries.sort((a, b) => (estimatePerThousandLabels(a.id) || 0) - (estimatePerThousandLabels(b.id) || 0));
+      entries.sort((a, b) => (estimatePerThousandLabels(b.id) || 0) - (estimatePerThousandLabels(a.id) || 0));
       const localClass = group === 'Local / Open' ? ' model-picker-provider--local' : '';
       return `
       <div class="model-picker-provider${localClass}">${esc(group)}</div>
