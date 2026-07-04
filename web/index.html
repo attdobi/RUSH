@@ -60,48 +60,44 @@
 
   <main>
     <section id="sample" class="section demo-shell">
-      <div class="section-head compact">
-        <p class="eyebrow">§1 Sample</p>
-        <h2 id="sampleH2">Sample the golden set.</h2>
-        <p id="sampleSub">Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
-      </div>
-
-      <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
-      <div id="mnistConfusionStrip" class="mnist-confusion-strip" hidden></div>
-      <details class="sampling-settings">
-        <summary>Sampling settings <span class="muted">(seed, N, mode, leakage)</span></summary>
-        <div class="demo-controls" aria-label="Sampler controls">
-          <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
-          <label>Mode
-            <select id="samplerMode">
-              <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
-              <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
-            </select>
-            <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
-          </label>
-          <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
-          <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
-          <button id="runSampler" class="primary-action" type="button">Run sample</button>
-          <button id="randomSamplerSeed" type="button">Randomize</button>
+      <details class="sample-preview-accordion">
+        <summary class="section-head compact sample-preview-summary">
+          <p class="eyebrow">§1 Sample</p>
+          <h2 id="sampleH2">Sample the golden set.</h2>
+          <p id="sampleSub">Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
+        </summary>
+        <div class="sample-preview-body">
+          <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
+          <details class="sampling-settings">
+            <summary>Sampling settings <span class="muted">(seed, N, mode, leakage)</span></summary>
+            <div class="demo-controls" aria-label="Sampler controls">
+              <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
+              <label>Mode
+                <select id="samplerMode">
+                  <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
+                  <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
+                </select>
+                <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
+              </label>
+              <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
+              <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
+              <button id="runSampler" class="primary-action" type="button">Run sample</button>
+              <button id="randomSamplerSeed" type="button">Randomize</button>
+            </div>
+            <div id="demoStats" class="stat-grid"></div>
+          </details>
+          <div id="samplerLoading" class="loading-indicator" hidden aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Loading sampled images and labels…</span>
+          </div>
+          <div id="samplerStatus" class="status-line" role="status"></div>
+          <div class="sample-preview-controls" aria-label="Data preview controls">
+            <label>N per class <input id="samplePreviewPerClass" type="number" min="1" max="10" value="4" /></label>
+          </div>
+          <div id="galleryStatus" class="gallery-status" role="status"></div>
+          <div id="sampleGallery" class="sample-gallery sample-preview-gallery"></div>
         </div>
-        <div id="demoStats" class="stat-grid"></div>
       </details>
-      <div id="samplerLoading" class="loading-indicator" hidden aria-live="polite">
-        <span class="spinner" aria-hidden="true"></span>
-        <span>Loading sampled images and labels…</span>
-      </div>
-      <div id="samplerStatus" class="status-line" role="status"></div>
-      <div class="gallery-toolbar" aria-label="Sample gallery controls">
-        <div class="gallery-filter-chips" role="group" aria-label="Filter samples">
-          <button type="button" class="filter-chip active" data-gallery-filter="all" aria-pressed="true">All</button>
-          <button type="button" class="filter-chip" data-gallery-filter="ai_generated" aria-pressed="false">AI generated</button>
-          <button type="button" class="filter-chip" data-gallery-filter="not_ai_generated" aria-pressed="false">Not AI generated</button>
-          <button type="button" class="filter-chip" data-gallery-filter="needs_review" aria-pressed="false">Needs review</button>
-        </div>
-        <button id="galleryLoadMore" class="gallery-load-more" type="button" hidden>Load more</button>
-      </div>
-      <div id="galleryStatus" class="gallery-status" role="status"></div>
-      <div id="sampleGallery" class="sample-gallery"></div>
     </section>
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
     <section id="grow" class="section grow-section">
