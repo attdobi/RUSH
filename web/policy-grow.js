@@ -66,24 +66,24 @@
     if (!slot || slot.dataset.policyGrowReady === 'true') return slot;
     slot.dataset.policyGrowReady = 'true';
     slot.innerHTML = `
-      <div class="policy-grow-header">
+      <div class="policy-grow-header generator-prompt-header">
         <div>
-          <h3>Choose the next graph update</h3>
-          <p class="body-copy">Cold start seeds a fresh graph; warm mode drafts SME-reviewable updates from the selected scored run.</p>
+          <h3>Author the Generator Prompt</h3>
+          <p class="body-copy">The policy graph is the generator prompt, versioned as v_n. Cold start authors V0; warm mode drafts SME-reviewable prompt updates from the selected scored run.</p>
         </div>
         <span id="policyGrowStatus" class="status-line" role="status"></span>
       </div>
 
-      <div class="policy-grow-mode-cold" data-policy-grow-panel="cold">
+      <div class="policy-grow-mode-cold generator-prompt-setup" data-policy-grow-panel="cold">
         <label>Task brief
-          <textarea id="policyGrowTaskDescription" rows="4">${esc(taskDescriptionForDemo())}</textarea>
-          <small class="muted">Describe what the graph should classify; this becomes the seed proposal prompt.</small>
+          <textarea id="policyGrowTaskDescription" class="generator-prompt-textarea" rows="4">${esc(taskDescriptionForDemo())}</textarea>
+          <small class="muted">Describe the labeling task; this becomes Generator Prompt V0.</small>
         </label>
         <div class="policy-grow-form-row policy-grow-form-row--cold">
           <label>Drafting model
             <select id="policyGrowColdModel">${modelOptions()}</select>
           </label>
-          <button id="policyGrowSeedBtn" class="primary-action" type="button">Seed policy graph</button>
+          <button id="policyGrowSeedBtn" class="primary-action generator-prompt-seed-action" type="button">Seed the Generator Prompt</button>
         </div>
       </div>
 
@@ -105,7 +105,7 @@
           </label>
           <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Suggest batch changes</button>
         </div>
-        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 for the next labeling round.</p>
+        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 with the next generator prompt version.</p>
       </div>`;
 
     qs('#policyGrowSeedBtn')?.addEventListener('click', seedColdStart);
@@ -123,7 +123,7 @@
     if (history) return history;
     history = document.createElement('div');
     history.className = 'policy-version-history';
-    history.setAttribute('aria-label', 'Policy version history');
+    history.setAttribute('aria-label', 'Generator prompt version history');
     const proposals = qs('.policy-proposals-block');
     if (proposals) proposals.insertAdjacentElement('afterend', history);
     else grow.appendChild(history);
@@ -166,7 +166,7 @@
       .filter(Boolean);
     state.history = versions;
     if (!versions.length) {
-      history.innerHTML = '<span class="muted">No policy versions found yet.</span>';
+      history.innerHTML = '<span class="muted">No generator prompt versions found yet.</span>';
       return;
     }
     const current = window.RUSH_API?.catalog?.currentPolicyVersion || versions[versions.length - 1];
