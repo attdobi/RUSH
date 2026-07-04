@@ -38,7 +38,7 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "reasoning_effort": {"type": "string", "enum": ["high", "xhigh"]},
+          "reasoning_effort": {"type": "string", "enum": ["low", "medium", "high", "xhigh"]},
           "thinking_budget_tokens": {"type": "integer"}
         },
         "additionalProperties": false
