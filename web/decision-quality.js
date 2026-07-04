@@ -1,5 +1,24 @@
 (() => {
   const COLORS = ['#4de0a6', '#82b5ff', '#ffd166', '#ff6f91', '#d394ff', '#7dd0ff'];
+  const MNIST_EMPTY_RUN_MESSAGE = 'No scored MNIST run yet — run labeling to populate.';
+
+  function activeDemo() {
+    return typeof window.rushActiveDemo === 'function'
+      ? window.rushActiveDemo()
+      : { id: 'genai', classes: ['gen_ai', 'not_gen_ai'], policyGraph: { area: 'Generative_AI' } };
+  }
+
+  function activeDemoId() {
+    return activeDemo().id || 'genai';
+  }
+
+  function activePolicyGraphArea() {
+    return activeDemo().policyGraph?.area || 'Generative_AI';
+  }
+
+  function isMnistDemo() {
+    return activeDemoId() === 'mnist';
+  }
 
   function status(message, isError = false) {
     rushApiStatus('#decisionQualityStatus', message, isError);
@@ -32,6 +51,8 @@
 
   function buildQuery() {
     const params = new URLSearchParams();
+    params.set('demo', activeDemoId());
+    params.set('area', activePolicyGraphArea());
     const runId = $('#decisionQualityRunId')?.value || '';
     const policyVersion = $('#decisionQualityPolicyVersion')?.value || '';
     if (runId) params.set('run_id', runId);
@@ -142,11 +163,13 @@
       ? ensemble.accuracy - bestLabeler.accuracy
       : null;
     const imageCount = totalImages(runs);
+    const f1Label = isMnistDemo() ? 'Ensemble macro F1' : 'Ensemble accuracy';
+    const f1Value = ensemble ? rushApiFormatMetric(isMnistDemo() ? ensemble.f1 : ensemble.accuracy) : '—';
     target.innerHTML = [
       ['Scored runs', String(runs.length)],
       ['Images scored', imageCount ? String(imageCount) : '—'],
       ['Policy versions', policyVersionCount(runs) ? String(policyVersionCount(runs)) : '—'],
-      ['Ensemble accuracy', ensemble ? rushApiFormatMetric(ensemble.accuracy) : '—'],
+      [f1Label, f1Value],
       ['Ensemble vs best model', formatSignedMetric(ensembleLift)],
       ['Split / boundary review load', splitBoundaryText(runs)],
       ['Total cost (USD)', `$${totalCost.toFixed(4)}`]
@@ -177,8 +200,38 @@
     const liftText = isNumber(lift)
       ? `ensemble is ${formatSignedMetric(lift)} vs the best individual labeler`
       : 'ensemble comparison is waiting on scored labeler rows';
-    target.innerHTML = `<strong>Demo read:</strong> treat this panel as the decision-quality gate before accepting policy growth — ${esc(liftText)}; watch false positives/false negatives and the split/boundary review load for regressions by policy version.`;
+    const framing = isMnistDemo()
+      ? 'watch per-digit errors, macro-F1, and confusion-pair review load for regressions by policy version.'
+      : 'watch false positives/false negatives and the split/boundary review load for regressions by policy version.';
+    target.innerHTML = `<strong>Demo read:</strong> treat this panel as the decision-quality gate before accepting policy growth — ${esc(liftText)}; ${esc(framing)}`;
     target.hidden = false;
+  }
+
+  function setBenchmarkState(hasRuns) {
+    const target = $('#benchmarkComparison');
+    if (!target || !isMnistDemo()) return;
+    const strong = target.querySelector('strong');
+    if (strong) strong.textContent = hasRuns ? 'RUSH MNIST result available' : MNIST_EMPTY_RUN_MESSAGE;
+  }
+
+  function renderEmptyDecisionQuality(message) {
+    const summary = $('#decisionQualitySummary');
+    if (summary) summary.innerHTML = '';
+    const warning = $('#decisionQualityWarning');
+    if (warning) {
+      warning.hidden = true;
+      warning.textContent = '';
+    }
+    const narrative = $('#decisionQualityNarrative');
+    if (narrative) {
+      narrative.hidden = false;
+      narrative.textContent = activeDemo().sectionCopy?.qualitySub || 'Compare labels 0-9 with per-digit precision, per-digit recall, and macro-F1 once a scored run exists.';
+    }
+    const cards = $('#decisionQualityCards');
+    if (cards) cards.innerHTML = `<div class="empty-state">${esc(message)}</div>`;
+    const chart = $('#decisionQualityChart');
+    if (chart) chart.innerHTML = `<div class="empty-state">${esc(message)}</div>`;
+    setBenchmarkState(false);
   }
 
   function renderCards(runs) {
@@ -193,7 +246,17 @@
       target.innerHTML = '<div class="empty-state">No labeler metrics found for the current filters.</div>';
       return;
     }
-    const columns = [
+    const columns = isMnistDemo() ? [
+      ['Labeler', row => `${esc(row.labeler_id)}${isEnsembleRow(row) ? ' <span class="dq-ensemble-pill">ensemble decision</span>' : ''}`, false],
+      ['Type', row => esc(row.labeler_type), false],
+      ['Accuracy', row => rushApiFormatMetric(row.accuracy), true],
+      ['Macro F1', row => rushApiFormatMetric(row.f1), true],
+      ['Per-digit precision', row => rushApiFormatMetric(row.precision), true],
+      ['Per-digit recall', row => rushApiFormatMetric(row.recall), true],
+      ['Digit labels', () => '0-9', false],
+      ['N', row => esc(row.n), true],
+      ['Cost / 1k labels', row => formatCostPerThousand(row.cost_per_1000_labels), true]
+    ] : [
       ['Labeler', row => `${esc(row.labeler_id)}${isEnsembleRow(row) ? ' <span class="dq-ensemble-pill">ensemble decision</span>' : ''}`, false],
       ['Type', row => esc(row.labeler_type), false],
       ['Accuracy', row => rushApiFormatMetric(row.accuracy), true],
@@ -271,9 +334,15 @@
       const payload = await rushApiGetJson(buildQuery());
       const runs = Array.isArray(payload.runs) ? payload.runs : [];
       if (Array.isArray(payload.policy_versions) && payload.policy_versions.length) {
-        window.RUSH_API.catalog.policyVersions = payload.policy_versions.map(version => ({ version }));
+        window.RUSH_API.catalog.policyVersions = payload.policy_versions.map(version => ({ version: version?.version || version }));
         populateFilters();
       }
+      if (isMnistDemo() && !runs.length) {
+        renderEmptyDecisionQuality(MNIST_EMPTY_RUN_MESSAGE);
+        status('No scored MNIST run yet.');
+        return;
+      }
+      setBenchmarkState(runs.length > 0);
       renderCards(runs);
       renderChart(runs);
       status(`Loaded ${runs.length} scored run(s).`);

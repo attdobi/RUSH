@@ -39,6 +39,12 @@
 
   const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null };
 
+  function activeDemo() {
+    return typeof window.rushActiveDemo === 'function'
+      ? window.rushActiveDemo()
+      : { id: 'genai', policyGraph: { area: 'Generative_AI' } };
+  }
+
   function estimatePerThousandLabels(model) {
     const pricing = PRICING_PER_MTOK[model];
     if (!pricing) return null;
@@ -88,6 +94,8 @@
     if (!models.length) throw new Error('Select at least one model.');
     if (limit !== null && (!Number.isInteger(limit) || limit < 1)) throw new Error('Batch size must be a positive integer.');
     return {
+      demo: activeDemo().id || 'genai',
+      area: activeDemo().policyGraph?.area || 'Generative_AI',
       models,
       split,
       limit: sampleIds ? null : limit,
