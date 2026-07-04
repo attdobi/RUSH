@@ -96,16 +96,69 @@ def load_records(path: Path | None = None) -> list[SampleRecord]:
     return list(iter_records(path))
 
 
+def _stratified_pick(
+    rows: list[SampleRecord],
+    limit: int,
+) -> list[SampleRecord]:
+    """Pick ``limit`` rows balanced across the gold/human label.
+
+    Deterministic + seed-free: ``rows`` are assumed pre-sorted by ``sample_id``
+    so the per-class slices and the class iteration order are stable. Classes
+    are keyed by :attr:`SampleRecord.sme_label` (the human/gold label). The
+    quota is split as evenly as possible across the observed classes; any
+    remainder is handed out to the lexically-first classes so, e.g. MNIST's 10
+    digit classes yield 2/class at ``k=20`` and 5/class at ``k=50``. If a class
+    is short, the shortfall is back-filled from the remaining rows (still in
+    ``sample_id`` order) so a lopsided pool never silently under-fills a batch.
+    """
+    groups: dict[str, list[SampleRecord]] = {}
+    for row in rows:
+        groups.setdefault(row.sme_label, []).append(row)
+    labels = sorted(groups)
+    n_classes = len(labels)
+    if n_classes == 0:
+        return []
+
+    base, remainder = divmod(limit, n_classes)
+    picked: list[SampleRecord] = []
+    chosen_ids: set[str] = set()
+    for idx, label in enumerate(labels):
+        quota = base + (1 if idx < remainder else 0)
+        for row in groups[label][:quota]:
+            picked.append(row)
+            chosen_ids.add(row.sample_id)
+
+    # Back-fill any shortfall (a class had fewer rows than its quota) so the
+    # batch still reaches ``limit`` when the pool allows it.
+    if len(picked) < limit:
+        for row in rows:
+            if len(picked) >= limit:
+                break
+            if row.sample_id not in chosen_ids:
+                picked.append(row)
+                chosen_ids.add(row.sample_id)
+
+    picked.sort(key=lambda r: r.sample_id)
+    return picked
+
+
 def select_samples(
     records: Iterable[SampleRecord],
     *,
     split: str | None = None,
     limit: int | None = None,
     sample_ids: Iterable[str] | None = None,
+    stratified: bool = True,
 ) -> list[SampleRecord]:
     """Filter + deterministically order records.
 
     Order: by ``sample_id`` ascending (matches §5.6 determinism rule).
+
+    When ``limit`` is set and ``stratified`` is True (the default), the picked
+    rows are balanced across the human/gold label (``sme_label``) instead of
+    taking the lexically-first ``limit`` ids. This keeps every batch class-
+    balanced and deterministic. Explicit ``sample_ids`` selection is never
+    stratified (the caller already named the exact rows).
     """
     if split is not None and split not in VALID_SPLITS and split != "all":
         raise ValueError(
@@ -131,17 +184,23 @@ def select_samples(
     keep.sort(key=lambda r: r.sample_id)
 
     if limit is not None:
+        use_stratified = stratified and explicit_ids is None
+
+        def _pick(rows: list[SampleRecord]) -> list[SampleRecord]:
+            return _stratified_pick(rows, limit) if use_stratified else rows[:limit]
+
         if split == "all" and explicit_ids is None:
             # Demo batches should be a real N-per-portion pass, not a single
             # N-sized slice that happens to include whichever split sorts first.
-            # With the bundled manifest this means N dev_golden + N holdout.
+            # With the bundled manifest this means N dev_golden + N holdout,
+            # each portion independently class-balanced.
             per_split: list[SampleRecord] = []
             for split_name in sorted(VALID_SPLITS):
                 rows = [rec for rec in keep if rec.split == split_name]
-                per_split.extend(rows[:limit])
+                per_split.extend(_pick(rows))
             keep = sorted(per_split, key=lambda r: r.sample_id)
         else:
-            keep = keep[:limit]
+            keep = _pick(keep)
     return keep
 
 
