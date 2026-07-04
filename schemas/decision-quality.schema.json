@@ -23,28 +23,37 @@
     "labelers": {
       "type": "array",
       "items": {
-        "type": "object",
-        "required": [
-          "labeler_id",
-          "labeler_type",
-          "metrics"
-        ],
-        "properties": {
-          "labeler_id": {
-            "type": "string"
-          },
-          "labeler_type": {
-            "enum": [
-              "llm",
-              "ensemble",
-              "human"
-            ]
-          },
-          "metrics": {
-            "$ref": "#/$defs/decision_quality_metrics"
-          }
+        "$ref": "#/$defs/labeler_row"
+      }
+    },
+    "by_split": {
+      "type": "object",
+      "required": [
+        "train",
+        "test"
+      ],
+      "properties": {
+        "train": {
+          "$ref": "#/$defs/split_block"
         },
-        "additionalProperties": false
+        "test": {
+          "$ref": "#/$defs/split_block"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reported_split": {
+      "enum": [
+        "test"
+      ]
+    },
+    "reported": {
+      "$ref": "#/$defs/split_block"
+    },
+    "update_candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/update_candidate"
       }
     },
     "evolution": {
@@ -79,6 +88,96 @@
     }
   },
   "$defs": {
+    "labeler_row": {
+      "type": "object",
+      "required": [
+        "labeler_id",
+        "labeler_type",
+        "metrics"
+      ],
+      "properties": {
+        "labeler_id": {
+          "type": "string"
+        },
+        "labeler_type": {
+          "enum": [
+            "llm",
+            "ensemble",
+            "human"
+          ]
+        },
+        "metrics": {
+          "$ref": "#/$defs/decision_quality_metrics"
+        }
+      },
+      "additionalProperties": false
+    },
+    "split_block": {
+      "type": "object",
+      "required": [
+        "labelers",
+        "n_images"
+      ],
+      "properties": {
+        "labelers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeler_row"
+          }
+        },
+        "n_images": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "update_candidate": {
+      "type": "object",
+      "required": [
+        "image_id",
+        "sme_truth",
+        "misalignment_type",
+        "severity",
+        "split",
+        "is_boundary",
+        "repo_rel_path"
+      ],
+      "properties": {
+        "image_id": {
+          "type": "string"
+        },
+        "sme_truth": {
+          "type": "string"
+        },
+        "misalignment_type": {
+          "enum": [
+            "consensus_wrong",
+            "model_vs_sme",
+            "model_vs_model"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "split": {
+          "enum": [
+            "train"
+          ]
+        },
+        "is_boundary": {
+          "type": "boolean"
+        },
+        "repo_rel_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "decision_quality_metrics": {
       "type": "object",
       "required": [
