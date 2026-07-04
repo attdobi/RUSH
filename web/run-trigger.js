@@ -16,9 +16,20 @@
       phase: 'Phase 2 · optional sweep',
       models: [
         { id: 'anthropic/claude-opus-4-7', checked: false },
+        { id: 'anthropic/claude-sonnet-4-6', checked: false },
         { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
         { id: 'openai/gpt-5.4-mini-high', checked: false },
-        { id: 'google/gemini-3.1-flash-lite-preview', checked: false }
+        { id: 'openai/gpt-5.4-mini-low', checked: false },
+        { id: 'google/gemini-3.1-flash-lite-preview', checked: false },
+        { id: 'google/gemini-3.1-flash', checked: false }
+      ]
+    },
+    {
+      phase: 'Local GPU · free',
+      local: true,
+      models: [
+        { id: 'local/qwen3.6-27b', checked: false, local: true },
+        { id: 'local/gemma-4-26b-a4b-qat', checked: false, local: true }
       ]
     }
   ];
@@ -34,7 +45,12 @@
     'openai/gpt-5.4-mini': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-xhigh': { input: 0.15, output: 0.60 },
     'openai/gpt-5.4-mini-high': { input: 0.15, output: 0.60 },
-    'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 }
+    'openai/gpt-5.4-mini-low': { input: 0.15, output: 0.60 },
+    'anthropic/claude-sonnet-4-6': { input: 3.0, output: 15.0 },
+    'google/gemini-3.1-flash-lite-preview': { input: 0.10, output: 0.40 },
+    'google/gemini-3.1-flash': { input: 0.30, output: 1.20 },
+    'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
+    'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 
   const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null };
@@ -58,9 +74,14 @@
       .filter(Boolean);
   }
 
-  function renderModelPick(model, checked) {
-    const estimate = estimatePerThousandLabels(model);
-    const estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (rough estimate)`;
+  function renderModelPick(model, checked, isLocal) {
+    let estimateText;
+    if (isLocal) {
+      estimateText = '$0.00 / 1k labels (local · free)';
+    } else {
+      const estimate = estimatePerThousandLabels(model);
+      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(4)} / 1k labels (rough estimate)`;
+    }
     return `<label class="model-pick"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span></label>`;
   }
 
@@ -69,7 +90,7 @@
     if (!picker) return;
     picker.innerHTML = MODEL_GROUPS.map(group => `
       <div class="model-picker-phase">${esc(group.phase)}</div>
-      ${group.models.map(model => renderModelPick(model.id || model, model.checked ?? group.checked)).join('')}
+      ${group.models.map(model => renderModelPick(model.id || model, model.checked ?? group.checked, (model.local ?? group.local) === true)).join('')}
     `).join('');
   }
 
