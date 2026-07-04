@@ -4,19 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-v5" />
-  <script src="demos.js?v=demo-mnist-v5"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd" />
+  <script src="demos.js?v=demo-mnist-kdd"></script>
 </head>
 <body>
   <header class="hero">
     <nav class="topbar" aria-label="Primary">
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="demo-selector" aria-label="Active demo">
-        <label for="demoSelector">Demo</label>
-        <select id="demoSelector">
-          <option value="genai">GenAI Image Classification</option>
-          <option value="mnist">MNIST Digit Classification</option>
-        </select>
+        <span class="demo-switcher-label" id="demoSelectorLabel">Demo track</span>
+        <div id="demoSelector" class="demo-switcher" role="group" aria-labelledby="demoSelectorLabel">
+          <button class="demo-switcher-option" type="button" data-demo-id="genai" aria-pressed="false">
+            <span>GenAI Image Classification</span>
+          </button>
+          <button class="demo-switcher-option" type="button" data-demo-id="mnist" aria-pressed="false">
+            <span>MNIST Digit Classification</span>
+          </button>
+        </div>
       </div>
       <div class="nav-pills" aria-label="Page sections">
         <a href="#sample">Sample</a>
@@ -32,7 +36,6 @@
           <a class="nav-pill" href="https://github.com/attdobi/RUSH" target="_blank" rel="noopener">GitHub ↗</a>
           <a id="downloadRepoBtn" class="nav-pill nav-pill-cta" href="/download/rush.zip" rel="nofollow">⬇ Download repo</a>
         </div>
-        <small class="muted topbar-hint">Password-protected · ask Attila for credentials</small>
       </div>
     </nav>
 
@@ -401,16 +404,16 @@
     </section>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-v5"></script>
-  <script src="app.js?v=demo-mnist-v5"></script>
-  <script src="run-trigger.js?v=demo-mnist-v5"></script>
-  <script src="decision-quality.js?v=demo-mnist-v5"></script>
-  <script src="insights.js?v=demo-mnist-v5"></script>
-  <script src="policy-diff.js?v=demo-mnist-v5"></script>
-  <script src="policy-grow.js?v=demo-mnist-v5"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd"></script>
+  <script src="app.js?v=demo-mnist-kdd"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd"></script>
+  <script src="insights.js?v=demo-mnist-kdd"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-v5"></script>
-  <script src="justifications.js?v=demo-mnist-v5"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-v5"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd"></script>
+  <script src="justifications.js?v=demo-mnist-kdd"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd"></script>
 </body>
 </html>

@@ -1285,8 +1285,18 @@ function applyDemoChrome() {
   setNodeText('insightsSub', copy.insightsSub);
   if (copy.policyGraphTitle) setNodeText('policyGraphTitle', copy.policyGraphTitle);
   if (copy.policyGraphBlurb) setNodeHtml('policyGraphBlurb', copy.policyGraphBlurb);
+  // X1 polish/switcher: support the prominent segmented demo control.
   const selector = document.getElementById('demoSelector');
-  if (selector) selector.value = demo.id;
+  if (selector) {
+    if ('value' in selector) selector.value = demo.id;
+    selector.querySelectorAll('[data-demo-id]').forEach(button => {
+      const active = button.dataset.demoId === demo.id;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+  }
   document.body.dataset.rushDemo = demo.id;
   const benchmark = document.getElementById('benchmarkComparison');
   if (benchmark) benchmark.hidden = demo.id !== 'mnist';
@@ -1360,14 +1370,25 @@ function rebuildGalleryFilterChips() {
 function bindDemoSelector() {
   const selector = document.getElementById('demoSelector');
   if (!selector) return;
-  selector.addEventListener('change', () => {
-    const id = selector.value;
+  // X1 polish/switcher: segmented buttons are the primary UI; keep a select
+  // fallback for older markup or test fixtures.
+  const activateDemo = id => {
     if (!window.RUSH_DEMOS || !window.RUSH_DEMOS[id]) return;
     try { window.localStorage.setItem('rush_active_demo', id); } catch (error) { /* ignore */ }
     const url = new URL(window.location.href);
     url.searchParams.set('demo', id);
     window.location.href = url.toString();
+  };
+  selector.addEventListener('click', event => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest('[data-demo-id]');
+    if (!button) return;
+    activateDemo(button.dataset.demoId);
   });
+  if ('value' in selector) {
+    selector.addEventListener('change', () => activateDemo(selector.value));
+  }
 }
 
 function bindControls() {
