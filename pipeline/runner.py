@@ -52,6 +52,7 @@ from .manifest import (
     load_records,
     select_samples,
 )
+from .web.demo_area import area_from_policy_version
 
 # Shared image-prep defaults (mirrored in run_manifest.image_prep).
 IMAGE_PREP_LONGEST_EDGE_PX = 1024
@@ -192,6 +193,7 @@ def _build_request(
     policy_markdown: str,
     policy_graph_version: str,
     prompt_version: str,
+    area: str,
 ) -> LabelRequest:
     return LabelRequest(
         image_path=sample.absolute_path,
@@ -200,6 +202,7 @@ def _build_request(
         policy_graph_version=policy_graph_version,
         prompt_version=prompt_version,
         model_id=model_spec.model_id,
+        area=area,
     )
 
 
@@ -226,6 +229,8 @@ def _build_llm_output(response: LabelResponse) -> dict:
         "difficulty": response.difficulty,
         "is_boundary": bool(response.is_boundary),
     }
+    if response.is_boundary_between:
+        output["is_boundary_between"] = list(response.is_boundary_between)
     if response.prepared_image_sha256:
         output["prepared_image_sha256"] = response.prepared_image_sha256
     if response.prepared_image_width:
@@ -272,6 +277,8 @@ def _build_label_vote(
         "latency_ms": int(response.latency_ms),
         "attempts": int(max(1, response.attempts)),
     }
+    if response.is_boundary_between:
+        vote["is_boundary_between"] = list(response.is_boundary_between)
     if response.prepared_image_sha256:
         vote["prepared_image_sha256"] = response.prepared_image_sha256
     if response.prepared_image_width:
@@ -489,6 +496,10 @@ def run_labeling(
 
     policy_dir = policy_graph_dir or DEFAULT_POLICY_GRAPH_DIR
     policy_markdown = load_policy_markdown(policy_dir)
+    # Derive the demo/policy area (selects the per-project ontology used by
+    # every provider client) from the policy graph version, which encodes the
+    # area as a prefix (e.g. "MNIST_Digits.v1" vs "Generative_AI.v1"/"v0.1").
+    run_area = area_from_policy_version(policy_graph_version)
 
     sample_manifest_path = sample_manifest_path or DEFAULT_SAMPLE_MANIFEST
     try:
@@ -607,6 +618,7 @@ def run_labeling(
                 policy_markdown=policy_markdown,
                 policy_graph_version=policy_graph_version,
                 prompt_version=prompt_version,
+                area=run_area,
             )
             for sample, model_spec in batch
         ]

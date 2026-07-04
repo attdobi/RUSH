@@ -46,6 +46,23 @@ def area_from_query(query: dict[str, list[str]]) -> str:
     )
 
 
+def area_from_policy_version(version: Any) -> str:
+    """Derive the demo/policy area from a policy_graph_version string.
+
+    The version encodes the area as a prefix, e.g. ``MNIST_Digits.v1`` for
+    MNIST and ``Generative_AI.v1`` for GenAI. Historical GenAI runs used bare
+    versions such as ``v0.1``; those fall back to the GenAI baseline. Returns a
+    validated area from :data:`ALLOWED_POLICY_AREAS`.
+    """
+    if version is None:
+        return DEFAULT_POLICY_AREA
+    text = str(version).strip()
+    for candidate in ALLOWED_POLICY_AREAS:
+        if text.startswith(f"{candidate}.") or text == candidate:
+            return candidate
+    return DEFAULT_POLICY_AREA
+
+
 def policy_version_matches_area(version: Any, area: str) -> bool:
     """Return whether a manifest/scoring policy version belongs to ``area``.
 

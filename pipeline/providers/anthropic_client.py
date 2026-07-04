@@ -39,6 +39,7 @@ from pipeline.providers.base import (
     parse_label_json,
     strip_image_bytes,
 )
+from pipeline.providers.ontology import GENAI_ONTOLOGY, Ontology, get_ontology
 from pipeline.providers.pricing import compute_call_cost
 from pipeline.providers.retries import retry_call
 
@@ -97,9 +98,10 @@ class AnthropicClient(LabelClient):
         *,
         prepared: PreparedImage,
         policy_markdown: str,
+        ontology: Ontology = GENAI_ONTOLOGY,
     ) -> list[dict[str, Any]]:
         user_text = (
-            f"{USER_INSTRUCTIONS}\n\n"
+            f"{ontology.user_instructions}\n\n"
             f"[POLICY DOCUMENT]\n{policy_markdown}\n"
         )
         return [
@@ -123,11 +125,12 @@ class AnthropicClient(LabelClient):
         self,
         *,
         messages: list[dict[str, Any]],
+        ontology: Ontology = GENAI_ONTOLOGY,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "model": self.config.model_name,
             "max_tokens": self.config.max_tokens,
-            "system": DEFAULT_SYSTEM_PROMPT,
+            "system": ontology.system_prompt,
             "messages": messages,
         }
         temperature = resolve_temperature(self.config.model_name)
@@ -195,11 +198,13 @@ class AnthropicClient(LabelClient):
             max_size=request.max_image_size,
             jpeg_quality=request.jpeg_quality,
         )
+        ontology = get_ontology(request.area)
         messages = self._build_messages(
             prepared=prepared,
             policy_markdown=request.policy_markdown,
+            ontology=ontology,
         )
-        api_params = self._build_api_params(messages=messages)
+        api_params = self._build_api_params(messages=messages, ontology=ontology)
 
         attempts_holder = {"n": 0}
 
@@ -260,7 +265,7 @@ class AnthropicClient(LabelClient):
                 ),
             )
 
-        fields = coerce_label_fields(parsed)
+        fields = coerce_label_fields(parsed, ontology)
         return LabelResponse(
             image_id=request.image_id,
             model_id=request.model_id,
@@ -282,6 +287,7 @@ class AnthropicClient(LabelClient):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost_usd,
+            is_boundary_between=fields["is_boundary_between"],
             policy_citations=fields["policy_citations"],
             policy_quotes=fields["policy_quotes"],
             justification_too_long=fields["justification_too_long"],

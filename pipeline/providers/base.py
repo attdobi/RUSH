@@ -69,6 +69,12 @@ class LabelRequest:
     policy_graph_version: str
     prompt_version: str
     model_id: str
+    # Per-project demo area selecting the ontology (prompt + schema + scoring).
+    # Defaults to the GenAI baseline so existing callers/tests are unchanged;
+    # the runner threads the real area (e.g. "MNIST_Digits") from the run's
+    # policy version. See :mod:`pipeline.providers.ontology` /
+    # :mod:`pipeline.web.demo_area`.
+    area: str = "Generative_AI"
     # Optional override for downsampler knobs — defaults match the spec.
     max_image_size: tuple[int, int] = (1024, 1024)
     jpeg_quality: int = 85

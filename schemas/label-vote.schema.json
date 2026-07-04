@@ -93,6 +93,14 @@
     "is_boundary": {
       "type": "boolean"
     },
+    "is_boundary_between": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "description": "Optional boundary pair: exactly two L1 class ids when is_boundary=true for ontologies that require a pair (for example MNIST digit boundaries)."
+    },
     "difficulty": {
       "enum": [
         "high",
