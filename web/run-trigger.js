@@ -4,30 +4,29 @@
 
   const MODEL_GROUPS = [
     {
-      phase: 'Phase 1 · defaults',
+      phase: 'HIGH cost',
       models: [
         { id: 'openai/gpt-5.5-xhigh', checked: false },
         { id: 'openai/gpt-5.5-high', checked: true },
         { id: 'anthropic/claude-opus-4-6', checked: true },
+        { id: 'anthropic/claude-opus-4-7', checked: false },
         { id: 'google/gemini-3.1-pro-preview', checked: true }
       ]
     },
     {
-      phase: 'Phase 2 · optional sweep',
+      phase: 'MEDIUM cost',
       models: [
-        { id: 'anthropic/claude-opus-4-7', checked: false },
         { id: 'anthropic/claude-sonnet-4-6', checked: false },
         { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
         { id: 'openai/gpt-5.4-mini-high', checked: false },
-        { id: 'openai/gpt-5.4-mini-low', checked: false },
-        { id: 'google/gemini-3.1-flash-lite-preview', checked: false },
         { id: 'google/gemini-3.1-flash', checked: false }
       ]
     },
     {
-      phase: 'Local GPU · free',
-      local: true,
+      phase: 'LOW / FREE cost',
       models: [
+        { id: 'openai/gpt-5.4-mini-low', checked: false },
+        { id: 'google/gemini-3.1-flash-lite-preview', checked: false },
         { id: 'local/qwen3.6-27b', checked: false, local: true },
         { id: 'local/gemma-4-26b-a4b-qat', checked: false, local: true }
       ]
