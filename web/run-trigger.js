@@ -41,14 +41,22 @@
   };
 
   // ---- Reasoning-aware cost model (mirror of pipeline/providers/pricing.py) ----
-  // Keep multipliers/tokens/thresholds in EXACT sync with Python (sync-tested).
-  // Calibration (Attila, anchor high=1.0): low≈0.5×high, low≈0.7×medium.
-  // These are the tunable knob — Attila will tune them.
+  // Keep multipliers/tokens/appetites/thresholds in EXACT sync with Python
+  // (sync-tested). Realistic model: total output = visible + per-family
+  // reasoning tokens (efficient models emit tiny reasoning; heavy reasoners burn
+  // thousands), so Haiku ≈ gpt-5.4-mini-low instead of ~11x apart.
+  // Calibration (Attila, anchor high=1.0): low≈0.5×high, low≈0.7×medium on the
+  // reasoning component. Anchors (~2200 input): Haiku-med ≈ $4.2/1k,
+  // gpt-5.4-mini-low ≈ $3.9/1k. These are the tunable knobs.
   const REASONING_TIER_MULTIPLIERS = { xhigh: 1.5, high: 1.0, medium: 0.7, low: 0.5, none: 0.6 };
-  const ESTIMATE_INPUT_TOKENS_PER_LABEL = 800;
-  const ESTIMATE_OUTPUT_TOKENS_PER_LABEL = 400;
-  const COST_TIER_THRESHOLDS = { high: 5.0, medium: 1.0 };
+  const ESTIMATE_INPUT_TOKENS_PER_LABEL = 2200;
+  const ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL = 350;
+  // Per-family reasoning-token appetite at anchor tier (high=1.0).
+  const REASONING_TOKEN_APPETITE = { efficient: 70.0, heavy: 11200.0 };
+  const COST_TIER_THRESHOLDS = { high: 8.0, medium: 5.0 };
   const REASONING_SUFFIXES = ['xhigh', 'high', 'medium', 'low'];
+  // Substrings marking the EFFICIENT (near-linear) family; else HEAVY reasoner.
+  const EFFICIENT_FAMILY_MARKERS = ['haiku', 'flash', 'local/'];
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
   // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
@@ -99,14 +107,26 @@
     return REASONING_TIER_MULTIPLIERS[reasoningTierFor(model)];
   }
 
-  // Reasoning-adjusted estimate: whole per-label cost scaled by the tier
-  // multiplier so distinct tiers show distinct, monotonic prices.
+  // Classify into a reasoning-appetite family (efficient near-linear vs heavy).
+  function reasoningFamilyFor(model) {
+    const mid = String(model || '').toLowerCase();
+    return EFFICIENT_FAMILY_MARKERS.some(m => mid.includes(m)) ? 'efficient' : 'heavy';
+  }
+
+  // Estimated hidden reasoning tokens = appetite[family] * tier multiplier.
+  function reasoningTokensFor(model) {
+    return REASONING_TOKEN_APPETITE[reasoningFamilyFor(model)] * reasoningMultiplierFor(model);
+  }
+
+  // Reasoning-aware estimate: input ~constant; output = visible + per-family
+  // reasoning tokens scaled by the effort tier.
   function estimatePerThousandLabels(model) {
     const pricing = PRICING_PER_MTOK[model];
     if (!pricing) return null;
-    const basePerLabel = (pricing.input * ESTIMATE_INPUT_TOKENS_PER_LABEL
-      + pricing.output * ESTIMATE_OUTPUT_TOKENS_PER_LABEL) / 1_000_000;
-    return basePerLabel * reasoningMultiplierFor(model) * 1000;
+    const outputTokens = ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL + reasoningTokensFor(model);
+    const perLabel = (pricing.input * ESTIMATE_INPUT_TOKENS_PER_LABEL
+      + pricing.output * outputTokens) / 1_000_000;
+    return perLabel * 1000;
   }
 
   // Derive the display bucket from the computed estimate (Bug 2). Locals get

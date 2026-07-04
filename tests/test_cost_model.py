@@ -40,14 +40,45 @@ def test_same_base_model_tiers_are_distinct_and_monotonic() -> None:
 
 
 @pytest.mark.parametrize("base", ["openai/gpt-5.5", "openai/gpt-5.4-mini"])
-def test_calibration_ratios_hold(base: str) -> None:
-    """Attila's calibration: low ≈ 0.5×high and low ≈ 0.7×medium."""
-    high = P.estimate_per_thousand_labels(f"{base}-high")
-    medium = P.estimate_per_thousand_labels(f"{base}-medium")
-    low = P.estimate_per_thousand_labels(f"{base}-low")
+def test_calibration_ratios_hold_on_reasoning_component(base: str) -> None:
+    """Attila's calibration holds on the REASONING-token component.
+
+    Under the realistic model the total estimate includes a ~constant input +
+    visible-output floor, so the 0.5/0.7 ratios live on the reasoning-token
+    portion (not the total $/1k).
+    """
+    high = P.reasoning_tokens_for(f"{base}-high")
+    medium = P.reasoning_tokens_for(f"{base}-medium")
+    low = P.reasoning_tokens_for(f"{base}-low")
     assert low / high == pytest.approx(0.5, abs=0.02)
     # low is ~-30% vs medium (0.5/0.7 ≈ 0.714).
     assert low / medium == pytest.approx(0.7, abs=0.02)
+
+
+def test_cross_family_realism_haiku_vs_gpt_mini() -> None:
+    """Bug fix: Haiku-medium ≈ gpt-5.4-mini-low (not ~11x apart).
+
+    Real pricing calculators put these ~equal (~$0.0042 vs ~$0.0039 / img).
+    """
+    haiku = P.estimate_per_thousand_labels("anthropic/claude-haiku-4-5-medium")
+    mini = P.estimate_per_thousand_labels("openai/gpt-5.4-mini-low")
+    # Both land in the low single-digit $/1k range and within ~25% of each other.
+    assert haiku == pytest.approx(4.2, abs=0.4)
+    assert mini == pytest.approx(3.9, abs=0.4)
+    ratio = max(haiku, mini) / min(haiku, mini)
+    assert ratio < 1.3, f"Haiku vs gpt-5.4-mini-low too far apart: {ratio:.2f}x"
+
+
+def test_efficient_family_emits_little_reasoning() -> None:
+    """Efficient models (Haiku/flash/local) emit far fewer reasoning tokens."""
+    haiku = P.reasoning_tokens_for("anthropic/claude-haiku-4-5-medium")
+    mini = P.reasoning_tokens_for("openai/gpt-5.4-mini-low")
+    assert P.reasoning_family_for("anthropic/claude-haiku-4-5-medium") == "efficient"
+    assert P.reasoning_family_for("google/gemini-3.5-flash") == "efficient"
+    assert P.reasoning_family_for("local/qwen3.6-27b") == "efficient"
+    assert P.reasoning_family_for("openai/gpt-5.4-mini-low") == "heavy"
+    assert P.reasoning_family_for("anthropic/claude-opus-4-6") == "heavy"
+    assert haiku < 100 < mini
 
 
 def test_multipliers_anchor_high_at_one() -> None:
@@ -117,7 +148,14 @@ def test_js_multipliers_match_python() -> None:
 
 def test_js_token_assumptions_match_python() -> None:
     assert _js_number("ESTIMATE_INPUT_TOKENS_PER_LABEL") == P.ESTIMATE_INPUT_TOKENS_PER_LABEL
-    assert _js_number("ESTIMATE_OUTPUT_TOKENS_PER_LABEL") == P.ESTIMATE_OUTPUT_TOKENS_PER_LABEL
+    assert (
+        _js_number("ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL")
+        == P.ESTIMATE_VISIBLE_OUTPUT_TOKENS_PER_LABEL
+    )
+
+
+def test_js_reasoning_appetite_matches_python() -> None:
+    assert _js_object("REASONING_TOKEN_APPETITE") == P.REASONING_TOKEN_APPETITE
 
 
 def test_js_thresholds_match_python() -> None:
