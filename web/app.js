@@ -1477,13 +1477,26 @@ async function refreshRuns(autoSelectMostRecent = true) {
 }
 
 function selectScoreTab(tabName = 'consensus') {
-  const selected = tabName || 'consensus';
-  document.querySelectorAll('.score-tabs [data-score-tab]').forEach(tab => {
+  let selected = tabName || 'consensus';
+  const tabs = Array.from(document.querySelectorAll('.score-tabs [data-score-tab]'));
+  let selectedTab = tabs.find(tab => tab.dataset.scoreTab === selected);
+  if (!selectedTab) {
+    selected = 'consensus';
+    selectedTab = tabs.find(tab => tab.dataset.scoreTab === 'consensus');
+  }
+  const selectedPanel = selectedTab?.dataset.scorePanelTarget || selected;
+  tabs.forEach(tab => {
     tab.setAttribute('aria-selected', String(tab.dataset.scoreTab === selected));
   });
   document.querySelectorAll('.score-tab-panel[data-score-panel]').forEach(panel => {
-    panel.hidden = panel.dataset.scorePanel !== selected;
+    const visible = panel.dataset.scorePanel === selectedPanel;
+    panel.hidden = !visible;
+    if (visible && selectedTab?.id) panel.setAttribute('aria-labelledby', selectedTab.id);
   });
+  if (selectedPanel === 'consensus') {
+    runState.consensusFilter = selectedTab?.dataset.consensusFilter || 'all';
+    renderConsensus();
+  }
 }
 
 function initScoreTabs() {
@@ -1566,22 +1579,6 @@ function applyDemoChrome() {
   if (benchmark) benchmark.hidden = demo.id !== 'mnist';
   const provenance = document.getElementById('gp0Provenance');
   if (provenance) provenance.hidden = demo.id !== 'mnist';
-  rebuildConsensusFilter();
-}
-
-// Rebuild the §4 consensus filter <select> from demo.consensusFilters when the
-// demo supplies them (e.g. mnist adds pair:X-Y options). GenAI keeps its
-// four hardcoded options untouched.
-function rebuildConsensusFilter() {
-  const demo = activeDemo();
-  const select = document.getElementById('consensusFilter');
-  const options = Array.isArray(demo.consensusFilters) ? demo.consensusFilters : null;
-  if (!select || !options || !options.length) return;
-  const current = runState.consensusFilter || select.value || 'all';
-  select.innerHTML = options.map(opt =>
-    `<option value="${attr(opt.value)}">${esc(opt.label)}</option>`
-  ).join('');
-  if (options.some(opt => opt.value === current)) select.value = current;
 }
 
 // Header demo selector: persist choice and reload with ?demo= (simple + robust).
@@ -1621,10 +1618,6 @@ function bindControls() {
 function bindRunControls() {
   $('#runPicker')?.addEventListener('change', event => loadRun(event.target.value));
   $('#refreshRuns')?.addEventListener('click', () => refreshRuns(true));
-  $('#consensusFilter')?.addEventListener('change', event => {
-    runState.consensusFilter = event.target.value || 'all';
-    renderConsensus();
-  });
   document.addEventListener('click', async event => {
     const target = event.target;
     if (!(target instanceof Element)) return;

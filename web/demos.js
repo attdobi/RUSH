@@ -61,18 +61,6 @@ window.RUSH_DEMOS = {
       '8': 'two stacked closed loops meeting at a pinch',
       '9': 'closed top loop with a descending tail'
     },
-    // Consensus filter options for §4. Each entry ends up as an <option>.
-    // pair:X-Y filters to images whose SME truth is X or Y (surfaces confusion pairs).
-    consensusFilters: [
-      { value: 'all', label: 'All images' },
-      { value: 'unanimous', label: 'Unanimous only' },
-      { value: 'split', label: 'Split only' },
-      { value: 'boundary', label: 'Boundary-flagged' },
-      { value: 'pair:4-9', label: 'Pair 4 vs 9' },
-      { value: 'pair:3-5', label: 'Pair 3 vs 5' },
-      { value: 'pair:7-1', label: 'Pair 7 vs 1' },
-      { value: 'pair:8-3', label: 'Pair 8 vs 3' }
-    ],
     // Text overrides applied by app.js applyDemoChrome() — leave English strings
     // stable; ids that receive them are defined in web/index.html.
     sectionCopy: {
