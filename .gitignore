@@ -44,3 +44,6 @@ data/policy_proposals/
 # Built policy PDFs are build artifacts, not source.
 *.pdf
 !docs/**/*.pdf
+
+# in-repo git worktrees (should never be committed)
+/RUSH-wt-*
