@@ -27,8 +27,8 @@
         <a href="#grow">Grow</a>
         <a href="#label">Label</a>
         <a href="#score">Score</a>
-        <a href="#quality">Quality</a>
         <a href="#insights">Insights</a>
+        <a href="#quality">Quality</a>
         <a href="#about">About</a>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
@@ -364,9 +364,24 @@
         <div id="residualMisalignments" class="residual-misalign-grid"></div>
       </div>
     </section>
+    <section id="insights" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">§5 Insights</p>
+        <h2 id="insightsH2">Where the panel disagreed with SMEs.</h2>
+        <p id="insightsSub">Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
+      </div>
+      <div class="run-controls" aria-label="Insights filters">
+        <label>Run
+          <select id="insightsRunId"><option value="">Select a run</option></select>
+        </label>
+        <button id="refreshInsights" type="button">Refresh</button>
+        <span id="insightsStatus" class="status-line" role="status"></span>
+      </div>
+      <div id="insightsPanels" class="insights-grid"></div>
+    </section>
     <section id="quality" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">§5 Quality</p>
+        <p class="eyebrow">§6 Quality</p>
         <h2 id="qualityH2">Decision quality is the gate for policy growth.</h2>
         <p id="qualitySub">After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
       </div>
@@ -394,22 +409,6 @@
         <a href="../docs/mnist-benchmarks-v0.md">Benchmark spec</a>
       </div>
     </section>
-    <section id="insights" class="section api-section">
-      <div class="section-head compact">
-        <p class="eyebrow">§6 Insights</p>
-        <h2 id="insightsH2">Where the panel disagreed with SMEs.</h2>
-        <p id="insightsSub">Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
-      </div>
-      <div class="run-controls" aria-label="Insights filters">
-        <label>Run
-          <select id="insightsRunId"><option value="">Select a run</option></select>
-        </label>
-        <button id="refreshInsights" type="button">Refresh</button>
-        <span id="insightsStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="insightsPanels" class="insights-grid"></div>
-    </section>
-
     <section id="about" class="section about-shell">
       <div class="section-head compact">
         <p class="eyebrow">§7 About</p>
