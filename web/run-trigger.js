@@ -107,7 +107,17 @@
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 
-  const state = { runId: '', runModels: [], pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null, elapsedTimer: null };
+  const state = {
+    runId: '',
+    runModels: [],
+    pollTimer: null,
+    pollStartedAt: 0,
+    finished: false,
+    lastPayload: null,
+    elapsedTimer: null,
+    canceling: false,
+    cancelError: ''
+  };
 
   // Format a duration in seconds as mm:ss, or hh:mm:ss once it crosses an hour.
   function formatElapsed(totalSeconds) {
@@ -134,7 +144,8 @@
     const values = payloadStatusValues(payload);
     if (payload?.stale === true || payload?.is_stale === true || payload?.liveness?.stale === true) return 'stale';
     if (values.some(value => value.includes('stale'))) return 'stale';
-    if (values.some(value => value.includes('abort') || value.includes('cancel'))) return 'aborted';
+    if (values.some(value => value === 'cancel' || value.includes('canceled') || value.includes('cancelled'))) return 'canceled';
+    if (values.some(value => value.includes('abort'))) return 'aborted';
     if (values.some(value => value.includes('fail') || value.includes('error'))) return 'failed';
     if (payload?.returncode !== undefined && payload?.returncode !== null && Number(payload.returncode) !== 0) return 'failed';
     if (payload?.running === true) {
@@ -169,7 +180,7 @@
 
   function elapsedTextFor(payload) {
     const label = runStateLabel(payload);
-    if (['aborted', 'stale', 'failed', 'stopped'].includes(label) && !payload?.finished_at) return label;
+    if (['aborted', 'canceled', 'stale', 'failed', 'stopped'].includes(label) && !payload?.finished_at) return label;
     const secs = elapsedSecondsFor(payload);
     return secs === null ? '—' : formatElapsed(secs);
   }
@@ -426,6 +437,97 @@
     rushApiStatus('#runTriggerStatusLine', message, isError);
   }
 
+  function lifecycleTitle(lifecycle) {
+    const titles = {
+      aborted: 'Aborted',
+      canceled: 'Canceled',
+      failed: 'Failed',
+      finished: 'Finished',
+      running: 'Running',
+      stale: 'Stale',
+      stopped: 'Stopped',
+      unknown: 'Unknown'
+    };
+    return titles[lifecycle] || lifecycle;
+  }
+
+  function runToken(payload) {
+    return payload?.run_id || payload?.job_id || state.runId;
+  }
+
+  function ensureRunStatusControls() {
+    const row = $('#runTriggerStatusPanel .progress-row');
+    if (!row) return {};
+
+    let lifecycleBadge = $('#runTriggerLifecycleBadge');
+    if (!lifecycleBadge) {
+      lifecycleBadge = document.createElement('span');
+      lifecycleBadge.id = 'runTriggerLifecycleBadge';
+      lifecycleBadge.className = 'run-status-chip';
+      row.appendChild(lifecycleBadge);
+    }
+
+    let cancelButton = $('#cancelRunButton');
+    if (!cancelButton) {
+      cancelButton = document.createElement('button');
+      cancelButton.id = 'cancelRunButton';
+      cancelButton.type = 'button';
+      cancelButton.className = 'cancel-run-button';
+      cancelButton.textContent = 'Cancel run';
+      cancelButton.addEventListener('click', cancelRun);
+      row.appendChild(cancelButton);
+    }
+
+    let cancelMessage = $('#runTriggerCancelMessage');
+    if (!cancelMessage) {
+      cancelMessage = document.createElement('small');
+      cancelMessage.id = 'runTriggerCancelMessage';
+      cancelMessage.className = 'cancel-run-message';
+      cancelMessage.hidden = true;
+      row.appendChild(cancelMessage);
+    }
+
+    return { lifecycleBadge, cancelButton, cancelMessage };
+  }
+
+  function renderRunStatusControls(payload, lifecycle, running) {
+    const { lifecycleBadge, cancelButton, cancelMessage } = ensureRunStatusControls();
+    if (lifecycleBadge) {
+      lifecycleBadge.textContent = lifecycleTitle(lifecycle);
+      lifecycleBadge.className = `run-status-chip status-${lifecycle}`;
+      lifecycleBadge.hidden = lifecycle === 'unknown';
+    }
+    if (cancelButton) {
+      cancelButton.hidden = !running;
+      cancelButton.disabled = state.canceling;
+      cancelButton.textContent = state.canceling ? 'canceling…' : 'Cancel run';
+      cancelButton.dataset.runToken = runToken(payload) || '';
+    }
+    if (cancelMessage) {
+      cancelMessage.textContent = state.cancelError;
+      cancelMessage.hidden = !state.cancelError;
+    }
+  }
+
+  async function cancelRun() {
+    const token = runToken(state.lastPayload);
+    if (!token || state.canceling) return;
+    if (!window.confirm('Cancel this run? The job will be terminated.')) return;
+    state.canceling = true;
+    state.cancelError = '';
+    renderRunStatusControls(state.lastPayload, runStateLabel(state.lastPayload), true);
+    try {
+      await rushApiPostJson(`/api/runs/${encodeURIComponent(token)}/cancel`, {});
+      status(`Cancel requested for ${token}; waiting for terminal status…`);
+      schedulePoll();
+    } catch (error) {
+      state.canceling = false;
+      state.cancelError = `Cancel failed: ${error.message}`;
+      renderRunStatusControls(state.lastPayload, runStateLabel(state.lastPayload), isLiveRun(state.lastPayload));
+      status(state.cancelError, true);
+    }
+  }
+
   function buildStartPayload() {
     const models = selectedModels();
     const split = ($('#runTriggerSplit')?.value || 'all').trim() || 'all';
@@ -566,6 +668,11 @@
     if (log) log.textContent = Array.isArray(payload.log_tail) ? payload.log_tail.slice(-8).join('\n') : '';
     const lifecycle = runStateLabel(payload);
     const running = lifecycle === 'running';
+    if (!running) {
+      state.canceling = false;
+      state.cancelError = '';
+    }
+    renderRunStatusControls(payload, lifecycle, running);
     const score = $('#scoreRunNow');
     if (score) score.hidden = running || payload.scoring_done === true;
     state.finished = !running;
@@ -575,7 +682,7 @@
       stopElapsedTicker();
       updateElapsed();
     }
-    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycle}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
+    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycleTitle(lifecycle).toLowerCase()}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
     if (!running) {
       stopPolling();
       rushApiLoadCatalog().catch(() => {});
