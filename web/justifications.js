@@ -2,7 +2,6 @@
 (() => {
   const DRAWER_ID = 'justificationsDrawer';
   const STYLE_ID = 'justificationsDrawerStyles';
-  const DEFAULT_POLICY_MODEL = 'openai/gpt-5.5';
 
   const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
   const attr = esc;
@@ -21,6 +20,8 @@
       .justifications-close { border: 1px solid rgba(148, 163, 184, 0.4); background: rgba(15, 23, 42, 0.8); color: #e5edf8; border-radius: 10px; padding: 6px 10px; cursor: pointer; }
       .justifications-image { width: 100%; display: grid; place-items: center; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 16px; background: rgba(2, 6, 23, 0.45); min-height: 120px; margin-bottom: 14px; overflow: hidden; }
       .justifications-image img { max-width: 320px; max-height: 320px; width: auto; height: auto; display: block; }
+      .justifications-inline-image { border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 12px; background: rgba(2, 6, 23, 0.45); padding: 6px; display: grid; place-items: center; }
+      .justifications-inline-image img { max-width: 160px; max-height: 160px; width: auto; height: auto; display: block; border-radius: 8px; }
       .justifications-meta { display: grid; gap: 8px; margin-bottom: 14px; }
       .justifications-pill { display: inline-flex; align-items: center; width: fit-content; gap: 6px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 999px; padding: 4px 9px; background: rgba(30, 41, 59, 0.78); font-size: 0.8rem; color: #dbeafe; }
       .justifications-cost { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
@@ -170,17 +171,13 @@
       <div class="justifications-meta">
         <div><span class="justifications-pill">SME truth: ${esc(record.sme_truth || record.truth || '—')}</span></div>
         <div><span class="justifications-pill">run: <code>${esc(runId || '—')}</code></span></div>
-        ${record.repo_rel_path ? `<code>${esc(record.repo_rel_path)}</code>` : ''}
+        ${image ? `<div class="justifications-inline-image"><img src="${attr(image)}" alt="${attr(record.repo_rel_path || imageId)}" title="${attr(record.repo_rel_path || imageId)}" loading="lazy" decoding="async" /></div>` : ''}
       </div>
       <section class="justifications-cost" aria-label="Token and cost breakdown">
         <div><span>input tokens</span><strong>${esc(total.input || '—')}</strong></div>
         <div><span>output tokens</span><strong>${esc(total.output || '—')}</strong></div>
         <div><span>total cost</span><strong>${formatCost(total.cost || null)}</strong></div>
       </section>
-      <div class="justifications-actions">
-        <button type="button" data-propose-row-diff="${attr(imageId)}" ${runId ? '' : 'disabled'}>Propose diff from this row</button>
-        <span class="justifications-status" id="justificationsStatus"></span>
-      </div>
       <section class="justifications-votes">
         ${votes.length ? votes.map(renderVote).join('') : '<div class="justifications-vote">No per-model vote details available for this row.</div>'}
       </section>
@@ -192,39 +189,6 @@
   function closeDrawer() {
     document.getElementById(DRAWER_ID)?.remove();
     document.querySelector('.justifications-backdrop')?.remove();
-  }
-
-  function setStatus(message, isError = false) {
-    const el = document.getElementById('justificationsStatus');
-    if (!el) return;
-    el.style.color = isError ? '#fca5a5' : '#bfdbfe';
-    el.textContent = message || '';
-  }
-
-  async function proposeDiffFromRow(button) {
-    const imageId = button.dataset.proposeRowDiff || '';
-    const runId = window.runState?.selectedRunId || '';
-    if (!runId) return setStatus('No run selected.', true);
-    if (!window.RUSH_API?.available || typeof window.rushApiPostJson !== 'function') {
-      return setStatus('Local API is not available.', true);
-    }
-    const baseVersion = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
-    button.disabled = true;
-    setStatus('Requesting GPT-5.5 policy diff…');
-    try {
-      const payload = await window.rushApiPostJson('/api/policy/propose-diff', {
-        run_id: runId,
-        base_version: baseVersion,
-        model_id: DEFAULT_POLICY_MODEL,
-        image_id: imageId
-      });
-      setStatus(`Created proposal ${payload.proposal_id || 'unknown'}.`);
-      window.dispatchEvent(new CustomEvent('rush-policy-proposal-created', { detail: payload }));
-    } catch (error) {
-      setStatus(`Proposal failed: ${error.message}`, true);
-    } finally {
-      button.disabled = false;
-    }
   }
 
   document.addEventListener('click', event => {
@@ -239,11 +203,6 @@
     if (policyNode) {
       const opened = typeof window.rushOpenPolicyNode === 'function' && window.rushOpenPolicyNode(policyNode.dataset.policyNodeId || '');
       if (opened) closeDrawer();
-      return;
-    }
-    const proposeButton = target.closest('[data-propose-row-diff]');
-    if (proposeButton) {
-      proposeDiffFromRow(proposeButton);
       return;
     }
     const explicitOpen = target.closest('[data-open-justifications]');
