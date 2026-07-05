@@ -486,6 +486,7 @@ table.misalignment .muted { color: var(--muted); }
 .run-status-chip.status-canceled,
 .run-status-chip.status-stopped { color: #dce8ff; border-color: rgba(170,184,211,.32); background: rgba(170,184,211,.10); }
 .run-status-chip.status-finished { color: #c8ffe1; border-color: rgba(77,224,166,.4); background: rgba(77,224,166,.12); }
+.run-status-chip.status-completed-with-errors { color: #ffe0a3; border-color: rgba(255,209,102,.48); background: rgba(255,209,102,.12); }
 .run-status-chip.status-aborted,
 .run-status-chip.status-failed { color: #ffd7df; border-color: rgba(255,111,145,.4); background: rgba(255,111,145,.12); }
 .run-status-chip.status-stale { color: #ffe0a3; border-color: rgba(255,209,102,.42); background: rgba(255,209,102,.10); }
@@ -1427,6 +1428,17 @@ table.misalignment a:focus-visible {
 .raw-json-details summary { cursor: pointer; color: #dce8ff; font-weight: 900; font-size: 13px; }
 .raw-json-details .log-tail { margin-top: 10px; max-height: 220px; }
 .raw-json { color: #d7e6ff; }
+.run-error-panel[hidden] { display: none; }
+.run-errors-details {
+  margin-top: 10px;
+  border: 1px solid rgba(255,209,102,.24);
+  border-radius: 10px;
+  background: rgba(255,209,102,.07);
+  padding: 10px 12px;
+}
+.run-errors-details summary { cursor: pointer; color: #ffe0a3; font-weight: 950; font-size: 13px; }
+.run-error-list { margin: 8px 0 0; padding-left: 18px; color: #f7e7ba; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.run-error-list li + li { margin-top: 4px; }
 .insights-grid { grid-template-columns: 1fr; }
 .insight-panel-primary { border-color: rgba(77,224,166,.42); box-shadow: 0 0 0 1px rgba(77,224,166,.1); }
 .insights-more {
