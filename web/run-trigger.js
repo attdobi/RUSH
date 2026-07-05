@@ -285,6 +285,8 @@
         model: modelIdFromRow(row),
         avg_s_per_call: avgSec !== null ? avgSec : (avgMs !== null ? avgMs / 1000 : null),
         tokens_per_sec: numericField(row, ['tokens_per_sec', 'tokens_per_second', 'output_tokens_per_sec', 'output_tokens_per_second']),
+        images_per_min: numericField(row, ['images_per_min', 'imgs_per_min', 'images_per_minute', 'throughput_imgs_per_min'])
+          ?? (avgSec !== null && avgSec > 0 ? 60 / avgSec : null),
         total_output_tokens: numericField(row, ['total_output_tokens', 'output_tokens', 'total_tokens']),
         total_cost: numericField(row, ['total_cost', 'total_cost_usd', 'cost_usd']),
         n_calls: numericField(row, ['n_calls', 'calls_done', 'completed_calls', 'calls', 'images'])
@@ -311,11 +313,12 @@
         + `<td><code>${esc(compactModelName(r.model))}</code>${callNote}</td>`
         + `<td>${esc(isNumber(r.avg_s_per_call) ? r.avg_s_per_call.toFixed(2) : '—')}</td>`
         + `<td>${esc(formatNumber(r.tokens_per_sec, 1))}</td>`
+        + `<td>${esc(formatNumber(r.images_per_min, 1))}</td>`
         + `<td>${esc(formatInteger(r.total_output_tokens))}</td>`
         + `<td>${esc(formatUsd(r.total_cost))}</td></tr>`;
     }).join('');
     target.innerHTML = `<div class="compact-table"><table class="run-model-speed-table misalignment"><thead><tr>`
-      + `<th>Model</th><th>Avg s/call</th><th>Tokens/sec</th><th>Total tokens</th><th>Total cost</th>`
+      + `<th>Model</th><th>Avg s/call</th><th>Tokens/sec</th><th>Images/min</th><th>Total tokens</th><th>Total cost</th>`
       + `</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 

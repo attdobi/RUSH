@@ -156,6 +156,7 @@ def test_model_speed_summary_fields() -> None:
             "total_cost": 1.0,
             "avg_s_per_call": 2.0,
             "tokens_per_sec": 10.0,
+            "images_per_min": 30.0,
         }
     ]
 
@@ -203,6 +204,7 @@ def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
             "model",
             "avg_s_per_call",
             "tokens_per_sec",
+            "images_per_min",
             "total_output_tokens",
             "total_cost",
             "n_calls",

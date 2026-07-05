@@ -17,6 +17,7 @@ from typing import Any
 from pipeline.io_paths import DEFAULT_SAMPLE_MANIFEST, MNIST_SAMPLE_MANIFEST
 from pipeline.io_paths import RUN_ID_PATTERN
 from pipeline.scoring import run_scoring
+from pipeline.scoring.cost_ledger import build_model_speed_summary
 
 from ._safety import APIError, utcnow_iso
 from .demo_area import DEFAULT_POLICY_AREA, MNIST_POLICY_AREA
@@ -112,6 +113,54 @@ def _finalize_manifest_aborted(
 def _read_model_speed_summary(run_dir: Path) -> dict[str, Any] | None:
     payload = _read_json(run_dir / "model_speed_summary.json")
     return payload if payload else None
+
+
+def _live_model_speed_summary(run_dir: Path | None) -> list[dict[str, Any]] | None:
+    """Compute a LIVE per-model speed/cost summary by streaming the run's
+    ``llm_outputs.jsonl`` (one envelope per completed call).
+
+    Each envelope carries ``model_id`` plus an ``output`` block with the
+    persisted ``latency_ms`` / ``output_tokens`` / ``cost_usd``. We map those
+    into the shared ``build_model_speed_summary`` row shape so live and
+    finalize-time summaries share one aggregation path (no duplicate math).
+
+    Streamed line-by-line (no full-file parse blowup); tolerant of partial or
+    malformed trailing lines while a run is still writing.
+    """
+    if run_dir is None:
+        return None
+    path = run_dir / "llm_outputs.jsonl"
+    if not path.exists():
+        return None
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    env = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(env, dict):
+                    continue
+                output = env.get("output")
+                if not isinstance(output, dict):
+                    output = {}
+                rows.append(
+                    {
+                        "model_id": env.get("model_id"),
+                        "output_tokens": output.get("output_tokens"),
+                        "latency_ms": output.get("latency_ms"),
+                        "cost_usd": output.get("cost_usd"),
+                    }
+                )
+    except OSError:
+        return None
+    if not rows:
+        return None
+    return build_model_speed_summary(rows)
 
 
 def _parse_iso(ts: str | None) -> datetime | None:
@@ -741,6 +790,19 @@ class RunRegistry:
         elapsed_seconds = _elapsed_seconds(started_at, finished_at if not running else None)
         model_ids = _manifest_models(manifest) or list((state or {}).get("models") or [])
         per_model = _per_model_rollup(votes_path, model_ids, elapsed_seconds, expected)
+        # Prefer the durable finalize-time summary; while the run is still in
+        # progress (no finalized artifact yet), compute a LIVE summary from the
+        # partial llm_outputs.jsonl so tokens/sec + images/min populate live.
+        speed_summary = _read_model_speed_summary(run_dir) if run_dir else None
+        if speed_summary is None:
+            live_models = _live_model_speed_summary(run_dir)
+            if live_models:
+                speed_summary = {
+                    "run_id": run_id or token,
+                    "generated_at": utcnow_iso(),
+                    "live": True,
+                    "models": live_models,
+                }
         manifest_cost = manifest.get("cost") if isinstance(manifest.get("cost"), dict) else None
         recorded_cost = (
             manifest_cost.get("total_cost_usd") if manifest_cost else None
@@ -762,7 +824,7 @@ class RunRegistry:
             "cost": manifest_cost,
             "recorded_cost_usd": recorded_cost,
             "status": manifest.get("status") or (state or {}).get("status"),
-            "model_speed_summary": _read_model_speed_summary(run_dir) if run_dir else None,
+            "model_speed_summary": speed_summary,
             "scoring_done": bool(run_dir and _scoring_done(run_dir)),
             "returncode": (state or {}).get("returncode"),
             "log_tail": self.log_tail(token),

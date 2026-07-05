@@ -173,6 +173,55 @@ def test_status_surfaces_model_speed_summary_for_render(tmp_path: Path) -> None:
     assert summary["models"][0]["tokens_per_sec"] == 80.0
 
 
+def test_status_computes_live_model_speed_from_partial_llm_outputs(tmp_path: Path) -> None:
+    # LIVE speed: while a run is in progress there is no finalized
+    # model_speed_summary.json yet, but per-call rows are already streaming into
+    # llm_outputs.jsonl. status() must compute tokens_per_sec + images_per_min
+    # per model from that partial data (not None) for models with >=1 call.
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T235500-ffffffff"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:55:00Z",
+            # No finished_at / no model_speed_summary.json => run in progress.
+            "split": "dev_golden",
+            "policy_graph_version": "MNIST_Digits.v1",
+            "models": [{"model_id": "openai/gpt-5.5"}],
+            "totals": {"expected_calls": 4, "completed_calls": 2, "errored_calls": 0},
+        },
+    )
+    # Two completed calls for gpt-5.5: latencies 1000ms + 3000ms => avg 2.0s;
+    # output tokens 10 + 30 = 40 over 4.0s => 10 tok/s; 60/2.0 => 30 img/min.
+    with (run_dir / "llm_outputs.jsonl").open("w", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "image_id": "a", "model_id": "openai/gpt-5.5",
+            "output": {"output_tokens": 10, "latency_ms": 1000, "cost_usd": 0.25},
+        }) + "\n")
+        fh.write(json.dumps({
+            "image_id": "b", "model_id": "openai/gpt-5.5",
+            "output": {"output_tokens": 30, "latency_ms": 3000, "cost_usd": 0.75},
+        }) + "\n")
+        # Tolerate a partial/half-written trailing line mid-flush.
+        fh.write('{"image_id": "c", "model_id": "openai/gpt-5.5", "output"')
+
+    status = RunRegistry(tmp_path).status(run_id)
+
+    summary = status["model_speed_summary"]
+    assert summary is not None
+    assert summary.get("live") is True
+    model = summary["models"][0]
+    assert model["model"] == "openai/gpt-5.5"
+    assert model["n_calls"] == 2
+    assert model["avg_s_per_call"] == 2.0
+    assert model["tokens_per_sec"] == 10.0
+    assert model["images_per_min"] == 30.0
+    assert model["total_output_tokens"] == 40
+    assert model["total_cost"] == 1.0
+
+
 def test_dead_job_state_is_not_running_and_aborts_manifest(monkeypatch, tmp_path: Path) -> None:
     runs_root = tmp_path / "data" / "runs"
     run_id = "20260510T233000-deadbeef"
