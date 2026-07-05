@@ -102,7 +102,68 @@
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 
-  const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null };
+  const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null, elapsedTimer: null };
+
+  // Format a duration in seconds as mm:ss, or hh:mm:ss once it crosses an hour.
+  function formatElapsed(totalSeconds) {
+    const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const hh = Math.floor(s / 3600);
+    const mm = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
+  }
+
+  // Live elapsed: from started_at to finished_at (frozen) or now (ticking).
+  function elapsedSecondsFor(payload) {
+    if (!payload || !payload.started_at) return null;
+    const start = new Date(payload.started_at).getTime();
+    if (!Number.isFinite(start)) return null;
+    const end = payload.finished_at ? new Date(payload.finished_at).getTime() : Date.now();
+    if (!Number.isFinite(end)) return null;
+    return Math.max(0, (end - start) / 1000);
+  }
+
+  function updateElapsed() {
+    const el = $('#runTriggerElapsed');
+    if (!el) return;
+    const secs = elapsedSecondsFor(state.lastPayload);
+    el.textContent = secs === null ? '—' : formatElapsed(secs);
+  }
+
+  function stopElapsedTicker() {
+    if (state.elapsedTimer) window.clearInterval(state.elapsedTimer);
+    state.elapsedTimer = null;
+  }
+
+  function startElapsedTicker() {
+    stopElapsedTicker();
+    updateElapsed();
+    state.elapsedTimer = window.setInterval(updateElapsed, 1000);
+  }
+
+  function renderModelSpeed(payload) {
+    const target = $('#runTriggerModelSpeed');
+    if (!target) return;
+    const rows = Array.isArray(payload.per_model) ? payload.per_model : [];
+    if (!rows.length) { target.innerHTML = ''; return; }
+    const body = rows.map((r) => {
+      const done = Number(r.calls_done || 0);
+      const total = Number(r.calls_total || 0);
+      const avgSec = isNumber(r.avg_latency_ms) ? (r.avg_latency_ms / 1000).toFixed(1) + 's' : '—';
+      const tput = isNumber(r.throughput_imgs_per_min) ? r.throughput_imgs_per_min.toFixed(1) : '—';
+      const stateLabel = r.done ? 'done' : 'running';
+      return `<tr class="run-model-speed-row run-model-speed-row--${r.done ? 'done' : 'running'}">`
+        + `<td><code>${esc(compactModelName(r.model_id))}</code></td>`
+        + `<td>${esc(done)}/${esc(total || '—')}</td>`
+        + `<td>${esc(avgSec)}</td>`
+        + `<td>${esc(tput)}</td>`
+        + `<td>${esc(stateLabel)}</td></tr>`;
+    }).join('');
+    target.innerHTML = `<table class="run-model-speed-table"><thead><tr>`
+      + `<th>Model</th><th>Done/Total</th><th>Avg s/call</th><th>imgs/min</th><th>State</th>`
+      + `</tr></thead><tbody>${body}</tbody></table>`;
+  }
 
   function activeDemo() {
     return typeof window.rushActiveDemo === 'function'
@@ -232,6 +293,8 @@
     const batchSize = allSelectedModelsAreLocal ? 1 : requestedImagesPerCall;
     const limit = sampleIds ? null : kPerSplit;
     const allowSpend = $('#runTriggerAllowSpend')?.checked === true;
+    let concurrency = parsePositiveInt($('#runTriggerConcurrency')?.value, 4, 'Parallelism');
+    if (concurrency > 4) concurrency = 4;
     if (!models.length) throw new Error('Select at least one model.');
     return {
       demo: activeDemo().id || 'genai',
@@ -244,7 +307,7 @@
       mode: $('#runTriggerMode')?.value || 'cold_start',
       allow_spend: allowSpend,
       allow_holdout: (split === 'holdout' || split === 'all') && allowSpend,
-      concurrency: 1,
+      concurrency,
       batch_size: batchSize
     };
   }
@@ -301,19 +364,28 @@
     const started = payload.started_at ? new Date(payload.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
     const finished = payload.finished_at ? new Date(payload.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (payload.running ? 'running' : '—');
     const modelBreakdown = models.length ? models.map(compactModelName).join(' · ') : 'No models selected';
+    const elapsedSecs = elapsedSecondsFor(payload);
+    const elapsedText = elapsedSecs === null ? '—' : formatElapsed(elapsedSecs);
+    const timeNote = `started ${started}${payload.finished_at ? ' · final' : ''}`;
     const cards = [
       ['Images', imageCount, `split ${$('#runTriggerSplit')?.value || 'all'}`],
       ['Models', modelCount, modelBreakdown],
-      ['Time', finished === 'running' ? 'Running' : finished, `started ${started}`],
+      ['Time', `__ELAPSED__${elapsedText}`, timeNote],
       ['Cost', formatUsd(costValue(payload)), costNote(payload)],
       ['Calls', `${succeeded}/${expected || '—'}`, errored ? `${errored} error(s)` : 'no errors reported']
     ];
-    target.innerHTML = cards.map(([label, value, note]) => `
+    target.innerHTML = cards.map(([label, value, note]) => {
+      const raw = String(value);
+      const valueHtml = raw.startsWith('__ELAPSED__')
+        ? `<strong id="runTriggerElapsed">${esc(raw.slice('__ELAPSED__'.length))}</strong>`
+        : `<strong>${esc(raw)}</strong>`;
+      return `
       <article class="run-summary-metric">
         <span>${esc(label)}</span>
-        <strong>${esc(value)}</strong>
+        ${valueHtml}
         <p>${esc(note)}</p>
-      </article>`).join('');
+      </article>`;
+    }).join('');
   }
 
   function renderStatus(payload) {
@@ -343,6 +415,7 @@
     const bar = $('#runTriggerProgressBar');
     if (bar) bar.style.width = `${width.toFixed(1)}%`;
     renderStatusSummary(payload, completed, expected, errored);
+    renderModelSpeed(payload);
     const raw = $('#runTriggerRawJson');
     if (raw) raw.textContent = JSON.stringify(payload, null, 2);
     const log = $('#runTriggerLogTail');
@@ -351,6 +424,12 @@
     const score = $('#scoreRunNow');
     if (score) score.hidden = running || payload.scoring_done === true;
     state.finished = !running;
+    if (running) {
+      startElapsedTicker();
+    } else {
+      stopElapsedTicker();
+      updateElapsed();
+    }
     status(running ? `Run ${runId} is running…` : `Run ${runId} finished${payload.scoring_done ? ' and is already scored.' : '.'}`);
     if (!running) {
       stopPolling();

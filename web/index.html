@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r4" />
-  <script src="demos.js?v=demo-mnist-kdd-r4"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r5" />
+  <script src="demos.js?v=demo-mnist-kdd-r5"></script>
 </head>
 <body>
   <header class="hero">
@@ -241,6 +241,10 @@
               </select>
               <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
             </label>
+            <label>Parallelism
+              <input id="runTriggerConcurrency" type="number" min="1" max="4" value="4" />
+              <small class="muted">1 = sequential by model; higher = providers run in parallel (faster; locals still single-GPU)</small>
+            </label>
             <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" checked /> Allow spend</label>
           </div>
         </details>
@@ -250,6 +254,7 @@
         <div class="progress-row"><strong id="runTriggerRunId">No run started</strong><span id="runTriggerProgressText">0 / 0 calls</span><span id="runTriggerCostBadge" class="cost-badge" hidden>$0.00 spent</span></div>
         <div class="progress-track" aria-hidden="true"><span id="runTriggerProgressBar" style="width:0%"></span></div>
         <div id="runTriggerSummary" class="run-trigger-summary" aria-live="polite"></div>
+        <div id="runTriggerModelSpeed" class="run-model-speed" aria-live="polite"></div>
         <details class="raw-json-details">
           <summary>View raw status JSON and log</summary>
           <pre id="runTriggerRawJson" class="log-tail raw-json"></pre>
@@ -461,17 +466,17 @@
     </section>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r4"></script>
-  <script src="app.js?v=demo-mnist-kdd-r4"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r4"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r4"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r4"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r4"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r4"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r4"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r5"></script>
+  <script src="app.js?v=demo-mnist-kdd-r5"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r5"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r5"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r5"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r5"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r5"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r5"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r4"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r4"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r4"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r5"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r5"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r5"></script>
 </body>
 </html>

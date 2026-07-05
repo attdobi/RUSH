@@ -239,6 +239,39 @@ class TestPersistence(unittest.TestCase):
         self.assertEqual(envelope["output"]["prepared_image_sha256"], "b" * 64)
         self.assertEqual(envelope["output"]["prepared_image_height"], 768)
 
+    def test_llm_output_schema_includes_latency_ms(self):
+        """GUARDRAIL: latency_ms MUST stay in llm-output.schema.json.
+
+        The schema uses additionalProperties:false, so if this property is ever
+        dropped, the runner-measured latency would be silently stripped and
+        per-model speed telemetry would go dark. This is the 4th schema/registry
+        drift guardrail; keep it.
+        """
+        schema = json.loads(
+            (persistence.SCHEMAS_DIR / persistence.LLM_OUTPUT_SCHEMA).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("latency_ms", schema["properties"])
+        self.assertEqual(schema["properties"]["latency_ms"]["type"], "integer")
+        self.assertEqual(schema["properties"]["latency_ms"]["minimum"], 0)
+
+    def test_append_llm_output_persists_latency_ms(self):
+        out = {
+            "label": "gen_ai",
+            "l2_label": "",
+            "justification": "Smooth plastic skin and broken hand.",
+            "confidence": 0.81,
+            "difficulty": "medium",
+            "is_boundary": False,
+            "latency_ms": 4321,
+        }
+        persistence.append_llm_output(
+            self.paths, out, image_id="dev_golden_0002", model_id="local/qwen3.6-27b"
+        )
+        rows = _read_jsonl(self.paths.llm_outputs)
+        self.assertEqual(rows[0]["output"]["latency_ms"], 4321)
+
     def test_run_manifest_validation(self):
         manifest = {
             "run_id": self.paths.run_id,

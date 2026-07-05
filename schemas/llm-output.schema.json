@@ -123,6 +123,11 @@
         "null"
       ],
       "minimum": 0
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock provider round-trip latency for this call in milliseconds (runner-measured response.latency_ms). Persisted so X3 can build per-model speed telemetry; do NOT drop from this schema (guarded by test)."
     }
   },
   "additionalProperties": false

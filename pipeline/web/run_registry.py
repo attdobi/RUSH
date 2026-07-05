@@ -66,6 +66,94 @@ def _sum_jsonl_cost(path: Path) -> float:
     return total
 
 
+def _parse_iso(ts: str | None) -> datetime | None:
+    if not ts or not isinstance(ts, str):
+        return None
+    text = ts.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _elapsed_seconds(started_at: str | None, finished_at: str | None) -> float:
+    """Wall-clock seconds from started_at to finished_at (or now if running)."""
+    start = _parse_iso(started_at)
+    if start is None:
+        return 0.0
+    end = _parse_iso(finished_at) or datetime.now(timezone.utc)
+    return max(0.0, (end - start).total_seconds())
+
+
+def _per_model_rollup(
+    votes_path: Path | None,
+    model_ids: list[str],
+    elapsed_seconds: float,
+    expected_calls: int,
+) -> list[dict[str, Any]]:
+    """Per-model speed telemetry from label_votes.jsonl (carries model_id +
+    latency_ms). calls_total is derived from the manifest's expected_calls split
+    evenly across the configured models (uniform image set per model)."""
+    done: dict[str, int] = {}
+    latency_sum: dict[str, int] = {}
+    latency_n: dict[str, int] = {}
+    for mid in model_ids:
+        done[mid] = 0
+        latency_sum[mid] = 0
+        latency_n[mid] = 0
+    if votes_path and votes_path.exists():
+        with votes_path.open("r", encoding="utf-8") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                mid = row.get("model_id")
+                if not isinstance(mid, str):
+                    continue
+                done[mid] = done.get(mid, 0) + 1
+                lat = row.get("latency_ms")
+                if isinstance(lat, (int, float)) and not isinstance(lat, bool) and lat >= 0:
+                    latency_sum[mid] = latency_sum.get(mid, 0) + int(lat)
+                    latency_n[mid] = latency_n.get(mid, 0) + 1
+    n_models = len(model_ids)
+    per_model_total = (expected_calls // n_models) if (n_models and expected_calls) else 0
+    rollup: list[dict[str, Any]] = []
+    all_ids = list(dict.fromkeys([*model_ids, *[m for m in done if m not in model_ids]]))
+    for mid in all_ids:
+        calls_done = done.get(mid, 0)
+        calls_total = per_model_total if mid in model_ids else calls_done
+        n = latency_n.get(mid, 0)
+        avg_latency_ms = (latency_sum.get(mid, 0) / n) if n else None
+        throughput = (calls_done / (elapsed_seconds / 60.0)) if elapsed_seconds > 0 else None
+        rollup.append(
+            {
+                "model_id": mid,
+                "calls_done": calls_done,
+                "calls_total": calls_total,
+                "avg_latency_ms": avg_latency_ms,
+                "throughput_imgs_per_min": throughput,
+                "done": bool(calls_total) and calls_done >= calls_total,
+            }
+        )
+    # Slowest-first: models still with work / lowest throughput bubble up; done last.
+    rollup.sort(
+        key=lambda r: (
+            r["done"],
+            r["throughput_imgs_per_min"] if r["throughput_imgs_per_min"] is not None else float("inf"),
+        )
+    )
+    return rollup
+
+
 def _job_id() -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     return f"job-{stamp}-{secrets.token_hex(4)}"
@@ -415,6 +503,9 @@ class RunRegistry:
         finished_at = manifest.get("finished_at") or (state or {}).get("finished_at")
         started_at = manifest.get("started_at") or (state or {}).get("started_at")
         progress = (completed / expected) if expected else 0.0
+        elapsed_seconds = _elapsed_seconds(started_at, finished_at if not running else None)
+        model_ids = _manifest_models(manifest) or list((state or {}).get("models") or [])
+        per_model = _per_model_rollup(votes_path, model_ids, elapsed_seconds, expected)
         manifest_cost = manifest.get("cost") if isinstance(manifest.get("cost"), dict) else None
         recorded_cost = (
             manifest_cost.get("total_cost_usd") if manifest_cost else None
@@ -430,6 +521,8 @@ class RunRegistry:
             "completed_calls": completed,
             "errored_calls": errored,
             "progress": progress,
+            "elapsed_seconds": elapsed_seconds,
+            "per_model": per_model,
             "running_cost_usd_estimate": running_cost_usd_estimate,
             "cost": manifest_cost,
             "recorded_cost_usd": recorded_cost,

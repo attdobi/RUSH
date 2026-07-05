@@ -231,6 +231,7 @@ def _build_llm_output(response: LabelResponse) -> dict:
         "confidence": _coerce_optional_confidence(response.confidence),
         "difficulty": response.difficulty,
         "is_boundary": bool(response.is_boundary),
+        "latency_ms": int(max(0, response.latency_ms)),
     }
     if response.is_boundary_between:
         output["is_boundary_between"] = list(response.is_boundary_between)

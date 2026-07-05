@@ -66,6 +66,48 @@ def test_status_includes_running_cost_estimate(tmp_path: Path) -> None:
     assert status["running_cost_usd_estimate"] == 0.35
 
 
+def test_status_includes_per_model_speed_rollup(tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T230000-dddddddd"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:00:00Z",
+            "finished_at": "2026-05-10T23:02:00Z",
+            "split": "dev_golden",
+            "policy_graph_version": "v0.1",
+            "models": [{"model_id": "openai/gpt-5.5"}, {"model_id": "local/qwen3.6-27b"}],
+            "totals": {"expected_calls": 4, "completed_calls": 3, "errored_calls": 0},
+        },
+    )
+    (run_dir / "label_votes.jsonl").write_text(
+        '{"model_id": "openai/gpt-5.5", "latency_ms": 1000}\n'
+        '{"model_id": "openai/gpt-5.5", "latency_ms": 3000}\n'
+        '{"model_id": "local/qwen3.6-27b", "latency_ms": 60000}\n',
+        encoding="utf-8",
+    )
+
+    status = RunRegistry(tmp_path).status(run_id)
+
+    assert status["elapsed_seconds"] == 120.0
+    per_model = {r["model_id"]: r for r in status["per_model"]}
+    assert set(per_model) == {"openai/gpt-5.5", "local/qwen3.6-27b"}
+    gpt = per_model["openai/gpt-5.5"]
+    assert gpt["calls_done"] == 2
+    assert gpt["calls_total"] == 2
+    assert gpt["avg_latency_ms"] == 2000.0
+    assert gpt["done"] is True
+    qwen = per_model["local/qwen3.6-27b"]
+    assert qwen["calls_done"] == 1
+    assert qwen["calls_total"] == 2
+    assert qwen["avg_latency_ms"] == 60000.0
+    assert qwen["done"] is False
+    # Slowest/incomplete first: qwen (still running) ahead of finished gpt.
+    assert status["per_model"][0]["model_id"] == "local/qwen3.6-27b"
+
+
 def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_path: Path) -> None:
     run_id = "20260510T232000-cccccccc"
     done = threading.Event()
