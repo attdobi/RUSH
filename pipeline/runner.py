@@ -12,10 +12,13 @@ Design choices
 --------------
 * **Determinism first.** Sample IDs and (image, model) pairs are sorted before
   dispatch (§5.6). Tests run with ``concurrency=1`` to keep ordering exact.
-* **Concurrency.** Per-provider semaphores cap in-flight calls at
-  ``concurrency`` (default 4 per §5.5). Provider buckets run in parallel via
-  one shared ``ThreadPoolExecutor`` whose worker count = ``concurrency``
-  per provider.
+* **Concurrency.** One dedicated ``ThreadPoolExecutor`` per lane — a lane is
+  a hosted provider bucket (sized ``concurrency``) or a distinct local model
+  (sized ``LOCAL_MODEL_MAX_CONCURRENCY``, one GPU card). Lanes run fully in
+  parallel; a batch only ever occupies a worker in its own lane, so a slow
+  local lane can never starve a hosted lane (no head-of-line blocking). At
+  ``concurrency=1`` dispatch stays sequential and sample-major for exact
+  deterministic ordering.
 * **No tight loops.** Retries are X1's responsibility inside the client.
 * **Dry runs.** A built-in ``DeterministicFakeClient`` (used by tests + the
   CLI when ``--dry-run`` is set) produces stable, no-network responses with
@@ -631,9 +634,12 @@ def run_labeling(
     batch_costs: dict[int, dict] = {}
     cost_lock = threading.Lock()
 
-    # Per-provider client cache + semaphore (cap in-flight per provider).
+    # Per-provider client cache. Concurrency is enforced structurally by the
+    # per-lane executors below (one executor per hosted provider bucket / per
+    # distinct local model), each sized to its own cap. This replaces the old
+    # single-pool + in-worker-semaphore design, which let a slow local lane
+    # park worker slots and starve hosted lanes (head-of-line blocking).
     client_cache: dict[str, LabelClient] = {}
-    provider_locks: dict[str, threading.Semaphore] = {}
     cache_lock = threading.Lock()
 
     def _client_for(spec: ModelSpec) -> LabelClient:
@@ -641,16 +647,6 @@ def run_labeling(
             if spec.model_id not in client_cache:
                 client_cache[spec.model_id] = client_factory(spec)
             return client_cache[spec.model_id]
-
-    def _provider_sem(spec: ModelSpec) -> threading.Semaphore:
-        # Local models key by model_id (each = its own GPU card → parallel
-        # across cards, serial per card); hosted providers key by provider
-        # (shared API rate limit) at size `concurrency`.
-        key, size = _sem_key_and_size(spec.provider, spec.model_id, concurrency)
-        with cache_lock:
-            if key not in provider_locks:
-                provider_locks[key] = threading.Semaphore(size)
-            return provider_locks[key]
 
     write_lock = threading.Lock()  # keeps JSONL appends from interleaving
 
@@ -738,9 +734,11 @@ def run_labeling(
         batch: list[tuple[SampleRecord, ModelSpec]],
     ) -> tuple[int, int]:
         # Every batch is homogeneous by model/provider (except historical
-        # singleton batches, where homogeneity is trivially true).
+        # singleton batches, where homogeneity is trivially true). No semaphore
+        # here: the owning lane executor caps this batch's concurrency, so a
+        # blocked call only ties up its own lane's worker(s), never another
+        # lane's.
         _, spec = batch[0]
-        sem = _provider_sem(spec)
         requests = [
             _build_request(
                 sample,
@@ -752,29 +750,28 @@ def run_labeling(
             )
             for sample, model_spec in batch
         ]
-        with sem:
-            try:
-                client = _client_for(spec)
-                if len(requests) == 1:
-                    responses = [client.label(requests[0])]
+        try:
+            client = _client_for(spec)
+            if len(requests) == 1:
+                responses = [client.label(requests[0])]
+            else:
+                batch_method = getattr(client, "batch_label", None)
+                if callable(batch_method):
+                    responses = list(batch_method(requests))
                 else:
-                    batch_method = getattr(client, "batch_label", None)
-                    if callable(batch_method):
-                        responses = list(batch_method(requests))
-                    else:
-                        responses = [client.label(request) for request in requests]
-            except Exception as exc:  # client raised; treat each image as a hard error.
-                with write_lock:
-                    for sample, model_spec in batch:
-                        persistence.append_error(
-                            paths,
-                            stage="provider_call",
-                            image_id=sample.sample_id,
-                            model_id=model_spec.model_id,
-                            reason=f"{type(exc).__name__}: {exc}",
-                        )
-                _record_batch_cost(batch_index, spec.model_id, len(batch), None)
-                return 0, len(batch)
+                    responses = [client.label(request) for request in requests]
+        except Exception as exc:  # client raised; treat each image as a hard error.
+            with write_lock:
+                for sample, model_spec in batch:
+                    persistence.append_error(
+                        paths,
+                        stage="provider_call",
+                        image_id=sample.sample_id,
+                        model_id=model_spec.model_id,
+                        reason=f"{type(exc).__name__}: {exc}",
+                    )
+            _record_batch_cost(batch_index, spec.model_id, len(batch), None)
+            return 0, len(batch)
 
         if len(responses) != len(requests):
             with write_lock:
@@ -811,18 +808,41 @@ def run_labeling(
             summary.completed_calls += completed
             summary.errored_calls += errored
     else:
-        # ThreadPoolExecutor with provider-bound semaphores keeps per-provider
-        # in-flight logical batches capped at `concurrency`.
-        providers = {batch[0][1].provider for batch in batches}
-        with ThreadPoolExecutor(max_workers=concurrency * max(1, len(providers))) as pool:
-            futures: list[Future] = [
-                pool.submit(_process_batch, batch_index, batch)
-                for batch_index, batch in enumerate(batches)
-            ]
+        # Per-lane executors: one dedicated ThreadPoolExecutor per lane, where a
+        # lane is a hosted provider bucket (key=provider, size=concurrency) or a
+        # distinct local model (key=model_id, size=LOCAL_MODEL_MAX_CONCURRENCY).
+        # Every lane runs concurrently with every other lane, and each lane is
+        # sized to its own cap. Because a batch only ever occupies a worker in
+        # its OWN lane's executor, a slow/blocked local lane can never hold
+        # worker slots belonging to another lane — no head-of-line blocking, no
+        # cross-lane starvation. This structurally replaces the old shared-pool
+        # + in-worker-semaphore design.
+        lanes: dict[str, list[tuple[int, list[tuple[SampleRecord, ModelSpec]]]]] = {}
+        lane_size: dict[str, int] = {}
+        for batch_index, batch in enumerate(batches):
+            spec = batch[0][1]
+            key, size = _sem_key_and_size(spec.provider, spec.model_id, concurrency)
+            lanes.setdefault(key, []).append((batch_index, batch))
+            lane_size[key] = size
+
+        executors: list[ThreadPoolExecutor] = []
+        futures: list[Future] = []
+        try:
+            for key, lane_batches in lanes.items():
+                pool = ThreadPoolExecutor(
+                    max_workers=max(1, lane_size[key]),
+                    thread_name_prefix=f"lane-{key}",
+                )
+                executors.append(pool)
+                for batch_index, batch in lane_batches:
+                    futures.append(pool.submit(_process_batch, batch_index, batch))
             for fut in futures:
                 completed, errored = fut.result()
                 summary.completed_calls += completed
                 summary.errored_calls += errored
+        finally:
+            for pool in executors:
+                pool.shutdown(wait=True)
 
     # 5. Finalize manifest (including per-batch + per-image cost ledger).
     summary.finished_at = _utcnow_iso()
