@@ -500,6 +500,18 @@ table.misalignment .muted { color: var(--muted); }
 .diff-file-card h3 span { color: var(--muted); font-size: 12px; font-weight: 800; }
 .compact-table { overflow-x: auto; border: 1px solid rgba(170,184,211,.12); border-radius: 14px; }
 .compact-table table.misalignment th, .compact-table table.misalignment td { padding: 8px 10px; }
+.run-model-speed { margin: 12px 0 0; }
+.run-model-speed-table { min-width: 620px; font-variant-numeric: tabular-nums; }
+.run-model-speed-table td:not(:first-child),
+.run-model-speed-table th:not(:first-child) { text-align: right; }
+.run-model-speed-table td:first-child code { color: #dce8ff; font-size: 12px; }
+.run-model-speed-table td:first-child small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
 .compact-empty { padding: 12px 14px; }
 .mini-chip { display: inline-flex; margin: 2px 4px 2px 0; border-radius: 999px; padding: 3px 7px; color: #dce8ff; background: rgba(125,176,255,.12); border: 1px solid rgba(125,176,255,.28); font-size: 11px; font-weight: 850; white-space: nowrap; }
 .proposal-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 16px; }
