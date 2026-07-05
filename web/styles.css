@@ -466,6 +466,50 @@ table.misalignment .muted { color: var(--muted); }
 .api-panel[hidden] { display: none; }
 .progress-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; color: #dce8ff; margin-bottom: 10px; }
 .progress-row span { color: var(--muted); font-weight: 850; }
+.run-status-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  border: 1px solid rgba(170,184,211,.24);
+  border-radius: 999px;
+  background: rgba(7,16,31,.62);
+  color: #dce8ff;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.run-status-chip[hidden] { display: none; }
+.run-status-chip.status-running { color: #b9f8dc; border-color: rgba(77,224,166,.34); background: rgba(77,224,166,.10); }
+.run-status-chip.status-canceled,
+.run-status-chip.status-stopped { color: #dce8ff; border-color: rgba(170,184,211,.32); background: rgba(170,184,211,.10); }
+.run-status-chip.status-finished { color: #c8ffe1; border-color: rgba(77,224,166,.4); background: rgba(77,224,166,.12); }
+.run-status-chip.status-aborted,
+.run-status-chip.status-failed { color: #ffd7df; border-color: rgba(255,111,145,.4); background: rgba(255,111,145,.12); }
+.run-status-chip.status-stale { color: #ffe0a3; border-color: rgba(255,209,102,.42); background: rgba(255,209,102,.10); }
+.cancel-run-button {
+  border: 1px solid rgba(255,111,145,.42);
+  border-radius: 12px;
+  background: rgba(255,111,145,.10);
+  color: #ffd7df;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cancel-run-button:hover { border-color: rgba(255,111,145,.68); filter: brightness(1.08); }
+.cancel-run-button:disabled { cursor: wait; opacity: .68; filter: none; }
+.cancel-run-button[hidden] { display: none; }
+.cancel-run-message {
+  color: #ffd7df;
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+.cancel-run-message[hidden] { display: none; }
 .progress-track { height: 12px; border-radius: 999px; overflow: hidden; background: rgba(170,184,211,.16); margin-bottom: 14px; }
 .progress-track span { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: inherit; transition: width .25s ease; }
 .log-tail { max-height: 260px; overflow: auto; margin: 0 0 12px; padding: 12px; border-radius: 12px; background: #050a14; color: #dce8ff; border: 1px solid rgba(170,184,211,.16); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
