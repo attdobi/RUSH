@@ -162,8 +162,11 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
     """Aggregate per-call speed/cost rows by model.
 
     Field names are intentionally frontend-friendly and stable:
-    ``model``, ``avg_s_per_call``, ``tokens_per_sec``,
+    ``model``, ``avg_s_per_call``, ``tokens_per_sec``, ``images_per_min``,
     ``total_output_tokens``, ``total_cost``, and ``n_calls``.
+
+    Works on partial/in-progress rows too (each row is one completed call), so
+    the same helper backs both finalize-time and LIVE (mid-run) summaries.
     """
     buckets: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -211,8 +214,10 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             if latency_ms > 0
             else None
         )
+        images_per_min = (60.0 / avg_s) if (avg_s and avg_s > 0) else None
         bucket["avg_s_per_call"] = avg_s
         bucket["tokens_per_sec"] = tokens_per_sec
+        bucket["images_per_min"] = images_per_min
         out.append(bucket)
     return out
 
