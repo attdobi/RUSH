@@ -346,7 +346,11 @@ def _manifest_is_completed(manifest: dict[str, Any]) -> bool:
     expected = int(totals.get("expected_calls") or 0)
     completed = int(totals.get("completed_calls") or 0)
     errored = int(totals.get("errored_calls") or 0)
-    return bool(manifest.get("finished_at")) and errored == 0 and (expected == 0 or completed >= expected)
+    return (
+        bool(manifest.get("finished_at"))
+        and completed > 0
+        and (expected == 0 or completed + errored >= expected)
+    )
 
 
 def _scoring_done(run_dir: Path) -> bool:
@@ -515,19 +519,35 @@ class RunRegistry:
             state["run_id"] = run_id
         state["finished_at"] = state.get("finished_at") or utcnow_iso()
         state["returncode"] = returncode
+        manifest: dict[str, Any] = {}
+        if isinstance(run_id, str):
+            manifest = _read_json(self.runs_root / run_id / "run_manifest.json")
+            if manifest.get("completed_with_errors") is not None:
+                state["completed_with_errors"] = bool(manifest.get("completed_with_errors"))
+            totals = manifest.get("totals", {}) if isinstance(manifest.get("totals"), dict) else {}
+            if totals.get("errored_calls") is not None:
+                state["errored_calls"] = int(totals.get("errored_calls") or 0)
         if was_canceled:
             state["status"] = "canceled"
             state["abort_reason"] = state.get("abort_reason") or "canceled by user"
         else:
-            state["status"] = "finished" if returncode == 0 else "aborted"
+            manifest_status = str(manifest.get("status") or "").lower()
+            state["status"] = (
+                "finished"
+                if returncode == 0
+                else ("failed" if manifest_status == "failed" else "aborted")
+            )
             if returncode != 0:
-                state["abort_reason"] = f"run subprocess exited with returncode {returncode}"
+                state["abort_reason"] = (
+                    manifest.get("abort_reason")
+                    or f"run subprocess exited with returncode {returncode}"
+                )
         self._write_state(state)
 
         if returncode != 0:
             resolved_run_id = run_id if isinstance(run_id, str) else self._infer_run_id_for_job(state)
             if isinstance(resolved_run_id, str):
-                abort_status = "canceled" if was_canceled else "aborted"
+                abort_status = "canceled" if was_canceled else str(state.get("status") or "aborted")
                 _finalize_manifest_aborted(
                     self.runs_root / resolved_run_id / "run_manifest.json",
                     finished_at=state["finished_at"],
@@ -538,7 +558,7 @@ class RunRegistry:
 
         if returncode == 0 and isinstance(run_id, str) and not was_canceled:
             run_dir = self.runs_root / run_id
-            manifest = _read_json(run_dir / "run_manifest.json")
+            manifest = manifest or _read_json(run_dir / "run_manifest.json")
             if _manifest_is_completed(manifest):
                 state["status"] = "scoring"
                 state["scoring_started_at"] = utcnow_iso()
@@ -824,6 +844,7 @@ class RunRegistry:
                     "scoring_done": _scoring_done(run_dir),
                     "running": self.is_job_running(run_id),
                     "status": manifest.get("status"),
+                    "completed_with_errors": bool(manifest.get("completed_with_errors")),
                     "model_speed_summary": _read_model_speed_summary(run_dir),
                 }
             )
@@ -893,6 +914,10 @@ class RunRegistry:
             "cost": manifest_cost,
             "recorded_cost_usd": recorded_cost,
             "status": manifest.get("status") or (state or {}).get("status"),
+            "completed_with_errors": bool(
+                manifest.get("completed_with_errors")
+                or (state or {}).get("completed_with_errors")
+            ),
             "model_speed_summary": speed_summary,
             "scoring_done": bool(run_dir and _scoring_done(run_dir)),
             "returncode": (state or {}).get("returncode"),

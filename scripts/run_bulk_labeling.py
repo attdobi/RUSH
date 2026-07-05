@@ -42,6 +42,7 @@ from pipeline.runner import (  # noqa: E402
     DEFAULT_PROMPT_VERSION,
     ModelSpec,
     deterministic_fake_factory,
+    run_completed_with_results,
     run_labeling,
 )
 from pipeline.web.demo_area import DEFAULT_POLICY_AREA, MNIST_POLICY_AREA, normalize_policy_area  # noqa: E402
@@ -299,8 +300,11 @@ def main(argv: list[str] | None = None) -> int:
         reasoning_effort=args.reasoning_effort,
     )
 
+    completed_with_errors = summary.errored_calls > 0 and run_completed_with_results(summary)
+    fatal_error = summary.fatal_error
+
     scoring_result = None
-    if not args.no_score and summary.errored_calls == 0:
+    if not args.no_score and run_completed_with_results(summary):
         try:
             from pipeline.scoring.run_scoring import run_scoring  # noqa: PLC0415
 
@@ -318,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
         "expected_calls": summary.expected_calls,
         "completed_calls": summary.completed_calls,
         "errored_calls": summary.errored_calls,
+        "completed_with_errors": completed_with_errors,
+        "fatal_error": fatal_error,
         "batch_size": summary.batch_size,
         "effective_batches": summary.effective_batches,
         "started_at": summary.started_at,
@@ -327,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
     }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
-    return 0 if summary.errored_calls == 0 else 1
+    return 0 if fatal_error is None else 1
 
 
 if __name__ == "__main__":
