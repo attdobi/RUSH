@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r8" />
-  <script src="demos.js?v=demo-mnist-kdd-r8"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r9" />
+  <script src="demos.js?v=demo-mnist-kdd-r9"></script>
 </head>
 <body>
   <header class="hero">
@@ -180,13 +180,6 @@
         <div id="proposalDiffViewer" class="diff-viewer"></div>
       </div>
     </section>
-    <section id="provenance" class="section provenance-section">
-      <div class="section-head compact">
-        <p class="eyebrow">Provenance</p>
-        <h2>How this policy was created.</h2>
-      </div>
-      <div id="provenancePanel" class="provenance-panel" aria-live="polite"></div>
-    </section>
     <section id="label" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
@@ -319,7 +312,9 @@
         <p id="scoreAlgoRule" class="score-algo-rule">Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.</p>
       </div>
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
-        <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
+        <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" data-score-panel-target="consensus" data-consensus-filter="all" id="scoreTabConsensus">Consensus</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-unanimous" data-score-panel-target="consensus" data-consensus-filter="unanimous" id="scoreTabConsensusUnanimous">Unanimous</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-split" data-score-panel-target="consensus" data-consensus-filter="split" id="scoreTabConsensusSplit">Split</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments">SME review-first</button>
@@ -330,17 +325,9 @@
       <div class="score-tab-panel" data-score-panel="consensus" role="tabpanel" aria-labelledby="scoreTabConsensus">
         <h3 id="consensusH3">What did the panel decide — together?</h3>
         <p class="body-copy" id="consensusSub">Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
-<div class="run-controls" aria-label="Consensus filter">
-        <label>Filter
-          <select id="consensusFilter">
-            <option value="all">All images</option>
-            <option value="unanimous">Unanimous only</option>
-            <option value="split">Split only</option>
-            <option value="boundary">Boundary-flagged</option>
-          </select>
-        </label>
-        <span id="consensusStatus" class="status-line" role="status"></span>
-      </div>
+        <div class="run-controls consensus-status-row" aria-label="Consensus status">
+          <span id="consensusStatus" class="status-line" role="status"></span>
+        </div>
       <div id="consensusSummary" class="stat-grid"></div>
       <div id="consensusEmpty" class="empty-state">No consensus data yet for this run. <button type="button" data-compute-target="consensus" data-run-id="">Compute now</button></div>
       <div id="consensusTable" class="misalignment-table"></div>
@@ -467,19 +454,27 @@
       </div>
       </details>
     </section>
+    <details id="provenance" class="section provenance-section">
+      <summary>How this policy was created — provenance &amp; Gp-0 prompt spec</summary>
+      <div class="section-head compact">
+        <p class="eyebrow">Provenance</p>
+        <h2>How this policy was created.</h2>
+      </div>
+      <div id="provenancePanel" class="provenance-panel" aria-live="polite"></div>
+    </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r8"></script>
-  <script src="app.js?v=demo-mnist-kdd-r8"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r8"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r8"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r8"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r8"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r8"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r8"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r9"></script>
+  <script src="app.js?v=demo-mnist-kdd-r9"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r9"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r9"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r9"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r9"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r9"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r9"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r8"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r8"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r8"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r9"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r9"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r9"></script>
 </body>
 </html>

@@ -2008,6 +2008,13 @@ main { padding-bottom: 82px; }
 
 /* === X2 provenance === */
 .provenance-section .section-head { margin-bottom: 12px; }
+.provenance-section > summary {
+  cursor: pointer;
+  color: #edf4ff;
+  font-weight: 900;
+  margin-bottom: 0;
+}
+.provenance-section[open] > summary { margin-bottom: 12px; }
 .provenance-panel { display: grid; gap: 14px; }
 .provenance-card {
   border: 1px solid rgba(170,184,211,.20);
