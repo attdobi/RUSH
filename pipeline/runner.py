@@ -63,6 +63,38 @@ IMAGE_PREP_HELPER = "pipeline.labeling.image_prep"
 
 DEFAULT_PROMPT_VERSION = "v0.1"
 
+# Provider tag for local GPU models (see pipeline/providers/registry.py).
+# Each local model runs on its OWN dedicated GPU card (Attila's rig: two RTX
+# 3090s, one model per card), so LM Studio can serve them simultaneously. Thus
+# local semaphores are keyed by MODEL_ID (each card = its own lock domain),
+# letting distinct local models run in parallel across cards. A 27B on a 24GB
+# card is near capacity, so each local model serializes its own calls
+# (LOCAL_MODEL_MAX_CONCURRENCY, default 1 — tunable if a card handles more).
+# Hosted providers are keyed by PROVIDER (shared API rate limit) at size
+# `concurrency`.
+LOCAL_PROVIDER_TAG = "local"
+LOCAL_MODEL_MAX_CONCURRENCY = 1
+
+
+def _sem_key_and_size(
+    provider: str, model_id: str, concurrency: int
+) -> tuple[str, int]:
+    """Resolve the semaphore lock-domain key and in-flight size for a spec.
+
+    - Local provider: key on ``model_id`` (each local model = its own GPU
+      card), size ``LOCAL_MODEL_MAX_CONCURRENCY``. Distinct local models get
+      distinct semaphores → they run in parallel across cards; each serializes
+      its own calls.
+    - Hosted providers: key on ``provider`` (shared API rate limit), size
+      ``concurrency``.
+
+    Keyed on the provider tag so any future local model is covered without
+    hardcoding model ids.
+    """
+    if provider == LOCAL_PROVIDER_TAG:
+        return model_id, LOCAL_MODEL_MAX_CONCURRENCY
+    return provider, concurrency
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -567,11 +599,15 @@ def run_labeling(
                 client_cache[spec.model_id] = client_factory(spec)
             return client_cache[spec.model_id]
 
-    def _provider_sem(provider: str) -> threading.Semaphore:
+    def _provider_sem(spec: ModelSpec) -> threading.Semaphore:
+        # Local models key by model_id (each = its own GPU card → parallel
+        # across cards, serial per card); hosted providers key by provider
+        # (shared API rate limit) at size `concurrency`.
+        key, size = _sem_key_and_size(spec.provider, spec.model_id, concurrency)
         with cache_lock:
-            if provider not in provider_locks:
-                provider_locks[provider] = threading.Semaphore(concurrency)
-            return provider_locks[provider]
+            if key not in provider_locks:
+                provider_locks[key] = threading.Semaphore(size)
+            return provider_locks[key]
 
     write_lock = threading.Lock()  # keeps JSONL appends from interleaving
 
@@ -660,7 +696,7 @@ def run_labeling(
         # Every batch is homogeneous by model/provider (except historical
         # singleton batches, where homogeneity is trivially true).
         _, spec = batch[0]
-        sem = _provider_sem(spec.provider)
+        sem = _provider_sem(spec)
         requests = [
             _build_request(
                 sample,
@@ -792,4 +828,7 @@ __all__ = [
     "IMAGE_PREP_QUALITY",
     "IMAGE_PREP_HELPER",
     "DEFAULT_PROMPT_VERSION",
+    "LOCAL_PROVIDER_TAG",
+    "LOCAL_MODEL_MAX_CONCURRENCY",
+    "_sem_key_and_size",
 ]
