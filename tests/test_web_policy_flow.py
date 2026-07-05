@@ -13,6 +13,7 @@ from pipeline.web.server import create_server
 class FakeRegistry:
     def __init__(self) -> None:
         self.computed: list[str] = []
+        self.canceled: list[str] = []
 
     def list_runs(self) -> list[dict[str, Any]]:
         return [{"run_id": "run-1", "status": "completed"}]
@@ -26,6 +27,10 @@ class FakeRegistry:
 
     def score(self, token: str) -> dict[str, Any]:
         return self.compute_now(token)
+
+    def cancel_run(self, token: str) -> dict[str, Any]:
+        self.canceled.append(token)
+        return {"run_id": token, "job_id": token, "running": False, "status": "canceled"}
 
     def start_job(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {"job_id": "run-1", "payload": payload}
@@ -96,6 +101,24 @@ def test_compute_alias_covers_insights_score_button(tmp_path: Path) -> None:
             assert status == 200
             assert body == {"run_id": "run-1", "status": "scored"}
         assert registry.computed == ["run-1", "run-1"]
+    finally:
+        _stop(server, thread)
+
+
+def test_cancel_and_stop_routes_are_wired(tmp_path: Path) -> None:
+    registry = FakeRegistry()
+    server, thread = _serve(tmp_path, registry)
+    try:
+        for action in ("cancel", "stop"):
+            status, body = _request_json(server, "POST", f"/api/runs/run-1/{action}", {})
+            assert status == 200
+            assert body == {
+                "run_id": "run-1",
+                "job_id": "run-1",
+                "running": False,
+                "status": "canceled",
+            }
+        assert registry.canceled == ["run-1", "run-1"]
     finally:
         _stop(server, thread)
 

@@ -5,6 +5,9 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
+from pipeline.web._safety import APIError
 from pipeline.web import run_registry as run_registry_mod
 from pipeline.web.run_registry import RunRegistry, _manifest_is_completed
 
@@ -209,6 +212,240 @@ def test_dead_job_state_is_not_running_and_aborts_manifest(monkeypatch, tmp_path
     assert manifest["finished_at"]
     assert state["status"] == "aborted"
     assert state["returncode"] == -9
+
+
+def test_cancel_live_job_finalizes_canceled_and_removes_process(tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T233100-cancel01"
+    job_id = "job-20260510T233101-cancel01"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:31:00Z",
+            "finished_at": None,
+            "split": "dev_golden",
+            "policy_graph_version": "v0.1",
+            "models": [{"model_id": "openai/gpt-5.5"}],
+            "totals": {"expected_calls": 3, "completed_calls": 1, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        runs_root / "_jobs" / f"{job_id}.json",
+        {
+            "job_id": job_id,
+            "run_id": run_id,
+            "pid": 4242,
+            "started_at": "2026-05-10T23:31:01Z",
+            "finished_at": None,
+            "returncode": None,
+        },
+    )
+
+    class FakeProc:
+        pid = 4242
+
+        def __init__(self) -> None:
+            self.returncode: int | None = None
+            self.terminated = 0
+            self.killed = 0
+
+        def poll(self) -> int | None:
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.terminated += 1
+            self.returncode = -15
+
+        def kill(self) -> None:
+            self.killed += 1
+            self.returncode = -9
+
+        def wait(self, timeout=None) -> int:  # noqa: ANN001
+            assert self.returncode is not None
+            return self.returncode
+
+    registry = RunRegistry(tmp_path)
+    proc = FakeProc()
+    with registry._lock:
+        registry._processes[job_id] = proc  # type: ignore[assignment]
+
+    payload = registry.cancel_run(job_id)
+
+    assert payload == {
+        "run_id": run_id,
+        "job_id": job_id,
+        "running": False,
+        "status": "canceled",
+    }
+    assert proc.terminated == 1
+    assert proc.killed == 0
+    with registry._lock:
+        assert registry._processes == {}
+    assert registry.is_job_running(job_id) is False
+
+    manifest = json.loads((run_dir / "run_manifest.json").read_text())
+    state = json.loads((runs_root / "_jobs" / f"{job_id}.json").read_text())
+    assert manifest["status"] == "canceled"
+    assert manifest["finished_at"]
+    assert manifest["abort_reason"] == "canceled by user"
+    assert manifest["returncode"] == -15
+    assert state["status"] == "canceled"
+    assert state["returncode"] == -15
+    assert state["finished_at"]
+    assert registry.status(job_id)["status"] == "canceled"
+    assert registry.list_runs()[0]["status"] == "canceled"
+
+
+def test_cancel_unknown_job_raises_404(tmp_path: Path) -> None:
+    with pytest.raises(APIError) as excinfo:
+        RunRegistry(tmp_path).cancel_run("missing-run")
+
+    assert excinfo.value.status == 404
+    assert excinfo.value.code == "run_not_found"
+
+
+def test_cancel_finished_job_is_idempotent_and_does_not_signal(tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T233200-done0001"
+    job_id = "job-20260510T233201-done0001"
+    _write_json(
+        runs_root / "_jobs" / f"{job_id}.json",
+        {
+            "job_id": job_id,
+            "run_id": run_id,
+            "pid": 5151,
+            "started_at": "2026-05-10T23:32:01Z",
+            "finished_at": "2026-05-10T23:32:10Z",
+            "returncode": 0,
+            "status": "completed",
+        },
+    )
+
+    class FakeProc:
+        def __init__(self) -> None:
+            self.terminated = 0
+
+        def terminate(self) -> None:
+            self.terminated += 1
+
+    registry = RunRegistry(tmp_path)
+    proc = FakeProc()
+    with registry._lock:
+        registry._processes[job_id] = proc  # type: ignore[assignment]
+
+    payload = registry.cancel_run(run_id)
+
+    assert payload == {
+        "run_id": run_id,
+        "job_id": job_id,
+        "running": False,
+        "status": "completed",
+    }
+    assert proc.terminated == 0
+
+
+def test_cancel_dead_pid_finalizes_without_signal(monkeypatch, tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T233300-deadpid0"
+    job_id = "job-20260510T233301-deadpid0"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:33:00Z",
+            "finished_at": None,
+            "split": "dev_golden",
+            "policy_graph_version": "v0.1",
+            "models": [{"model_id": "openai/gpt-5.5"}],
+            "totals": {"expected_calls": 3, "completed_calls": 1, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        runs_root / "_jobs" / f"{job_id}.json",
+        {
+            "job_id": job_id,
+            "run_id": run_id,
+            "pid": 99999999,
+            "started_at": "2026-05-10T23:33:01Z",
+            "finished_at": None,
+            "returncode": None,
+        },
+    )
+    monkeypatch.setattr(run_registry_mod, "_process_is_alive", lambda pid: False)
+    monkeypatch.setattr(
+        run_registry_mod.os,
+        "kill",
+        lambda pid, sig: (_ for _ in ()).throw(AssertionError("should not signal")),
+    )
+
+    payload = RunRegistry(tmp_path).cancel_run(job_id)
+
+    manifest = json.loads((run_dir / "run_manifest.json").read_text())
+    state = json.loads((runs_root / "_jobs" / f"{job_id}.json").read_text())
+    assert payload["status"] == "canceled"
+    assert manifest["status"] == "canceled"
+    assert manifest["finished_at"]
+    assert manifest["returncode"] == -15
+    assert state["status"] == "canceled"
+    assert state["returncode"] == -15
+
+
+def test_cancel_stale_live_pid_sends_sigterm_then_finalizes(monkeypatch, tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T233400-livepid1"
+    job_id = "job-20260510T233401-livepid1"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:34:00Z",
+            "finished_at": None,
+            "split": "dev_golden",
+            "policy_graph_version": "v0.1",
+            "models": [{"model_id": "openai/gpt-5.5"}],
+            "totals": {"expected_calls": 3, "completed_calls": 1, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        runs_root / "_jobs" / f"{job_id}.json",
+        {
+            "job_id": job_id,
+            "run_id": run_id,
+            "pid": 123456,
+            "started_at": "2026-05-10T23:34:01Z",
+            "finished_at": None,
+            "returncode": None,
+        },
+    )
+    alive_calls = 0
+
+    def fake_alive(pid):  # noqa: ANN001
+        nonlocal alive_calls
+        alive_calls += 1
+        return alive_calls == 1
+
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(run_registry_mod, "_process_is_alive", fake_alive)
+    monkeypatch.setattr(
+        run_registry_mod.os,
+        "kill",
+        lambda pid, sig: signals.append((pid, sig)),
+    )
+
+    payload = RunRegistry(tmp_path).cancel_run(run_id)
+
+    manifest = json.loads((run_dir / "run_manifest.json").read_text())
+    state = json.loads((runs_root / "_jobs" / f"{job_id}.json").read_text())
+    assert payload["status"] == "canceled"
+    assert signals == [(123456, run_registry_mod.signal.SIGTERM)]
+    assert manifest["status"] == "canceled"
+    assert manifest["returncode"] == -15
+    assert state["status"] == "canceled"
+    assert state["returncode"] == -15
 
 
 def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_path: Path) -> None:
