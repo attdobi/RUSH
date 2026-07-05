@@ -9,7 +9,7 @@ import pytest
 
 from pipeline.web._safety import APIError
 from pipeline.web import run_registry as run_registry_mod
-from pipeline.web.run_registry import RunRegistry, _manifest_is_completed
+from pipeline.web.run_registry import RunRegistry, _manifest_is_completed, _per_model_rollup
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -159,7 +159,9 @@ def test_status_surfaces_model_speed_summary_for_render(tmp_path: Path) -> None:
                     "avg_s_per_call": 1.9,
                     "tokens_per_sec": 80.0,
                     "total_output_tokens": 152,
+                    "total_input_tokens": 20,
                     "total_cost": 0.0,
+                    "total_cost_usd": 0.0,
                 }
             ],
         },
@@ -171,6 +173,11 @@ def test_status_surfaces_model_speed_summary_for_render(tmp_path: Path) -> None:
     assert summary is not None
     assert summary["models"][0]["avg_s_per_call"] == 1.9
     assert summary["models"][0]["tokens_per_sec"] == 80.0
+    row = status["per_model"][0]
+    assert row["tokens_per_sec"] == 80.0
+    assert row["total_input_tokens"] == 20
+    assert row["total_output_tokens"] == 152
+    assert row["total_cost_usd"] == 0.0
 
 
 def test_status_computes_live_model_speed_from_partial_llm_outputs(tmp_path: Path) -> None:
@@ -198,11 +205,13 @@ def test_status_computes_live_model_speed_from_partial_llm_outputs(tmp_path: Pat
     with (run_dir / "llm_outputs.jsonl").open("w", encoding="utf-8") as fh:
         fh.write(json.dumps({
             "image_id": "a", "model_id": "openai/gpt-5.5",
-            "output": {"output_tokens": 10, "latency_ms": 1000, "cost_usd": 0.25},
+            "recorded_at": "2026-05-10T23:55:01Z",
+            "output": {"input_tokens": 100, "output_tokens": 10, "latency_ms": 1000, "cost_usd": 0.25},
         }) + "\n")
         fh.write(json.dumps({
             "image_id": "b", "model_id": "openai/gpt-5.5",
-            "output": {"output_tokens": 30, "latency_ms": 3000, "cost_usd": 0.75},
+            "recorded_at": "2026-05-10T23:55:03Z",
+            "output": {"input_tokens": 200, "output_tokens": 30, "latency_ms": 3000, "cost_usd": 0.75},
         }) + "\n")
         # Tolerate a partial/half-written trailing line mid-flush.
         fh.write('{"image_id": "c", "model_id": "openai/gpt-5.5", "output"')
@@ -216,10 +225,91 @@ def test_status_computes_live_model_speed_from_partial_llm_outputs(tmp_path: Pat
     assert model["model"] == "openai/gpt-5.5"
     assert model["n_calls"] == 2
     assert model["avg_s_per_call"] == 2.0
-    assert model["tokens_per_sec"] == 10.0
-    assert model["images_per_min"] == 30.0
+    assert model["first_started_at"] == "2026-05-10T23:55:00Z"
+    assert model["last_finished_at"] == "2026-05-10T23:55:03Z"
+    assert model["active_elapsed_s"] == 3.0
+    assert model["tokens_per_sec"] == 40.0 / 3.0
+    assert model["images_per_min"] == 40.0
+    assert model["total_input_tokens"] == 300
     assert model["total_output_tokens"] == 40
     assert model["total_cost"] == 1.0
+    per_model = status["per_model"][0]
+    assert per_model["images_per_min"] == 40.0
+    assert per_model["throughput_imgs_per_min"] == 40.0
+    assert per_model["tokens_per_sec"] == 40.0 / 3.0
+    assert per_model["total_input_tokens"] == 300
+    assert per_model["total_output_tokens"] == 40
+    assert per_model["total_cost_usd"] == 1.0
+
+
+def test_finished_model_images_per_min_freezes_as_run_elapsed_grows(tmp_path: Path) -> None:
+    votes = tmp_path / "label_votes.jsonl"
+    with votes.open("w", encoding="utf-8") as fh:
+        for _ in range(3):
+            fh.write(json.dumps({"model_id": "local/gemma", "latency_ms": 1000}) + "\n")
+        fh.write(json.dumps({"model_id": "local/qwen", "latency_ms": 2000}) + "\n")
+
+    model_summary_rows = [
+        {
+            "model": "local/gemma",
+            "model_id": "local/gemma",
+            "n_calls": 3,
+            "calls_done": 3,
+            "first_started_at": "2026-05-10T23:55:00Z",
+            "last_finished_at": "2026-05-10T23:55:06Z",
+            "active_elapsed_s": 6.0,
+            "avg_s_per_call": 1.0,
+            "avg_latency_ms": 1000.0,
+            "images_per_min": 30.0,
+            "throughput_imgs_per_min": 30.0,
+            "tokens_per_sec": 12.0,
+            "total_input_tokens": 300,
+            "total_output_tokens": 72,
+            "total_cost_usd": 0.0,
+            "total_cost": 0.0,
+        },
+        {
+            "model": "local/qwen",
+            "model_id": "local/qwen",
+            "n_calls": 1,
+            "calls_done": 1,
+            "first_started_at": "2026-05-10T23:55:04Z",
+            "last_finished_at": "2026-05-10T23:55:08Z",
+            "active_elapsed_s": 4.0,
+            "avg_s_per_call": 2.0,
+            "avg_latency_ms": 2000.0,
+            "images_per_min": 15.0,
+            "throughput_imgs_per_min": 15.0,
+            "tokens_per_sec": 5.0,
+            "total_input_tokens": 100,
+            "total_output_tokens": 20,
+            "total_cost_usd": 0.0,
+            "total_cost": 0.0,
+        },
+    ]
+
+    early = _per_model_rollup(
+        votes,
+        ["local/gemma", "local/qwen"],
+        elapsed_seconds=10.0,
+        expected_calls=6,
+        model_summary_rows=model_summary_rows,
+    )
+    late = _per_model_rollup(
+        votes,
+        ["local/gemma", "local/qwen"],
+        elapsed_seconds=600.0,
+        expected_calls=6,
+        model_summary_rows=model_summary_rows,
+    )
+
+    early_by_model = {row["model_id"]: row for row in early}
+    late_by_model = {row["model_id"]: row for row in late}
+    assert early_by_model["local/gemma"]["done"] is True
+    assert early_by_model["local/gemma"]["images_per_min"] == 30.0
+    assert late_by_model["local/gemma"]["images_per_min"] == 30.0
+    assert early_by_model["local/qwen"]["done"] is False
+    assert late_by_model["local/qwen"]["images_per_min"] == 15.0
 
 
 def test_dead_job_state_is_not_running_and_aborts_manifest(monkeypatch, tmp_path: Path) -> None:

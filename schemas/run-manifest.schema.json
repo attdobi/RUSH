@@ -128,6 +128,87 @@
       },
       "additionalProperties": false
     },
+    "per_model_timing": {
+      "type": "object",
+      "description": "Per-model timing/token/cost rollup derived from completed call timestamps. images_per_min uses each model's own active window, so finished model rates freeze while other models continue.",
+      "required": ["per_model", "total"],
+      "properties": {
+        "per_model": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "model",
+              "model_id",
+              "n_calls",
+              "calls_done",
+              "total_input_tokens",
+              "total_output_tokens",
+              "total_cost_usd",
+              "total_cost",
+              "first_started_at",
+              "last_finished_at",
+              "active_elapsed_s",
+              "avg_s_per_call",
+              "avg_latency_ms",
+              "tokens_per_sec",
+              "images_per_min",
+              "throughput_imgs_per_min"
+            ],
+            "properties": {
+              "model": {"type": "string"},
+              "model_id": {"type": "string"},
+              "n_calls": {"type": "integer", "minimum": 0},
+              "calls_done": {"type": "integer", "minimum": 0},
+              "total_input_tokens": {"type": "integer", "minimum": 0},
+              "total_output_tokens": {"type": "integer", "minimum": 0},
+              "total_cost_usd": {"type": "number", "minimum": 0},
+              "total_cost": {"type": "number", "minimum": 0},
+              "first_started_at": {"type": ["string", "null"], "format": "date-time"},
+              "last_finished_at": {"type": ["string", "null"], "format": "date-time"},
+              "active_elapsed_s": {"type": ["number", "null"], "minimum": 0},
+              "avg_s_per_call": {"type": ["number", "null"], "minimum": 0},
+              "avg_latency_ms": {"type": ["number", "null"], "minimum": 0},
+              "tokens_per_sec": {"type": ["number", "null"], "minimum": 0},
+              "images_per_min": {"type": ["number", "null"], "minimum": 0},
+              "throughput_imgs_per_min": {"type": ["number", "null"], "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "object",
+          "required": [
+            "calls_done",
+            "n_calls",
+            "total_input_tokens",
+            "total_output_tokens",
+            "total_cost_usd",
+            "total_cost",
+            "first_started_at",
+            "last_finished_at",
+            "active_elapsed_s",
+            "images_per_min",
+            "tokens_per_sec"
+          ],
+          "properties": {
+            "calls_done": {"type": "integer", "minimum": 0},
+            "n_calls": {"type": "integer", "minimum": 0},
+            "total_input_tokens": {"type": "integer", "minimum": 0},
+            "total_output_tokens": {"type": "integer", "minimum": 0},
+            "total_cost_usd": {"type": "number", "minimum": 0},
+            "total_cost": {"type": "number", "minimum": 0},
+            "first_started_at": {"type": ["string", "null"], "format": "date-time"},
+            "last_finished_at": {"type": ["string", "null"], "format": "date-time"},
+            "active_elapsed_s": {"type": ["number", "null"], "minimum": 0},
+            "images_per_min": {"type": ["number", "null"], "minimum": 0},
+            "tokens_per_sec": {"type": ["number", "null"], "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "cost": {
       "type": "object",
       "description": "Per-batch + per-image cost ledger recorded at run finalization. Local models are $0; unknown-pricing batches carry null cost_usd.",
