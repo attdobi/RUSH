@@ -29,7 +29,11 @@
     },
     "abort_reason": {
       "type": "string",
-      "description": "Human-readable reason set when status=aborted."
+      "description": "Human-readable reason set when status=aborted or status=failed."
+    },
+    "completed_with_errors": {
+      "type": "boolean",
+      "description": "True when the pass completed with usable labels while some per-image calls failed."
     },
     "sample_manifest_path": {
       "type": "string",

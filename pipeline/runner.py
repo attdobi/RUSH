@@ -144,6 +144,10 @@ class RunSummary:
     effective_batches: int = 0
     total_cost_usd: float = 0.0
     per_batch_costs: list[dict] = field(default_factory=list)
+    per_model_expected: dict[str, int] = field(default_factory=dict)
+    per_model_completed: dict[str, int] = field(default_factory=dict)
+    per_model_errored: dict[str, int] = field(default_factory=dict)
+    fatal_error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +512,28 @@ def _build_work_batches(
     return batches
 
 
+def _fatal_error_reason(summary: RunSummary) -> str | None:
+    """Return a run-level failure reason for completed runs without usable coverage."""
+    if summary.expected_calls > 0 and summary.completed_calls == 0:
+        return "all calls failed"
+
+    failed_models = [
+        model_id
+        for model_id, expected in sorted(summary.per_model_expected.items())
+        if expected > 0
+        and summary.per_model_completed.get(model_id, 0) == 0
+        and summary.per_model_errored.get(model_id, 0) >= expected
+    ]
+    if failed_models:
+        return "all calls failed for model(s): " + ", ".join(failed_models)
+    return None
+
+
+def run_completed_with_results(summary: RunSummary) -> bool:
+    """True when the pass produced at least one usable label and has no fatal gap."""
+    return summary.completed_calls > 0 and _fatal_error_reason(summary) is None
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -628,6 +654,9 @@ def run_labeling(
         dry_run=dry_run,
         batch_size=batch_size,
         effective_batches=effective_batches,
+        per_model_expected={spec.model_id: len(selected) for spec in model_specs},
+        per_model_completed={spec.model_id: 0 for spec in model_specs},
+        per_model_errored={spec.model_id: 0 for spec in model_specs},
     )
 
     # Per-batch cost ledger (batch_index -> record). Keyed by index so the
@@ -730,10 +759,30 @@ def run_labeling(
                 ),
             }
 
+    def _retry_parse_failed_responses(
+        client: LabelClient,
+        requests: list[LabelRequest],
+        responses: list[LabelResponse],
+    ) -> list[LabelResponse]:
+        """Give JSON-format flakes one extra single-image attempt."""
+        retried = list(responses)
+        for idx, response in enumerate(responses):
+            if response.error != "parse_failed":
+                continue
+            original_attempts = max(1, response.attempts)
+            try:
+                retry = client.label(requests[idx])
+            except Exception:
+                response.attempts = original_attempts + 1
+                continue
+            retry.attempts = original_attempts + max(1, retry.attempts)
+            retried[idx] = retry
+        return retried
+
     def _process_batch(
         batch_index: int,
         batch: list[tuple[SampleRecord, ModelSpec]],
-    ) -> tuple[int, int]:
+    ) -> tuple[str, int, int]:
         # Every batch is homogeneous by model/provider (except historical
         # singleton batches, where homogeneity is trivially true). No semaphore
         # here: the owning lane executor caps this batch's concurrency, so a
@@ -772,7 +821,7 @@ def run_labeling(
                         reason=f"{type(exc).__name__}: {exc}",
                     )
             _record_batch_cost(batch_index, spec.model_id, len(batch), None)
-            return 0, len(batch)
+            return spec.model_id, 0, len(batch)
 
         if len(responses) != len(requests):
             with write_lock:
@@ -788,7 +837,9 @@ def run_labeling(
                         ),
                     )
             _record_batch_cost(batch_index, spec.model_id, len(batch), None)
-            return 0, len(batch)
+            return spec.model_id, 0, len(batch)
+
+        responses = _retry_parse_failed_responses(client, requests, responses)
 
         completed = 0
         errored = 0
@@ -801,13 +852,15 @@ def run_labeling(
             else:
                 errored += 1
         _record_batch_cost(batch_index, spec.model_id, len(batch), batch_cost)
-        return completed, errored
+        return spec.model_id, completed, errored
 
     if concurrency == 1:
         for batch_index, batch in enumerate(batches):
-            completed, errored = _process_batch(batch_index, batch)
+            model_id, completed, errored = _process_batch(batch_index, batch)
             summary.completed_calls += completed
             summary.errored_calls += errored
+            summary.per_model_completed[model_id] += completed
+            summary.per_model_errored[model_id] += errored
     else:
         # Per-lane executors: one dedicated ThreadPoolExecutor per lane, where a
         # lane is a hosted provider bucket (key=provider, size=concurrency) or a
@@ -838,9 +891,11 @@ def run_labeling(
                 for batch_index, batch in lane_batches:
                     futures.append(pool.submit(_process_batch, batch_index, batch))
             for fut in futures:
-                completed, errored = fut.result()
+                model_id, completed, errored = fut.result()
                 summary.completed_calls += completed
                 summary.errored_calls += errored
+                summary.per_model_completed[model_id] += completed
+                summary.per_model_errored[model_id] += errored
         finally:
             for pool in executors:
                 pool.shutdown(wait=True)
@@ -882,8 +937,17 @@ def run_labeling(
         },
     )
     final_manifest = dict(manifest)
+    summary.fatal_error = _fatal_error_reason(summary)
+    completed_with_errors = (
+        summary.fatal_error is None
+        and summary.completed_calls > 0
+        and summary.errored_calls > 0
+    )
     final_manifest["finished_at"] = summary.finished_at
-    final_manifest["status"] = "completed"
+    final_manifest["status"] = "failed" if summary.fatal_error else "completed"
+    final_manifest["completed_with_errors"] = completed_with_errors
+    if summary.fatal_error:
+        final_manifest["abort_reason"] = summary.fatal_error
     final_manifest["totals"] = {
         "expected_calls": expected,
         "completed_calls": summary.completed_calls,
@@ -909,4 +973,6 @@ __all__ = [
     "LOCAL_PROVIDER_TAG",
     "LOCAL_MODEL_MAX_CONCURRENCY",
     "_sem_key_and_size",
+    "_fatal_error_reason",
+    "run_completed_with_results",
 ]
