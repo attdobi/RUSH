@@ -68,6 +68,8 @@
   // Buckets on the real input-dominated scale: HIGH>=$20, MEDIUM>=$5, else LOW.
   const COST_TIER_THRESHOLDS = { high: 20.0, medium: 5.0 };
   const REASONING_SUFFIXES = ['xhigh', 'high', 'medium', 'low'];
+  const LOCAL_REASONING_SESSION_KEY = 'rush_local_reasoning_overrides_v1';
+  const localReasoningOverrides = readLocalReasoningOverrides();
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
   // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
@@ -364,13 +366,80 @@
 
   function selectedModels() {
     const picker = $('#runTriggerModels');
-    return Array.from(picker?.querySelectorAll('input[type="checkbox"]:checked') || [])
+    return Array.from(picker?.querySelectorAll('input.model-select-input[type="checkbox"]:checked') || [])
       .map(input => input.value)
       .filter(Boolean);
   }
 
   function isLocalModel(modelId) {
     return String(modelId || '').startsWith('local/');
+  }
+
+  function activePolicyArea() {
+    return activeDemo().policyGraph?.area || 'Generative_AI';
+  }
+
+  function defaultLocalReasoningForArea(area = activePolicyArea()) {
+    return String(area || '') !== 'MNIST_Digits';
+  }
+
+  function readLocalReasoningOverrides() {
+    try {
+      const raw = window.sessionStorage.getItem(LOCAL_REASONING_SESSION_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeLocalReasoningOverrides() {
+    try {
+      window.sessionStorage.setItem(LOCAL_REASONING_SESSION_KEY, JSON.stringify(localReasoningOverrides));
+    } catch (error) {
+      /* sessionStorage is optional; the in-memory object still tracks this page. */
+    }
+  }
+
+  function hasLocalReasoningOverride(modelId) {
+    return Object.prototype.hasOwnProperty.call(localReasoningOverrides, modelId);
+  }
+
+  function localReasoningEnabled(modelId) {
+    if (hasLocalReasoningOverride(modelId)) return localReasoningOverrides[modelId] === true;
+    return defaultLocalReasoningForArea();
+  }
+
+  function localReasoningForSelectedModels(models = selectedModels()) {
+    return models.filter(isLocalModel).reduce((payload, modelId) => {
+      payload[modelId] = localReasoningEnabled(modelId);
+      return payload;
+    }, {});
+  }
+
+  function renderLocalReasoningToggle(model) {
+    const enabled = localReasoningEnabled(model);
+    const stateText = enabled ? 'On' : 'Off';
+    return `
+      <div class="local-reasoning-control" data-local-reasoning-for="${attr(model)}">
+        <span class="local-reasoning-label">Reasoning</span>
+        <label class="local-reasoning-switch" aria-label="Reasoning for ${attr(model)}">
+          <input class="local-reasoning-input" type="checkbox" data-local-reasoning-model="${attr(model)}"${enabled ? ' checked' : ''} />
+          <span class="local-reasoning-slider" aria-hidden="true"></span>
+          <span class="local-reasoning-state">${esc(stateText)}</span>
+        </label>
+      </div>`;
+  }
+
+  function syncLocalReasoningControls() {
+    document.querySelectorAll('.local-reasoning-input').forEach(input => {
+      const model = input.dataset.localReasoningModel || '';
+      const enabled = localReasoningEnabled(model);
+      input.checked = enabled;
+      const stateEl = input.closest('.local-reasoning-switch')?.querySelector('.local-reasoning-state');
+      if (stateEl) stateEl.textContent = enabled ? 'On' : 'Off';
+    });
   }
 
   function parsePositiveInt(raw, fallback, label) {
@@ -398,7 +467,16 @@
     }
     const localClass = isLocal ? ' model-pick--local' : '';
     const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}">${esc(badgeTier)}</span>`;
-    return `<label class="model-pick${localClass}"><input type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} /><span class="model-pick-body"><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span>${badge}</label>`;
+    const reasoningToggle = isLocal ? renderLocalReasoningToggle(model) : '';
+    return `
+      <div class="model-pick${localClass}">
+        <label class="model-pick-select">
+          <input class="model-select-input" type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} />
+          <span class="model-pick-body"><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span>
+          ${badge}
+        </label>
+        ${reasoningToggle}
+      </div>`;
   }
 
   function populateModels() {
@@ -428,6 +506,7 @@
         <div class="model-picker-grid">${rows}</div>
       </div>`;
     }).join('');
+    syncLocalReasoningControls();
   }
 
   function populatePolicies() {
@@ -544,10 +623,12 @@
     let concurrency = parsePositiveInt($('#runTriggerConcurrency')?.value, 4, 'Parallelism');
     if (concurrency > 4) concurrency = 4;
     if (!models.length) throw new Error('Select at least one model.');
+    const localReasoning = localReasoningForSelectedModels(models);
     return {
       demo: activeDemo().id || 'genai',
-      area: activeDemo().policyGraph?.area || 'Generative_AI',
+      area: activePolicyArea(),
       models,
+      local_reasoning: localReasoning,
       split,
       limit: sampleIds ? null : limit,
       sample_ids: sampleIds || null,
@@ -757,6 +838,15 @@
     $('#scoreRunNow')?.addEventListener('click', scoreRun);
     $('#runTriggerBatchSize')?.addEventListener('input', refreshRunButtonLabel);
     $('#runTriggerSampleIds')?.addEventListener('input', refreshRunButtonLabel);
+    $('#runTriggerModels')?.addEventListener('change', event => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || !input.classList.contains('local-reasoning-input')) return;
+      const model = input.dataset.localReasoningModel || '';
+      if (!isLocalModel(model)) return;
+      localReasoningOverrides[model] = input.checked === true;
+      writeLocalReasoningOverrides();
+      syncLocalReasoningControls();
+    });
   }
 
   async function initRunTrigger(api) {
