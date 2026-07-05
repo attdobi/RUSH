@@ -1,12 +1,12 @@
 {
-  "chunk_count": 182,
+  "chunk_count": 187,
   "chunk_params": {
     "batch_size": 16,
     "min_chars": 650,
     "overlap_chars": 140,
     "target_chars": 1000
   },
-  "created_utc": "2026-07-05T17:41:34Z",
+  "created_utc": "2026-07-05T17:45:12Z",
   "dims": 768,
   "embedding_model": "text-embedding-embeddinggemma-300m-qat",
   "endpoint": "http://127.0.0.1:1234/v1",
@@ -50,5 +50,5 @@
     "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.repeated_details.md",
     "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.text_symbols.md"
   ],
-  "total_bytes": 3142141
+  "total_bytes": 3227406
 }

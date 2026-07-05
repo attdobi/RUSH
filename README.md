@@ -29,9 +29,16 @@ RUSH exists to deliver three headline outcomes:
 
 ## AI Handoff & Embedded Memory
 
-The current MNIST-UX-KDD project state, recent fixes, open issues, and operator handoff live in `docs/ai-handoff/HANDOFF.md`; read that file for full detail before continuing the work. The local semantic memory is in `docs/ai-handoff/memory-embeddings/`: `index.jsonl` stores chunk text plus 768-dim embeddings, and `manifest.json` records the embedding model, source files, chunk parameters, counts, and byte size.
+> **If you are an AI taking over this repo (e.g. Fable-5 or Claude-Code): ABSORB THIS KNOWLEDGE BASE FIRST, before you touch any code.** This is an AI-to-AI transfer of everything the previous team (Pista/Theo/X-engineers) knows about RUSH.
+>
+> 1. **Read `docs/ai-handoff/HANDOFF.md` end to end.** It is the full transfer: project thesis, architecture, repo map, run ops, every 2026-07-04/05 fix (with root causes), current state, team conventions, and the OPEN ISSUES to work next (qwen slowness, refresh-loses-progress, local-model reasoning config).
+> 2. **Load and query the embedded project memory** in `docs/ai-handoff/memory-embeddings/` via `scripts/query_memory.py` whenever you need prior context, instead of re-deriving it. Fable-5 runs locally with access to the Gemma-embeddings on the GPUs, so this memory index is directly usable by you.
+> 3. **Preserve the working conventions** (HANDOFF §8): named engineers, `[X#]` commit prefixes, feature-branch-only for multi-file work, and bump the `web/index.html` cache-buster on any JS/CSS change.
 
-Embeddings use Gemma-embedding `text-embedding-embeddinggemma-300m-qat` at `http://127.0.0.1:1234/v1` via LM Studio. Query with `./.venv/bin/python scripts/query_memory.py "why is qwen slow"` and regenerate with `./.venv/bin/python scripts/build_memory_embeddings.py`.
+The local semantic memory is in `docs/ai-handoff/memory-embeddings/`: `index.jsonl` stores chunk text plus 768-dim embeddings, and `manifest.json` records the embedding model, source files, chunk parameters, counts, and byte size. Embeddings use Gemma-embedding `text-embedding-embeddinggemma-300m-qat` at `http://127.0.0.1:1234/v1` via LM Studio.
+
+- **Query the memory:** `./.venv/bin/python scripts/query_memory.py "why is qwen slow"`
+- **Regenerate after editing docs:** `./.venv/bin/python scripts/build_memory_embeddings.py`
 
 ## Demos and §1 -> §4 flow
 
