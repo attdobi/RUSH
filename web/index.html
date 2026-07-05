@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r6" />
-  <script src="demos.js?v=demo-mnist-kdd-r6"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r8" />
+  <script src="demos.js?v=demo-mnist-kdd-r8"></script>
 </head>
 <body>
   <header class="hero">
@@ -27,7 +27,6 @@
         <a href="#grow">Grow</a>
         <a href="#label">Label</a>
         <a href="#score">Score</a>
-        <a href="#insights">Insights</a>
         <a href="#quality">Quality</a>
         <a href="#about">About</a>
       </div>
@@ -323,7 +322,11 @@
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" id="scoreTabConsensus">Consensus</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments">SME review-first</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="model-disagreement" id="scoreTabModelDisagreement">Model disagreement</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="boundary-concentration" id="scoreTabBoundaryConcentration">Boundary pairs</button>
       </div>
+      <div id="scoreInsightStatus" class="score-insight-status status-line" role="status"></div>
       <div class="score-tab-panel" data-score-panel="consensus" role="tabpanel" aria-labelledby="scoreTabConsensus">
         <h3 id="consensusH3">What did the panel decide — together?</h3>
         <p class="body-copy" id="consensusSub">Every model votes per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.</p>
@@ -354,6 +357,21 @@
 <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
       </div>
+      <div class="score-tab-panel" data-score-panel="sme-misalignments" role="tabpanel" aria-labelledby="scoreTabSmeMisalignments" hidden>
+        <h3>Where the panel majority missed SME truth.</h3>
+        <p class="body-copy">Majority-wrong cases are the highest-priority review queue for label cleanup and policy work.</p>
+        <div id="scoreInsightSme" class="score-insight-grid"></div>
+      </div>
+      <div class="score-tab-panel" data-score-panel="model-disagreement" role="tabpanel" aria-labelledby="scoreTabModelDisagreement" hidden>
+        <h3>Where models disagreed with each other.</h3>
+        <p class="body-copy">Split votes reveal unstable examples even when a simple majority exists.</p>
+        <div id="scoreInsightModel" class="score-insight-grid"></div>
+      </div>
+      <div class="score-tab-panel" data-score-panel="boundary-concentration" role="tabpanel" aria-labelledby="scoreTabBoundaryConcentration" hidden>
+        <h3>Boundary and confusion-pair concentration.</h3>
+        <p class="body-copy">Boundary buckets and recurring pair disagreements point to digit confusions worth clarifying in the prompt graph.</p>
+        <div id="scoreInsightBoundary" class="score-insight-grid score-insight-grid-two"></div>
+      </div>
       <div class="residual-misalign-block" aria-labelledby="residualMisalignTitle">
         <div class="residual-misalign-head">
           <div>
@@ -365,24 +383,9 @@
         <div id="residualMisalignments" class="residual-misalign-grid"></div>
       </div>
     </section>
-    <section id="insights" class="section api-section">
-      <div class="section-head compact">
-        <p class="eyebrow">§5 Insights</p>
-        <h2 id="insightsH2">Where the panel disagreed with SMEs.</h2>
-        <p id="insightsSub">Start with majority-wrong cases. Open More cuts for model disagreement, boundary concentration, and recurring pair disagreement.</p>
-      </div>
-      <div class="run-controls" aria-label="Insights filters">
-        <label>Run
-          <select id="insightsRunId"><option value="">Select a run</option></select>
-        </label>
-        <button id="refreshInsights" type="button">Refresh</button>
-        <span id="insightsStatus" class="status-line" role="status"></span>
-      </div>
-      <div id="insightsPanels" class="insights-grid"></div>
-    </section>
     <section id="quality" class="section api-section">
       <div class="section-head compact">
-        <p class="eyebrow">§6 Quality</p>
+        <p class="eyebrow">§5 Quality</p>
         <h2 id="qualityH2">Decision quality is the gate for policy growth.</h2>
         <p id="qualitySub">After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
       </div>
@@ -412,7 +415,7 @@
     </section>
     <section id="about" class="section about-shell">
       <div class="section-head compact">
-        <p class="eyebrow">§7 About</p>
+        <p class="eyebrow">§6 About</p>
         <h2>System, theory, and next steps.</h2>
       </div>
       <details class="about-block" open>
@@ -466,17 +469,17 @@
     </section>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r6"></script>
-  <script src="app.js?v=demo-mnist-kdd-r6"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r6"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r6"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r6"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r6"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r6"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r6"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r8"></script>
+  <script src="app.js?v=demo-mnist-kdd-r8"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r8"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r8"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r8"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r8"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r8"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r8"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r6"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r6"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r6"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r8"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r8"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r8"></script>
 </body>
 </html>
