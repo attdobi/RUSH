@@ -133,6 +133,9 @@ The standalone §5 Insights section (Majority-wrong / Model-disagreement / Bound
 
 ---
 
+### 5.12 Per-local-model reasoning toggle (2026-07-05, latest) — resolves §7.4
+Added a **Reasoning On/Off toggle per local-model card** in the §3 model-selection UI (`local/qwen3.6-27b`, `local/gemma-4-26b-a4b-qat`; hosted models unaffected). The toggle flows: UI switch → `local_reasoning` map in the `POST /api/runs/start` payload → `_safety._validate_local_reasoning` → `run_registry` → `run_bulk_labeling --local-reasoning "id=on,id=off"` → `_local_reasoning_runtime_params` → the LM Studio `/v1/chat/completions` `reasoning_effort` field. Mapping: **OFF → `reasoning_effort="none"`, max_completion_tokens=4000**; **qwen ON → `"low"`/6000**; **gemma ON → `"medium"`/6000** (generalized the override path to ALL local models — gemma previously had none). **Defaults are area-aware:** MNIST_Digits → Off (both), Generative_AI → On (both); the user can override per model. Live-verified: OFF → `reasoning_tokens=0`, qwen ON → `reasoning_tokens=1263`. Tests 406 → **414**. (`[X2]` backend `3f9bdb1c`, `[X3]` frontend `92580c88`.) **This replaces the hardcoded `reasoning_effort="none"` with user control — the §7.4 concern is now resolved for the web path.**
+
 ## 6. Current state (as of 2026-07-05 ~10:20 PDT)
 
 - **Branch `feat/mnist-ux-kdd`** holds all of §5. HEAD around `819158fd` before the handoff commits. **406 pytest passing.** Cache-buster **r9**. Server restarted onto the merged build (verify PID live).
@@ -159,14 +162,21 @@ The standalone §5 Insights section (Majority-wrong / Model-disagreement / Bound
 **Root-cause hypothesis:** the live run progress is held in **front-end state** in `run-trigger.js` (the polling loop + the live card are created when the user clicks Start). On reload there is no re-attach: the page does not query `/api/runs` for a still-running job and rebuild the live card + resume polling. The `run_id` isn't persisted client-side.
 **Suggested fix (tee'd up for testers):** on page load, `GET /api/runs`; if any run has `finished_at == null` (running), **re-render the live progress card and resume polling its status** (the status endpoint already returns progress + `model_speed_summary`). Optionally persist the active `run_id` in `localStorage` as a hint and reconcile against `/api/runs`. Make progress **server-authoritative** so refresh is safe. This pairs well with the per-model speed summary already in the status endpoint.
 
-### 7.4 Local-model reasoning is globally OFF — conflicts with the §5.4 doctrine (ACTION ITEM)
+### 7.4 Local-model reasoning — RESOLVED via the §3 toggle (2026-07-05)
+**Status: RESOLVED for the web path.** The former problem (below) is fixed by the per-local-model reasoning toggle in §5.12: the UI now controls `reasoning_effort` per local model, area-aware by default (MNIST off / GenAI on), so GenAI gets real reasoning while MNIST stays fast. Remaining note: the **registry still hardcodes `reasoning_effort="none"` as the CLI/default** for `local/qwen3.6-27b`, `local/qwen3.6-35b-a3b`, `local/gemma-4-26b-a4b-qat` — that default only applies to direct `run_bulk_labeling` CLI invocations WITHOUT `--local-reasoning`; the web UI always sends explicit toggle state. If you run headless CLI for GenAI, pass `--local-reasoning "local/qwen3.6-27b=on,local/gemma-4-26b-a4b-qat=on"`.
+
+<details><summary>Original issue (pre-toggle, for context)</summary>
+
+**Was: Local-model reasoning is globally OFF — conflicts with the §5.4 doctrine (ACTION ITEM)**
 **Current code state (verify in `pipeline/providers/registry.py`):** BOTH local models default to `reasoning_effort="none"`:
 - `local/gemma-4-26b-a4b-qat` (~L336–349) — hard `none`, added to stop gemma over-reasoning (1900–2400 reasoning tokens → abstain) on trivial MNIST digits. **No per-run override path for gemma.**
 - `local/qwen3.6-27b` (~L299–315) — defaults `none`; `local/qwen3.6-27b-low` is a separate `low` variant. qwen CAN be per-run overridden to high/xhigh (`build_client` honors it for `qwen/` model names; `_safety.py` allows only high|xhigh from the web payload).
 
 **The conflict:** these defaults are **global per-model, NOT area-scoped**, so gemma and base qwen run reasoning=OFF for **Generative_AI** too — exactly what §5.4 says NOT to do for policy-grounded areas (loses policy-node citation, justification grounding, is_boundary, and the misalignment signal that feeds the RL loop). It was set for MNIST but leaks to GenAI.
 
-**ACTION ITEM (make reasoning area-aware):** for MNIST_Digits keep `none` (fast, digits are trivial); for Generative_AI / any policy-grounded area, run local models with reasoning ON (default/medium). Implement either by (a) the runner passing an **area-aware reasoning_effort** that overrides the spec default, or (b) distinct model_ids per area. Note gemma currently has NO override path — add one. (Decision pending with Attila 2026-07-05; he is separately fixing local-model *speed* at the GPU layer via KV f16→f8, which is orthogonal — speed vs reasoning-depth are different levers.)
+**ACTION ITEM (make reasoning area-aware):** for MNIST_Digits keep `none` (fast, digits are trivial); for Generative_AI / any policy-grounded area, run local models with reasoning ON. — **DONE via the §5.12 toggle.** Attila is separately fixing local-model *speed* at the GPU layer via KV f16→f8, which is orthogonal (speed vs reasoning-depth are different levers).
+
+</details>
 
 ### 7.3 Other parked items
 - **Feature F (live GPU info):** LM Studio exposes only model-state, not GPU util/VRAM. Option A = LM Studio model-state + our telemetry panel (no fake gauges). Option B = real `nvidia-smi` util via an exporter on the GPU host. Awaiting Attila's A/B pick.
