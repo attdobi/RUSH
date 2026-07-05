@@ -291,6 +291,31 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
         writer.writerows(rows)
 
 
+def combined_jsonl_row(row: dict[str, object]) -> dict[str, object]:
+    """Return runner/scoring JSONL shape from the human-readable CSV row.
+
+    The CSV preserves MNIST's source split names (``train``/``val``). The
+    bulk-labeling runner uses the repo's canonical split selectors, so the
+    combined JSONL maps them to ``dev_golden``/``holdout`` and keeps the source
+    value in ``source_split`` for auditability.
+    """
+    source_split = str(row.get("split") or "")
+    split = {"train": "dev_golden", "val": "holdout"}.get(source_split, source_split)
+    out = dict(row)
+    out["source_split"] = source_split
+    out["split"] = split
+    return out
+
+
+def write_combined_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = "".join(
+        json.dumps(combined_jsonl_row(row), sort_keys=True) + "\n"
+        for row in rows
+    )
+    path.write_text(payload, encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n-train", type=int, default=2000, help="train sample size (stratified across digits)")
@@ -316,6 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     outputs = [
         out_dir / "train_labels.csv",
         out_dir / "val_labels.csv",
+        out_dir / "combined_labels.jsonl",
         out_dir / "sampling_summary.json",
     ]
     existing = [path for path in outputs if path.exists()]
@@ -340,7 +366,8 @@ def main(argv: list[str] | None = None) -> int:
 
     write_csv(outputs[0], train_rows)
     write_csv(outputs[1], val_rows)
-    outputs[2].write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_combined_jsonl(outputs[2], train_rows + val_rows)
+    outputs[3].write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0

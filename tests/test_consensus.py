@@ -14,7 +14,7 @@ from pipeline.scoring import consensus as consensus_mod  # noqa: E402
 from pipeline.scoring._common import load_ground_truth  # noqa: E402
 
 
-def _vote(image_id, labeler, label, *, confidence=0.8, is_boundary=False, run_id="r1"):
+def _vote(image_id, labeler, label, *, confidence=0.8, is_boundary=False, boundary_between=None, run_id="r1"):
     return {
         "run_id": run_id,
         "image_id": image_id,
@@ -35,6 +35,7 @@ def _vote(image_id, labeler, label, *, confidence=0.8, is_boundary=False, run_id
         "cost_usd": 0.0123,
         "policy_graph_version": "Generative_AI.v0.1",
         "is_boundary": is_boundary,
+        "is_boundary_between": list(boundary_between or []),
     }
 
 
@@ -82,6 +83,20 @@ def test_consensus_2_of_3_split():
     assert r["tie"] is False
     assert r["any_boundary_flag"] is True
     assert r["boundary_voter_count"] == 1
+
+
+def test_consensus_rollup_counts_boundary_pairs_once_per_image():
+    votes = [
+        _vote("img1", "a", "1", is_boundary=True, boundary_between=["7", "1"]),
+        _vote("img1", "b", "7", is_boundary=True, boundary_between=["1", "7"]),
+        _vote("img2", "a", "4", is_boundary=True, boundary_between=["4", "9"]),
+    ]
+    records = consensus_mod.build_consensus_records(votes)
+    rollup = consensus_mod.build_cohort_rollups(records)
+
+    assert records[0]["voters"][0]["is_boundary_between"] in (["7", "1"], ["1", "7"])
+    assert rollup["n_images_with_boundary_pair"] == 2
+    assert rollup["boundary_pair_distribution"] == {"1/7": 1, "4/9": 1}
 
 
 def test_consensus_three_way_tie():

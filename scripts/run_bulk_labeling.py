@@ -34,6 +34,7 @@ if str(ROOT) not in sys.path:
 from pipeline.io_paths import (  # noqa: E402  (after sys.path edit)
     DEFAULT_RUNS_ROOT,
     DEFAULT_SAMPLE_MANIFEST,
+    MNIST_SAMPLE_MANIFEST,
 )
 from pipeline.manifest import HOLDOUT_SPLITS, load_records, select_samples  # noqa: E402
 from pipeline.providers._config import resolve_temperature  # noqa: E402
@@ -43,6 +44,7 @@ from pipeline.runner import (  # noqa: E402
     deterministic_fake_factory,
     run_labeling,
 )
+from pipeline.web.demo_area import DEFAULT_POLICY_AREA, MNIST_POLICY_AREA, normalize_policy_area  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -70,6 +72,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--policy-version",
         default="v0.1",
         help="Policy graph version directory to label against (default: v0.1).",
+    )
+    parser.add_argument(
+        "--area",
+        default=DEFAULT_POLICY_AREA,
+        help="Policy/demo area selecting ontology + policy graph (default: Generative_AI).",
     )
     parser.add_argument("--concurrency", type=int, default=1,
                         help="In-flight provider calls per provider (default 1; max recommended: 4).")
@@ -116,6 +123,14 @@ def _resolve_factory(use_live: bool, *, reasoning_effort: str | None = None):
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        area = normalize_policy_area(args.area)
+    except ValueError as exc:
+        print(f"[X2] {exc}", file=sys.stderr)
+        return 2
+
+    if args.manifest == DEFAULT_SAMPLE_MANIFEST and area == MNIST_POLICY_AREA:
+        args.manifest = MNIST_SAMPLE_MANIFEST
 
     if args.live and not args.allow_spend:
         print("[X2] refusing to dispatch live calls without --allow-spend", file=sys.stderr)
@@ -176,6 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             "models": [m.model_id for m in model_specs],
             "split": args.split,
             "limit": args.limit,
+            "area": area,
             "policy_version": args.policy_version,
             "batch_size": args.batch_size,
             "effective_batches": effective_batches,
@@ -188,10 +204,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
         return 0
 
-    policy_graph_dir = ROOT / "policy-graph" / "Generative_AI" / args.policy_version
+    policy_graph_dir = ROOT / "policy-graph" / area / args.policy_version
     if not policy_graph_dir.is_dir():
         print(f"[X2] unknown policy version directory: {policy_graph_dir}", file=sys.stderr)
         return 2
+    policy_graph_version = (
+        f"{area}.{args.policy_version}" if area != DEFAULT_POLICY_AREA else args.policy_version
+    )
 
     factory = _resolve_factory(use_live=args.live, reasoning_effort=args.reasoning_effort)
     summary = run_labeling(
@@ -202,7 +221,9 @@ def main(argv: list[str] | None = None) -> int:
         sample_ids=sample_ids,
         runs_root=args.runs_root,
         policy_graph_dir=policy_graph_dir,
-        policy_graph_version=args.policy_version,
+        policy_graph_version=policy_graph_version,
+        policy_version=args.policy_version,
+        area=area,
         prompt_version=args.prompt_version,
         client_factory=factory,
         concurrency=args.concurrency,

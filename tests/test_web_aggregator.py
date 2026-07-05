@@ -369,6 +369,51 @@ def test_handle_decision_quality_mnist_demo_returns_empty_runs(tmp_path: Path, m
     assert body == {"runs": [], "policy_versions": []}
 
 
+def test_aggregate_decision_quality_reads_mnist_multiclass_artifact(tmp_path: Path) -> None:
+    runs_root = tmp_path / "runs"
+    run_dir = runs_root / "mnist-run"
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": "mnist-run",
+            "started_at": "2026-07-04T12:00:00Z",
+            "area": "MNIST_Digits",
+            "policy_graph_version": "MNIST_Digits.v0.1",
+            "policy_version": "v0.1",
+            "sample_ids": ["train_00001"],
+        },
+    )
+    _write_json(
+        run_dir / "scoring" / "decision_quality_multiclass.json",
+        {
+            "policy_graph_version": "MNIST_Digits.v0.1",
+            "task": "mnist_multiclass",
+            "classes": [str(d) for d in range(10)],
+            "labelers": [
+                {
+                    "labeler_id": "model-a",
+                    "labeler_type": "llm",
+                    "metrics": {
+                        "n": 1,
+                        "accuracy": 1.0,
+                        "macro_precision": 1.0,
+                        "macro_recall": 1.0,
+                        "macro_f1": 1.0,
+                    },
+                }
+            ],
+        },
+    )
+
+    payload = aggregator.aggregate_decision_quality(runs_root, policy_area="MNIST_Digits")
+
+    assert [run["run_id"] for run in payload["runs"]] == ["mnist-run"]
+    metrics = payload["runs"][0]["labelers"][0]["metrics"]
+    assert metrics["f1"] == 1.0
+    assert metrics["precision"] == 1.0
+    assert payload["policy_versions"] == ["MNIST_Digits.v0.1"]
+
+
 def test_handle_insights_requires_run_id_and_returns_payload(tmp_path: Path, monkeypatch) -> None:
     runs_root = _runs_fixture(tmp_path)
     monkeypatch.setattr(handlers_dq, "RUNS_ROOT", runs_root)

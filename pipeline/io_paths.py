@@ -24,6 +24,15 @@ DEFAULT_SAMPLE_MANIFEST = (
     / "combined_labels.jsonl"
 )
 
+MNIST_SAMPLE_MANIFEST = (
+    REPO_ROOT
+    / "data"
+    / "images"
+    / "mnist-classification"
+    / "manifests"
+    / "combined_labels.jsonl"
+)
+
 # Default output root (gitignored).
 DEFAULT_RUNS_ROOT = REPO_ROOT / "data" / "runs"
 
@@ -115,6 +124,7 @@ def run_paths(run_id: str, runs_root: Path | None = None) -> RunPaths:
 __all__ = [
     "REPO_ROOT",
     "DEFAULT_SAMPLE_MANIFEST",
+    "MNIST_SAMPLE_MANIFEST",
     "DEFAULT_RUNS_ROOT",
     "DEFAULT_POLICY_GRAPH_DIR",
     "DEFAULT_POLICY_GRAPH_VERSION",

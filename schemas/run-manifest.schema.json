@@ -59,6 +59,15 @@
         "additionalProperties": false
       }
     },
+    "area": {
+      "type": "string",
+      "enum": ["Generative_AI", "MNIST_Digits"],
+      "description": "Policy/demo area that selected the provider ontology for this run."
+    },
+    "policy_version": {
+      "type": "string",
+      "description": "Bare policy graph version directory selected in the UI, e.g. v0.1."
+    },
     "policy_graph_version": {"type": "string"},
     "prompt_version": {"type": "string"},
     "sampling_version": {"type": "string"},

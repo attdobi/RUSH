@@ -21,6 +21,7 @@ from .io_paths import DEFAULT_SAMPLE_MANIFEST, REPO_ROOT
 SME_LABEL_MAP: dict[str, str] = {
     "ai_generated": "gen_ai",
     "not_ai_generated": "not_gen_ai",
+    **{str(d): str(d) for d in range(10)},
 }
 
 VALID_SPLITS: frozenset[str] = frozenset({"dev_golden", "holdout"})

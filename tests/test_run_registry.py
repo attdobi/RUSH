@@ -152,7 +152,7 @@ def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_pa
     )
 
     assert created
-    assert created[0].argv[:4] == [".venv/bin/python", "-u", "scripts/run_bulk_labeling.py", "--models"]
+    assert created[0].argv[:4] == ["/Users/sacsimoto/GitHub/RUSH/.venv/bin/python", "-u", "scripts/run_bulk_labeling.py", "--models"]
     assert "--reasoning-effort" in created[0].argv
     assert created[0].argv[created[0].argv.index("--reasoning-effort") + 1] == "high"
     assert state["reasoning_effort"] == "high"
@@ -230,3 +230,52 @@ def test_start_job_omits_reasoning_arg_when_variant_carries_effort(monkeypatch, 
     assert created
     assert "--reasoning-effort" not in created[0].argv
     assert state["reasoning_effort"] is None
+
+
+def test_start_job_threads_mnist_area_manifest_and_policy(monkeypatch, tmp_path: Path) -> None:
+    created: list["FakePopen"] = []
+
+    class EmptyStdout:
+        def __iter__(self):
+            return iter(())
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            self.argv = argv
+            self.pid = 34567
+            self.stdout = EmptyStdout()
+            created.append(self)
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(run_registry_mod.subprocess, "Popen", FakePopen)
+    registry = RunRegistry(tmp_path)
+    state = registry.start_job(
+        {
+            "models": ["local/qwen3.6-27b"],
+            "split": "all",
+            "limit": 2,
+            "sample_ids": None,
+            "policy_version": "v0.1",
+            "mode": "cold_start",
+            "reasoning_effort": None,
+            "allow_spend": True,
+            "allow_holdout": True,
+            "concurrency": 1,
+            "area": "MNIST_Digits",
+            "demo": "mnist",
+        }
+    )
+
+    argv = created[0].argv
+    assert argv[argv.index("--area") + 1] == "MNIST_Digits"
+    assert argv[argv.index("--policy-version") + 1] == "v0.1"
+    assert argv[argv.index("--manifest") + 1].endswith(
+        "data/images/mnist-classification/manifests/combined_labels.jsonl"
+    )
+    assert state["area"] == "MNIST_Digits"
+    assert state["policy_graph_version"] == "MNIST_Digits.v0.1"

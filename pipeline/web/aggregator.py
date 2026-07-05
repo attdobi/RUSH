@@ -57,10 +57,31 @@ def _scored_run_dirs(runs_root: Path) -> list[Path]:
         if not run_dir.is_dir() or run_dir.name.startswith("_"):
             continue
         if (run_dir / "run_manifest.json").exists() and (
-            run_dir / "scoring" / "decision_quality.json"
-        ).exists():
+            (run_dir / "scoring" / "decision_quality.json").exists()
+            or (run_dir / "scoring" / "decision_quality_multiclass.json").exists()
+        ):
             out.append(run_dir)
     return out
+
+
+def _read_decision_quality(run_dir: Path, runs_root: Path) -> dict[str, Any]:
+    canonical = run_dir / "scoring" / "decision_quality.json"
+    if canonical.exists():
+        return _read_json(canonical, runs_root)
+    return _read_json(run_dir / "scoring" / "decision_quality_multiclass.json", runs_root)
+
+
+def _web_labeler_row(row: dict[str, Any]) -> dict[str, Any]:
+    metrics = row.get("metrics", {})
+    if isinstance(metrics, dict) and "macro_f1" in metrics:
+        metrics = {
+            **metrics,
+            "precision": metrics.get("precision", metrics.get("macro_precision")),
+            "recall": metrics.get("recall", metrics.get("macro_recall")),
+            "f1": metrics.get("f1", metrics.get("macro_f1")),
+        }
+        return {**row, "metrics": metrics}
+    return row
 
 
 def _policy_version(manifest: dict[str, Any], dq: dict[str, Any]) -> str | None:
@@ -136,7 +157,7 @@ def aggregate_decision_quality(
 
     for run_dir in _scored_run_dirs(root):
         manifest = _read_json(run_dir / "run_manifest.json", root)
-        dq = _read_json(run_dir / "scoring" / "decision_quality.json", root)
+        dq = _read_decision_quality(run_dir, root)
         rid = str(manifest.get("run_id") or run_dir.name)
         version = _policy_version(manifest, dq)
         manifest_version = manifest.get("policy_graph_version")
@@ -151,7 +172,9 @@ def aggregate_decision_quality(
 
         consensus = _read_json_if_exists(run_dir / "scoring" / "consensus.json", root)
         borderline = _read_json_if_exists(run_dir / "scoring" / "borderline.json", root)
-        labelers, majority_vote = _split_labelers(list(dq.get("labelers", [])))
+        labelers, majority_vote = _split_labelers(
+            [_web_labeler_row(row) for row in list(dq.get("labelers", [])) if isinstance(row, dict)]
+        )
         runs.append(
             {
                 "run_id": rid,
