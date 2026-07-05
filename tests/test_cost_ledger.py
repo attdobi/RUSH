@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import pytest
+
 from pipeline.manifest import SampleRecord
 from pipeline.providers import pricing as P
 from pipeline.providers.base import LabelRequest, LabelResponse
@@ -132,7 +134,7 @@ def test_model_speed_summary_fields() -> None:
             input_tokens=100,
             output_tokens=10,
             latency_ms=1000,
-            recorded_at="t",
+            recorded_at="2026-07-04T00:00:01Z",
             cost_usd=0.25,
         ),
         build_cost_row(
@@ -143,22 +145,31 @@ def test_model_speed_summary_fields() -> None:
             input_tokens=100,
             output_tokens=30,
             latency_ms=3000,
-            recorded_at="t",
+            recorded_at="2026-07-04T00:00:03Z",
             cost_usd=0.75,
         ),
     ]
 
-    assert build_model_speed_summary(rows) == [
-        {
-            "model": "m",
-            "n_calls": 2,
-            "total_output_tokens": 40,
-            "total_cost": 1.0,
-            "avg_s_per_call": 2.0,
-            "tokens_per_sec": 10.0,
-            "images_per_min": 30.0,
-        }
-    ]
+    out = build_model_speed_summary(rows)
+
+    assert len(out) == 1
+    row = out[0]
+    assert row["model"] == "m"
+    assert row["model_id"] == "m"
+    assert row["n_calls"] == 2
+    assert row["calls_done"] == 2
+    assert row["total_input_tokens"] == 200
+    assert row["total_output_tokens"] == 40
+    assert row["total_cost"] == 1.0
+    assert row["total_cost_usd"] == 1.0
+    assert row["first_started_at"] == "2026-07-04T00:00:00Z"
+    assert row["last_finished_at"] == "2026-07-04T00:00:03Z"
+    assert row["active_elapsed_s"] == 3.0
+    assert row["avg_s_per_call"] == 2.0
+    assert row["avg_latency_ms"] == 2000.0
+    assert row["tokens_per_sec"] == pytest.approx(40.0 / 3.0)
+    assert row["images_per_min"] == 40.0
+    assert row["throughput_imgs_per_min"] == 40.0
 
 
 # --- runner integration --------------------------------------------------------
@@ -202,13 +213,27 @@ def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
         assert speed["models"][0]["model"] == "openai/gpt-5.5"
         assert set(speed["models"][0]) == {
             "model",
+            "model_id",
             "avg_s_per_call",
+            "avg_latency_ms",
             "tokens_per_sec",
             "images_per_min",
+            "throughput_imgs_per_min",
+            "first_started_at",
+            "last_finished_at",
+            "active_elapsed_s",
+            "total_input_tokens",
             "total_output_tokens",
+            "total_cost_usd",
             "total_cost",
             "n_calls",
+            "calls_done",
         }
+        assert "per_model_timing" in speed
+        assert speed["per_model_timing"]["per_model"] == speed["models"]
+        assert speed["per_model_timing"]["total"]["total_input_tokens"] == 6000
+        assert manifest["per_model_timing"]["per_model"] == speed["models"]
+        assert manifest["per_model_timing"]["total"]["total_output_tokens"] == 1200
 
 
 # --- aggregate script ----------------------------------------------------------

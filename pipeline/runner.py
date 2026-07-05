@@ -42,6 +42,7 @@ from .providers.ontology import get_ontology
 from .scoring.cost_ledger import (
     build_cost_row,
     build_model_speed_summary,
+    build_per_model_timing_block,
     rollup_cost_rows,
 )
 from .io_paths import (
@@ -857,6 +858,7 @@ def run_labeling(
     # Per-LLM breakdown + pricing_version stamp from the durable ledger rows.
     ledger = rollup_cost_rows(cost_rows)
     model_speed_summary = build_model_speed_summary(cost_rows)
+    per_model_timing = build_per_model_timing_block(cost_rows)
     cost_block = {
         "total_cost_usd": total_cost,
         "cost_per_image_usd": (total_cost / total_images) if total_images else None,
@@ -876,6 +878,7 @@ def run_labeling(
             "run_id": rid,
             "generated_at": summary.finished_at,
             "models": model_speed_summary,
+            "per_model_timing": per_model_timing,
         },
     )
     final_manifest = dict(manifest)
@@ -887,6 +890,7 @@ def run_labeling(
         "errored_calls": summary.errored_calls,
     }
     final_manifest["cost"] = cost_block
+    final_manifest["per_model_timing"] = per_model_timing
     persistence.write_run_manifest(paths, final_manifest)
     return summary
 

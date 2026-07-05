@@ -115,23 +115,13 @@ def _read_model_speed_summary(run_dir: Path) -> dict[str, Any] | None:
     return payload if payload else None
 
 
-def _live_model_speed_summary(run_dir: Path | None) -> list[dict[str, Any]] | None:
-    """Compute a LIVE per-model speed/cost summary by streaming the run's
-    ``llm_outputs.jsonl`` (one envelope per completed call).
-
-    Each envelope carries ``model_id`` plus an ``output`` block with the
-    persisted ``latency_ms`` / ``output_tokens`` / ``cost_usd``. We map those
-    into the shared ``build_model_speed_summary`` row shape so live and
-    finalize-time summaries share one aggregation path (no duplicate math).
-
-    Streamed line-by-line (no full-file parse blowup); tolerant of partial or
-    malformed trailing lines while a run is still writing.
-    """
+def _live_model_speed_rows(run_dir: Path | None) -> list[dict[str, Any]]:
+    """Stream completed call rows from ``llm_outputs.jsonl`` for live rollups."""
     if run_dir is None:
-        return None
+        return []
     path = run_dir / "llm_outputs.jsonl"
     if not path.exists():
-        return None
+        return []
     rows: list[dict[str, Any]] = []
     try:
         with path.open("r", encoding="utf-8") as fh:
@@ -151,16 +141,43 @@ def _live_model_speed_summary(run_dir: Path | None) -> list[dict[str, Any]] | No
                 rows.append(
                     {
                         "model_id": env.get("model_id"),
+                        "input_tokens": output.get("input_tokens"),
                         "output_tokens": output.get("output_tokens"),
                         "latency_ms": output.get("latency_ms"),
                         "cost_usd": output.get("cost_usd"),
+                        "recorded_at": env.get("recorded_at"),
                     }
                 )
     except OSError:
-        return None
+        return []
+    return rows
+
+
+def _live_model_speed_summary(run_dir: Path | None) -> list[dict[str, Any]] | None:
+    """Compute a LIVE per-model speed/cost summary from ``llm_outputs.jsonl``.
+
+    Each envelope carries ``model_id``, ``recorded_at``, and an ``output`` block
+    with latency/tokens/cost. We map those into the shared
+    ``build_model_speed_summary`` row shape so live and finalize-time summaries
+    share one aggregation path. Malformed trailing lines are ignored while a run
+    is still writing.
+    """
+    rows = _live_model_speed_rows(run_dir)
     if not rows:
         return None
     return build_model_speed_summary(rows)
+
+
+def _summary_rows(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    models = payload.get("models")
+    if isinstance(models, list):
+        return [row for row in models if isinstance(row, dict)]
+    timing = payload.get("per_model_timing")
+    if isinstance(timing, dict) and isinstance(timing.get("per_model"), list):
+        return [row for row in timing["per_model"] if isinstance(row, dict)]
+    return []
 
 
 def _parse_iso(ts: str | None) -> datetime | None:
@@ -192,10 +209,16 @@ def _per_model_rollup(
     model_ids: list[str],
     elapsed_seconds: float,
     expected_calls: int,
+    model_summary_rows: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Per-model speed telemetry from label_votes.jsonl (carries model_id +
-    latency_ms). calls_total is derived from the manifest's expected_calls split
-    evenly across the configured models (uniform image set per model)."""
+    """Per-model live telemetry for the status endpoint.
+
+    ``calls_total`` is derived from the manifest's expected_calls split evenly
+    across configured models. Speed/tokens/cost come from model summary rows
+    built from completed call timestamps, so a finished model's throughput no
+    longer decays with run-level elapsed wall clock.
+    """
+    _ = elapsed_seconds  # Kept for compatibility; per-model speed must not use it.
     done: dict[str, int] = {}
     latency_sum: dict[str, int] = {}
     latency_n: dict[str, int] = {}
@@ -221,26 +244,58 @@ def _per_model_rollup(
                 if isinstance(lat, (int, float)) and not isinstance(lat, bool) and lat >= 0:
                     latency_sum[mid] = latency_sum.get(mid, 0) + int(lat)
                     latency_n[mid] = latency_n.get(mid, 0) + 1
+    summaries: dict[str, dict[str, Any]] = {}
+    for row in model_summary_rows or []:
+        mid = row.get("model_id") or row.get("model")
+        if isinstance(mid, str):
+            summaries[mid] = row
     n_models = len(model_ids)
     per_model_total = (expected_calls // n_models) if (n_models and expected_calls) else 0
     rollup: list[dict[str, Any]] = []
-    all_ids = list(dict.fromkeys([*model_ids, *[m for m in done if m not in model_ids]]))
+    all_ids = list(
+        dict.fromkeys(
+            [
+                *model_ids,
+                *[m for m in done if m not in model_ids],
+                *[m for m in summaries if m not in model_ids and m not in done],
+            ]
+        )
+    )
     for mid in all_ids:
-        calls_done = done.get(mid, 0)
+        summary = summaries.get(mid, {})
+        calls_done = int(summary.get("calls_done") or summary.get("n_calls") or done.get(mid, 0))
         calls_total = per_model_total if mid in model_ids else calls_done
         n = latency_n.get(mid, 0)
-        avg_latency_ms = (latency_sum.get(mid, 0) / n) if n else None
-        throughput = (calls_done / (elapsed_seconds / 60.0)) if elapsed_seconds > 0 else None
-        rollup.append(
-            {
-                "model_id": mid,
-                "calls_done": calls_done,
-                "calls_total": calls_total,
-                "avg_latency_ms": avg_latency_ms,
-                "throughput_imgs_per_min": throughput,
-                "done": bool(calls_total) and calls_done >= calls_total,
-            }
-        )
+        avg_latency_ms = summary.get("avg_latency_ms")
+        if avg_latency_ms is None and summary.get("avg_s_per_call") is not None:
+            avg_latency_ms = float(summary["avg_s_per_call"]) * 1000.0
+        if avg_latency_ms is None:
+            avg_latency_ms = (latency_sum.get(mid, 0) / n) if n else None
+        throughput = summary.get("images_per_min") or summary.get("throughput_imgs_per_min")
+        if throughput is None and latency_sum.get(mid, 0) > 0:
+            active_elapsed_s = latency_sum[mid] / 1000.0
+            throughput = calls_done / (active_elapsed_s / 60.0) if active_elapsed_s > 0 else None
+        row = {
+            "model_id": mid,
+            "model": summary.get("model") or mid,
+            "calls_done": calls_done,
+            "n_calls": calls_done,
+            "calls_total": calls_total,
+            "first_started_at": summary.get("first_started_at"),
+            "last_finished_at": summary.get("last_finished_at"),
+            "active_elapsed_s": summary.get("active_elapsed_s"),
+            "avg_s_per_call": summary.get("avg_s_per_call"),
+            "avg_latency_ms": avg_latency_ms,
+            "images_per_min": throughput,
+            "throughput_imgs_per_min": throughput,
+            "tokens_per_sec": summary.get("tokens_per_sec"),
+            "total_input_tokens": int(summary.get("total_input_tokens") or 0),
+            "total_output_tokens": int(summary.get("total_output_tokens") or 0),
+            "total_cost_usd": float(summary.get("total_cost_usd") or summary.get("total_cost") or 0.0),
+            "total_cost": float(summary.get("total_cost") or summary.get("total_cost_usd") or 0.0),
+            "done": bool(calls_total) and calls_done >= calls_total,
+        }
+        rollup.append(row)
     # Slowest-first: models still with work / lowest throughput bubble up; done last.
     rollup.sort(
         key=lambda r: (
@@ -797,7 +852,6 @@ class RunRegistry:
         progress = (completed / expected) if expected else 0.0
         elapsed_seconds = _elapsed_seconds(started_at, finished_at if not running else None)
         model_ids = _manifest_models(manifest) or list((state or {}).get("models") or [])
-        per_model = _per_model_rollup(votes_path, model_ids, elapsed_seconds, expected)
         # Prefer the durable finalize-time summary; while the run is still in
         # progress (no finalized artifact yet), compute a LIVE summary from the
         # partial llm_outputs.jsonl so tokens/sec + images/min populate live.
@@ -811,6 +865,13 @@ class RunRegistry:
                     "live": True,
                     "models": live_models,
                 }
+        per_model = _per_model_rollup(
+            votes_path,
+            model_ids,
+            elapsed_seconds,
+            expected,
+            _summary_rows(speed_summary),
+        )
         manifest_cost = manifest.get("cost") if isinstance(manifest.get("cost"), dict) else None
         recorded_cost = (
             manifest_cost.get("total_cost_usd") if manifest_cost else None

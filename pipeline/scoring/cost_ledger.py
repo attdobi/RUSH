@@ -19,6 +19,7 @@ should be treated as legacy.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pipeline.providers.pricing import (
@@ -158,15 +159,40 @@ def rollup_cost_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _parse_iso(ts: object) -> datetime | None:
+    if not isinstance(ts, str) or not ts.strip():
+        return None
+    text = ts.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _iso_z(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Aggregate per-call speed/cost rows by model.
+    """Aggregate per-call speed/cost/timing rows by model.
 
-    Field names are intentionally frontend-friendly and stable:
-    ``model``, ``avg_s_per_call``, ``tokens_per_sec``, ``images_per_min``,
-    ``total_output_tokens``, ``total_cost``, and ``n_calls``.
+    Each row is one completed model call. When ``recorded_at`` and
+    ``latency_ms`` are available, throughput is computed from the model's own
+    active window: earliest ``recorded_at - latency_ms`` through latest
+    ``recorded_at``. That window stops advancing when a model finishes, so
+    per-model ``images_per_min`` naturally freezes while other models continue.
 
-    Works on partial/in-progress rows too (each row is one completed call), so
-    the same helper backs both finalize-time and LIVE (mid-run) summaries.
+    The output keeps the legacy render aliases (``model``, ``n_calls``,
+    ``total_cost``) while adding the status-table contract fields used by the
+    frontend (``model_id``, ``calls_done``, token totals, cost totals, timing
+    window, and rates).
     """
     buckets: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -175,14 +201,25 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             model,
             {
                 "model": model,
+                "model_id": model,
                 "n_calls": 0,
+                "calls_done": 0,
+                "total_input_tokens": 0,
                 "total_output_tokens": 0,
+                "total_cost_usd": 0.0,
                 "total_cost": 0.0,
                 "_latency_ms": 0.0,
                 "_latency_n": 0,
+                "_first_started_at": None,
+                "_last_finished_at": None,
             },
         )
         bucket["n_calls"] += 1
+        bucket["calls_done"] += 1
+        try:
+            bucket["total_input_tokens"] += int(row.get("input_tokens") or 0)
+        except (TypeError, ValueError):
+            pass
         try:
             bucket["total_output_tokens"] += int(row.get("output_tokens") or 0)
         except (TypeError, ValueError):
@@ -190,10 +227,14 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
         cost = row.get("cost_usd")
         if cost is not None:
             try:
-                bucket["total_cost"] += float(cost)
+                cost_f = float(cost)
             except (TypeError, ValueError):
                 pass
+            else:
+                bucket["total_cost"] += cost_f
+                bucket["total_cost_usd"] += cost_f
         latency = row.get("latency_ms")
+        latency_f: float | None = None
         if latency is not None:
             try:
                 latency_f = float(latency)
@@ -202,24 +243,97 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             if latency_f > 0:
                 bucket["_latency_ms"] += latency_f
                 bucket["_latency_n"] += 1
+        finished_at = _parse_iso(row.get("recorded_at"))
+        if finished_at is not None:
+            latency_for_start = latency_f if latency_f is not None and latency_f >= 0 else 0.0
+            started_at = finished_at - timedelta(milliseconds=latency_for_start)
+            first_started = bucket["_first_started_at"]
+            last_finished = bucket["_last_finished_at"]
+            if first_started is None or started_at < first_started:
+                bucket["_first_started_at"] = started_at
+            if last_finished is None or finished_at > last_finished:
+                bucket["_last_finished_at"] = finished_at
 
     out: list[dict[str, Any]] = []
     for model in sorted(buckets):
         bucket = buckets[model]
         latency_n = int(bucket.pop("_latency_n"))
         latency_ms = float(bucket.pop("_latency_ms"))
+        first_started_at = bucket.pop("_first_started_at")
+        last_finished_at = bucket.pop("_last_finished_at")
         avg_s = (latency_ms / latency_n / 1000.0) if latency_n else None
+        active_elapsed_s = None
+        if first_started_at is not None and last_finished_at is not None:
+            active_elapsed_s = max(0.0, (last_finished_at - first_started_at).total_seconds())
+        elif latency_ms > 0:
+            active_elapsed_s = latency_ms / 1000.0
         tokens_per_sec = (
-            (float(bucket["total_output_tokens"]) / (latency_ms / 1000.0))
-            if latency_ms > 0
+            (float(bucket["total_output_tokens"]) / active_elapsed_s)
+            if active_elapsed_s and active_elapsed_s > 0
             else None
         )
-        images_per_min = (60.0 / avg_s) if (avg_s and avg_s > 0) else None
+        images_per_min = (
+            (float(bucket["calls_done"]) / (active_elapsed_s / 60.0))
+            if active_elapsed_s and active_elapsed_s > 0
+            else None
+        )
+        bucket["first_started_at"] = _iso_z(first_started_at)
+        bucket["last_finished_at"] = _iso_z(last_finished_at)
+        bucket["active_elapsed_s"] = active_elapsed_s
         bucket["avg_s_per_call"] = avg_s
+        bucket["avg_latency_ms"] = (avg_s * 1000.0) if avg_s is not None else None
         bucket["tokens_per_sec"] = tokens_per_sec
         bucket["images_per_min"] = images_per_min
+        bucket["throughput_imgs_per_min"] = images_per_min
         out.append(bucket)
     return out
 
 
-__all__ = ["build_cost_row", "rollup_cost_rows", "build_model_speed_summary"]
+def build_per_model_timing_block(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the persisted per-model timing block plus run-level totals."""
+    per_model = build_model_speed_summary(rows)
+    firsts = [_parse_iso(row.get("first_started_at")) for row in per_model]
+    lasts = [_parse_iso(row.get("last_finished_at")) for row in per_model]
+    firsts = [dt for dt in firsts if dt is not None]
+    lasts = [dt for dt in lasts if dt is not None]
+    total_calls = sum(int(row.get("calls_done") or row.get("n_calls") or 0) for row in per_model)
+    total_input = sum(int(row.get("total_input_tokens") or 0) for row in per_model)
+    total_output = sum(int(row.get("total_output_tokens") or 0) for row in per_model)
+    total_cost = sum(float(row.get("total_cost_usd") or 0.0) for row in per_model)
+    first_started = min(firsts) if firsts else None
+    last_finished = max(lasts) if lasts else None
+    active_elapsed_s = (
+        max(0.0, (last_finished - first_started).total_seconds())
+        if first_started is not None and last_finished is not None
+        else None
+    )
+    total = {
+        "calls_done": total_calls,
+        "n_calls": total_calls,
+        "total_input_tokens": total_input,
+        "total_output_tokens": total_output,
+        "total_cost_usd": total_cost,
+        "total_cost": total_cost,
+        "first_started_at": _iso_z(first_started),
+        "last_finished_at": _iso_z(last_finished),
+        "active_elapsed_s": active_elapsed_s,
+        "images_per_min": (
+            (float(total_calls) / (active_elapsed_s / 60.0))
+            if active_elapsed_s and active_elapsed_s > 0
+            else None
+        ),
+        "tokens_per_sec": (
+            (float(total_output) / active_elapsed_s)
+            if active_elapsed_s and active_elapsed_s > 0
+            else None
+        ),
+    }
+    return {"per_model": per_model, "total": total}
+
+
+__all__ = [
+    "build_cost_row",
+    "rollup_cost_rows",
+    "build_model_speed_summary",
+    "build_per_model_timing_block",
+]
