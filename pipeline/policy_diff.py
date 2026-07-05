@@ -25,6 +25,7 @@ from pipeline.policy_iterator import (
 )
 
 DOMAIN = "Generative_AI"
+_ALLOWED_DOMAINS = {"Generative_AI", "MNIST_Digits"}
 DEFAULT_POLICY_MODEL = "openai/gpt-5.5"
 ANTHROPIC_POLICY_MODEL = "anthropic/claude-opus-4-7"
 ALLOWED_POLICY_MODELS = {DEFAULT_POLICY_MODEL, ANTHROPIC_POLICY_MODEL}
@@ -389,6 +390,7 @@ def propose_diff(
     repo_root: Path | str,
     run_id: str,
     base_version: str = "v0.1",
+    domain: str = DOMAIN,
     model_id: str | None = None,
     proposed_files: dict[str, str] | None = None,
     files_removed: Iterable[str] | None = None,
@@ -406,7 +408,7 @@ def propose_diff(
     """
     root = _repo_root(repo_root)
     base_version = _validate_version(base_version)
-    base_dir = _version_dir(root, base_version)
+    base_dir = _version_dir(root, base_version, domain)
     effective_model = model_id or DEFAULT_POLICY_MODEL
     if effective_model not in ALLOWED_POLICY_MODELS:
         raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
@@ -540,6 +542,7 @@ def propose_diff(
         "proposal_id": proposal_id,
         "kind": "propose_diff",
         "base_version": base_version,
+        "domain": domain,
         "model_id": effective_model,
         "run_id": run_id,
         "created_at": created_at,
@@ -599,7 +602,7 @@ def seed_cold_start_proposal(
     """
     if not isinstance(task_description, str) or not task_description.strip():
         raise ValueError("task_description must be a non-empty string")
-    if domain != DOMAIN:
+    if domain not in _ALLOWED_DOMAINS:
         raise ValueError(f"unsupported domain: {domain!r}")
 
     root = _repo_root(repo_root)
@@ -803,6 +806,7 @@ def propose_growth_batch(
     repo_root: Path | str,
     run_id: str,
     base_version: str = "v0.1",
+    domain: str = DOMAIN,
     batch_index: int = 0,
     batch_size: int = DEFAULT_GROW_BATCH_SIZE,
     model_id: str | None = None,
@@ -823,7 +827,7 @@ def propose_growth_batch(
     base_version = _validate_version(base_version)
 
     root = _repo_root(repo_root)
-    base_dir = _version_dir(root, base_version)
+    base_dir = _version_dir(root, base_version, domain)
     effective_model = model_id or DEFAULT_POLICY_MODEL
     if effective_model not in ALLOWED_POLICY_MODELS:
         raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
@@ -1001,6 +1005,7 @@ def propose_growth_batch(
         "proposal_id": proposal_id,
         "kind": "grow_batch",
         "base_version": base_version,
+        "domain": domain,
         "batch_index": batch_index,
         "batch": batch_meta,
         "run_id": run_id,
@@ -1186,8 +1191,9 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
         raise ValueError(f"proposal is not pending: {meta.get('status')}")
 
     base_version = meta.get("base_version")
-    new_version = _next_version(root)
-    new_dir = _policy_domain_dir(root) / new_version
+    domain = meta.get("domain") or DOMAIN
+    new_version = _next_version(root, domain)
+    new_dir = _policy_domain_dir(root, domain) / new_version
     if new_dir.exists():
         raise FileExistsError(f"policy version already exists: {new_version}")
 
@@ -1204,7 +1210,7 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
             shutil.rmtree(new_dir, ignore_errors=True)
             raise
     else:
-        base_dir = _version_dir(root, base_version)
+        base_dir = _version_dir(root, base_version, domain)
         shutil.copytree(base_dir, new_dir)
         try:
             for filename in meta.get("files_changed", []) + meta.get("files_added", []):

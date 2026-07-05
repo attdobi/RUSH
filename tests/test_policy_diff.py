@@ -93,3 +93,58 @@ def test_propose_accept_and_reject_lifecycle(tmp_path: Path) -> None:
     assert archived.is_dir()
     archived_meta = json.loads((archived / "proposal.json").read_text(encoding="utf-8"))
     assert archived_meta["status"] == "rejected"
+
+
+def _seed_mnist_graph(tmp_path: Path) -> Path:
+    """Seed an MNIST_Digits domain with only v0.1 (mirrors on-disk state)."""
+    root = tmp_path
+    base = root / "policy-graph" / "MNIST_Digits" / "v0.1"
+    base.mkdir(parents=True)
+    (base / "MNIST.root.md").write_text("# MNIST root\n\nDigit policy.\n", encoding="utf-8")
+    (base / "MNIST.confused.3_8.md").write_text(
+        "# 3 vs 8\n\nExisting boundary.\n", encoding="utf-8"
+    )
+    (root / "data").mkdir()
+    return root
+
+
+def test_propose_accept_area_aware_mnist_next_version(tmp_path: Path) -> None:
+    """Accepting an MNIST proposal must materialize MNIST_Digits/v0.2, not GenAI."""
+    root = _seed_mnist_graph(tmp_path)
+
+    proposal = propose_diff(
+        repo_root=root,
+        run_id="mnist-run-1",
+        base_version="v0.1",
+        domain="MNIST_Digits",
+        proposed_files={
+            "MNIST.root.md": "# MNIST root\n\nUpdated digit policy.\n",
+            "MNIST.confused.5_6.md": "# 5 vs 6\n\nNew boundary node.\n",
+        },
+    )
+    assert proposal["status"] == "pending"
+    assert proposal["domain"] == "MNIST_Digits"
+    assert proposal["files_changed"] == ["MNIST.root.md"]
+    assert proposal["files_added"] == ["MNIST.confused.5_6.md"]
+
+    # propose must not touch GenAI or create MNIST v0.2 yet
+    assert not (root / "policy-graph" / "Generative_AI").exists()
+    assert not (root / "policy-graph" / "MNIST_Digits" / "v0.2").exists()
+
+    accepted = accept_proposal(repo_root=root, proposal_id=proposal["proposal_id"])
+    assert accepted == {
+        "new_version": "v0.2",
+        "path": "policy-graph/MNIST_Digits/v0.2",
+    }
+    v02 = root / "policy-graph" / "MNIST_Digits" / "v0.2"
+    assert v02.is_dir()
+    # base file copied + changed content applied
+    assert (v02 / "MNIST.root.md").read_text(encoding="utf-8") == (
+        "# MNIST root\n\nUpdated digit policy.\n"
+    )
+    # added file present
+    assert (v02 / "MNIST.confused.5_6.md").is_file()
+    # untouched base node carried forward
+    assert (v02 / "MNIST.confused.3_8.md").is_file()
+    # GenAI domain never created as a side effect
+    assert not (root / "policy-graph" / "Generative_AI").exists()

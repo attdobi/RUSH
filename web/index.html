@@ -104,13 +104,14 @@
       <div class="section-head compact">
         <p class="eyebrow">§2 Grow the generator prompt</p>
         <h2>Make generator-prompt growth the demo loop.</h2>
-        <p id="growSub">Seed Generator Prompt V0 → label → propose → accept → label again. The policy graph is the generator prompt, versioned as v_n, and every accepted SME update strengthens the next run.</p>
+        <p id="growSub">The reinforcement loop: label with v_k → mine misalignments + boundary cases → propose the policy diff → SME accepts → materialize v_<sub>k+1</sub> → relabel. The policy graph is the generator prompt, versioned as v_n, and every accepted SME update strengthens the next run.</p>
       </div>
-      <div class="growth-loop-strip" aria-label="Policy growth loop steps">
-        <article><span>1</span><strong>Seed Generator Prompt V0</strong><p>Author the first version as a policy graph.</p></article>
-        <article><span>2</span><strong>Run a labeling pass</strong><p id="growLoopStep2Body">Jump to §3 and label a small batch with the selected generator prompt version.</p></article>
-        <article><span>3</span><strong>Propose prompt updates</strong><p>Use disagreements from the run to draft an SME-reviewable graph diff.</p></article>
-        <article><span>4</span><strong>Accept / reject</strong><p>Approved diffs become the next generator prompt version.</p></article>
+      <div class="growth-loop-strip rl-iteration-strip" aria-label="Policy iteration (RL) loop steps">
+        <article><span>1</span><strong>Seed / select v_k</strong><p>Author Generator Prompt V0 or pick the current policy version as the base.</p></article>
+        <article><span>2</span><strong>Label with v_k</strong><p id="growLoopStep2Body">Jump to §3 and label a batch with the selected generator prompt version.</p></article>
+        <article><span>3</span><strong>Mine misalignments + boundaries</strong><p>The selected scored run's SME/model misalignments and boundary cases drive the update.</p></article>
+        <article><span>4</span><strong>Propose the policy diff</strong><p>Draft an SME-reviewable graph diff from those disagreements.</p></article>
+        <article><span>5</span><strong>Accept → v_<sub>k+1</sub></strong><p>SME accept materializes the next KG version; then <a href="#label">relabel with v_<sub>k+1</sub></a> to close the loop.</p></article>
       </div>
       <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
       <div class="policy-graph-block policy-graph-spotlight">
@@ -126,7 +127,7 @@
             <div class="policy-graph-version-stepper" aria-label="Generator prompt version stepper">
               <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
               <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
-              <span id="policyGraphNextNote">defined-not-executed</span>
+              <span id="policyGraphNextNote">accept a proposal to materialize the next version</span>
             </div>
             <span id="policyGraphStatus" class="status-line" role="status"></span>
           </div>

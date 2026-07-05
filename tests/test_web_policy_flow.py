@@ -295,3 +295,54 @@ def test_policy_routes_forward_area_query(tmp_path: Path, monkeypatch) -> None:
         _stop(server, thread)
 
     assert calls == [("versions", "MNIST_Digits"), ("graph", "MNIST_Digits")]
+
+
+def test_web_propose_accept_new_version_mnist_area_aware(tmp_path: Path) -> None:
+    """Full web path: propose from an MNIST run -> accept -> MNIST_Digits/v0.2."""
+    base = tmp_path / "policy-graph" / "MNIST_Digits" / "v0.1"
+    base.mkdir(parents=True)
+    (base / "MNIST.root.md").write_text("# MNIST root\n\nDigit policy.\n", encoding="utf-8")
+    # Run manifest carries the area prefix so the server derives MNIST_Digits.
+    run_dir = tmp_path / "data" / "runs" / "mnist-web-1"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run_manifest.json").write_text(
+        json.dumps({"run_id": "mnist-web-1", "policy_graph_version": "MNIST_Digits.v0.1"}),
+        encoding="utf-8",
+    )
+
+    server, thread = _serve(tmp_path)
+    try:
+        status, body = _request_json(
+            server,
+            "POST",
+            "/api/policy/propose-diff",
+            {
+                "run_id": "mnist-web-1",
+                "base_version": "v0.1",
+                "proposed_files": {"MNIST.root.md": "# MNIST root\n\nStronger digit policy.\n"},
+            },
+        )
+        assert status == 200, body
+        assert body["domain"] == "MNIST_Digits"
+        proposal_id = body["proposal_id"]
+
+        status, body = _request_json(
+            server, "POST", f"/api/policy/proposals/{proposal_id}/accept", {}
+        )
+        assert status == 200, body
+        assert body["new_version"] == "v0.2"
+        assert body["path"] == "policy-graph/MNIST_Digits/v0.2"
+
+        status, body = _request_json(
+            server, "GET", "/api/policy/versions?area=MNIST_Digits"
+        )
+        assert status == 200, body
+        versions = [v.get("version", v) if isinstance(v, dict) else v for v in body["versions"]]
+        assert "v0.2" in versions
+        assert body["current"] == "v0.2"
+    finally:
+        _stop(server, thread)
+
+    assert (tmp_path / "policy-graph" / "MNIST_Digits" / "v0.2" / "MNIST.root.md").is_file()
+    # GenAI domain must never be created as a side effect.
+    assert not (tmp_path / "policy-graph" / "Generative_AI").exists()
