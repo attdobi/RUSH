@@ -1,6 +1,9 @@
 (() => {
   const POLL_MS = 2000;
-  const MAX_POLL_MS = 30 * 60 * 1000;
+  // Safety cap only — the poll loop already stops when the run reports
+  // running:false, so this just guards a truly stuck tab. Long local runs
+  // (slow single-GPU models) routinely exceed 30 min, so keep it generous.
+  const MAX_POLL_MS = 12 * 60 * 60 * 1000;
 
   // Flat model list. The panel groups these by PROVIDER (see populateModels),
   // ordering each family cheapest-first. Each row still shows its computed
@@ -321,7 +324,7 @@
     stopPolling();
     if (!state.runId || state.finished) return;
     if (Date.now() - state.pollStartedAt > MAX_POLL_MS) {
-      status('Stopped polling after 30 minutes. Refresh status manually by starting from the returned run id.', true);
+      status('Stopped polling after 12 hours. Refresh the page to resume watching the run.', true);
       return;
     }
     state.pollTimer = window.setTimeout(() => pollStatus(), POLL_MS);
@@ -519,6 +522,26 @@
     await rushApiLoadCatalog();
     populatePolicies();
     status('Local API connected. Set k per split (split=all runs up to k train + k test).');
+    resumeActiveRun();
+  }
+
+  // On (re)load, re-attach to an already-running run so a browser refresh does
+  // not abandon the live view (the job keeps running server-side regardless).
+  async function resumeActiveRun() {
+    if (state.runId) return;
+    try {
+      const data = await rushApiGetJson('/api/runs');
+      const runs = (data && data.runs) || [];
+      const active = runs.find(r => r && r.running === true && r.run_id);
+      if (!active) return;
+      state.runId = active.run_id;
+      state.pollStartedAt = Date.now();
+      state.finished = false;
+      status(`Resumed watching in-flight run ${state.runId}\u2026`);
+      await pollStatus();
+    } catch (error) {
+      /* non-fatal: no active run or API hiccup */
+    }
   }
 
   rushApiOnReady(initRunTrigger);
