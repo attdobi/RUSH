@@ -644,6 +644,7 @@ async function loadRun(runId) {
     runState.borderline = null;
     runState.misalignment = null;
     renderRun();
+    window.dispatchEvent(new CustomEvent('rush-score-run-selected', { detail: { runId: '' } }));
     return;
   }
   const status = $('#runStatus');
@@ -679,6 +680,7 @@ async function loadRun(runId) {
     policyLink.dataset.runId = runId;
   }
   renderRun();
+  window.dispatchEvent(new CustomEvent('rush-score-run-selected', { detail: { runId } }));
 }
 
 function renderRunPicker() {
@@ -1537,8 +1539,6 @@ function applyDemoChrome() {
   setNodeHtml('borderlineSub', copy.borderlineSub);
   setNodeText('qualityH2', copy.qualityH2);
   setNodeText('qualitySub', copy.qualitySub);
-  setNodeText('insightsH2', copy.insightsH2);
-  setNodeText('insightsSub', copy.insightsSub);
   if (copy.policyGraphTitle) setNodeText('policyGraphTitle', copy.policyGraphTitle);
   if (copy.policyGraphBlurb) setNodeHtml('policyGraphBlurb', copy.policyGraphBlurb);
   // X1 polish/switcher: support the prominent segmented demo control.
