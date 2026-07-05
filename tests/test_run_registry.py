@@ -125,6 +125,51 @@ def test_status_includes_per_model_speed_rollup(tmp_path: Path) -> None:
     assert status["per_model"][0]["model_id"] == "local/qwen3.6-27b"
 
 
+def test_status_surfaces_model_speed_summary_for_render(tmp_path: Path) -> None:
+    # FIX 2 render-input contract: X3's per-model speed table reads
+    # status.model_speed_summary (avg_s_per_call / tokens_per_sec / totals).
+    # Guard that a persisted summary is surfaced non-null on status.
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T234500-eeeeeeee"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:45:00Z",
+            "finished_at": "2026-05-10T23:45:10Z",
+            "split": "dev_golden",
+            "policy_graph_version": "MNIST_Digits.v1",
+            "models": [{"model_id": "local/gemma-4-26b-a4b-qat"}],
+            "totals": {"expected_calls": 1, "completed_calls": 1, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        run_dir / "model_speed_summary.json",
+        {
+            "run_id": run_id,
+            "generated_at": "2026-05-10T23:45:10Z",
+            "models": [
+                {
+                    "model": "local/gemma-4-26b-a4b-qat",
+                    "n_calls": 1,
+                    "avg_s_per_call": 1.9,
+                    "tokens_per_sec": 80.0,
+                    "total_output_tokens": 152,
+                    "total_cost": 0.0,
+                }
+            ],
+        },
+    )
+
+    status = RunRegistry(tmp_path).status(run_id)
+
+    summary = status["model_speed_summary"]
+    assert summary is not None
+    assert summary["models"][0]["avg_s_per_call"] == 1.9
+    assert summary["models"][0]["tokens_per_sec"] == 80.0
+
+
 def test_dead_job_state_is_not_running_and_aborts_manifest(monkeypatch, tmp_path: Path) -> None:
     runs_root = tmp_path / "data" / "runs"
     run_id = "20260510T233000-deadbeef"
