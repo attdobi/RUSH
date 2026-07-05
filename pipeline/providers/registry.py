@@ -302,10 +302,35 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         provider_model_name="qwen/qwen3.6-27b",
         phase=2,
         params={
+            # LM Studio 0.3.x accepts top-level reasoning_effort="none" on
+            # /v1/chat/completions for qwen3 and reports 0 reasoning_tokens.
+            # chat_template_kwargs.enable_thinking=false was accepted by the
+            # endpoint but still emitted reasoning tokens in the local probe.
+            "reasoning_effort": "none",
             # Local reasoning model: hidden reasoning eats completion tokens
             # before the visible JSON. qwen needs more headroom than gemma so
             # the JSON is not truncated (finish_reason=length -> parse_failed).
+            "max_completion_tokens": 4000,
+        },
+    ),
+    "local/qwen3.6-27b-low": ModelSpec(
+        model_id="local/qwen3.6-27b-low",
+        provider="local",
+        provider_model_name="qwen/qwen3.6-27b",
+        phase=2,
+        params={
+            "reasoning_effort": "low",
             "max_completion_tokens": 6000,
+        },
+    ),
+    "local/qwen3.6-35b-a3b": ModelSpec(
+        model_id="local/qwen3.6-35b-a3b",
+        provider="local",
+        provider_model_name="qwen/qwen3.6-35b-a3b",
+        phase=2,
+        params={
+            "reasoning_effort": "none",
+            "max_completion_tokens": 4000,
         },
     ),
     "local/gemma-4-26b-a4b-qat": ModelSpec(
@@ -422,6 +447,8 @@ def build_client(
         )
 
         configured_reasoning_effort = params.pop("reasoning_effort", None)
+        if reasoning_effort is not None and spec.provider_model_name.startswith("qwen/"):
+            configured_reasoning_effort = reasoning_effort
         max_completion_tokens = params.pop("max_completion_tokens", 4000)
         config = OpenAIClientConfig(
             model_name=spec.provider_model_name,

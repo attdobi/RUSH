@@ -22,6 +22,15 @@
     },
     "started_at": {"type": "string", "format": "date-time"},
     "finished_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {
+      "type": "string",
+      "enum": ["running", "completed", "aborted", "failed"],
+      "description": "Optional run lifecycle status. Legacy manifests may omit this."
+    },
+    "abort_reason": {
+      "type": "string",
+      "description": "Human-readable reason set when status=aborted."
+    },
     "sample_manifest_path": {
       "type": "string",
       "description": "Repo-relative path to the source manifest, e.g. data/images/genai-classification/manifests/combined_labels.jsonl"
@@ -38,7 +47,7 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "reasoning_effort": {"type": "string", "enum": ["low", "medium", "high", "xhigh"]},
+          "reasoning_effort": {"type": "string", "enum": ["none", "minimal", "low", "medium", "high", "xhigh"]},
           "thinking_budget_tokens": {"type": "integer"}
         },
         "additionalProperties": false

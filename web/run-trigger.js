@@ -102,6 +102,8 @@
     'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
     'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
     'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
+    'local/qwen3.6-27b-low': { input: 0.0, output: 0.0 },
+    'local/qwen3.6-35b-a3b': { input: 0.0, output: 0.0 },
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 

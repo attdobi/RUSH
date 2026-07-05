@@ -54,6 +54,8 @@ PRICING: dict[str, dict[str, float]] = {
     "google/gemini-3.1-flash-lite": {"input_per_mtok": 0.25, "output_per_mtok": 1.50, "image_per_image": 0.0},
     # Local GPU (LM Studio) — free.
     "local/qwen3.6-27b": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},
+    "local/qwen3.6-27b-low": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},
+    "local/qwen3.6-35b-a3b": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},
     "local/gemma-4-26b-a4b-qat": {"input_per_mtok": 0.0, "output_per_mtok": 0.0, "image_per_image": 0.0},
 }
 

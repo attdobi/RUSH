@@ -176,6 +176,12 @@ def append_cost_row(paths: RunPaths, row: dict[str, Any]) -> None:
     _append_jsonl(paths.costs, row)
 
 
+def write_model_speed_summary(paths: RunPaths, payload: dict[str, Any]) -> None:
+    """Atomically write the per-run model speed/cost rollup artifact."""
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    _atomic_write_text(paths.model_speed_summary, text)
+
+
 def append_error(
     paths: RunPaths,
     *,
@@ -218,6 +224,7 @@ __all__ = [
     "append_llm_output",
     "append_error",
     "write_run_manifest",
+    "write_model_speed_summary",
     "LABEL_VOTE_SCHEMA",
     "LLM_OUTPUT_SCHEMA",
     "RUN_MANIFEST_SCHEMA",

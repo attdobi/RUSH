@@ -39,6 +39,7 @@ def build_cost_row(
     recorded_at: str,
     image_count: int = 1,
     cost_usd: float | None = None,
+    latency_ms: int | float | None = None,
 ) -> dict[str, Any]:
     """Build one analysis-ready per-image-per-model cost ledger row.
 
@@ -56,6 +57,17 @@ def build_cost_row(
             model_id, input_tokens, output_tokens, image_count=image_count
         )
 
+    latency_value: int | None = None
+    if latency_ms is not None:
+        try:
+            latency_value = int(max(0, float(latency_ms)))
+        except (TypeError, ValueError):
+            latency_value = None
+    output_value = None if output_tokens is None else int(output_tokens)
+    tokens_per_sec = None
+    if output_value is not None and latency_value is not None and latency_value > 0:
+        tokens_per_sec = float(output_value) / float(latency_value) * 1000.0
+
     return {
         "run_id": run_id,
         "batch_index": int(batch_index),
@@ -63,7 +75,9 @@ def build_cost_row(
         "image_id": image_id,
         "model_id": model_id,
         "input_tokens": None if input_tokens is None else int(input_tokens),
-        "output_tokens": None if output_tokens is None else int(output_tokens),
+        "output_tokens": output_value,
+        "latency_ms": latency_value,
+        "tokens_per_sec": tokens_per_sec,
         "input_rate_per_mtok": input_rate,
         "output_rate_per_mtok": output_rate,
         "image_rate_per_image": image_rate,
@@ -144,4 +158,63 @@ def rollup_cost_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-__all__ = ["build_cost_row", "rollup_cost_rows"]
+def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate per-call speed/cost rows by model.
+
+    Field names are intentionally frontend-friendly and stable:
+    ``model``, ``avg_s_per_call``, ``tokens_per_sec``,
+    ``total_output_tokens``, ``total_cost``, and ``n_calls``.
+    """
+    buckets: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        model = str(row.get("model_id") or row.get("model") or "unknown")
+        bucket = buckets.setdefault(
+            model,
+            {
+                "model": model,
+                "n_calls": 0,
+                "total_output_tokens": 0,
+                "total_cost": 0.0,
+                "_latency_ms": 0.0,
+                "_latency_n": 0,
+            },
+        )
+        bucket["n_calls"] += 1
+        try:
+            bucket["total_output_tokens"] += int(row.get("output_tokens") or 0)
+        except (TypeError, ValueError):
+            pass
+        cost = row.get("cost_usd")
+        if cost is not None:
+            try:
+                bucket["total_cost"] += float(cost)
+            except (TypeError, ValueError):
+                pass
+        latency = row.get("latency_ms")
+        if latency is not None:
+            try:
+                latency_f = float(latency)
+            except (TypeError, ValueError):
+                latency_f = 0.0
+            if latency_f > 0:
+                bucket["_latency_ms"] += latency_f
+                bucket["_latency_n"] += 1
+
+    out: list[dict[str, Any]] = []
+    for model in sorted(buckets):
+        bucket = buckets[model]
+        latency_n = int(bucket.pop("_latency_n"))
+        latency_ms = float(bucket.pop("_latency_ms"))
+        avg_s = (latency_ms / latency_n / 1000.0) if latency_n else None
+        tokens_per_sec = (
+            (float(bucket["total_output_tokens"]) / (latency_ms / 1000.0))
+            if latency_ms > 0
+            else None
+        )
+        bucket["avg_s_per_call"] = avg_s
+        bucket["tokens_per_sec"] = tokens_per_sec
+        out.append(bucket)
+    return out
+
+
+__all__ = ["build_cost_row", "rollup_cost_rows", "build_model_speed_summary"]

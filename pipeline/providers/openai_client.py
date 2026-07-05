@@ -161,6 +161,7 @@ class OpenAIClient(LabelClient):
         messages: list[dict[str, Any]],
     ) -> dict[str, Any]:
         if self.config.reasoning_effort and self.config.reasoning_effort not in {
+            "none",
             "minimal",
             "low",
             "medium",
@@ -168,8 +169,9 @@ class OpenAIClient(LabelClient):
             "xhigh",
         }:
             raise ProviderError(
-                "OpenAI reasoning_effort must be one of: minimal, low, medium, "
-                f"high, xhigh (got {self.config.reasoning_effort!r})"
+                "OpenAI-compatible reasoning_effort must be one of: none, "
+                "minimal, low, medium, high, xhigh "
+                f"(got {self.config.reasoning_effort!r})"
             )
         params: dict[str, Any] = {
             "model": self.config.model_name,
@@ -462,6 +464,12 @@ class OpenAIClient(LabelClient):
             image_count=len(requests),
         )
         per_image_cost = None if total_cost is None else total_cost / len(requests)
+        per_image_input_tokens = (
+            None if input_tokens is None else int(input_tokens / len(requests))
+        )
+        per_image_output_tokens = (
+            None if output_tokens is None else int(output_tokens / len(requests))
+        )
 
         try:
             parsed = parse_label_json(text)
@@ -518,6 +526,8 @@ class OpenAIClient(LabelClient):
                     prepared_image_height=prepared.height,
                     prepared_image_mime_type=prepared.mime_type,
                     prepared_image_byte_size=prepared.byte_size,
+                    input_tokens=per_image_input_tokens,
+                    output_tokens=per_image_output_tokens,
                     cost_usd=per_image_cost,
                     is_boundary_between=fields["is_boundary_between"],
                     policy_citations=fields["policy_citations"],

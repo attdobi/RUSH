@@ -35,7 +35,11 @@ from . import persistence
 from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
 from .providers.pricing import compute_call_cost, PRICING_VERSION
-from .scoring.cost_ledger import build_cost_row, rollup_cost_rows
+from .scoring.cost_ledger import (
+    build_cost_row,
+    build_model_speed_summary,
+    rollup_cost_rows,
+)
 from .io_paths import (
     DEFAULT_POLICY_GRAPH_DIR,
     DEFAULT_POLICY_GRAPH_VERSION,
@@ -378,6 +382,7 @@ def _initial_manifest(
         "run_id": run_id,
         "started_at": started_at,
         "finished_at": None,
+        "status": "running",
         "sample_manifest_path": sample_manifest_rel,
         "sample_ids": sample_ids,
         "model_runtime_config": _model_runtime_config(
@@ -664,6 +669,7 @@ def run_labeling(
                     model_id=response.model_id,
                     input_tokens=response.input_tokens,
                     output_tokens=response.output_tokens,
+                    latency_ms=response.latency_ms,
                     recorded_at=_utcnow_iso(),
                 )
                 persistence.append_cost_row(paths, cost_row)
@@ -792,6 +798,7 @@ def run_labeling(
     summary.total_cost_usd = total_cost
     # Per-LLM breakdown + pricing_version stamp from the durable ledger rows.
     ledger = rollup_cost_rows(cost_rows)
+    model_speed_summary = build_model_speed_summary(cost_rows)
     cost_block = {
         "total_cost_usd": total_cost,
         "cost_per_image_usd": (total_cost / total_images) if total_images else None,
@@ -805,8 +812,17 @@ def run_labeling(
         "pricing_version": PRICING_VERSION,
         "pricing_versions_present": ledger["pricing_versions"],
     }
+    persistence.write_model_speed_summary(
+        paths,
+        {
+            "run_id": rid,
+            "generated_at": summary.finished_at,
+            "models": model_speed_summary,
+        },
+    )
     final_manifest = dict(manifest)
     final_manifest["finished_at"] = summary.finished_at
+    final_manifest["status"] = "completed"
     final_manifest["totals"] = {
         "expected_calls": expected,
         "completed_calls": summary.completed_calls,

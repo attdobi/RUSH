@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from pipeline.web import run_registry as run_registry_mod
-from pipeline.web.run_registry import RunRegistry
+from pipeline.web.run_registry import RunRegistry, _manifest_is_completed
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -66,6 +66,23 @@ def test_status_includes_running_cost_estimate(tmp_path: Path) -> None:
     assert status["running_cost_usd_estimate"] == 0.35
 
 
+def test_aborted_manifest_is_not_completed() -> None:
+    assert (
+        _manifest_is_completed(
+            {
+                "status": "aborted",
+                "finished_at": "2026-05-10T23:01:00Z",
+                "totals": {
+                    "expected_calls": 1,
+                    "completed_calls": 1,
+                    "errored_calls": 0,
+                },
+            }
+        )
+        is False
+    )
+
+
 def test_status_includes_per_model_speed_rollup(tmp_path: Path) -> None:
     runs_root = tmp_path / "data" / "runs"
     run_id = "20260510T230000-dddddddd"
@@ -106,6 +123,47 @@ def test_status_includes_per_model_speed_rollup(tmp_path: Path) -> None:
     assert qwen["done"] is False
     # Slowest/incomplete first: qwen (still running) ahead of finished gpt.
     assert status["per_model"][0]["model_id"] == "local/qwen3.6-27b"
+
+
+def test_dead_job_state_is_not_running_and_aborts_manifest(monkeypatch, tmp_path: Path) -> None:
+    runs_root = tmp_path / "data" / "runs"
+    run_id = "20260510T233000-deadbeef"
+    job_id = "job-20260510T233001-deadbeef"
+    run_dir = runs_root / run_id
+    _write_json(
+        run_dir / "run_manifest.json",
+        {
+            "run_id": run_id,
+            "started_at": "2026-05-10T23:30:00Z",
+            "finished_at": None,
+            "split": "dev_golden",
+            "policy_graph_version": "v0.1",
+            "models": [{"model_id": "openai/gpt-5.5"}],
+            "totals": {"expected_calls": 3, "completed_calls": 1, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        runs_root / "_jobs" / f"{job_id}.json",
+        {
+            "job_id": job_id,
+            "run_id": run_id,
+            "pid": 99999999,
+            "started_at": "2026-05-10T23:30:00Z",
+            "finished_at": None,
+            "returncode": None,
+        },
+    )
+    monkeypatch.setattr(run_registry_mod, "_process_is_alive", lambda pid: False)
+
+    registry = RunRegistry(tmp_path)
+    assert registry.is_job_running(job_id) is False
+
+    manifest = json.loads((run_dir / "run_manifest.json").read_text())
+    state = json.loads((runs_root / "_jobs" / f"{job_id}.json").read_text())
+    assert manifest["status"] == "aborted"
+    assert manifest["finished_at"]
+    assert state["status"] == "aborted"
+    assert state["returncode"] == -9
 
 
 def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_path: Path) -> None:

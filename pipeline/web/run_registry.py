@@ -66,6 +66,46 @@ def _sum_jsonl_cost(path: Path) -> float:
     return total
 
 
+def _process_is_alive(pid: object) -> bool:
+    try:
+        pid_int = int(pid)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    if pid_int <= 0:
+        return False
+    try:
+        os.kill(pid_int, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _finalize_manifest_aborted(
+    manifest_path: Path,
+    *,
+    finished_at: str,
+    reason: str,
+) -> bool:
+    manifest = _read_json(manifest_path)
+    if not manifest or manifest.get("finished_at"):
+        return False
+    status = str(manifest.get("status") or "").lower()
+    if status == "completed":
+        return False
+    manifest["finished_at"] = finished_at
+    manifest["status"] = "aborted"
+    manifest["abort_reason"] = reason
+    _atomic_write_json(manifest_path, manifest)
+    return True
+
+
+def _read_model_speed_summary(run_dir: Path) -> dict[str, Any] | None:
+    payload = _read_json(run_dir / "model_speed_summary.json")
+    return payload if payload else None
+
+
 def _parse_iso(ts: str | None) -> datetime | None:
     if not ts or not isinstance(ts, str):
         return None
@@ -186,6 +226,8 @@ def _manifest_models(manifest: dict[str, Any]) -> list[str]:
 
 def _manifest_is_completed(manifest: dict[str, Any]) -> bool:
     status = str(manifest.get("status") or "").lower()
+    if status in {"aborted", "failed", "cancelled", "canceled"}:
+        return False
     if status == "completed":
         return True
     totals = manifest.get("totals", {}) if isinstance(manifest.get("totals"), dict) else {}
@@ -325,8 +367,19 @@ class RunRegistry:
             state["run_id"] = run_id
         state["finished_at"] = utcnow_iso()
         state["returncode"] = returncode
-        state["status"] = "finished" if returncode == 0 else "failed"
+        state["status"] = "finished" if returncode == 0 else "aborted"
+        if returncode != 0:
+            state["abort_reason"] = f"run subprocess exited with returncode {returncode}"
         self._write_state(state)
+
+        if returncode != 0:
+            resolved_run_id = run_id if isinstance(run_id, str) else self._infer_run_id_for_job(state)
+            if isinstance(resolved_run_id, str):
+                _finalize_manifest_aborted(
+                    self.runs_root / resolved_run_id / "run_manifest.json",
+                    finished_at=state["finished_at"],
+                    reason=state["abort_reason"],
+                )
 
         if returncode == 0 and isinstance(run_id, str):
             run_dir = self.runs_root / run_id
@@ -426,6 +479,35 @@ class RunRegistry:
             return run_id
         return self._infer_run_id_for_job(state)
 
+    def _finalize_dead_job(
+        self,
+        job_id: str,
+        state: dict[str, Any],
+        *,
+        returncode: int | None = None,
+        reason: str = "run subprocess is no longer alive",
+    ) -> None:
+        if state.get("finished_at") or state.get("returncode") is not None:
+            return
+        finished_at = utcnow_iso()
+        updated = dict(state)
+        updated["finished_at"] = finished_at
+        updated["returncode"] = -9 if returncode is None else returncode
+        updated["status"] = "aborted"
+        updated["abort_reason"] = reason
+        run_id = updated.get("run_id")
+        if not isinstance(run_id, str):
+            run_id = self._infer_run_id_for_job(updated)
+            if isinstance(run_id, str):
+                updated["run_id"] = run_id
+        self._write_state(updated)
+        if isinstance(run_id, str):
+            _finalize_manifest_aborted(
+                self.runs_root / run_id / "run_manifest.json",
+                finished_at=finished_at,
+                reason=reason,
+            )
+
     def is_job_running(self, token: str) -> bool:
         state = self.find_job(token)
         if not state:
@@ -434,9 +516,24 @@ class RunRegistry:
         with self._lock:
             proc = self._processes.get(job_id)
         if proc is not None:
-            return proc.poll() is None
+            returncode = proc.poll()
+            if returncode is None:
+                return True
+            if returncode != 0:
+                self._finalize_dead_job(
+                    job_id,
+                    state,
+                    returncode=returncode,
+                    reason=f"run subprocess exited with returncode {returncode}",
+                )
+            return False
         refreshed = self._read_state(job_id)
-        return refreshed.get("returncode") is None and refreshed.get("finished_at") is None
+        if refreshed.get("returncode") is not None or refreshed.get("finished_at"):
+            return False
+        if _process_is_alive(refreshed.get("pid")):
+            return True
+        self._finalize_dead_job(job_id, refreshed)
+        return False
 
     def log_tail(self, token: str, *, n: int = 40) -> list[str]:
         state = self.find_job(token)
@@ -478,6 +575,8 @@ class RunRegistry:
                     "totals": manifest.get("totals", {}),
                     "scoring_done": (run_dir / "scoring" / "decision_quality.json").exists(),
                     "running": self.is_job_running(run_id),
+                    "status": manifest.get("status"),
+                    "model_speed_summary": _read_model_speed_summary(run_dir),
                 }
             )
         return sorted(runs, key=lambda row: row.get("started_at") or "", reverse=True)
@@ -526,6 +625,8 @@ class RunRegistry:
             "running_cost_usd_estimate": running_cost_usd_estimate,
             "cost": manifest_cost,
             "recorded_cost_usd": recorded_cost,
+            "status": manifest.get("status") or (state or {}).get("status"),
+            "model_speed_summary": _read_model_speed_summary(run_dir) if run_dir else None,
             "scoring_done": bool(run_dir and (run_dir / "scoring" / "decision_quality.json").exists()),
             "returncode": (state or {}).get("returncode"),
             "log_tail": self.log_tail(token),
