@@ -28,6 +28,7 @@ from pipeline.policy_diff import (
     seed_cold_start_proposal,
 )
 from pipeline.web.demo_area import (
+    DEFAULT_POLICY_AREA,
     area_from_policy_version,
     normalize_policy_area,
     policy_version_matches_area,
@@ -65,6 +66,26 @@ def _domain_for_run(
         return area_from_policy_version(manifest.get("policy_graph_version"))
     except Exception:  # noqa: BLE001 - best-effort; default to GenAI
         return DOMAIN
+
+
+def _proposal_matches_domain(proposal: dict[str, Any], domain: str) -> bool:
+    explicit = proposal.get("domain") or proposal.get("area")
+    if explicit:
+        try:
+            return normalize_policy_area(str(explicit)) == domain
+        except ValueError:
+            return False
+    base_version = proposal.get("base_version")
+    if policy_version_matches_area(base_version, domain):
+        return True
+    proposal_id = str(proposal.get("proposal_id") or "")
+    if proposal_id.startswith(f"{domain}."):
+        return True
+    # Historical proposal metadata predated the explicit domain field and used
+    # bare versions only for GenAI.
+    return domain == DEFAULT_POLICY_AREA and (
+        base_version is None or str(base_version).startswith("v")
+    )
 
 
 def _error(status: int, exc: Exception) -> tuple[int, dict[str, Any]]:
@@ -530,7 +551,7 @@ def handle_list_proposals(
             body["proposals"] = [
                 proposal
                 for proposal in body.get("proposals", [])
-                if policy_version_matches_area(proposal.get("base_version"), domain)
+                if _proposal_matches_domain(proposal, domain)
             ]
         return 200, body
     except ValueError as exc:

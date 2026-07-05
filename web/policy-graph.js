@@ -32,11 +32,11 @@
   function policyGraphRootId() {
     return activeDemo()?.policyGraph?.rootId || 'GA.root';
   }
-  // Static, no-API path for demos whose policy graph lives entirely in the
-  // repo (e.g. MNIST_Digits/v0.1). We read edges.json + per-node .md over
-  // regular fetch() and skip /api/policy/*.
+  // Offline fallback for demos whose seed graph lives in the repo. When the
+  // API is available, MNIST uses the same live /api/policy/* RL-loop path as
+  // GenAI so proposals, accept/reject, and version stepping stay wired.
   function demoUsesLocalPolicyGraph() {
-    return isMnistDemo();
+    return isMnistDemo() && !window.RUSH_API?.available;
   }
   function localPolicyBase() {
     const demo = activeDemo();

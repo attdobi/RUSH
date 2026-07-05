@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.policy_diff import accept_proposal, get_proposal, propose_diff, reject_proposal
+from pipeline.policy_diff import (
+    accept_proposal,
+    get_proposal,
+    list_proposals,
+    propose_diff,
+    reject_proposal,
+)
 
 
 def _seed_policy_graph(tmp_path: Path) -> Path:
@@ -126,6 +132,16 @@ def test_propose_accept_area_aware_mnist_next_version(tmp_path: Path) -> None:
     assert proposal["domain"] == "MNIST_Digits"
     assert proposal["files_changed"] == ["MNIST.root.md"]
     assert proposal["files_added"] == ["MNIST.confused.5_6.md"]
+
+    listed = list_proposals(repo_root=root, include_errors=True)
+    assert [item["proposal_id"] for item in listed["proposals"]] == [proposal["proposal_id"]]
+    assert listed["proposals"][0]["domain"] == "MNIST_Digits"
+
+    detail = get_proposal(repo_root=root, proposal_id=proposal["proposal_id"])
+    assert detail["domain"] == "MNIST_Digits"
+    assert detail["diffs"][0]["change"] == "modified"
+    assert "--- a/MNIST.root.md" in detail["diffs"][0]["unified_diff"]
+    assert "+++ b/MNIST.root.md" in detail["diffs"][0]["unified_diff"]
 
     # propose must not touch GenAI or create MNIST v0.2 yet
     assert not (root / "policy-graph" / "Generative_AI").exists()

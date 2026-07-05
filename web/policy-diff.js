@@ -121,6 +121,18 @@
     return `${base} · build pending`;
   }
 
+  function activePolicyArea() {
+    return (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.area) || 'Generative_AI';
+  }
+
+  function selectedPolicyVersion() {
+    return $('#policyGraphVersion')?.value
+      || $('#runTriggerPolicyVersion')?.value
+      || window.RUSH_API?.catalog?.currentPolicyVersion
+      || (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.version)
+      || 'v0.1';
+  }
+
   function sortProposalList(proposals) {
     return [...proposals].sort((a, b) => proposalTime(b) - proposalTime(a) || String(b.proposal_id || '').localeCompare(String(a.proposal_id || '')));
   }
@@ -213,7 +225,7 @@
     const buildChip = $('#proposalBuildVersionChip');
     const buildLabel = $('#proposalBuildVersionLabel');
     const arrow = $('#proposalVersionArrow');
-    const currentVersion = window.RUSH_API?.catalog?.currentPolicyVersion || '—';
+    const currentVersion = selectedPolicyVersion() || '—';
     const hasProposal = !!payload && !!(payload.proposal_id || state.selected);
     if (!hasProposal) {
       if (baseChip) baseChip.textContent = `Policy ${currentVersion} · current`;
@@ -498,7 +510,7 @@
     }
     try {
       status('Loading proposals…');
-      const area = (typeof window.rushActiveDemo === 'function' && window.rushActiveDemo()?.policyGraph?.area) || 'Generative_AI';
+      const area = activePolicyArea();
       const payload = await rushApiGetJson(`/api/policy/proposals?include_errors=true&area=${encodeURIComponent(area)}`);
       state.proposals = Array.isArray(payload.proposals) ? payload.proposals : [];
       if (selectFirst && !state.selected && state.proposals.length) state.selected = defaultProposalId();
@@ -537,7 +549,8 @@
 
   async function proposeDiff() {
     const runId = $('#proposalRunId')?.value || '';
-    const baseVersion = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
+    const baseVersion = selectedPolicyVersion();
+    const area = activePolicyArea();
     if (!runId) {
       status('Select a run before proposing a diff.', 'failed');
       return;
@@ -548,6 +561,7 @@
       const started = await rushApiPostJson('/api/policy/propose-diff?async=1', {
         run_id: runId,
         base_version: baseVersion,
+        area,
         model_id: DEFAULT_POLICY_MODEL
       });
       const job = started.job_id ? await waitForProposalJob(started) : { status: 'success', result: started, proposal_id: started.proposal_id };
@@ -617,11 +631,12 @@
   }
 
   async function buildPdf() {
-    const version = window.RUSH_API?.catalog?.currentPolicyVersion || 'v0.1';
+    const version = selectedPolicyVersion();
+    const area = activePolicyArea();
     try {
       status(`Building policy PDF for ${version}…`);
       $('#buildPolicyPdf').disabled = true;
-      const payload = await rushApiPostJson('/api/policy/build-pdf', { version, model_id: DEFAULT_POLICY_MODEL });
+      const payload = await rushApiPostJson('/api/policy/build-pdf', { version, area, model_id: DEFAULT_POLICY_MODEL });
       status(`Built PDF: ${payload.output_path || payload.path || version}.`);
     } catch (error) {
       status(`Build PDF failed: ${error.message}`, true);

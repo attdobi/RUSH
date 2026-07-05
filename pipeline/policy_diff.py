@@ -175,7 +175,12 @@ def _run_has_score_inputs(run_dir: Path) -> bool:
     return (run_dir / "label_votes.jsonl").exists() and (run_dir / "llm_outputs.jsonl").exists()
 
 
-def _load_run_inputs(repo_root: Path, run_id: str, base_version: str) -> PolicyIterationInputs:
+def _load_run_inputs(
+    repo_root: Path,
+    run_id: str,
+    base_version: str,
+    domain: str = DOMAIN,
+) -> PolicyIterationInputs:
     run_dir = repo_root / "data" / "runs" / run_id
     mis_path = run_dir / "scoring" / "misalignment.json"
     bord_path = run_dir / "scoring" / "borderline.json"
@@ -193,12 +198,12 @@ def _load_run_inputs(repo_root: Path, run_id: str, base_version: str) -> PolicyI
         raise FileNotFoundError(f"missing scoring misalignment file: {mis_path}")
     misalignment = json.loads(mis_path.read_text(encoding="utf-8"))
     borderline = json.loads(bord_path.read_text(encoding="utf-8")) if bord_path.exists() else None
-    policy_dir = _version_dir(repo_root, base_version)
+    policy_dir = _version_dir(repo_root, base_version, domain)
     return PolicyIterationInputs(
         misalignment=misalignment,
         borderline=borderline,
         policy_markdown=load_policy_markdown(policy_dir),
-        policy_graph_version=f"{DOMAIN}.{base_version}",
+        policy_graph_version=f"{domain}.{base_version}",
     )
 
 
@@ -426,7 +431,7 @@ def propose_diff(
                 raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
 
             chat_callable = policy_chat_callable(effective_model)
-        inputs = _load_run_inputs(root, run_id, base_version)
+        inputs = _load_run_inputs(root, run_id, base_version, domain)
         user_payload = build_user_prompt(inputs)
         prompt = {
             "messages": [
@@ -461,6 +466,7 @@ def propose_diff(
                 "proposal_id": proposal_id,
                 "kind": "propose_diff",
                 "base_version": base_version,
+                "domain": domain,
                 "model_id": effective_model,
                 "run_id": run_id,
                 "created_at": created_at,
@@ -487,6 +493,7 @@ def propose_diff(
                 "proposal_id": proposal_id,
                 "kind": "propose_diff",
                 "base_version": base_version,
+                "domain": domain,
                 "model_id": effective_model,
                 "run_id": run_id,
                 "created_at": created_at,
@@ -513,6 +520,7 @@ def propose_diff(
             "source": "direct_api",
             "run_id": run_id,
             "base_version": base_version,
+            "domain": domain,
             "model_id": effective_model,
             "files": sorted(proposed_files),
             "files_removed": sorted(files_removed or []),
@@ -864,7 +872,7 @@ def propose_growth_batch(
         misalignment={"records": batch_rows},
         borderline=borderline,
         policy_markdown=load_policy_markdown(base_dir),
-        policy_graph_version=f"{DOMAIN}.{base_version}",
+        policy_graph_version=f"{domain}.{base_version}",
     )
 
     proposal_id = _new_proposal_id()
@@ -1129,7 +1137,8 @@ def get_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any]:
     prop_dir = proposal_json.parent
     meta = _read_json(proposal_json)
     base_version = meta.get("base_version")
-    base_dir = _version_dir(repo_root, base_version) if base_version else None
+    domain = meta.get("domain") or DOMAIN
+    base_dir = _version_dir(repo_root, base_version, domain) if base_version else None
     diffs: list[dict[str, Any]] = []
 
     for filename in meta.get("files_changed", []):
