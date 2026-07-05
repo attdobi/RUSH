@@ -567,7 +567,9 @@ table.misalignment .muted { color: var(--muted); }
 .run-model-speed-table { min-width: 620px; font-variant-numeric: tabular-nums; }
 .run-model-speed-table td:not(:first-child),
 .run-model-speed-table th:not(:first-child) { text-align: right; }
+.run-model-speed-row--done td { color: #b8c5d9; background: rgba(77, 224, 166, .04); }
 .run-model-speed-table td:first-child code { color: #dce8ff; font-size: 12px; }
+.run-model-speed-row--done td:first-child code { color: #9fe8c7; }
 .run-model-speed-table td:first-child small {
   display: block;
   margin-top: 3px;

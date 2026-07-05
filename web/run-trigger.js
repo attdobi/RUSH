@@ -247,25 +247,46 @@
 
   function mergeModelTelemetry(speedRows, costRows) {
     const byModel = new Map();
+    const mergeRow = (base, row, model) => {
+      const merged = { ...(base || {}), model };
+      for (const [key, value] of Object.entries(row || {})) {
+        if (value === undefined || value === null || value === '') continue;
+        merged[key] = value;
+      }
+      return merged;
+    };
     for (const row of speedRows) {
       const model = modelIdFromRow(row);
       if (!model) continue;
-      byModel.set(model, { ...row, model });
+      byModel.set(model, mergeRow(byModel.get(model), row, model));
     }
     for (const row of costRows) {
       const model = modelIdFromRow(row);
       if (!model) continue;
-      byModel.set(model, { ...(byModel.get(model) || {}), ...row, model });
+      byModel.set(model, mergeRow(byModel.get(model), row, model));
     }
     return Array.from(byModel.values());
+  }
+
+  function modelSpeedSummaryRows(summary) {
+    const nestedRows = [
+      ...arrayFromMaybeObject(summary?.models),
+      ...arrayFromMaybeObject(summary?.per_model)
+    ];
+    const hasNestedShape = summary && typeof summary === 'object' && !Array.isArray(summary)
+      && ('models' in summary || 'per_model' in summary);
+    if (nestedRows.length || hasNestedShape) {
+      return nestedRows;
+    }
+    return arrayFromMaybeObject(summary);
   }
 
   function normalizedModelTelemetryRows(payload) {
     // Consumed telemetry fields:
     // model/model_id, avg_s_per_call (fallback avg_latency_ms/1000),
-    // tokens_per_sec, total_output_tokens, total_cost/total_cost_usd, n_calls.
+    // tokens_per_sec, total_input/output_tokens, total_cost/total_cost_usd, calls_done.
     const speedRows = [
-      ...arrayFromMaybeObject(payload?.model_speed_summary),
+      ...modelSpeedSummaryRows(payload?.model_speed_summary),
       ...arrayFromMaybeObject(payload?.model_speed),
       ...arrayFromMaybeObject(payload?.per_model_speed),
       ...arrayFromMaybeObject(payload?.speed?.per_model),
@@ -283,15 +304,22 @@
     return rows.map(row => {
       const avgSec = numericField(row, ['avg_s_per_call', 'avg_seconds_per_call', 'avg_sec_per_call', 'avg_latency_s', 'avg_latency_seconds']);
       const avgMs = numericField(row, ['avg_latency_ms', 'latency_ms_avg']);
+      const inputTokens = numericField(row, ['total_input_tokens', 'input_tokens']);
+      const outputTokens = numericField(row, ['total_output_tokens', 'output_tokens']);
+      const totalTokens = numericField(row, ['total_tokens', 'tokens_total'])
+        ?? (inputTokens !== null || outputTokens !== null ? (inputTokens || 0) + (outputTokens || 0) : null);
+      const callsDone = numericField(row, ['calls_done', 'n_calls', 'completed_calls', 'calls', 'images']);
+      const callsTotal = numericField(row, ['calls_total', 'expected_calls', 'total_calls']);
       return {
         model: modelIdFromRow(row),
         avg_s_per_call: avgSec !== null ? avgSec : (avgMs !== null ? avgMs / 1000 : null),
         tokens_per_sec: numericField(row, ['tokens_per_sec', 'tokens_per_second', 'output_tokens_per_sec', 'output_tokens_per_second']),
-        images_per_min: numericField(row, ['images_per_min', 'imgs_per_min', 'images_per_minute', 'throughput_imgs_per_min'])
-          ?? (avgSec !== null && avgSec > 0 ? 60 / avgSec : null),
-        total_output_tokens: numericField(row, ['total_output_tokens', 'output_tokens', 'total_tokens']),
+        images_per_min: numericField(row, ['images_per_min', 'imgs_per_min', 'images_per_minute', 'throughput_imgs_per_min']),
+        total_tokens: totalTokens,
         total_cost: numericField(row, ['total_cost', 'total_cost_usd', 'cost_usd']),
-        n_calls: numericField(row, ['n_calls', 'calls_done', 'completed_calls', 'calls', 'images'])
+        calls_done: callsDone,
+        calls_total: callsTotal,
+        done: row?.done === true || (callsDone !== null && callsTotal !== null && callsTotal > 0 && callsDone >= callsTotal)
       };
     }).filter(row => row.model);
   }
@@ -310,13 +338,17 @@
     const rows = normalizedModelTelemetryRows(payload);
     if (!rows.length) { target.innerHTML = ''; return; }
     const body = rows.map((r) => {
-      const callNote = isNumber(r.n_calls) ? `<small>${esc(formatInteger(r.n_calls))} call(s)</small>` : '';
-      return `<tr class="run-model-speed-row">`
+      const callTotal = isNumber(r.calls_total) ? `/${esc(formatInteger(r.calls_total))}` : '';
+      const doneText = r.done ? ' · done' : '';
+      const callNote = isNumber(r.calls_done)
+        ? `<small>${esc(formatInteger(r.calls_done))}${callTotal} call(s)${doneText}</small>`
+        : (r.done ? `<small>done</small>` : '');
+      return `<tr class="run-model-speed-row${r.done ? ' run-model-speed-row--done' : ''}">`
         + `<td><code>${esc(compactModelName(r.model))}</code>${callNote}</td>`
         + `<td>${esc(isNumber(r.avg_s_per_call) ? r.avg_s_per_call.toFixed(2) : '—')}</td>`
         + `<td>${esc(formatNumber(r.tokens_per_sec, 1))}</td>`
         + `<td>${esc(formatNumber(r.images_per_min, 1))}</td>`
-        + `<td>${esc(formatInteger(r.total_output_tokens))}</td>`
+        + `<td>${esc(formatInteger(r.total_tokens))}</td>`
         + `<td>${esc(formatUsd(r.total_cost))}</td></tr>`;
     }).join('');
     target.innerHTML = `<div class="compact-table"><table class="run-model-speed-table misalignment"><thead><tr>`
