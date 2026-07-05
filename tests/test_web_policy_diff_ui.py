@@ -10,6 +10,9 @@ def test_policy_diff_ui_collapses_parse_errors_and_loads_them() -> None:
     source = (_REPO_ROOT / "web" / "policy-diff.js").read_text(encoding="utf-8")
 
     assert "/api/policy/proposals?include_errors=true" in source
+    assert "activePolicyArea()" in source
+    assert "area," in source
+    assert "selectedPolicyVersion()" in source
     assert "<details class=\"proposal-status-group proposal-parse-errors\">" in source
     assert "Parse errors (${parseErrors.length})" in source
     assert "proposalStatusGroups(reviewable)" in source

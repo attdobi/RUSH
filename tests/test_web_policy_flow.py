@@ -72,6 +72,7 @@ def _write_policy_proposal(
     proposal_id: str,
     *,
     base_version: str,
+    domain: str | None = None,
     created_at: str = "2026-05-19T12:00:00+00:00",
 ) -> None:
     proposal_dir = root / "data" / "policy_proposals" / proposal_id
@@ -83,6 +84,7 @@ def _write_policy_proposal(
                 "status": "pending",
                 "created_at": created_at,
                 "base_version": base_version,
+                **({"domain": domain} if domain else {}),
                 "files_changed": [],
                 "files_added": [],
                 "files_removed": [],
@@ -225,16 +227,21 @@ def test_policy_proposals_route_filters_by_area(tmp_path: Path) -> None:
     _write_policy_proposal(tmp_path, "GA.bare-1", base_version="v0.1")
     _write_policy_proposal(tmp_path, "GA.prefixed-1", base_version="Generative_AI.v0.2")
     _write_policy_proposal(tmp_path, "MNIST_Digits.proposal-1", base_version="MNIST_Digits.v0.1")
+    _write_policy_proposal(
+        tmp_path,
+        "mnist-domain-proposal-1",
+        base_version="v0.1",
+        domain="MNIST_Digits",
+    )
 
     server, thread = _serve(tmp_path)
     try:
         status, body = _request_json(server, "GET", "/api/policy/proposals?area=MNIST_Digits")
         assert status == 200
-        assert [p["proposal_id"] for p in body["proposals"]] == ["MNIST_Digits.proposal-1"]
-        assert all(
-            p["base_version"].startswith("MNIST_Digits.")
-            for p in body["proposals"]
-        )
+        assert sorted(p["proposal_id"] for p in body["proposals"]) == [
+            "MNIST_Digits.proposal-1",
+            "mnist-domain-proposal-1",
+        ]
 
         status, body = _request_json(server, "GET", "/api/policy/proposals?area=Generative_AI")
         assert status == 200
