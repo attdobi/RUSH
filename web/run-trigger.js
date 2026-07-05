@@ -107,7 +107,7 @@
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 
-  const state = { runId: '', pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null, elapsedTimer: null };
+  const state = { runId: '', runModels: [], pollTimer: null, pollStartedAt: 0, finished: false, lastPayload: null, elapsedTimer: null };
 
   // Format a duration in seconds as mm:ss, or hh:mm:ss once it crosses an hour.
   function formatElapsed(totalSeconds) {
@@ -119,21 +119,65 @@
     return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${pad(mm)}:${pad(ss)}`;
   }
 
-  // Live elapsed: from started_at to finished_at (frozen) or now (ticking).
+  function payloadStatusValues(payload) {
+    return [
+      payload?.status,
+      payload?.run_status,
+      payload?.state,
+      payload?.liveness_status,
+      payload?.liveness?.status,
+      payload?.liveness?.state
+    ].filter(value => value !== undefined && value !== null).map(value => String(value).toLowerCase());
+  }
+
+  function runStateLabel(payload) {
+    const values = payloadStatusValues(payload);
+    if (payload?.stale === true || payload?.is_stale === true || payload?.liveness?.stale === true) return 'stale';
+    if (values.some(value => value.includes('stale'))) return 'stale';
+    if (values.some(value => value.includes('abort') || value.includes('cancel'))) return 'aborted';
+    if (values.some(value => value.includes('fail') || value.includes('error'))) return 'failed';
+    if (payload?.returncode !== undefined && payload?.returncode !== null && Number(payload.returncode) !== 0) return 'failed';
+    if (payload?.running === true) {
+      const start = new Date(payload.started_at || '').getTime();
+      if (Number.isFinite(start) && Date.now() - start > MAX_POLL_MS) return 'stale';
+      return 'running';
+    }
+    if (values.some(value => value.includes('complete') || value.includes('success') || value.includes('finish'))) return 'finished';
+    if (payload?.finished_at) return 'finished';
+    if (payload?.running === false && payload?.finished_at == null) return 'stopped';
+    return payload ? 'finished' : 'unknown';
+  }
+
+  function isLiveRun(payload) {
+    return runStateLabel(payload) === 'running';
+  }
+
+  // Live elapsed: from started_at to finished_at (frozen) or now only while live.
   function elapsedSecondsFor(payload) {
     if (!payload || !payload.started_at) return null;
     const start = new Date(payload.started_at).getTime();
     if (!Number.isFinite(start)) return null;
+    if (!isLiveRun(payload) && !payload.finished_at) {
+      return isNumber(payload.elapsed_seconds) && payload.elapsed_seconds < (MAX_POLL_MS / 1000)
+        ? payload.elapsed_seconds
+        : null;
+    }
     const end = payload.finished_at ? new Date(payload.finished_at).getTime() : Date.now();
     if (!Number.isFinite(end)) return null;
     return Math.max(0, (end - start) / 1000);
   }
 
+  function elapsedTextFor(payload) {
+    const label = runStateLabel(payload);
+    if (['aborted', 'stale', 'failed', 'stopped'].includes(label) && !payload?.finished_at) return label;
+    const secs = elapsedSecondsFor(payload);
+    return secs === null ? '—' : formatElapsed(secs);
+  }
+
   function updateElapsed() {
     const el = $('#runTriggerElapsed');
     if (!el) return;
-    const secs = elapsedSecondsFor(state.lastPayload);
-    el.textContent = secs === null ? '—' : formatElapsed(secs);
+    el.textContent = elapsedTextFor(state.lastPayload);
   }
 
   function stopElapsedTicker() {
@@ -147,27 +191,121 @@
     state.elapsedTimer = window.setInterval(updateElapsed, 1000);
   }
 
+  function arrayFromMaybeObject(value) {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') return [];
+    return Object.entries(value).map(([key, row]) => (
+      row && typeof row === 'object' ? { model: key, ...row } : { model: key, value: row }
+    ));
+  }
+
+  function numericField(row, fields) {
+    for (const field of fields) {
+      const value = row?.[field];
+      if (isNumber(value)) return value;
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+    }
+    return null;
+  }
+
+  function modelIdFromRow(row) {
+    return String(row?.model || row?.model_id || row?.labeler_id || row?.id || '').trim();
+  }
+
+  function extractRequestedModels(payload) {
+    const candidates = [
+      payload?.models,
+      payload?.model_ids,
+      payload?.request?.models,
+      payload?.manifest?.models
+    ];
+    for (const candidate of candidates) {
+      const models = arrayFromMaybeObject(candidate).map(item => {
+        if (typeof item === 'string') return item;
+        return item?.model || item?.model_id || item?.id || '';
+      }).filter(Boolean);
+      if (models.length) return Array.from(new Set(models.map(String)));
+    }
+    return Array.isArray(state.runModels) ? state.runModels : [];
+  }
+
+  function mergeModelTelemetry(speedRows, costRows) {
+    const byModel = new Map();
+    for (const row of speedRows) {
+      const model = modelIdFromRow(row);
+      if (!model) continue;
+      byModel.set(model, { ...row, model });
+    }
+    for (const row of costRows) {
+      const model = modelIdFromRow(row);
+      if (!model) continue;
+      byModel.set(model, { ...(byModel.get(model) || {}), ...row, model });
+    }
+    return Array.from(byModel.values());
+  }
+
+  function normalizedModelTelemetryRows(payload) {
+    // Consumed telemetry fields:
+    // model/model_id, avg_s_per_call (fallback avg_latency_ms/1000),
+    // tokens_per_sec, total_output_tokens, total_cost/total_cost_usd, n_calls.
+    const speedRows = [
+      ...arrayFromMaybeObject(payload?.model_speed_summary),
+      ...arrayFromMaybeObject(payload?.model_speed),
+      ...arrayFromMaybeObject(payload?.per_model_speed),
+      ...arrayFromMaybeObject(payload?.speed?.per_model),
+      ...arrayFromMaybeObject(payload?.telemetry?.per_model),
+      ...arrayFromMaybeObject(payload?.per_model)
+    ];
+    const costRows = arrayFromMaybeObject(payload?.cost?.per_model);
+    let rows = mergeModelTelemetry(speedRows, costRows);
+    const requested = extractRequestedModels(payload);
+    if (requested.length) {
+      const allowed = new Set(requested);
+      const filtered = rows.filter(row => allowed.has(modelIdFromRow(row)));
+      rows = filtered.length ? filtered : [];
+    }
+    return rows.map(row => {
+      const avgSec = numericField(row, ['avg_s_per_call', 'avg_seconds_per_call', 'avg_sec_per_call', 'avg_latency_s', 'avg_latency_seconds']);
+      const avgMs = numericField(row, ['avg_latency_ms', 'latency_ms_avg']);
+      return {
+        model: modelIdFromRow(row),
+        avg_s_per_call: avgSec !== null ? avgSec : (avgMs !== null ? avgMs / 1000 : null),
+        tokens_per_sec: numericField(row, ['tokens_per_sec', 'tokens_per_second', 'output_tokens_per_sec', 'output_tokens_per_second']),
+        total_output_tokens: numericField(row, ['total_output_tokens', 'output_tokens', 'total_tokens']),
+        total_cost: numericField(row, ['total_cost', 'total_cost_usd', 'cost_usd']),
+        n_calls: numericField(row, ['n_calls', 'calls_done', 'completed_calls', 'calls', 'images'])
+      };
+    }).filter(row => row.model);
+  }
+
+  function formatNumber(value, digits = 1) {
+    return isNumber(value) ? value.toLocaleString(undefined, { maximumFractionDigits: digits }) : '—';
+  }
+
+  function formatInteger(value) {
+    return isNumber(value) ? Math.round(value).toLocaleString() : '—';
+  }
+
   function renderModelSpeed(payload) {
     const target = $('#runTriggerModelSpeed');
     if (!target) return;
-    const rows = Array.isArray(payload.per_model) ? payload.per_model : [];
+    const rows = normalizedModelTelemetryRows(payload);
     if (!rows.length) { target.innerHTML = ''; return; }
     const body = rows.map((r) => {
-      const done = Number(r.calls_done || 0);
-      const total = Number(r.calls_total || 0);
-      const avgSec = isNumber(r.avg_latency_ms) ? (r.avg_latency_ms / 1000).toFixed(1) + 's' : '—';
-      const tput = isNumber(r.throughput_imgs_per_min) ? r.throughput_imgs_per_min.toFixed(1) : '—';
-      const stateLabel = r.done ? 'done' : 'running';
-      return `<tr class="run-model-speed-row run-model-speed-row--${r.done ? 'done' : 'running'}">`
-        + `<td><code>${esc(compactModelName(r.model_id))}</code></td>`
-        + `<td>${esc(done)}/${esc(total || '—')}</td>`
-        + `<td>${esc(avgSec)}</td>`
-        + `<td>${esc(tput)}</td>`
-        + `<td>${esc(stateLabel)}</td></tr>`;
+      const callNote = isNumber(r.n_calls) ? `<small>${esc(formatInteger(r.n_calls))} call(s)</small>` : '';
+      return `<tr class="run-model-speed-row">`
+        + `<td><code>${esc(compactModelName(r.model))}</code>${callNote}</td>`
+        + `<td>${esc(isNumber(r.avg_s_per_call) ? r.avg_s_per_call.toFixed(2) : '—')}</td>`
+        + `<td>${esc(formatNumber(r.tokens_per_sec, 1))}</td>`
+        + `<td>${esc(formatInteger(r.total_output_tokens))}</td>`
+        + `<td>${esc(formatUsd(r.total_cost))}</td></tr>`;
     }).join('');
-    target.innerHTML = `<table class="run-model-speed-table"><thead><tr>`
-      + `<th>Model</th><th>Done/Total</th><th>Avg s/call</th><th>imgs/min</th><th>State</th>`
-      + `</tr></thead><tbody>${body}</tbody></table>`;
+    target.innerHTML = `<div class="compact-table"><table class="run-model-speed-table misalignment"><thead><tr>`
+      + `<th>Model</th><th>Avg s/call</th><th>Tokens/sec</th><th>Total tokens</th><th>Total cost</th>`
+      + `</tr></thead><tbody>${body}</tbody></table></div>`;
   }
 
   function activeDemo() {
@@ -362,16 +500,15 @@
   function renderStatusSummary(payload, completed, expected, errored) {
     const target = $('#runTriggerSummary');
     if (!target) return;
-    const models = selectedModels();
+    const models = extractRequestedModels(payload);
     const modelCount = models.length || '—';
     const imageCount = expected && models.length ? Math.ceil(expected / models.length) : ($('#runTriggerBatchSize')?.value || '20');
     const succeeded = Math.max(0, completed - errored);
     const started = payload.started_at ? new Date(payload.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
-    const finished = payload.finished_at ? new Date(payload.finished_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (payload.running ? 'running' : '—');
+    const lifecycle = runStateLabel(payload);
     const modelBreakdown = models.length ? models.map(compactModelName).join(' · ') : 'No models selected';
-    const elapsedSecs = elapsedSecondsFor(payload);
-    const elapsedText = elapsedSecs === null ? '—' : formatElapsed(elapsedSecs);
-    const timeNote = `started ${started}${payload.finished_at ? ' · final' : ''}`;
+    const elapsedText = elapsedTextFor(payload);
+    const timeNote = `started ${started}${payload.finished_at ? ' · final' : lifecycle !== 'running' ? ` · ${lifecycle}` : ''}`;
     const cards = [
       ['Images', imageCount, `split ${$('#runTriggerSplit')?.value || 'all'}`],
       ['Models', modelCount, modelBreakdown],
@@ -395,6 +532,8 @@
 
   function renderStatus(payload) {
     state.lastPayload = payload;
+    const requestedModels = extractRequestedModels(payload);
+    if (requestedModels.length) state.runModels = requestedModels;
     const panel = $('#runTriggerStatusPanel');
     if (panel) panel.hidden = false;
     const completed = Number(payload.completed_calls || 0);
@@ -425,7 +564,8 @@
     if (raw) raw.textContent = JSON.stringify(payload, null, 2);
     const log = $('#runTriggerLogTail');
     if (log) log.textContent = Array.isArray(payload.log_tail) ? payload.log_tail.slice(-8).join('\n') : '';
-    const running = payload.running === true;
+    const lifecycle = runStateLabel(payload);
+    const running = lifecycle === 'running';
     const score = $('#scoreRunNow');
     if (score) score.hidden = running || payload.scoring_done === true;
     state.finished = !running;
@@ -435,7 +575,7 @@
       stopElapsedTicker();
       updateElapsed();
     }
-    status(running ? `Run ${runId} is running…` : `Run ${runId} finished${payload.scoring_done ? ' and is already scored.' : '.'}`);
+    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycle}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
     if (!running) {
       stopPolling();
       rushApiLoadCatalog().catch(() => {});
@@ -461,6 +601,7 @@
       $('#startLabelingRun').disabled = true;
       const response = await rushApiPostJson('/api/runs/start', payload);
       state.runId = response.run_id || response.job_id || '';
+      state.runModels = payload.models || [];
       state.pollStartedAt = Date.now();
       state.finished = false;
       if (!state.runId) throw new Error('API did not return a run_id.');
@@ -537,6 +678,7 @@
       const active = runs.find(r => r && r.running === true && r.run_id);
       if (!active) return;
       state.runId = active.run_id;
+      state.runModels = Array.isArray(active.models) ? active.models : [];
       state.pollStartedAt = Date.now();
       state.finished = false;
       status(`Resumed watching in-flight run ${state.runId}\u2026`);
