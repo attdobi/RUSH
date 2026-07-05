@@ -889,6 +889,8 @@ class TestRegistry:
             "google/gemini-3-flash-preview",
             "google/gemini-3.1-flash-lite",
             "local/qwen3.6-27b",
+            "local/qwen3.6-27b-low",
+            "local/qwen3.6-35b-a3b",
             "local/gemma-4-26b-a4b-qat",
         ):
             assert model_id in MODEL_REGISTRY
@@ -939,6 +941,8 @@ class TestRegistry:
 
         for model_id, vendor in (
             ("local/qwen3.6-27b", "qwen/qwen3.6-27b"),
+            ("local/qwen3.6-27b-low", "qwen/qwen3.6-27b"),
+            ("local/qwen3.6-35b-a3b", "qwen/qwen3.6-35b-a3b"),
             ("local/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat"),
         ):
             client = build_client(
@@ -953,6 +957,25 @@ class TestRegistry:
             assert client.config.response_format == {"type": "text"}
             params = client._build_api_params(messages=[])
             assert params["response_format"] == {"type": "text"}
+
+    def test_qwen_local_reasoning_controls(self) -> None:
+        off = build_client(
+            "local/qwen3.6-27b",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+        low = build_client(
+            "local/qwen3.6-27b-low",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+        moe = build_client(
+            "local/qwen3.6-35b-a3b",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+        )
+
+        assert off.config.reasoning_effort == "none"
+        assert off._build_api_params(messages=[])["reasoning_effort"] == "none"
+        assert low.config.reasoning_effort == "low"
+        assert moe.config.reasoning_effort == "none"
 
     def test_local_base_url_env_override(self, monkeypatch) -> None:
         from pipeline.providers import registry as _registry

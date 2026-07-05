@@ -33,6 +33,8 @@ FIELDNAMES = [
     "model_id",
     "input_tokens",
     "output_tokens",
+    "latency_ms",
+    "tokens_per_sec",
     "input_rate_per_mtok",
     "output_rate_per_mtok",
     "image_rate_per_image",

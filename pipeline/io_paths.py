@@ -92,6 +92,11 @@ class RunPaths:
         return self.root / "costs.jsonl"
 
     @property
+    def model_speed_summary(self) -> Path:
+        """Per-model speed/cost rollup for frontend and offline analysis."""
+        return self.root / "model_speed_summary.json"
+
+    @property
     def scoring_dir(self) -> Path:
         return self.root / "scoring"
 

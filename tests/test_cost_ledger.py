@@ -15,7 +15,11 @@ from pipeline.manifest import SampleRecord
 from pipeline.providers import pricing as P
 from pipeline.providers.base import LabelRequest, LabelResponse
 from pipeline.runner import DeterministicFakeClient, run_labeling
-from pipeline.scoring.cost_ledger import build_cost_row, rollup_cost_rows
+from pipeline.scoring.cost_ledger import (
+    build_cost_row,
+    build_model_speed_summary,
+    rollup_cost_rows,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -52,6 +56,7 @@ def test_build_cost_row_uses_live_registry_and_stamps_version() -> None:
         model_id="anthropic/claude-opus-4-6",
         input_tokens=1_000_000,
         output_tokens=100_000,
+        latency_ms=2000,
         recorded_at="2026-07-04T00:00:00Z",
     )
     # LIVE opus-4-6 rate is 5 / 25 (NOT the stale $15/$75 that inflated history).
@@ -61,6 +66,8 @@ def test_build_cost_row_uses_live_registry_and_stamps_version() -> None:
     assert row["pricing_version"] == P.PRICING_VERSION
     assert row["batch_id"] == "20260704T000000-abcd1234:2"
     assert row["run_id"] == "20260704T000000-abcd1234"
+    assert row["latency_ms"] == 2000
+    assert row["tokens_per_sec"] == 50000.0
 
 
 def test_build_cost_row_unknown_model_null_rates_and_cost() -> None:
@@ -115,6 +122,44 @@ def test_rollup_flags_mixed_pricing_versions() -> None:
     assert out["pricing_versions"] == sorted({"legacy", P.PRICING_VERSION})
 
 
+def test_model_speed_summary_fields() -> None:
+    rows = [
+        build_cost_row(
+            run_id="r",
+            batch_index=0,
+            image_id="a",
+            model_id="m",
+            input_tokens=100,
+            output_tokens=10,
+            latency_ms=1000,
+            recorded_at="t",
+            cost_usd=0.25,
+        ),
+        build_cost_row(
+            run_id="r",
+            batch_index=1,
+            image_id="b",
+            model_id="m",
+            input_tokens=100,
+            output_tokens=30,
+            latency_ms=3000,
+            recorded_at="t",
+            cost_usd=0.75,
+        ),
+    ]
+
+    assert build_model_speed_summary(rows) == [
+        {
+            "model": "m",
+            "n_calls": 2,
+            "total_output_tokens": 40,
+            "total_cost": 1.0,
+            "avg_s_per_call": 2.0,
+            "tokens_per_sec": 10.0,
+        }
+    ]
+
+
 # --- runner integration --------------------------------------------------------
 
 def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
@@ -140,6 +185,8 @@ def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
             assert row["pricing_version"] == P.PRICING_VERSION
             assert row["input_tokens"] == 1000
             assert row["output_tokens"] == 200
+            assert row["latency_ms"] == 0
+            assert row["tokens_per_sec"] is None
             assert row["batch_index"] in (0, 1)
             per_image = 1.25 * 1000 / 1e6 + 10.0 * 200 / 1e6
             assert abs(row["cost_usd"] - per_image) < 1e-12
@@ -149,6 +196,17 @@ def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
         assert cost["pricing_version"] == P.PRICING_VERSION
         assert "openai/gpt-5.5" in cost["per_model"]
         assert cost["per_model"]["openai/gpt-5.5"]["images"] == 6
+        speed = json.loads((run_dir / "model_speed_summary.json").read_text())
+        assert speed["run_id"] == summary.run_id
+        assert speed["models"][0]["model"] == "openai/gpt-5.5"
+        assert set(speed["models"][0]) == {
+            "model",
+            "avg_s_per_call",
+            "tokens_per_sec",
+            "total_output_tokens",
+            "total_cost",
+            "n_calls",
+        }
 
 
 # --- aggregate script ----------------------------------------------------------
