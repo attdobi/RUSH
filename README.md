@@ -27,6 +27,12 @@ RUSH exists to deliver three headline outcomes:
 - `docs/visuals/` - SVG visuals for the README and web UI.
 - `scripts/validate_foundation.py` - dependency-free validation.
 
+## AI Handoff & Embedded Memory
+
+The current MNIST-UX-KDD project state, recent fixes, open issues, and operator handoff live in `docs/ai-handoff/HANDOFF.md`; read that file for full detail before continuing the work. The local semantic memory is in `docs/ai-handoff/memory-embeddings/`: `index.jsonl` stores chunk text plus 768-dim embeddings, and `manifest.json` records the embedding model, source files, chunk parameters, counts, and byte size.
+
+Embeddings use Gemma-embedding `text-embedding-embeddinggemma-300m-qat` at `http://127.0.0.1:1234/v1` via LM Studio. Query with `./.venv/bin/python scripts/query_memory.py "why is qwen slow"` and regenerate with `./.venv/bin/python scripts/build_memory_embeddings.py`.
+
 ## Demos and §1 -> §4 flow
 
 Two demos ship in the web UI:

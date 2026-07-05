@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 *.py[cod]
+.venv
 .venv/
 .env
 .env.*
@@ -43,4 +44,3 @@ data/policy_proposals/
 # Built policy PDFs are build artifacts, not source.
 *.pdf
 !docs/**/*.pdf
-
