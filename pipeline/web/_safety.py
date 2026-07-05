@@ -179,6 +179,46 @@ def _require_bool_true(payload: dict[str, Any], name: str, message: str) -> None
         raise APIError(400, "validation_error", message, details={"field": name})
 
 
+def _validate_local_reasoning(payload: dict[str, Any]) -> dict[str, bool]:
+    raw = payload.get("local_reasoning")
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise APIError(
+            400,
+            "validation_error",
+            "local_reasoning must be an object mapping local model ids to booleans",
+            details={"field": "local_reasoning"},
+        )
+
+    out: dict[str, bool] = {}
+    for model_id, enabled in raw.items():
+        if not isinstance(model_id, str) or not model_id.startswith("local/"):
+            raise APIError(
+                400,
+                "validation_error",
+                "local_reasoning keys must be local model ids",
+                details={"field": "local_reasoning", "model_id": model_id},
+            )
+        reg_spec = MODEL_REGISTRY.get(model_id)
+        if reg_spec is None or reg_spec.provider != "local":
+            raise APIError(
+                400,
+                "unknown_model_id",
+                f"unknown local model_id: {model_id}",
+                details={"field": "local_reasoning", "model_id": model_id},
+            )
+        if not isinstance(enabled, bool):
+            raise APIError(
+                400,
+                "validation_error",
+                "local_reasoning values must be booleans",
+                details={"field": "local_reasoning", "model_id": model_id},
+            )
+        out[model_id] = enabled
+    return out
+
+
 def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize ``POST /api/runs/start`` JSON."""
     raw_demo = payload.get("demo")
@@ -254,6 +294,8 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "reasoning_effort must be one of: high, xhigh",
             details={"field": "reasoning_effort"},
         )
+
+    local_reasoning = _validate_local_reasoning(payload)
 
     policy_version = payload.get("policy_version", "v0.1")
     if not isinstance(policy_version, str) or not _POLICY_VERSION_RE.match(policy_version):
@@ -351,6 +393,7 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "policy_version": policy_version,
         "mode": mode,
         "reasoning_effort": reasoning_effort,
+        "local_reasoning": local_reasoning,
         "allow_spend": True,
         "allow_holdout": payload.get("allow_holdout") is True,
         "concurrency": concurrency,

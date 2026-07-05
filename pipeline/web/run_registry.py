@@ -361,6 +361,13 @@ class RunRegistry:
         ]
         if request.get("reasoning_effort") is not None:
             argv.extend(["--reasoning-effort", request["reasoning_effort"]])
+        local_reasoning = dict(request.get("local_reasoning") or {})
+        if local_reasoning:
+            local_reasoning_arg = ",".join(
+                f"{model_id}={'on' if enabled else 'off'}"
+                for model_id, enabled in local_reasoning.items()
+            )
+            argv.extend(["--local-reasoning", local_reasoning_arg])
         if request.get("limit") is not None:
             argv.extend(["--limit", str(request["limit"])])
         if request.get("sample_ids"):
@@ -384,6 +391,7 @@ class RunRegistry:
             # New picker flow encodes reasoning in model ids; keep this nullable
             # and let per-model ids/runtime config be the source of truth.
             "reasoning_effort": request.get("reasoning_effort"),
+            "local_reasoning": local_reasoning,
             "policy_version": policy_version,
             "policy_graph_version": policy_graph_version,
             "sample_manifest_path": str(sample_manifest),
