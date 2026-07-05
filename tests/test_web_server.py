@@ -90,6 +90,28 @@ def test_validate_start_payload_accepts_high_reasoning_effort() -> None:
     assert normalized["reasoning_effort"] == "high"
 
 
+def test_validate_start_payload_accepts_mnist_demo_area() -> None:
+    payload = dict(_VALID)
+    payload.update({"demo": "mnist", "area": "MNIST_Digits"})
+
+    normalized = validate_start_payload(payload)
+
+    assert normalized["demo"] == "mnist"
+    assert normalized["area"] == "MNIST_Digits"
+
+
+def test_validate_start_payload_rejects_unknown_area() -> None:
+    payload = dict(_VALID)
+    payload["area"] = "Other_Area"
+
+    with pytest.raises(APIError) as excinfo:
+        validate_start_payload(payload)
+
+    assert excinfo.value.status == 400
+    assert excinfo.value.code == "validation_error"
+    assert excinfo.value.details == {"field": "area"}
+
+
 def test_validate_start_payload_rejects_invalid_reasoning_effort() -> None:
     payload = dict(_VALID)
     payload["reasoning_effort"] = "medium"

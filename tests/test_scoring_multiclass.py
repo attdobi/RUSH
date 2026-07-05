@@ -311,6 +311,34 @@ def test_run_scoring_dispatches_multiclass(tmp_path, mnist_votes, mnist_manifest
     assert any(row["labeler_id"] == "cnn" for row in dq["labelers"])
 
 
+def test_run_scoring_auto_detects_mnist_manifest_context(tmp_path, mnist_votes, mnist_manifest):
+    runs_root = tmp_path / "runs"
+    run_dir = runs_root / "run-auto"
+    run_dir.mkdir(parents=True)
+    (run_dir / "label_votes.jsonl").write_text(mnist_votes.read_text())
+    (run_dir / "run_manifest.json").write_text(json.dumps({
+        "run_id": "run-auto",
+        "area": "MNIST_Digits",
+        "policy_version": "v0.1",
+        "policy_graph_version": "MNIST_Digits.v0.1",
+        "sample_manifest_path": str(mnist_manifest),
+    }))
+
+    result = run_scoring(
+        "run-auto",
+        tmp_path,
+        runs_root=runs_root,
+        ground_truth_tier=("gold",),
+        validate_schemas=False,
+    )
+
+    assert result["multiclass"] is True
+    assert (run_dir / "scoring" / "decision_quality_multiclass.json").exists()
+    web_dq = json.loads((run_dir / "scoring" / "decision_quality.json").read_text())
+    metrics = web_dq["labelers"][0]["metrics"]
+    assert metrics["f1"] == metrics["macro_f1"]
+
+
 def test_run_scoring_default_is_binary_backcompat(tmp_path):
     # No task passed → binary path; missing votes raises the binary error path,
     # proving the default dispatch did not divert to multiclass.

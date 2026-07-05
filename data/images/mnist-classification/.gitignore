@@ -9,3 +9,4 @@
 # Deterministic label manifests are small and regenerable; commit them for the demo.
 !manifests/*.csv
 !manifests/*.json
+!manifests/*.jsonl

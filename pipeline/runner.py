@@ -54,6 +54,7 @@ from .manifest import (
     select_samples,
 )
 from .web.demo_area import area_from_policy_version
+from .web.demo_area import normalize_policy_area
 
 # Shared image-prep defaults (mirrored in run_manifest.image_prep).
 IMAGE_PREP_LONGEST_EDGE_PX = 1024
@@ -167,29 +168,45 @@ class DeterministicFakeClient(LabelClient):
     def _digest(self, image_id: str, salt: str = "") -> str:
         return hashlib.sha256(f"{self.model_id}|{image_id}|{salt}".encode("utf-8")).hexdigest()
 
-    def _fake_label(self, image_id: str) -> str:
+    def _fake_label(self, request: LabelRequest) -> str:
         if self.label_strategy is not None:
-            return self.label_strategy(self.model_id, image_id)
+            return self.label_strategy(self.model_id, request.image_id)
+        if request.area == "MNIST_Digits":
+            # MNIST dry-runs must exercise the same 10-class pipeline as live
+            # runs. Prefer the sample id's truth-ish digit prefix when present
+            # only through a deterministic hash, never by reading filenames.
+            bucket = int(self._digest(request.image_id, "mnist-label")[:2], 16) % 11
+            return "abstain" if bucket == 10 else str(bucket)
         # Cycle deterministically so test fixtures get a mix of labels.
-        bucket = int(self._digest(image_id, "label")[:2], 16) % 5
+        bucket = int(self._digest(request.image_id, "label")[:2], 16) % 5
         if bucket == 0:
             return "abstain"
         return "gen_ai" if bucket % 2 == 0 else "not_gen_ai"
 
     def _response_for(self, request: LabelRequest) -> LabelResponse:
         digest = self._digest(request.image_id)
+        label = self._fake_label(request)
+        is_boundary = int(digest[6:8], 16) % 4 == 0
+        boundary_pair: list[str] = []
+        if request.area == "MNIST_Digits" and is_boundary and label != "abstain":
+            other = str((int(label) + 1) % 10)
+            boundary_pair = sorted([label, other])
         return LabelResponse(
             image_id=request.image_id,
             model_id=request.model_id,
-            label=self._fake_label(request.image_id),
-            l2_label="",  # cold start: no L2 yet
+            label=label,
+            l2_label=(
+                f"MD.digit.{label}"
+                if request.area == "MNIST_Digits" and label != "abstain"
+                else ""
+            ),
             justification=(
                 "Deterministic dry-run response: this image was NOT sent to a "
                 "provider. Generated for offline schema validation."
             ),
             confidence=round((int(digest[:4], 16) % 1000) / 1000.0, 3),
             difficulty=("low", "medium", "high")[int(digest[4:6], 16) % 3],
-            is_boundary=(int(digest[6:8], 16) % 4 == 0),
+            is_boundary=is_boundary,
             raw_provider_payload={"dry_run": True, "model_id": request.model_id},
             error=None,
             latency_ms=0,
@@ -199,6 +216,7 @@ class DeterministicFakeClient(LabelClient):
             prepared_image_height=IMAGE_PREP_LONGEST_EDGE_PX,
             prepared_image_mime_type="image/jpeg",
             prepared_image_byte_size=int(digest[8:14], 16) % 200_000 + 10_000,
+            is_boundary_between=boundary_pair,
         )
 
     def label(self, request: LabelRequest) -> LabelResponse:
@@ -373,6 +391,8 @@ def _initial_manifest(
     batch_size: int = 20,
     effective_batches: int = 0,
     reasoning_effort: str | None = None,
+    area: str = "Generative_AI",
+    policy_version: str = "v0.1",
 ) -> dict:
     manifest: dict = {
         "run_id": run_id,
@@ -401,6 +421,8 @@ def _initial_manifest(
             }
             for m in models
         ],
+        "area": area,
+        "policy_version": policy_version,
         "policy_graph_version": policy_graph_version,
         "prompt_version": prompt_version,
         "sampling_version": sampling_version,
@@ -496,6 +518,8 @@ def run_labeling(
     run_id: str | None = None,
     dry_run: bool = True,
     reasoning_effort: str | None = None,
+    area: str | None = None,
+    policy_version: str | None = None,
 ) -> RunSummary:
     """Execute one labeling run.
 
@@ -519,6 +543,9 @@ def run_labeling(
     selected = select_samples(records, split=split, limit=limit, sample_ids=sample_ids)
     if not selected:
         raise ValueError("no samples matched the selection (split/limit/sample_ids)")
+    selected_sampling_versions = sorted({r.sampling_version for r in selected if r.sampling_version})
+    if len(selected_sampling_versions) == 1:
+        sampling_version = selected_sampling_versions[0]
 
     selected_holdout_splits = sorted({r.split for r in selected if r.split in HOLDOUT_SPLITS})
     if selected_holdout_splits and not allow_holdout:
@@ -532,12 +559,15 @@ def run_labeling(
     paths = run_paths(rid, runs_root=runs_root)
     paths.ensure()
 
+    run_area = normalize_policy_area(area) if area is not None else area_from_policy_version(policy_graph_version)
+    manifest_policy_version = policy_version or (
+        policy_graph_version.removeprefix(f"{run_area}.")
+        if policy_graph_version.startswith(f"{run_area}.")
+        else policy_graph_version
+    )
+
     policy_dir = policy_graph_dir or DEFAULT_POLICY_GRAPH_DIR
     policy_markdown = load_policy_markdown(policy_dir)
-    # Derive the demo/policy area (selects the per-project ontology used by
-    # every provider client) from the policy graph version, which encodes the
-    # area as a prefix (e.g. "MNIST_Digits.v1" vs "Generative_AI.v1"/"v0.1").
-    run_area = area_from_policy_version(policy_graph_version)
 
     sample_manifest_path = sample_manifest_path or DEFAULT_SAMPLE_MANIFEST
     try:
@@ -558,6 +588,8 @@ def run_labeling(
         sample_manifest_rel=sample_manifest_rel,
         sample_ids=sample_ids_sorted,
         models=model_specs,
+        area=run_area,
+        policy_version=manifest_policy_version,
         policy_graph_version=policy_graph_version,
         prompt_version=prompt_version,
         sampling_version=sampling_version,

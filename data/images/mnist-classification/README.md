@@ -9,8 +9,9 @@ problem.
 - `source-datasets/mnist/<digit>/f{index}.png` — sampled source PNG payloads,
   organized by ground-truth digit (`0`..`9`). Bulk payloads are git-ignored.
 - `thumbnails/` — generated previews / resized copies (git-ignored).
-- `manifests/` — deterministic CSV label manifests + `sampling_summary.json`.
-  These are small and regenerable, and ARE committed for the demo.
+- `manifests/` — deterministic CSV label manifests, runner-ready
+  `combined_labels.jsonl`, and `sampling_summary.json`. These are small and
+  regenerable, and ARE committed for the demo.
 
 ## Source data
 
@@ -43,7 +44,7 @@ Defaults produce a class-balanced (stratified) sample: 2000 train (200 per
 digit) and 500 val (50 per digit), `seed=20260703`,
 `sampling_version="mnist-sampling-v1"`.
 
-### Manifest CSV schema
+### Manifest formats
 
 `sample_id,dataset,label,label_int,repo_rel_path,original_filename,file_ext,sha256,split,seed,sampling_version,source_index,truth_tier,policy_use`
 
@@ -52,6 +53,12 @@ digit) and 500 val (50 per digit), `seed=20260703`,
 - `sha256` — hash of the copied payload (matches the upstream source byte-for-byte).
 - `source_index` — original CSV/file index (`f{index}.png`).
 - `policy_use` — `develop_policy` (train) / `validation_decision_quality` (val).
+
+`combined_labels.jsonl` is the manifest consumed by
+`scripts/run_bulk_labeling.py` and the scoring pipeline. It contains the same
+fields as the CSV rows, one JSON object per line, with `split` mapped to the
+runner's canonical selectors: `train -> dev_golden` and `val -> holdout`.
+The original CSV split is preserved as `source_split`.
 
 ## Git policy
 

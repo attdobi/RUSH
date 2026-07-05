@@ -80,6 +80,7 @@ def _vote_block(vote: dict[str, Any]) -> dict[str, Any]:
         "l2_label": vote.get("l2_label", ""),
         "confidence": vote.get("confidence"),
         "is_boundary": bool(vote.get("is_boundary", False)),
+        "is_boundary_between": list(vote.get("is_boundary_between") or []),
         "difficulty": vote.get("difficulty", ""),
         "justification": vote.get("justification", ""),
         "policy_citations": list(vote.get("policy_citations") or []),
@@ -99,8 +100,13 @@ def compute_misalignment(
     *,
     policy_graph_version: str,
     ground_truth_tier: tuple[str, ...] = ("gold", "platinum", "gold_candidate"),
+    label_coercer: Any | None = None,
 ) -> dict[str, Any]:
-    truth = _common.load_ground_truth(manifest_path, truth_tiers=ground_truth_tier)
+    truth = _common.load_ground_truth(
+        manifest_path,
+        truth_tiers=ground_truth_tier,
+        label_coercer=label_coercer,
+    )
     votes = _common.load_label_votes(label_votes_path)
 
     by_image: dict[str, list[dict[str, Any]]] = {}

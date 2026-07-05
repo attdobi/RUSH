@@ -18,6 +18,7 @@ from . import exporters as exporters_mod
 from . import misalignment as mis_mod
 from . import tasks as tasks_mod
 from ._common import load_ground_truth, load_label_votes, try_validate
+from pipeline.web.demo_area import MNIST_POLICY_AREA, area_from_policy_version, normalize_policy_area
 
 
 def _atomic_write_json(path: Path, data: Any) -> None:
@@ -32,6 +33,54 @@ def _atomic_write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text("".join(json.dumps(r, sort_keys=False) + "\n" for r in rows), encoding="utf-8")
     tmp.replace(path)
+
+
+def _read_run_manifest(run_dir: Path) -> dict[str, Any]:
+    path = run_dir / "run_manifest.json"
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _repo_path(root: Path, value: Any) -> Path | None:
+    if not isinstance(value, str) or not value:
+        return None
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else root / candidate
+
+
+def _task_for_manifest(manifest: dict[str, Any], fallback_version: str) -> tasks_mod.ScoringTask:
+    raw_area = manifest.get("area")
+    if isinstance(raw_area, str) and raw_area:
+        area = normalize_policy_area(raw_area)
+    else:
+        area = area_from_policy_version(manifest.get("policy_graph_version") or fallback_version)
+    return tasks_mod.MNIST_MULTICLASS if area == MNIST_POLICY_AREA else tasks_mod.DEFAULT_TASK
+
+
+def _metrics_for_web(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Add binary-shaped aliases for the MNIST web tables without losing detail."""
+    if "macro_f1" not in metrics:
+        return metrics
+    out = dict(metrics)
+    out.setdefault("precision", metrics.get("macro_precision"))
+    out.setdefault("recall", metrics.get("macro_recall"))
+    out.setdefault("f1", metrics.get("macro_f1"))
+    return out
+
+
+def _dq_for_web(dq: dict[str, Any]) -> dict[str, Any]:
+    out = dict(dq)
+    out["labelers"] = [
+        {**row, "metrics": _metrics_for_web(dict(row.get("metrics", {})))}
+        for row in dq.get("labelers", [])
+        if isinstance(row, dict)
+    ]
+    return out
 
 
 def _build_update_candidates(misalignment: dict[str, Any], *, cap: int = 50) -> list[dict[str, Any]]:
@@ -91,7 +140,16 @@ def run_scoring(
 
     The return value is JSON-serializable and suitable for API responses.
     """
-    resolved_task = task or tasks_mod.DEFAULT_TASK
+    root = repo_root.resolve()
+    resolved_runs_root = (runs_root or root / "data" / "runs").resolve()
+    run_dir = resolved_runs_root / run_id
+    run_manifest = _read_run_manifest(run_dir)
+    resolved_task = task or _task_for_manifest(run_manifest, policy_graph_version)
+    manifest_policy_version = run_manifest.get("policy_graph_version")
+    if isinstance(manifest_policy_version, str) and manifest_policy_version:
+        policy_graph_version = manifest_policy_version
+    if manifest is None:
+        manifest = _repo_path(root, run_manifest.get("sample_manifest_path"))
     if resolved_task.is_multiclass:
         return run_scoring_multiclass(
             run_id,
@@ -104,9 +162,6 @@ def run_scoring(
             validate_schemas=validate_schemas,
         )
 
-    root = repo_root.resolve()
-    resolved_runs_root = (runs_root or root / "data" / "runs").resolve()
-    run_dir = resolved_runs_root / run_id
     votes_path = run_dir / "label_votes.jsonl"
     if not votes_path.exists():
         raise FileNotFoundError(f"missing {votes_path}")
@@ -240,6 +295,23 @@ def run_scoring_multiclass(
     votes_raw = load_label_votes(votes_path)
     cost_summary = cost_mod.aggregate_per_call_costs(votes_raw)
     dq = cost_mod.attach_cost_to_labelers(dq, cost_summary)
+    dq_web = _dq_for_web(dq)
+
+    mis = mis_mod.compute_misalignment(
+        votes_path,
+        manifest_path,
+        policy_graph_version=policy_graph_version,
+        ground_truth_tier=ground_truth_tier,
+        label_coercer=dq_mc_mod.make_label_coercer(task.classes),
+    )
+    bord = borderline_mod.compute_borderline(
+        votes_path,
+        manifest_path,
+        policy_graph_version=policy_graph_version,
+        ground_truth_tier=ground_truth_tier,
+        label_coercer=dq_mc_mod.make_label_coercer(task.classes),
+        classes=task.classes,
+    )
 
     consensus_records = consensus_mod.build_consensus_records(votes_raw, run_id=run_id)
     try:
@@ -268,9 +340,21 @@ def run_scoring_multiclass(
 
     scoring_dir = run_dir / "scoring"
     _atomic_write_json(scoring_dir / "decision_quality_multiclass.json", dq)
+    _atomic_write_json(scoring_dir / "decision_quality.json", dq_web)
     _atomic_write_json(scoring_dir / "cost.json", cost_summary)
+    _atomic_write_json(scoring_dir / "misalignment.json", mis)
+    _atomic_write_json(scoring_dir / "borderline.json", bord)
     _atomic_write_json(scoring_dir / "consensus.json", consensus_summary)
     _atomic_write_jsonl(run_dir / "consensus.jsonl", consensus_records)
+
+    written = exporters_mod.write_web_exports(
+        run_dir,
+        decision_quality=dq_web,
+        misalignment=mis,
+        borderline=bord,
+        consensus=consensus_summary,
+        run_id=run_id,
+    )
 
     return {
         "ok": True,
@@ -279,6 +363,9 @@ def run_scoring_multiclass(
         "multiclass": True,
         "scoring_done": True,
         "decision_quality": {"n_labelers": len(dq.get("labelers", []))},
+        "written": {name: str(path) for name, path in written.items()},
+        "misalignment_summary": mis.get("summary", {}),
+        "borderline_summary": bord.get("summary", {}),
         "consensus_summary": consensus_rollup,
         "cost_summary": cost_summary,
     }

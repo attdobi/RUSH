@@ -12,10 +12,12 @@ import threading
 import traceback
 from typing import Any
 
+from pipeline.io_paths import DEFAULT_SAMPLE_MANIFEST, MNIST_SAMPLE_MANIFEST
 from pipeline.io_paths import RUN_ID_PATTERN
 from pipeline.scoring import run_scoring
 
 from ._safety import APIError, utcnow_iso
+from .demo_area import DEFAULT_POLICY_AREA, MNIST_POLICY_AREA
 
 _ARCHIVE_PREFIX = "_"
 
@@ -195,6 +197,13 @@ def _manifest_is_completed(manifest: dict[str, Any]) -> bool:
     return bool(manifest.get("finished_at")) and errored == 0 and (expected == 0 or completed >= expected)
 
 
+def _scoring_done(run_dir: Path) -> bool:
+    scoring = run_dir / "scoring"
+    return (scoring / "decision_quality.json").exists() or (
+        scoring / "decision_quality_multiclass.json"
+    ).exists()
+
+
 class RunRegistry:
     """Discovers completed runs and tracks subprocess-backed live jobs."""
 
@@ -221,8 +230,19 @@ class RunRegistry:
 
     def start_job(self, request: dict[str, Any]) -> dict[str, Any]:
         job_id = _job_id()
+        area = str(request.get("area") or DEFAULT_POLICY_AREA)
+        policy_version = str(request["policy_version"])
+        policy_graph_version = (
+            f"{area}.{policy_version}" if area == MNIST_POLICY_AREA else policy_version
+        )
+        sample_manifest = (
+            MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else DEFAULT_SAMPLE_MANIFEST
+        )
+        # X2 MNIST separation: keep the web launcher responsible only for
+        # threading demo area + the matching sample manifest into the runner.
+        # X1 may merge liveness/finalization changes around this block.
         argv = [
-            ".venv/bin/python",
+            "/Users/sacsimoto/GitHub/RUSH/.venv/bin/python",
             "-u",
             "scripts/run_bulk_labeling.py",
             "--models",
@@ -234,7 +254,11 @@ class RunRegistry:
             "--concurrency",
             str(request["concurrency"]),
             "--policy-version",
-            request["policy_version"],
+            policy_version,
+            "--area",
+            area,
+            "--manifest",
+            str(sample_manifest),
             "--batch-size",
             str(request.get("batch_size") or 20),
         ]
@@ -256,12 +280,16 @@ class RunRegistry:
             "finished_at": None,
             "returncode": None,
             "models": list(request["models"]),
+            "demo": request.get("demo"),
+            "area": area,
             "split": request["split"],
             "mode": request["mode"],
             # New picker flow encodes reasoning in model ids; keep this nullable
             # and let per-model ids/runtime config be the source of truth.
             "reasoning_effort": request.get("reasoning_effort"),
-            "policy_version": request["policy_version"],
+            "policy_version": policy_version,
+            "policy_graph_version": policy_graph_version,
+            "sample_manifest_path": str(sample_manifest),
             "allow_spend": bool(request["allow_spend"]),
             "allow_holdout": bool(request.get("allow_holdout")),
             "limit": request.get("limit"),
@@ -373,6 +401,7 @@ class RunRegistry:
 
         requested_models = sorted(state.get("models") or [])
         requested_split = state.get("split")
+        requested_area = state.get("area")
         job_started = state.get("started_at") or ""
         candidates: list[tuple[float, str]] = []
         for run_dir in self.runs_root.iterdir():
@@ -388,6 +417,8 @@ class RunRegistry:
             if requested_split and manifest.get("split") != requested_split:
                 continue
             if requested_models and sorted(_manifest_models(manifest)) != requested_models:
+                continue
+            if requested_area and manifest.get("area") != requested_area:
                 continue
             started_at = manifest.get("started_at") or ""
             if job_started and started_at and started_at < job_started:
@@ -474,9 +505,11 @@ class RunRegistry:
                     "finished_at": manifest.get("finished_at"),
                     "split": manifest.get("split"),
                     "policy_graph_version": manifest.get("policy_graph_version"),
+                    "policy_version": manifest.get("policy_version"),
+                    "area": manifest.get("area"),
                     "models": _manifest_models(manifest),
                     "totals": manifest.get("totals", {}),
-                    "scoring_done": (run_dir / "scoring" / "decision_quality.json").exists(),
+                    "scoring_done": _scoring_done(run_dir),
                     "running": self.is_job_running(run_id),
                 }
             )
@@ -526,7 +559,7 @@ class RunRegistry:
             "running_cost_usd_estimate": running_cost_usd_estimate,
             "cost": manifest_cost,
             "recorded_cost_usd": recorded_cost,
-            "scoring_done": bool(run_dir and (run_dir / "scoring" / "decision_quality.json").exists()),
+            "scoring_done": bool(run_dir and _scoring_done(run_dir)),
             "returncode": (state or {}).get("returncode"),
             "log_tail": self.log_tail(token),
         }

@@ -9,6 +9,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from pipeline.providers.registry import MODEL_REGISTRY
+from pipeline.web.demo_area import normalize_policy_area
 
 _ALLOWED_SPLITS = {"dev_golden", "holdout", "all"}
 _ALLOWED_MODES = {"cold_start", "warm_start"}
@@ -180,6 +181,32 @@ def _require_bool_true(payload: dict[str, Any], name: str, message: str) -> None
 
 def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize ``POST /api/runs/start`` JSON."""
+    raw_demo = payload.get("demo")
+    if raw_demo is not None and not isinstance(raw_demo, str):
+        raise APIError(
+            400,
+            "validation_error",
+            "demo must be a string when provided",
+            details={"field": "demo"},
+        )
+    raw_area = payload.get("area")
+    if raw_area is not None and not isinstance(raw_area, str):
+        raise APIError(
+            400,
+            "validation_error",
+            "area must be a string when provided",
+            details={"field": "area"},
+        )
+    try:
+        area = normalize_policy_area(raw_area, demo=raw_demo)
+    except ValueError as exc:
+        raise APIError(
+            400,
+            "validation_error",
+            str(exc),
+            details={"field": "area"},
+        ) from exc
+
     raw_models = payload.get("models")
     if not isinstance(raw_models, list) or not raw_models:
         raise APIError(400, "validation_error", "models must be a non-empty list")
@@ -316,6 +343,8 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "models": models,
+        "demo": raw_demo.strip() if isinstance(raw_demo, str) and raw_demo.strip() else None,
+        "area": area,
         "split": split,
         "limit": limit,
         "sample_ids": sample_ids,

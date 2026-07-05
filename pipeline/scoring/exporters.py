@@ -36,6 +36,7 @@ _VOTE_WEB_FIELDS = (
     "l2_label",
     "confidence",
     "is_boundary",
+    "is_boundary_between",
     "difficulty",
     "justification",
     "policy_citations",

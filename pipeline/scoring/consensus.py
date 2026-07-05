@@ -51,6 +51,7 @@ def _voter_audit(vote: dict[str, Any]) -> dict[str, Any]:
     }
     out["confidence"] = _common.optional_confidence(vote.get("confidence"))
     out["is_boundary"] = bool(vote.get("is_boundary", False))
+    out["is_boundary_between"] = list(vote.get("is_boundary_between") or [])
     for key in (
         "l2_label",
         "difficulty",
@@ -196,6 +197,19 @@ def build_cohort_rollups(
     n_split = sum(1 for r in records if r.get("is_split"))
     n_tie = sum(1 for r in records if r.get("tie"))
     n_boundary = sum(1 for r in records if r.get("any_boundary_flag"))
+    boundary_pair_counts: Counter[tuple[str, str]] = Counter()
+    for r in records:
+        seen_for_image: set[tuple[str, str]] = set()
+        for voter in r.get("voters", []):
+            pair = voter.get("is_boundary_between") or []
+            if not isinstance(pair, list) or len(pair) != 2:
+                continue
+            normalized_pair = tuple(sorted(str(item) for item in pair))
+            if len(set(normalized_pair)) != 2:
+                continue
+            seen_for_image.add(normalized_pair)
+        for pair in seen_for_image:
+            boundary_pair_counts[pair] += 1
 
     rollup: dict[str, Any] = {
         "n_images_total": n_total,
@@ -204,6 +218,10 @@ def build_cohort_rollups(
         "n_images_split": n_split,
         "n_images_with_tie": n_tie,
         "n_images_with_boundary_flag": n_boundary,
+        "n_images_with_boundary_pair": sum(boundary_pair_counts.values()),
+        "boundary_pair_distribution": {
+            "/".join(pair): count for pair, count in sorted(boundary_pair_counts.items())
+        },
     }
 
     # majority_vs_sme_accuracy
