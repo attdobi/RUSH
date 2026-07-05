@@ -342,6 +342,11 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             # Reasoning model, but gemma is compact: a ~4000 combined budget
             # keeps it snappy while leaving room for reasoning + visible JSON.
             "max_completion_tokens": 4000,
+            # gemma over-reasons on trivial MNIST digits (1900-2400 reasoning
+            # tokens then abstains). Disable reasoning so it answers directly;
+            # paired with the area-aware 112px MNIST image cap this labels a
+            # digit in ~2s. LM Studio accepts reasoning_effort="none".
+            "reasoning_effort": "none",
         },
     ),
 }

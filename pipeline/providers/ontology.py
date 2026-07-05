@@ -53,6 +53,13 @@ class Ontology:
     response_keys: tuple[str, ...]
     response_schema: dict[str, Any]
     abstain_label: str = "abstain"
+    # Area-aware downsampler cap (longest edge, px) for the JPEG actually sent
+    # to the provider. GenAI keeps the 1024px baseline; MNIST source digits are
+    # 28x28 native, so a 112px cap (4x) is plenty and keeps image token cost low
+    # enough that compact local reasoning models (gemma) don't blow context.
+    # Threaded onto LabelRequest.max_image_size by the runner. See
+    # pipeline/labeling/image_prep.py and pipeline/runner._build_request.
+    max_image_size: tuple[int, int] = (1024, 1024)
 
     def schema_copy(self) -> dict[str, Any]:
         """Deep copy of the response schema (providers mutate their own copy)."""
@@ -244,6 +251,9 @@ MNIST_ONTOLOGY = Ontology(
     user_instructions=MNIST_USER_INSTRUCTIONS,
     response_keys=MNIST_RESPONSE_KEYS,
     response_schema=_MNIST_SCHEMA,
+    # 28x28 native digits -> 112px (4x) is ample and keeps image tokens low so
+    # compact local reasoning models (gemma) don't exhaust context.
+    max_image_size=(112, 112),
 )
 
 

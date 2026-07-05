@@ -35,6 +35,7 @@ from . import persistence
 from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
 from .providers.pricing import compute_call_cost, PRICING_VERSION
+from .providers.ontology import get_ontology
 from .scoring.cost_ledger import (
     build_cost_row,
     build_model_speed_summary,
@@ -252,6 +253,10 @@ def _build_request(
     prompt_version: str,
     area: str,
 ) -> LabelRequest:
+    # Area-aware downsampler cap: MNIST prepares tiny (~112px) images so image
+    # token cost stays low; GenAI keeps the 1024px baseline. Threaded from the
+    # ontology down to prepare_image_for_labeling via LabelRequest.max_image_size.
+    max_image_size = get_ontology(area).max_image_size
     return LabelRequest(
         image_path=sample.absolute_path,
         image_id=sample.sample_id,
@@ -260,6 +265,7 @@ def _build_request(
         prompt_version=prompt_version,
         model_id=model_spec.model_id,
         area=area,
+        max_image_size=max_image_size,
     )
 
 
