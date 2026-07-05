@@ -145,6 +145,9 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             if method == "POST" and action == "score":
                 send_json(handler, 200, registry.score(token))
                 return
+            if method == "POST" and action in {"cancel", "stop"}:
+                send_json(handler, 200, registry.cancel_run(token))
+                return
 
         # ----- X2: decision-quality / insights ---------------------------
         if method == "GET" and path == "/api/decision-quality":

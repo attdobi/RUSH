@@ -7,8 +7,10 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import subprocess
 import threading
+import time
 import traceback
 from typing import Any
 
@@ -89,16 +91,20 @@ def _finalize_manifest_aborted(
     *,
     finished_at: str,
     reason: str,
+    returncode: int | None = None,
+    status: str = "aborted",
 ) -> bool:
     manifest = _read_json(manifest_path)
     if not manifest or manifest.get("finished_at"):
         return False
-    status = str(manifest.get("status") or "").lower()
-    if status == "completed":
+    current_status = str(manifest.get("status") or "").lower()
+    if current_status == "completed":
         return False
     manifest["finished_at"] = finished_at
-    manifest["status"] = "aborted"
+    manifest["status"] = status
     manifest["abort_reason"] = reason
+    if returncode is not None:
+        manifest["returncode"] = returncode
     _atomic_write_json(manifest_path, manifest)
     return True
 
@@ -391,25 +397,34 @@ class RunRegistry:
         parsed = _last_json_object("".join(output_parts))
         run_id = parsed.get("run_id") if isinstance(parsed, dict) else None
         state = self._read_state(job_id)
+        existing_status = str(state.get("status") or "").lower()
+        was_canceled = existing_status == "canceled"
         if isinstance(run_id, str):
             state["run_id"] = run_id
-        state["finished_at"] = utcnow_iso()
+        state["finished_at"] = state.get("finished_at") or utcnow_iso()
         state["returncode"] = returncode
-        state["status"] = "finished" if returncode == 0 else "aborted"
-        if returncode != 0:
-            state["abort_reason"] = f"run subprocess exited with returncode {returncode}"
+        if was_canceled:
+            state["status"] = "canceled"
+            state["abort_reason"] = state.get("abort_reason") or "canceled by user"
+        else:
+            state["status"] = "finished" if returncode == 0 else "aborted"
+            if returncode != 0:
+                state["abort_reason"] = f"run subprocess exited with returncode {returncode}"
         self._write_state(state)
 
         if returncode != 0:
             resolved_run_id = run_id if isinstance(run_id, str) else self._infer_run_id_for_job(state)
             if isinstance(resolved_run_id, str):
+                abort_status = "canceled" if was_canceled else "aborted"
                 _finalize_manifest_aborted(
                     self.runs_root / resolved_run_id / "run_manifest.json",
                     finished_at=state["finished_at"],
                     reason=state["abort_reason"],
+                    returncode=returncode,
+                    status=abort_status,
                 )
 
-        if returncode == 0 and isinstance(run_id, str):
+        if returncode == 0 and isinstance(run_id, str) and not was_canceled:
             run_dir = self.runs_root / run_id
             manifest = _read_json(run_dir / "run_manifest.json")
             if _manifest_is_completed(manifest):
@@ -517,6 +532,7 @@ class RunRegistry:
         *,
         returncode: int | None = None,
         reason: str = "run subprocess is no longer alive",
+        status: str = "aborted",
     ) -> None:
         if state.get("finished_at") or state.get("returncode") is not None:
             return
@@ -524,7 +540,7 @@ class RunRegistry:
         updated = dict(state)
         updated["finished_at"] = finished_at
         updated["returncode"] = -9 if returncode is None else returncode
-        updated["status"] = "aborted"
+        updated["status"] = status
         updated["abort_reason"] = reason
         run_id = updated.get("run_id")
         if not isinstance(run_id, str):
@@ -537,7 +553,94 @@ class RunRegistry:
                 self.runs_root / run_id / "run_manifest.json",
                 finished_at=finished_at,
                 reason=reason,
+                returncode=updated["returncode"],
+                status=status,
             )
+
+    def _terminate_pid(self, pid: object, *, timeout: float = 5.0) -> int:
+        try:
+            pid_int = int(pid)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return -15
+        if pid_int <= 0:
+            return -15
+        try:
+            os.kill(pid_int, signal.SIGTERM)
+        except ProcessLookupError:
+            return -15
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not _process_is_alive(pid_int):
+                return -15
+            time.sleep(0.05)
+        try:
+            os.kill(pid_int, signal.SIGKILL)
+        except ProcessLookupError:
+            return -15
+        return -9
+
+    def _cancel_payload(
+        self,
+        token: str,
+        state: dict[str, Any],
+        *,
+        status: str,
+    ) -> dict[str, Any]:
+        return {
+            "run_id": state.get("run_id") or token,
+            "job_id": state.get("job_id"),
+            "running": False,
+            "status": status,
+        }
+
+    def cancel_run(self, token: str) -> dict[str, Any]:
+        state = self.find_job(token)
+        if not state:
+            raise APIError(404, "run_not_found", f"unknown run or job id: {token}")
+
+        job_id = state["job_id"]
+        if state.get("finished_at") or state.get("returncode") is not None:
+            return self._cancel_payload(
+                token,
+                state,
+                status=str(state.get("status") or "finished"),
+            )
+
+        returncode = -15
+        with self._lock:
+            proc = self._processes.get(job_id)
+        if proc is not None and proc.poll() is None:
+            self._finalize_dead_job(
+                job_id,
+                state,
+                returncode=-15,
+                reason="canceled by user",
+                status="canceled",
+            )
+            proc.terminate()
+            try:
+                returncode = proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                returncode = proc.wait()
+            with self._lock:
+                self._processes.pop(job_id, None)
+        else:
+            refreshed = self._read_state(job_id) or state
+            pid = refreshed.get("pid")
+            if _process_is_alive(pid):
+                returncode = self._terminate_pid(pid)
+
+        refreshed = self._read_state(job_id) or state
+        self._finalize_dead_job(
+            job_id,
+            refreshed,
+            returncode=returncode,
+            reason="canceled by user",
+            status="canceled",
+        )
+        canceled = self._read_state(job_id) or refreshed
+        return self._cancel_payload(token, canceled, status="canceled")
 
     def is_job_running(self, token: str) -> bool:
         state = self.find_job(token)
