@@ -142,14 +142,39 @@
     ].filter(value => value !== undefined && value !== null).map(value => String(value).toLowerCase());
   }
 
+  function runErroredCount(payload) {
+    const direct = Number(payload?.errored_calls);
+    if (Number.isFinite(direct)) return direct;
+    const totals = payload?.totals && typeof payload.totals === 'object' ? Number(payload.totals.errored_calls) : 0;
+    return Number.isFinite(totals) ? totals : 0;
+  }
+
+  function truthyApiFlag(value) {
+    if (value === true || value === 1) return true;
+    if (typeof value === 'string') return ['1', 'true', 'yes'].includes(value.toLowerCase());
+    return false;
+  }
+
+  function completedWithErrors(payload) {
+    const values = payloadStatusValues(payload);
+    if (values.some(value => value.includes('abort') || value.includes('fail') || value.includes('cancel'))) return false;
+    if (truthyApiFlag(payload?.completed_with_errors)) return true;
+    if (values.some(value => value.includes('completed_with_errors'))) return true;
+    const errored = runErroredCount(payload);
+    if (errored <= 0) return false;
+    if (values.some(value => value.includes('complete') || value.includes('success') || value.includes('finish'))) return true;
+    return !!payload?.finished_at && payload?.running !== true;
+  }
+
   function runStateLabel(payload) {
     const values = payloadStatusValues(payload);
     if (payload?.stale === true || payload?.is_stale === true || payload?.liveness?.stale === true) return 'stale';
     if (values.some(value => value.includes('stale'))) return 'stale';
     if (values.some(value => value === 'cancel' || value.includes('canceled') || value.includes('cancelled'))) return 'canceled';
     if (values.some(value => value.includes('abort'))) return 'aborted';
-    if (values.some(value => value.includes('fail') || value.includes('error'))) return 'failed';
+    if (completedWithErrors(payload)) return 'completed-with-errors';
     if (payload?.returncode !== undefined && payload?.returncode !== null && Number(payload.returncode) !== 0) return 'failed';
+    if (values.some(value => value.includes('fail') || value.includes('error'))) return 'failed';
     if (payload?.running === true) {
       const start = new Date(payload.started_at || '').getTime();
       if (Number.isFinite(start) && Date.now() - start > MAX_POLL_MS) return 'stale';
@@ -551,7 +576,11 @@
     rushApiStatus('#runTriggerStatusLine', message, isError);
   }
 
-  function lifecycleTitle(lifecycle) {
+  function lifecycleTitle(lifecycle, payload = null) {
+    if (lifecycle === 'completed-with-errors') {
+      const count = runErroredCount(payload);
+      return `Completed · ${count} errored`;
+    }
     const titles = {
       aborted: 'Aborted',
       canceled: 'Canceled',
@@ -607,7 +636,7 @@
   function renderRunStatusControls(payload, lifecycle, running) {
     const { lifecycleBadge, cancelButton, cancelMessage } = ensureRunStatusControls();
     if (lifecycleBadge) {
-      lifecycleBadge.textContent = lifecycleTitle(lifecycle);
+      lifecycleBadge.textContent = lifecycleTitle(lifecycle, payload);
       lifecycleBadge.className = `run-status-chip status-${lifecycle}`;
       lifecycleBadge.hidden = lifecycle === 'unknown';
     }
@@ -621,6 +650,40 @@
       cancelMessage.textContent = state.cancelError;
       cancelMessage.hidden = !state.cancelError;
     }
+  }
+
+  function ensureRunErrorsPanel() {
+    let panel = $('#runTriggerErrors');
+    if (panel) return panel;
+    const host = $('#runTriggerModelSpeed') || $('#runTriggerSummary');
+    if (!host || !host.parentNode) return null;
+    panel = document.createElement('div');
+    panel.id = 'runTriggerErrors';
+    panel.className = 'run-error-panel';
+    panel.hidden = true;
+    host.insertAdjacentElement('afterend', panel);
+    return panel;
+  }
+
+  async function updateRunErrors(payload) {
+    const panel = ensureRunErrorsPanel();
+    if (!panel) return;
+    const runId = payload?.run_id || state.runId;
+    const errored = runErroredCount(payload);
+    if (!runId || errored <= 0) {
+      panel.hidden = true;
+      panel.innerHTML = '';
+      return;
+    }
+    const rows = typeof window.rushFetchRunErrors === 'function'
+      ? await window.rushFetchRunErrors(runId)
+      : [];
+    if ((payload?.run_id || state.runId) !== runId) return;
+    const renderer = window.rushRenderRunErrorDetails;
+    panel.innerHTML = typeof renderer === 'function'
+      ? renderer(rows, errored)
+      : `<p class="muted">${errored} errored call(s) recorded.</p>`;
+    panel.hidden = false;
   }
 
   async function cancelRun() {
@@ -721,7 +784,7 @@
     const models = extractRequestedModels(payload);
     const modelCount = models.length || '—';
     const imageCount = expected && models.length ? Math.ceil(expected / models.length) : ($('#runTriggerBatchSize')?.value || '20');
-    const succeeded = Math.max(0, completed - errored);
+    const succeeded = completed;
     const started = payload.started_at ? new Date(payload.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
     const lifecycle = runStateLabel(payload);
     const modelBreakdown = models.length ? models.map(compactModelName).join(' · ') : 'No models selected';
@@ -757,13 +820,16 @@
     const completed = Number(payload.completed_calls || 0);
     const expected = Number(payload.expected_calls || 0);
     const errored = Number(payload.errored_calls || 0);
-    const progress = isNumber(payload.progress) ? payload.progress : (expected > 0 ? completed / expected : 0);
+    const attempted = completed + errored;
+    const progress = completedWithErrors(payload) && expected > 0
+      ? Math.min(1, attempted / expected)
+      : (isNumber(payload.progress) ? payload.progress : (expected > 0 ? attempted / expected : 0));
     const width = Math.max(0, Math.min(100, progress * 100));
     const runId = payload.run_id || state.runId;
     const runIdEl = $('#runTriggerRunId');
     if (runIdEl) runIdEl.textContent = runId ? `Run ${runId}` : 'Run status';
     const progressEl = $('#runTriggerProgressText');
-    if (progressEl) progressEl.textContent = `${completed} / ${expected || '—'} calls${errored ? ` · ${errored} errored` : ''}`;
+    if (progressEl) progressEl.textContent = `${completed} / ${expected || '—'} ${errored ? 'successful calls' : 'calls'}${errored ? ` · ${errored} errored` : ''}`;
     const costBadge = $('#runTriggerCostBadge');
     if (costBadge) {
       const cv = costValue(payload);
@@ -778,6 +844,7 @@
     if (bar) bar.style.width = `${width.toFixed(1)}%`;
     renderStatusSummary(payload, completed, expected, errored);
     renderModelSpeed(payload);
+    updateRunErrors(payload).catch(() => {});
     const raw = $('#runTriggerRawJson');
     if (raw) raw.textContent = JSON.stringify(payload, null, 2);
     const log = $('#runTriggerLogTail');
@@ -798,7 +865,7 @@
       stopElapsedTicker();
       updateElapsed();
     }
-    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycleTitle(lifecycle).toLowerCase()}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
+    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycleTitle(lifecycle, payload).toLowerCase()}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
     if (!running) {
       stopPolling();
       rushApiLoadCatalog().catch(() => {});

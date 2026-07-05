@@ -560,6 +560,7 @@ const runState = {
   borderline: null,
   misalignment: null,
   consensus: null,
+  errors: [],
   consensusFilter: 'all',
   expandedRows: {}
 };
@@ -574,6 +575,32 @@ async function fetchJsonOptional(path) {
     return null;
   }
 }
+
+async function fetchJsonlOptional(path) {
+  try {
+    const response = await fetch(path, { cache: 'no-store' });
+    if (!response.ok) return [];
+    const text = await response.text();
+    return text.split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (error) {
+          return { reason: line };
+        }
+      });
+  } catch (error) {
+    return [];
+  }
+}
+
+async function fetchRunErrors(runId) {
+  if (!runId) return [];
+  return fetchJsonlOptional(`${RUNS_DIR_URL}${encodeURIComponent(runId)}/errors.jsonl`);
+}
+window.rushFetchRunErrors = fetchRunErrors;
 
 async function discoverRuns() {
   if (window.RUSH_API?.ready) await window.RUSH_API.ready.catch(() => null);
@@ -637,12 +664,20 @@ function filterRunsForActiveDemo(runs) {
   return (Array.isArray(runs) ? runs : []).filter(runMatchesActiveDemo);
 }
 
+function truthyApiFlag(value) {
+  if (value === true || value === 1) return true;
+  if (typeof value === 'string') return ['1', 'true', 'yes'].includes(value.toLowerCase());
+  return false;
+}
+
 async function loadRun(runId) {
   if (!runId) {
     runState.selectedRunId = null;
     runState.summary = null;
     runState.borderline = null;
     runState.misalignment = null;
+    runState.consensus = null;
+    runState.errors = [];
     renderRun();
     window.dispatchEvent(new CustomEvent('rush-score-run-selected', { detail: { runId: '' } }));
     return;
@@ -653,11 +688,12 @@ async function loadRun(runId) {
     status.textContent = `Loading run ${runId}…`;
   }
   const base = `${RUNS_DIR_URL}${encodeURIComponent(runId)}/web`;
-  const [summary, borderline, misalignment, consensus] = await Promise.all([
+  const [summary, borderline, misalignment, consensus, errors] = await Promise.all([
     fetchJsonOptional(`${base}/summary.json`),
     fetchJsonOptional(`${base}/borderline.json`),
     fetchJsonOptional(`${base}/misalignment.json`),
-    fetchJsonOptional(`${base}/consensus.json`)
+    fetchJsonOptional(`${base}/consensus.json`),
+    fetchRunErrors(runId)
   ]);
   if (runState.selectedRunId !== runId) runState.expandedRows = {};
   runState.selectedRunId = runId;
@@ -665,8 +701,9 @@ async function loadRun(runId) {
   runState.borderline = borderline;
   runState.misalignment = misalignment;
   runState.consensus = consensus;
+  runState.errors = Array.isArray(errors) ? errors : [];
   if (status) {
-    if (!summary && !borderline && !misalignment && !consensus) {
+    if (!summary && !borderline && !misalignment && !consensus && !runState.errors.length) {
       status.classList.add('error');
       status.textContent = `No web exports found for run ${runId}.`;
     } else {
@@ -693,7 +730,12 @@ function renderRunPicker() {
   }
   picker.disabled = false;
   picker.innerHTML = runState.available.map(r => {
-    const suffix = r.scoring_done === false ? ' · unscored' : '';
+    const errorCount = metricNumber(r.errored_calls) ?? metricNumber(r.totals?.errored_calls) ?? 0;
+    const statusText = String(r.status || '').toLowerCase();
+    const hasCompletedErrors = truthyApiFlag(r.completed_with_errors) || (errorCount > 0 && statusText.includes('complete'));
+    const errorSuffix = hasCompletedErrors ? ` · ${errorCount} errored` : '';
+    const scoringSuffix = r.scoring_done === false ? ' · unscored' : '';
+    const suffix = `${errorSuffix}${scoringSuffix}`;
     const label = r.started_at ? `${r.run_id} · ${r.started_at}${suffix}` : `${r.run_id}${suffix}`;
     const selected = r.run_id === runState.selectedRunId ? ' selected' : '';
     return `<option value="${attr(r.run_id)}"${selected}>${esc(label)}</option>`;
@@ -740,11 +782,38 @@ function formatRunTime(meta) {
   return { started, finished };
 }
 
+function runErrorRowText(row) {
+  if (!row || typeof row !== 'object') return String(row || '');
+  const parts = [];
+  if (row.image_id) parts.push(`image ${row.image_id}`);
+  if (row.model_id) parts.push(String(row.model_id));
+  if (row.stage) parts.push(String(row.stage));
+  const reason = row.reason || row.error || row.message || row.error_code || '';
+  return `${parts.join(' · ') || 'run error'}${reason ? `: ${reason}` : ''}`;
+}
+
+function renderRunErrorDetails(rows, expectedCount = 0) {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const count = Math.max(list.length, Number(expectedCount) || 0);
+  if (!count) return '';
+  const body = list.length
+    ? `<ul class="run-error-list">${list.slice(0, 50).map(row => `<li>${esc(runErrorRowText(row))}</li>`).join('')}</ul>`
+    : `<p class="muted">${esc(count)} errored call(s) recorded; details will appear when errors.jsonl is available.</p>`;
+  const overflow = list.length > 50 ? `<p class="muted">Showing first 50 of ${list.length} error rows.</p>` : '';
+  return `
+    <details class="run-errors-details" open>
+      <summary>Run errors (${esc(count)})</summary>
+      ${body}
+      ${overflow}
+    </details>`;
+}
+window.rushRenderRunErrorDetails = renderRunErrorDetails;
+
 function renderRunSummary() {
   const target = $('#runSummary');
   if (!target) return;
   if (!runState.summary) {
-    target.innerHTML = '';
+    target.innerHTML = renderRunErrorDetails(runState.errors);
     return;
   }
   const s = runState.summary;
@@ -758,6 +827,7 @@ function renderRunSummary() {
   const expected = metricNumber(totals.expected_calls);
   const cost = runSummaryCost(s);
   const time = formatRunTime(meta);
+  const errorsHtml = renderRunErrorDetails(runState.errors, errored);
   const cards = [
     ['Images', runSummaryImageCount(s), meta.split ? `split: ${meta.split}` : 'scored images'],
     ['Models', modelRows.length || '—', modelNames.length ? modelNames.join(' · ') : 'model breakdown unavailable'],
@@ -772,7 +842,8 @@ function renderRunSummary() {
     <details class="raw-json-details run-summary-raw">
       <summary>View raw summary JSON</summary>
       <pre class="log-tail raw-json">${esc(JSON.stringify(s, null, 2))}</pre>
-    </details>`;
+    </details>
+    ${errorsHtml}`;
 }
 
 function preparedMetaLine(prepared) {
