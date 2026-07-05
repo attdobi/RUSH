@@ -27,13 +27,44 @@ from pipeline.policy_diff import (
     reject_proposal,
     seed_cold_start_proposal,
 )
-from pipeline.web.demo_area import normalize_policy_area, policy_version_matches_area
+from pipeline.web.demo_area import (
+    area_from_policy_version,
+    normalize_policy_area,
+    policy_version_matches_area,
+)
 
 _VERSION_RE = re.compile(r"^v\d+\.\d+$")
 
 
 def _root(repo_root: Path | str) -> Path:
     return Path(repo_root).resolve()
+
+
+def _domain_for_run(
+    repo_root: Path | str,
+    run_id: str,
+    body: dict[str, Any] | None = None,
+) -> str:
+    """Resolve the policy domain/area for a proposal request.
+
+    Prefers an explicit ``area``/``demo`` in the request body, otherwise derives
+    it from the run manifest's ``policy_graph_version`` prefix. Falls back to the
+    GenAI baseline so historical bare-version runs keep working.
+    """
+    body = body or {}
+    explicit_area = body.get("area")
+    explicit_demo = body.get("demo")
+    if explicit_area or explicit_demo:
+        try:
+            return normalize_policy_area(explicit_area, demo=explicit_demo)
+        except ValueError:
+            pass
+    try:
+        manifest_path = _root(repo_root) / "data" / "runs" / str(run_id) / "run_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return area_from_policy_version(manifest.get("policy_graph_version"))
+    except Exception:  # noqa: BLE001 - best-effort; default to GenAI
+        return DOMAIN
 
 
 def _error(status: int, exc: Exception) -> tuple[int, dict[str, Any]]:
@@ -122,6 +153,7 @@ def _start_propose_diff_job(
     model_id: str,
     proposed_files: dict[str, Any] | None,
     files_removed: list[Any],
+    domain: str = DOMAIN,
 ) -> dict[str, Any]:
     job_id = _new_job_id()
     now = _utc_now()
@@ -174,6 +206,7 @@ def _start_propose_diff_job(
                 repo_root=repo_root,
                 run_id=run_id,
                 base_version=base_version,
+                domain=domain,
                 model_id=model_id,
                 proposed_files=proposed_files,
                 files_removed=files_removed,
@@ -449,6 +482,8 @@ def handle_propose_diff(
     if not isinstance(files_removed, list):
         return 400, {"error": "files_removed must be a list when provided"}
 
+    domain = _domain_for_run(repo_root, run_id, body)
+
     if async_requested:
         try:
             return 202, _start_propose_diff_job(
@@ -458,6 +493,7 @@ def handle_propose_diff(
                 model_id=model_id,
                 proposed_files=proposed,
                 files_removed=files_removed,
+                domain=domain,
             )
         except Exception as exc:  # noqa: BLE001
             return _error(500, exc)
@@ -467,6 +503,7 @@ def handle_propose_diff(
             repo_root=repo_root,
             run_id=run_id,
             base_version=base_version,
+            domain=domain,
             model_id=model_id,
             proposed_files=proposed,
             files_removed=files_removed,
@@ -538,9 +575,11 @@ def handle_cold_start(
     task_description = body.get("task_description")
     if not isinstance(task_description, str) or not task_description.strip():
         return 400, {"error": "task_description is required"}
-    domain = body.get("domain") or DOMAIN
-    if not isinstance(domain, str) or domain != DOMAIN:
-        return 400, {"error": f"unsupported domain: {domain!r}"}
+    raw_domain = body.get("domain") or body.get("area")
+    try:
+        domain = normalize_policy_area(raw_domain, demo=body.get("demo"))
+    except ValueError:
+        return 400, {"error": f"unsupported domain: {raw_domain!r}"}
     model_id = body.get("model_id") or DEFAULT_POLICY_MODEL
     if not isinstance(model_id, str):
         return 400, {"error": "model_id must be a string"}
@@ -587,6 +626,7 @@ def handle_grow_batch(
             repo_root=repo_root,
             run_id=run_id,
             base_version=base_version,
+            domain=_domain_for_run(repo_root, run_id, body),
             batch_index=batch_index,
             batch_size=batch_size,
             model_id=model_id,

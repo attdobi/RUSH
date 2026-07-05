@@ -216,10 +216,10 @@
     if (next) {
       next.disabled = !hasNext;
       next.textContent = hasNext ? `Next: ${list[index + 1]}` : 'Next version';
-      next.setAttribute('aria-label', hasNext ? `Load generator prompt ${list[index + 1]}` : 'Next generator prompt version is defined but not executed in this demo');
+      next.setAttribute('aria-label', hasNext ? `Load generator prompt ${list[index + 1]}` : 'Accept a policy proposal to materialize the next generator prompt version');
     }
     if (note) {
-      note.textContent = hasNext ? 'loaded version available' : 'next version defined-not-executed';
+      note.textContent = hasNext ? 'loaded version available' : 'accept a proposal to materialize the next version';
     }
   }
 
