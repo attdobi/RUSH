@@ -477,6 +477,21 @@ class TestRunLabelingE2E(unittest.TestCase):
 
 
 class TestPlanOnlyCli(unittest.TestCase):
+    def test_local_reasoning_arg_parse(self):
+        from scripts.run_bulk_labeling import _parse_local_reasoning_arg
+
+        parsed = _parse_local_reasoning_arg(
+            "local/qwen3.6-27b=on,local/gemma-4-26b-a4b-qat=off"
+        )
+
+        self.assertEqual(
+            parsed,
+            {
+                "local/qwen3.6-27b": True,
+                "local/gemma-4-26b-a4b-qat": False,
+            },
+        )
+
     def test_plan_only_exits_clean(self):
         from scripts.run_bulk_labeling import main
 

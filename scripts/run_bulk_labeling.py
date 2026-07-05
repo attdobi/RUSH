@@ -84,6 +84,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Images per logical provider batch (default 20).")
     parser.add_argument("--reasoning-effort", choices=["high", "xhigh"], default="xhigh",
                         help="OpenAI gpt-5.5 reasoning effort for this run (default: xhigh).")
+    parser.add_argument(
+        "--local-reasoning",
+        default=None,
+        help=(
+            "Comma-separated local model reasoning toggles, e.g. "
+            "local/qwen3.6-27b=on,local/gemma-4-26b-a4b-qat=off."
+        ),
+    )
     parser.add_argument("--allow-holdout", action="store_true",
                         help="Required to dispatch against the holdout split.")
     parser.add_argument("--live", action="store_true",
@@ -97,7 +105,51 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_factory(use_live: bool, *, reasoning_effort: str | None = None):
+def _parse_local_reasoning_arg(raw: str | None) -> dict[str, bool]:
+    """Parse ``model=on|off`` CSV into a local model reasoning map."""
+    if raw is None or not raw.strip():
+        return {}
+
+    try:
+        from pipeline.providers.registry import MODEL_REGISTRY  # type: ignore
+    except Exception as exc:  # noqa: BLE001 - explicit operator-facing error
+        raise ValueError(
+            "local reasoning validation requires pipeline.providers.registry.MODEL_REGISTRY"
+        ) from exc
+
+    out: dict[str, bool] = {}
+    for item in raw.split(","):
+        part = item.strip()
+        if not part:
+            continue
+        if "=" not in part:
+            raise ValueError("--local-reasoning entries must use model=on|off")
+        model_id, state = [s.strip() for s in part.split("=", 1)]
+        if not model_id.startswith("local/"):
+            raise ValueError("--local-reasoning model ids must start with local/")
+        reg_spec = MODEL_REGISTRY.get(model_id)
+        if reg_spec is None or reg_spec.provider != "local":
+            raise ValueError(f"--local-reasoning unknown local model_id: {model_id}")
+        if state not in {"on", "off"}:
+            raise ValueError("--local-reasoning values must be on or off")
+        out[model_id] = state == "on"
+    return out
+
+
+def _local_reasoning_runtime_params(model_id: str, enabled: bool) -> dict[str, int | str]:
+    if not enabled:
+        return {"reasoning_effort": "none", "max_completion_tokens": 4000}
+    if model_id.startswith("local/qwen"):
+        return {"reasoning_effort": "low", "max_completion_tokens": 6000}
+    return {"reasoning_effort": "medium", "max_completion_tokens": 6000}
+
+
+def _resolve_factory(
+    use_live: bool,
+    *,
+    reasoning_effort: str | None = None,
+    local_reasoning: dict[str, bool] | None = None,
+):
     """Return a client factory.
 
     In dry-run mode we use the deterministic fake. In live mode we lazy-import
@@ -115,14 +167,26 @@ def _resolve_factory(use_live: bool, *, reasoning_effort: str | None = None):
             f"(X1's slice). Import failed: {type(exc).__name__}: {exc}"
         )
 
+    local_reasoning = local_reasoning or {}
+
     def _factory(spec: ModelSpec):
-        return build_client(spec.model_id, reasoning_effort=reasoning_effort)
+        return build_client(
+            spec.model_id,
+            reasoning_effort=reasoning_effort,
+            local_reasoning_on=local_reasoning.get(spec.model_id),
+        )
 
     return _factory
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        local_reasoning = _parse_local_reasoning_arg(args.local_reasoning)
+    except ValueError as exc:
+        print(f"[X2] {exc}", file=sys.stderr)
+        return 2
+
     try:
         area = normalize_policy_area(args.area)
     except ValueError as exc:
@@ -155,18 +219,16 @@ def main(argv: list[str] | None = None) -> int:
     for mid in requested_ids:
         reg_spec = MODEL_REGISTRY.get(mid)  # type: ignore[union-attr]
         if reg_spec is not None:
+            params = dict(reg_spec.params)
+            if mid == "openai/gpt-5.5":
+                params["reasoning_effort"] = args.reasoning_effort
+            if mid in local_reasoning:
+                params.update(_local_reasoning_runtime_params(mid, local_reasoning[mid]))
             enriched.append(
                 ModelSpec(
                     model_id=mid,
                     phase=f"phase-{reg_spec.phase}",
-                    params=(
-                        {
-                            **dict(reg_spec.params),
-                            **({"reasoning_effort": args.reasoning_effort} if mid == "openai/gpt-5.5" else {}),
-                        }
-                        if reg_spec.params or mid == "openai/gpt-5.5"
-                        else None
-                    ),
+                    params=params if params else None,
                     resolved_temperature=resolve_temperature(reg_spec.provider_model_name),
                 )
             )
@@ -212,7 +274,11 @@ def main(argv: list[str] | None = None) -> int:
         f"{area}.{args.policy_version}" if area != DEFAULT_POLICY_AREA else args.policy_version
     )
 
-    factory = _resolve_factory(use_live=args.live, reasoning_effort=args.reasoning_effort)
+    factory = _resolve_factory(
+        use_live=args.live,
+        reasoning_effort=args.reasoning_effort,
+        local_reasoning=local_reasoning,
+    )
     summary = run_labeling(
         models=model_specs,
         sample_manifest_path=args.manifest,

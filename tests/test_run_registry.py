@@ -621,6 +621,57 @@ def test_start_job_omits_reasoning_arg_when_variant_carries_effort(monkeypatch, 
     assert state["reasoning_effort"] is None
 
 
+def test_start_job_threads_local_reasoning_arg_and_state(monkeypatch, tmp_path: Path) -> None:
+    created: list["FakePopen"] = []
+
+    class EmptyStdout:
+        def __iter__(self):
+            return iter(())
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            self.argv = argv
+            self.pid = 45678
+            self.stdout = EmptyStdout()
+            created.append(self)
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(run_registry_mod.subprocess, "Popen", FakePopen)
+    registry = RunRegistry(tmp_path)
+    state = registry.start_job(
+        {
+            "models": ["local/qwen3.6-27b", "local/gemma-4-26b-a4b-qat"],
+            "split": "dev_golden",
+            "limit": 3,
+            "sample_ids": None,
+            "policy_version": "v0.1",
+            "mode": "cold_start",
+            "reasoning_effort": None,
+            "local_reasoning": {
+                "local/qwen3.6-27b": True,
+                "local/gemma-4-26b-a4b-qat": False,
+            },
+            "allow_spend": True,
+            "allow_holdout": False,
+            "concurrency": 1,
+        }
+    )
+
+    argv = created[0].argv
+    assert argv[argv.index("--local-reasoning") + 1] == (
+        "local/qwen3.6-27b=on,local/gemma-4-26b-a4b-qat=off"
+    )
+    assert state["local_reasoning"] == {
+        "local/qwen3.6-27b": True,
+        "local/gemma-4-26b-a4b-qat": False,
+    }
+
+
 def test_start_job_threads_mnist_area_manifest_and_policy(monkeypatch, tmp_path: Path) -> None:
     created: list["FakePopen"] = []
 

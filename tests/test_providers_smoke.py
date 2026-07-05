@@ -977,6 +977,42 @@ class TestRegistry:
         assert low.config.reasoning_effort == "low"
         assert moe.config.reasoning_effort == "none"
 
+    def test_local_reasoning_toggle_overrides_qwen_and_gemma(self) -> None:
+        qwen_off = build_client(
+            "local/qwen3.6-27b",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+            local_reasoning_on=False,
+        )
+        qwen_on = build_client(
+            "local/qwen3.6-27b",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+            local_reasoning_on=True,
+        )
+        gemma_off = build_client(
+            "local/gemma-4-26b-a4b-qat",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+            local_reasoning_on=False,
+        )
+        gemma_on = build_client(
+            "local/gemma-4-26b-a4b-qat",
+            client=_RecordingOpenAIClient(_fake_openai_response()),
+            local_reasoning_on=True,
+        )
+
+        qwen_off_params = qwen_off._build_api_params(messages=[])
+        qwen_on_params = qwen_on._build_api_params(messages=[])
+        gemma_off_params = gemma_off._build_api_params(messages=[])
+        gemma_on_params = gemma_on._build_api_params(messages=[])
+
+        assert qwen_off_params["reasoning_effort"] == "none"
+        assert qwen_off_params["max_completion_tokens"] == 4000
+        assert qwen_on_params["reasoning_effort"] == "low"
+        assert qwen_on_params["max_completion_tokens"] == 6000
+        assert gemma_off_params["reasoning_effort"] == "none"
+        assert gemma_off_params["max_completion_tokens"] == 4000
+        assert gemma_on_params["reasoning_effort"] == "medium"
+        assert gemma_on_params["max_completion_tokens"] == 6000
+
     def test_local_base_url_env_override(self, monkeypatch) -> None:
         from pipeline.providers import registry as _registry
 

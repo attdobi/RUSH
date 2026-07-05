@@ -360,11 +360,24 @@ def list_models(*, phase: int | None = None) -> list[ModelSpec]:
     return sorted(specs, key=lambda s: (s.phase, s.model_id))
 
 
+def _apply_local_reasoning_toggle(
+    spec: ModelSpec,
+    *,
+    local_reasoning_on: bool,
+) -> tuple[str, int]:
+    if not local_reasoning_on:
+        return "none", 4000
+    if spec.provider_model_name.startswith("qwen/"):
+        return "low", 6000
+    return "medium", 6000
+
+
 def build_client(
     model_id: str,
     *,
     client: Any | None = None,
     reasoning_effort: str | None = None,
+    local_reasoning_on: bool | None = None,
 ) -> LabelClient:
     """Construct a configured :class:`LabelClient` for ``model_id``.
 
@@ -380,6 +393,10 @@ def build_client(
             historical ``openai/gpt-5.5``. Variant ids such as
             ``openai/gpt-5.5-high`` encode their reasoning level in the
             registry and should not be combined with this override.
+        local_reasoning_on: Optional per-run local-model reasoning toggle.
+            ``False`` forces ``reasoning_effort="none"`` and a small completion
+            budget; ``True`` overrides local registry defaults to enable
+            thinking with enough headroom for visible JSON.
 
     Returns:
         A ready-to-call :class:`LabelClient` instance.
@@ -452,9 +469,12 @@ def build_client(
         )
 
         configured_reasoning_effort = params.pop("reasoning_effort", None)
-        if reasoning_effort is not None and spec.provider_model_name.startswith("qwen/"):
-            configured_reasoning_effort = reasoning_effort
         max_completion_tokens = params.pop("max_completion_tokens", 4000)
+        if local_reasoning_on is not None:
+            configured_reasoning_effort, max_completion_tokens = _apply_local_reasoning_toggle(
+                spec,
+                local_reasoning_on=local_reasoning_on,
+            )
         config = OpenAIClientConfig(
             model_name=spec.provider_model_name,
             reasoning_effort=configured_reasoning_effort,

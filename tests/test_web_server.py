@@ -90,6 +90,41 @@ def test_validate_start_payload_accepts_high_reasoning_effort() -> None:
     assert normalized["reasoning_effort"] == "high"
 
 
+def test_validate_start_payload_accepts_local_reasoning_map() -> None:
+    payload = dict(_VALID)
+    payload["local_reasoning"] = {
+        "local/qwen3.6-27b": True,
+        "local/gemma-4-26b-a4b-qat": False,
+    }
+
+    normalized = validate_start_payload(payload)
+
+    assert normalized["local_reasoning"] == {
+        "local/qwen3.6-27b": True,
+        "local/gemma-4-26b-a4b-qat": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "local_reasoning",
+    [
+        ["local/qwen3.6-27b=on"],
+        {"openai/gpt-5.5": True},
+        {"local/nope": True},
+        {"local/qwen3.6-27b": "on"},
+    ],
+)
+def test_validate_start_payload_rejects_invalid_local_reasoning(local_reasoning) -> None:
+    payload = dict(_VALID)
+    payload["local_reasoning"] = local_reasoning
+
+    with pytest.raises(APIError) as excinfo:
+        validate_start_payload(payload)
+
+    assert excinfo.value.status == 400
+    assert excinfo.value.details["field"] == "local_reasoning"
+
+
 def test_validate_start_payload_accepts_mnist_demo_area() -> None:
     payload = dict(_VALID)
     payload.update({"demo": "mnist", "area": "MNIST_Digits"})
