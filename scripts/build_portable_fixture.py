@@ -23,6 +23,9 @@ if str(_REPO_ROOT) not in sys.path:
 from pipeline.io_paths import DEFAULT_SAMPLE_MANIFEST, GENAI_PORTABLE_MANIFEST, REPO_ROOT
 
 DEFAULT_SAMPLE_ROOT = REPO_ROOT / "data" / "images" / "genai-classification" / "sample"
+DEFAULT_MAX_MB = 50
+DEFAULT_PER_STRATUM = 12
+EXPECTED_STRATUM_COUNT = 12
 STRATUM_FIELDS = ("dataset", "label", "split")
 
 
@@ -135,6 +138,74 @@ def select_under_budget(candidates: Iterable[Candidate], budget_bytes: int) -> l
     return selected
 
 
+def select_per_stratum(
+    candidates: Iterable[Candidate],
+    budget_bytes: int,
+    per_stratum: int,
+) -> list[Candidate]:
+    if per_stratum < 1:
+        raise ValueError(f"per_stratum must be positive, got {per_stratum}")
+
+    grouped = group_by_stratum(candidates)
+    if len(grouped) != EXPECTED_STRATUM_COUNT:
+        raise ValueError(
+            f"expected {EXPECTED_STRATUM_COUNT} strata, found {len(grouped)}: "
+            f"{sorted(grouped)}"
+        )
+
+    grouped_by_pair: dict[tuple[str, str], dict[str, list[Candidate]]] = {}
+    for stratum, rows in grouped.items():
+        dataset, label, split = stratum
+        grouped_by_pair.setdefault((dataset, label), {})[split] = rows
+
+    selected: list[Candidate] = []
+    for pair in sorted(grouped_by_pair):
+        by_split = grouped_by_pair[pair]
+        splits = sorted(by_split)
+        if per_stratum < len(splits):
+            raise ValueError(
+                f"per_stratum={per_stratum} cannot represent every split for {pair}"
+            )
+        pair_selected: list[Candidate] = []
+        pair_selected_ids: set[str] = set()
+        for split in splits:
+            rows = by_split[split]
+            if not rows:
+                raise ValueError(f"stratum {(*pair, split)} has no candidates")
+            pair_selected.append(rows[0])
+            pair_selected_ids.add(rows[0].sample_id)
+
+        remaining = sorted(
+            (
+                candidate
+                for split in splits
+                for candidate in by_split[split]
+                if candidate.sample_id not in pair_selected_ids
+            ),
+            key=lambda candidate: (candidate.size_bytes, candidate.sample_id),
+        )
+        needed = per_stratum - len(pair_selected)
+        if len(remaining) < needed:
+            raise ValueError(
+                f"dataset/label stratum {pair} has only "
+                f"{len(pair_selected) + len(remaining)} candidates; need {per_stratum}"
+            )
+        pair_selected.extend(remaining[:needed])
+        selected.extend(pair_selected)
+
+    total_bytes = sum(candidate.size_bytes for candidate in selected)
+    if total_bytes > budget_bytes:
+        raise ValueError(
+            f"{per_stratum}-per-stratum fixture is {total_bytes} bytes, "
+            f"over budget {budget_bytes} bytes"
+        )
+
+    selected.sort(key=lambda candidate: candidate.sample_id)
+    if len({candidate.sample_id for candidate in selected}) != len(selected):
+        raise AssertionError("duplicate sample_id selected")
+    return selected
+
+
 def sample_target(candidate: Candidate, sample_root: Path) -> Path:
     dataset, label, _split = candidate.stratum
     return sample_root / dataset / label / str(candidate.record["original_filename"])
@@ -212,10 +283,20 @@ def parse_args() -> argparse.Namespace:
         help=f"sample image tree to rebuild (default: {DEFAULT_SAMPLE_ROOT})",
     )
     parser.add_argument(
-        "--budget-bytes",
+        "--max-mb",
+        type=float,
+        default=DEFAULT_MAX_MB,
+        help=f"maximum total original image MiB to copy (default: {DEFAULT_MAX_MB})",
+    )
+    parser.add_argument(
+        "--per-stratum",
         type=int,
-        default=10 * 1024 * 1024,
-        help="maximum total original image bytes to copy (default: 10485760)",
+        default=DEFAULT_PER_STRATUM,
+        help=(
+            "number of smallest original images to copy per dataset/label "
+            "stratum while keeping every split represented "
+            f"(default: {DEFAULT_PER_STRATUM})"
+        ),
     )
     return parser.parse_args()
 
@@ -224,7 +305,8 @@ def main() -> int:
     args = parse_args()
     rows = read_jsonl(args.manifest)
     candidates = candidates_from_rows(rows)
-    selected = select_under_budget(candidates, args.budget_bytes)
+    budget_bytes = int(args.max_mb * 1024 * 1024)
+    selected = select_per_stratum(candidates, budget_bytes, args.per_stratum)
     portable_rows = rebuild_sample_tree(selected, args.sample_root)
     write_jsonl(args.output_manifest, portable_rows)
     print_summary(selected)
