@@ -14,9 +14,36 @@ RUSH exists to deliver three headline outcomes:
 
 - **RLHF with minimal human intervention.** Humans are spent only where they move the needle: the loop highlights and routes images on the **decision boundaries** for SME re-review, instead of asking people to re-label the easy majority.
 - **A self-improving policy loop.** Each iteration re-runs the **generator** prompt, grows the **knowledge graph (KG)**, and **enhances decision quality** — misalignments and boundary cases become versioned policy updates that raise the next round's accuracy.
-- **A multi-LLM price-optimization system.** The "easy"/aligned cases (the majority) are resolved cheaply by **consensus** across low-cost models. On **misalignment**, RUSH escalates to a **high-reasoning model** (or a **judge system** of models when needed). **Boundary / difficult / lack-of-consensus** cases are flagged for **human re-review and intervention**.
+- **A multi-LLM price-optimization system — the escalation cascade.** Start **cheap**: low-cost model consensus resolves the aligned majority (this tier is also the production metric). Escalate only **misaligned / lack-of-consensus** items to a **high-reasoning panel**, and only the residual **boundary / difficult** cases to **human SME** re-review. Expensive judgment is reserved for the boundary. See [The escalation cascade](#the-escalation-cascade--cheap--high-reasoning--sme).
 
 **Cost per batch is the measuring stick.** Every run records per-image and per-batch cost in `run_manifest.json` (usage tokens x `pipeline/providers/pricing.py`; local models = $0) and surfaces it live in §3. Because spend is tracked at each iteration, the price-optimization above is *measurable*: you can watch cost fall as consensus absorbs the easy cases and expensive high-reasoning calls stay reserved for the boundary.
+
+## The escalation cascade — cheap → high-reasoning → SME
+
+RUSH is an **enterprise auto-judge**: a self-improving system that scales a subject-matter expert's decision quality to production, then keeps the resulting metric honest as policy and content drift. The same machinery serves **Trust & Safety** (violative / non-violative), **content quality**, **search relevance** (graded 1–5 scales), and **ads relevance** — a "project" is a policy for one category. The image demos (`Generative_AI`, `MNIST_Digits`) are the toy proofs of the loop; the target verticals are things like a 50-page Adult-Content policy or a cold-started PII policy.
+
+The organizing idea is a **three-tier judge cascade** that spends the expensive resources only where cheap ones fail. Do not confuse it with "run three big models and vote" — the point is the opposite:
+
+1. **Tier 1 — cheap consensus (measure).** Low-cost models label the whole stream and reach consensus on the aligned majority. This tier *is* the production metric — e.g. daily prevalence (percent of violative impressions) at scale (~tens of thousands of labels/day), reported with confidence intervals.
+2. **Tier 2 — high-reasoning panel (validate + critique).** Only the **misaligned / lack-of-consensus / boundary / difficult** items escalate to a small panel of high-reasoning models (e.g. 3× consensus, Cohen's kappa across raters). The **1×-vs-3× gap is the measured deployment bias** each policy version must shrink; the panel also acts as the RL *critic* that locates where the guideline loses decision quality.
+3. **Tier 3 — human SME (adjudicate).** Only the residual boundary cases the panel still can't resolve reach a human, through the **GoldMiner** labeling interface, ranked by a priority score (`is_boundary`, difficulty, judge-disagreement, prior human touches, L2 coverage). Human attention is spent *only* on the boundary — the scarcest resource optimized around.
+
+**Two loops turn at different speeds.** A **fast measurement loop** (cheap Tier 1, runs continuously at production scale) produces the metric; a **slow learning loop** (Tiers 2–3 on a small sample) grows the golden set and auto-tunes the **prompt-as-policy**, gated by version control that only promotes a converged, cost-acceptable version. Signal compounds inside-out through three flywheels: **prompt-tuning** (fast) ⊂ **golden-set polish/audit** (medium) ⊂ **policy approval** (slow, human-governed).
+
+**The prompt is the policy; tuning it is RLHF.** The generator prompt is the policy (π); an SME label is the teacher; **decision quality** (F1 / informedness / Cohen's kappa vs the golden set on a *held-out* slice) is the reward; each guideline edit is one gated **textual-gradient** step — "gradient descent in a document." A *critic* model diagnoses the policy gap in words; an *actor* model emits exactly one trackable edit; a gate accepts it only if held-out DQ improves. Unlike standard RLHF, the reward model is a **maintained, certified golden set (GDS)**, not a frozen network — an overturn in adjudication *is* an update to the reward model.
+
+### Guardrails that keep the cascade honest
+
+The naive cascade ("escalate disagreements, trust the human, keep the biggest wins") is statistically unsound. RUSH's design owes four non-obvious corrections to the internal technical notes, and the demo is meant to *show* them:
+
+- **Gate and clip every escalated edit.** A high-reasoning model's proposed edit is a high-variance action. Accept only if held-out DQ improves *and* the edit changes a small fraction of the guideline (default ≤ ~5% of tokens); otherwise shrink-and-retry or reject. Prefer principle-level edits over item-level ones — "an edit that names an item is a memorized point in disguise."
+- **Audit the agreements, not just the disagreements.** Escalating only disagreements builds a confidently-wrong ruler (*incorporation bias*: the judge helps construct its own reference standard). A small random **aligned audit stream** (~5% of agreements) goes to SMEs too, so the label-error rate on agreements is actually measured.
+- **The golden set is not so golden.** When seed labels were re-adjudicated against zero-shot LLM labels, experts sided with the *model* roughly **⅓ to ½ of the time** (Trust / content-quality + search / ads). So the top rung is *re-adjudication* — overturn or confirm, with a per-item cap on human touches — not "ask the human once." A falling **overturn rate** is the signature of a golden set that is converging.
+- **Separate prompt-lift from label-lift.** Decompose each decision-quality change into "the prompt got better" (ruler fixed) vs "the ruler moved" (labels cleaned). A cycle dominated by label-lift is a golden-set quality event, not a modeling win, and must not be reported as one. And treat a reported score of 100% as a flag to investigate, not a trophy.
+
+**One governing constraint:** decision quality is bounded by golden-set coverage relative to production. The cascade's job is to grow that coverage cheaply and spend human judgment only where it changes the answer.
+
+> **Status:** Tiers 2–3 (high-reasoning panel + SME misalignment routing) and the prompt-as-policy tuning loop exist in the demo today; the **cheap Tier-1 first rung**, production prevalence measurement, GoldMiner re-adjudication with overturn/confirm, the aligned audit stream, and the prompt-lift/label-lift decomposition are the near-term build-out. Headline economics quoted in exec material (>100× throughput and >10× cost reduction vs 3× human BPO, ~$710K → <$71K per million labels) are Pinterest-scale targets from the exec brief, **not yet measured in this repo**.
 
 ## Repo contents
 
@@ -31,14 +58,19 @@ RUSH exists to deliver three headline outcomes:
 
 > **If you are an AI taking over this repo (e.g. Fable-5 or Claude-Code): ABSORB THIS KNOWLEDGE BASE FIRST, before you touch any code.** This is an AI-to-AI transfer of everything the previous team (Pista/Theo/X-engineers) knows about RUSH.
 >
-> 1. **Read `docs/ai-handoff/HANDOFF.md` end to end.** It is the full transfer: project thesis, architecture, repo map, run ops, every 2026-07-04/05 fix (with root causes), current state, team conventions, and the OPEN ISSUES to work next (qwen slowness, refresh-loses-progress, local-model reasoning config).
-> 2. **Load and query the embedded project memory** in `docs/ai-handoff/memory-embeddings/` via `scripts/query_memory.py` whenever you need prior context, instead of re-deriving it. Fable-5 runs locally with access to the Gemma-embeddings on the GPUs, so this memory index is directly usable by you.
+> 1. **Read `docs/ai-handoff/HANDOFF.md` end to end**, then **`docs/ai-handoff/SESSION-2026-07-05-fable5.md`** (the enterprise-repositioning + polish delta: the escalation cascade, the honesty guardrails, what shipped, and the polish plan). Together they are the full transfer: project thesis, architecture, repo map, run ops, fixes with root causes, current state, team conventions, and the OPEN ISSUES to work next.
+> 2. **Load and query the embedded project memory** in `docs/ai-handoff/memory-embeddings/` via `scripts/query_memory.py` whenever you need prior context, instead of re-deriving it. Agents with access to the Gemma-embedding server on Attila's GPUs (see below) can query this index directly.
 > 3. **Preserve the working conventions** (HANDOFF §8): named engineers, `[X#]` commit prefixes, feature-branch-only for multi-file work, and bump the `web/index.html` cache-buster on any JS/CSS change.
 
-The local semantic memory is in `docs/ai-handoff/memory-embeddings/`: `index.jsonl` stores chunk text plus 768-dim embeddings, and `manifest.json` records the embedding model, source files, chunk parameters, counts, and byte size. Embeddings use Gemma-embedding `text-embedding-embeddinggemma-300m-qat` at `http://127.0.0.1:1234/v1` via LM Studio.
+The local semantic memory is in `docs/ai-handoff/memory-embeddings/`: `index.jsonl` stores chunk text plus 768-dim embeddings, and `manifest.json` records the embedding model, source files, chunk parameters, counts, and byte size. Embeddings use Gemma-embedding `text-embedding-embeddinggemma-300m-qat` served by LM Studio.
 
 - **Query the memory:** `./.venv/bin/python scripts/query_memory.py "why is qwen slow"`
 - **Regenerate after editing docs:** `./.venv/bin/python scripts/build_memory_embeddings.py`
+
+**Reaching the GPUs from a networked agent.** The models (Gemma-embedding, `gemma-4-26b-a4b-qat`, `qwen3.6-27b`) run on a GPU host (2× RTX 3090) shared over LM Studio's LM Link mesh. LM Link makes them usable *inside the LM Studio app* but does not auto-expose an HTTP server, so a separate process must reach a real endpoint:
+
+- On the machine running RUSH, start the local server: `~/.lmstudio/bin/lms server start --port 1234` (it bridges to the loaded remote models), then verify `curl http://127.0.0.1:1234/v1/models`.
+- All three entry points — the labeling pipeline (`pipeline/providers/registry.py`), `scripts/query_memory.py`, and `scripts/build_memory_embeddings.py` — honor **`RUSH_LOCAL_BASE_URL`** (default `http://127.0.0.1:1234/v1`). Point the whole repo at a remote GPU host with `export RUSH_LOCAL_BASE_URL=http://<host>:1234/v1`. Do **not** subnet-scan to find the host — start the local bridge or set the variable.
 
 ## Demos and §1 -> §4 flow
 
@@ -154,13 +186,25 @@ Guardrails: SME-reviewed labels are truth; LLM consensus is audit signal, not gr
 
 ## Run the web interface
 
+The web UI needs the RUSH server (not a static file server): it serves `web/` **and** the `/api/*` endpoints that drive §2 policy growth, §3 labeling, and §4 scoring.
+
 ```bash
-cd /Users/sacsimoto/GitHub/RUSH
-python3 -m http.server 8766 --bind 127.0.0.1
+# from the repo root, using the repo venv (has openai/anthropic/etc.)
+.venv/bin/python scripts/rush_web_server.py --host 127.0.0.1 --port 8766 --repo-root "$PWD"
 # open http://127.0.0.1:8766/web/
 ```
 
-The web demo defaults to 100 dev golden + 100 locked holdout records. It first tries ignored local manifests under `data/images/genai-classification/manifests/`; otherwise `window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode })` provides a synthetic fallback. The current web flow does not invoke LLMs; bulk model labeling is next.
+In production this runs under the macOS LaunchAgent `com.attdobi.rush-web`; restart with `launchctl kickstart -k gui/$(id -u)/com.attdobi.rush-web` and verify the new PID (see `docs/ai-handoff/HANDOFF.md` §3). A bare `python3 -m http.server` will serve the page but every `/api/*` call 404s, so the labeling and policy loops are dead.
+
+The web demo defaults to 100 dev golden + 100 locked holdout records. It first tries local manifests under `data/images/genai-classification/manifests/`; otherwise `window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode })` provides a synthetic fallback. Bulk multi-LLM labeling runs from §3 (`POST /api/runs/start`); §4 scores the results.
+
+**Get local image data first.** Image bytes are never committed, but a small sample rides in the repo as a zip. Unpack it so §1 previews real images and small labeling batches work:
+
+```bash
+python scripts/load_sample_data.py --demo all
+```
+
+See [docs/data-loading.md](docs/data-loading.md) for the sample vs. full-dataset workflow and how to rebuild the samples on the Mac mini.
 
 ## Validate
 
