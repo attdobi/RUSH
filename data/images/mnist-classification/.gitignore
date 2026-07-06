@@ -10,4 +10,4 @@
 !manifests/*.csv
 !manifests/*.json
 !manifests/*.jsonl
-!source-datasets/mnist/**/*.png
+!mnist_full.npz
