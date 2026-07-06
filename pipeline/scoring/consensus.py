@@ -173,6 +173,42 @@ def build_consensus_records(
     return out
 
 
+def select_escalation_ids(
+    records: Iterable[dict[str, Any]],
+    *,
+    min_majority_fraction: float = 1.0,
+) -> list[str]:
+    """Image ids the cheap tier could not confidently resolve — the escalation set.
+
+    An image escalates when the cheap panel **split**, **tied**, **all abstained**
+    (``majority_label`` is None), any voter flagged a **boundary**, or the majority
+    fell **below ``min_majority_fraction``**. Images where every decisive voter
+    agrees at/above the threshold with no boundary flag are resolved cheaply and
+    are NOT escalated. Needs >=2 voters for a meaningful signal (a single voter is
+    trivially "consensus"). Returned in ``image_id`` order.
+
+    This is the cascade trigger: it turns an already-scored tier-1 ``consensus``
+    record list into the subset to re-judge with a higher-reasoning tier.
+    """
+    out: list[str] = []
+    for r in records:
+        image_id = r.get("image_id")
+        if not image_id:
+            continue
+        fraction = r.get("majority_fraction")
+        below_threshold = fraction is not None and fraction < min_majority_fraction
+        escalate = (
+            bool(r.get("is_split"))
+            or bool(r.get("tie"))
+            or bool(r.get("any_boundary_flag"))
+            or r.get("majority_label") is None
+            or below_threshold
+        )
+        if escalate:
+            out.append(str(image_id))
+    return sorted(out)
+
+
 def build_cohort_rollups(
     records: list[dict[str, Any]],
     *,

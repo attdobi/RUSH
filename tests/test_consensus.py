@@ -67,6 +67,35 @@ def test_consensus_3_of_3_unanimous():
     assert r["boundary_voter_count"] == 0
 
 
+def test_select_escalation_ids_only_disagreements_and_boundaries():
+    votes = [
+        # img_agree: both models agree, no boundary -> resolved cheaply
+        _vote("img_agree", "a", "3"), _vote("img_agree", "b", "3"),
+        # img_split: disagreement -> escalate
+        _vote("img_split", "a", "3"), _vote("img_split", "b", "5"),
+        # img_boundary: agree but a voter flags a boundary -> escalate
+        _vote("img_boundary", "a", "7"), _vote("img_boundary", "b", "7", is_boundary=True),
+        # img_abstain: both abstain -> no majority -> escalate
+        _vote("img_abstain", "a", "abstain"), _vote("img_abstain", "b", "abstain"),
+    ]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    escalate = consensus_mod.select_escalation_ids(records)
+    assert escalate == ["img_abstain", "img_boundary", "img_split"]  # sorted, img_agree excluded
+
+
+def test_select_escalation_ids_single_voter_is_trivial_consensus():
+    votes = [_vote("only", "a", "4")]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    assert consensus_mod.select_escalation_ids(records) == []
+
+
+def test_select_escalation_ids_fraction_threshold_escalates_weak_majority():
+    votes = [_vote("weak", "a", "1"), _vote("weak", "b", "1"), _vote("weak", "c", "7")]  # 2/3 majority
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    # is_split already escalates 2-1; but the fraction gate also catches weak-but-not-split cases.
+    assert consensus_mod.select_escalation_ids(records, min_majority_fraction=0.8) == ["weak"]
+
+
 def test_consensus_2_of_3_split():
     votes = [
         _vote("img1", "a", "not_gen_ai", confidence=0.82),
