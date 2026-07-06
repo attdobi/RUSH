@@ -16,8 +16,8 @@ window.RUSH_DEMOS = {
     },
     thumbnailsDir: 'data/images/genai-classification/derived/thumbnails',
     heroCopy: {
-      eyebrow: 'Bulk LLM image audit with SME policy',
-      h1: 'RUSH turns SME policy into a repeatable image-audit loop.',
+      // eyebrow/h1/lede intentionally unset: the cascade-thesis hero copy in
+      // web/index.html is the live GenAI hero.
       cta: 'Start GenAI demo'
     }
   },
@@ -66,31 +66,26 @@ window.RUSH_DEMOS = {
     sectionCopy: {
       sampleH2: 'Sample the MNIST golden set.',
       sampleSub: 'Start with a balanced 10-class slice: 200 train + 50 holdout images per digit, sourced from the local MNIST manifests.',
-      growSub: 'Seed the MNIST Generator Prompt V0 as a per-digit policy graph → label a batch → propose prompt updates → accept → label again. Each accepted SME update creates the next generator prompt version.',
-      growLoopStep2Body: 'Jump to §3 for the default 20-image train+holdout batch, labeled with the selected generator prompt version.',
+      growSub: 'A per-digit policy graph SMEs own. Each accepted update creates the next policy version.',
+      growLoopStep2Body: 'Jump to §3 and label a k-per-split batch with the selected policy version.',
       labelH2: 'Run the next digit-labeling round.',
-      labelSub: 'Default: k=20 MNIST digits per split (2 per digit class, stratified) from both training and holdout splits, scored against SME digit truth.',
-      labelStartButton: 'Start k=20 per-split run',
-      labelDefaultBatch: 'k=20 per split · 2/digit · train + holdout',
-      labelDefaultDetail: 'Uses split <code>all</code>, latest selected policy version, and true batched labeling of MNIST digits.',
-      scoreSub: 'Consensus, misalignment, and confusion-pair views share the selected run and stay in one digit-audit surface.',
+      labelSub: 'k digits per split (stratified across 0-9) from training and holdout, scored against SME digit truth.',
+      scoreSub: 'Headline test accuracy, per-model digit votes, and the confusion pairs that climb the cascade.',
       consensusH3: 'What did the panel decide about each digit?',
       consensusSub: 'Every model votes 0–9 per image. Unanimous, majority, tie, and majority-vs-SME misses are flagged fast.',
       misalignmentH3: 'Model vs SME digit disagreement, ranked for review.',
       misalignmentSub: 'Per-image SME digit truth vs model labels. Confusion between the seed pairs (4/9, 3/5, 7/1, 8/3) rises to the top; policy-node citations link straight to the digit node whose criteria were cited.',
       borderlineH3: 'Where the panel hedges between digits, SMEs decide.',
-      borderlineSub: 'Hard cases grouped by the confused digit (e.g. a 4 that could be a 9, a 3 that could be a 5). Will fan out as the graph grows.',
+      borderlineSub: 'Hard cases grouped by the confused digit (e.g. a 4 that could be a 9, a 3 that could be a 5).',
       qualityH2: 'Digit-classification quality is the gate for policy growth.',
       qualitySub: 'Compare per-digit accuracy, macro F1, per-class precision/recall, review burden, and cost by labeler, run, and policy version.',
-      insightsH2: 'Where the panel disagreed with SME digit truth.',
-      insightsSub: 'Start with majority-wrong digits. Open More cuts for model disagreement, confusion-pair concentration (4/9, 3/5, 7/1, 8/3), and recurring pair disagreement.',
-      policyGraphTitle: 'MNIST Generator Prompt v0.1 (policy graph)',
-      policyGraphBlurb: 'This graph is the current MNIST generator prompt version: ten digit nodes (0–9) under a root, plus confused_with edges for the boundary pairs the demo optimizes. Hover to trace neighbors; click to drill into a digit\u2019s criteria.'
+      policyGraphTitle: 'MNIST policy graph v0.1',
+      policyGraphBlurb: 'This graph is the current MNIST policy version: ten digit guidelines (0–9) under a root, plus confused_with edges for the boundary pairs the demo optimizes. Hover to trace neighbors; click to read a digit\u2019s guideline.'
     },
     heroCopy: {
-      eyebrow: 'Multiclass digit audit with SME policy',
-      h1: 'RUSH turns SME digit criteria into a repeatable MNIST audit loop.',
-      lede: 'Sample MNIST digits, seed Generator Prompt V0 as a per-digit policy graph, run a 20-image LLM panel, then use disagreement — especially confusion pairs 4/9, 3/5, 7/1, 8/3 — to propose SME-reviewed updates.',
+      // eyebrow/h1 intentionally unset: the cascade-thesis hero in
+      // web/index.html serves both demos; only the lede is digit-specific.
+      lede: 'A panel of low-cost models labels MNIST digits against a per-digit policy graph; disagreements — especially confusion pairs (like 4 vs 9) — climb to a high-reasoning judge, and SME rulings grow the next policy version.',
       cta: 'Start MNIST demo'
     }
   }

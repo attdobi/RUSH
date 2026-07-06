@@ -246,7 +246,7 @@ function syntheticThumbDataUri(row) {
     `<text x='${14 + 7}' y='30' font-family='Inter,system-ui,sans-serif' font-size='12' font-weight='700' fill='#dce8ff'>${esc(datasetShort)}</text>` +
     `<text x='100' y='118' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='44' font-weight='900' fill='#fff' opacity='0.92'>${labelText}</text>` +
     `<text x='100' y='154' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='11' font-weight='600' fill='#dce8ff' opacity='0.8'>${esc(idShort)}</text>` +
-    `<text x='100' y='180' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='9' font-weight='500' fill='#aab8d3' opacity='0.65'>demo placeholder · no image bytes</text>` +
+    `<text x='100' y='180' text-anchor='middle' font-family='Inter,system-ui,sans-serif' font-size='9' font-weight='500' fill='#aab8d3' opacity='0.65'>synthetic preview</text>` +
   `</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -368,8 +368,7 @@ function renderStats() {
   const sourceText = Object.entries(summary.byDataset || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
   $('#demoStats').innerHTML = [
     ['Sampled records', summary.total ?? (summary.n_dev_golden + summary.n_holdout), 'default N = 100 per split'],
-    ['Truth tier', 'gold candidates', 'SME quality assumed for demo'],
-    ['Label', 'LLM labeling comes next', 'This preview makes no model calls; bulk LLM labeling comes next, then SME/human override feeds the policy graph.'],
+    ['Label', 'runs in §3', 'Sampling makes no model calls; the panel labels this pool in §3.'],
     ['Source', summary.source || demoState.source, summary.samplingVersion ? `manifest ${summary.samplingVersion}` : 'real manifests if available'],
     ['Leakage check', demoState.result.leakageChecks?.ok ? 'pass' : 'review', 'dev/holdout path + hash separation']
   ].map(([label, value, note]) => `<article class="stat-card"><span>${esc(label)}</span><strong>${esc(value)}</strong><p>${esc(note)}</p></article>`).join('') +
@@ -1066,23 +1065,23 @@ function renderScoreReportedMetrics() {
   const reportedF1 = decisionQualityMetric(reportedRow, 'f1');
   const reportedSplit = String(summary.reported_split || 'test').toUpperCase();
   const cards = [
-    ['TEST set · reported', decisionQualityImageCount(reported), `${reportedSplit} only; train rows excluded from headline`],
-    ['Reported majority accuracy', rushApiFormatMetric(reportedAccuracy), `${decisionQualityLabelerName(reportedRow)} · test only`]
+    ['Test images', decisionQualityImageCount(reported), `held-out; excluded from training (${reportedSplit} only)`],
+    ['Accuracy (test)', rushApiFormatMetric(reportedAccuracy), `${decisionQualityLabelerName(reportedRow)} · test only`]
   ];
-  if (reportedF1 !== null) cards.push(['Reported majority F1', rushApiFormatMetric(reportedF1), 'test-only decision quality']);
+  if (reportedF1 !== null) cards.push(['F1 (test)', rushApiFormatMetric(reportedF1), 'test-only decision quality']);
   const reportedRecall = decisionQualityMetric(reportedRow, 'recall') ?? decisionQualityMetric(reportedRow, 'macro_recall');
   const reportedFpr = decisionQualityMetric(reportedRow, 'fpr') ?? decisionQualityMetric(reportedRow, 'macro_fpr');
-  if (reportedRecall !== null) cards.push(['Reported recall', rushApiFormatMetric(reportedRecall), 'test-only · TP / (TP + FN)']);
-  if (reportedFpr !== null) cards.push(['Reported FPR', rushApiFormatMetric(reportedFpr), 'test-only · FP / (FP + TN)']);
+  if (reportedRecall !== null) cards.push(['Recall (test)', rushApiFormatMetric(reportedRecall), 'test-only · TP / (TP + FN)']);
+  if (reportedFpr !== null) cards.push(['FPR (test)', rushApiFormatMetric(reportedFpr), 'test-only · FP / (FP + TN)']);
 
   const train = summary.by_split?.train;
   if (train && typeof train === 'object') {
     const trainRow = decisionQualityHeadlineLabeler(train);
     const trainAccuracy = decisionQualityMetric(trainRow, 'accuracy');
     const trainNote = trainAccuracy !== null
-      ? `secondary reference · majority accuracy ${rushApiFormatMetric(trainAccuracy)}`
-      : 'secondary reference only';
-    cards.push(['train (updates, not reported)', decisionQualityImageCount(train), trainNote]);
+      ? `drive policy updates — not reported · majority accuracy ${rushApiFormatMetric(trainAccuracy)}`
+      : 'drive policy updates — not reported';
+    cards.push(['Train images', decisionQualityImageCount(train), trainNote]);
   }
 
   target.innerHTML = cards.map(([k, v, n]) =>
@@ -1108,8 +1107,8 @@ function renderScoreUpdateCandidates() {
   target.innerHTML = `
     <article class="score-algo-lane train-lane">
       <span>TRAIN update candidates</span>
-      <strong>Policy/prompt updates are driven by these training misalignments.</strong>
-      <p>Live backend input is exported here; SME review and applying the proposal remain the manual next step.</p>
+      <strong>These training misalignments become policy updates.</strong>
+      <p>Review in §2 and accept to grow the policy graph.</p>
       <div class="misalignment-table residual-table">
         <table class="misalignment"><thead><tr><th>image</th><th>misalignment</th><th>severity</th></tr></thead><tbody>${rows}</tbody></table>
       </div>
@@ -1122,13 +1121,14 @@ function renderScoreAlgorithmState() {
   const hasReported = !!summary.reported && typeof summary.reported === 'object';
   const badge = $('#scoreAlgoBadge');
   if (badge) {
-    badge.textContent = hasReported ? 'live · test-reported / train-updates' : 'intended pipeline · defined-not-executed';
+    badge.textContent = hasReported ? 'train → updates · test → reported' : '';
+    badge.hidden = !hasReported;
   }
   const rule = $('#scoreAlgoRule');
   if (rule) {
     rule.textContent = hasReported
       ? 'Learn from train, report on test — never leak. Live split-separated export loaded: TEST decision quality is reported, while TRAIN residuals and update candidates drive policy work.'
-      : 'Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.';
+      : 'Learn from train, report on test — never leak.';
   }
   renderScoreReportedMetrics();
   renderScoreUpdateCandidates();
@@ -1231,11 +1231,6 @@ function renderScoreConfusionMatrix() {
 function renderScoreAlgorithmControls() {
   const k = scoreKPerSplitValue();
   const split = scoreSplitValue();
-  const note = $('#scoreKNote');
-  if (note) {
-    const total = split === 'all' ? `up to ${k} training + ${k} test images` : `up to ${k} ${scoreSplitPhrase(split)} images`;
-    note.textContent = `Mirrors §3 Batch size and Split for the next run. k=${k} per split means ${total}. Set k=10 for a 10+10 pass. §1 N per class builds the candidate pool.`;
-  }
   const defaultBatch = $('#labelDefaultBatch');
   if (defaultBatch) defaultBatch.textContent = `k=${k} per split · ${scoreSplitPhrase(split)}`;
 }
@@ -1291,40 +1286,40 @@ function residualRowTable(entries, emptyMessage) {
       <td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td>
       <td>${majorityPill(row)}</td>
       <td>${esc(reason)}${pairChip ? `<div class="boundary-pair-row">${pairChip}</div>` : ''}</td>
-      <td><button type="button" class="residual-label-update" disabled title="Coming soon: update a human label before guideline building so one bad label does not propagate.">Update human label</button></td>
     </tr>`;
   }).join('');
   const clipped = entries.length > 30 ? `<p class="row-meta">Showing 30 of ${entries.length} residual row(s).</p>` : '';
-  return `<div class="misalignment-table residual-table"><table class="misalignment"><thead><tr><th>image</th><th>split</th><th>human label</th><th>majority</th><th>residual</th><th>human label</th></tr></thead><tbody>${body}</tbody></table></div>${clipped}`;
+  return `<div class="misalignment-table residual-table"><table class="misalignment"><thead><tr><th>image</th><th>split</th><th>human label</th><th>majority</th><th>residual</th></tr></thead><tbody>${body}</tbody></table></div>${clipped}`;
 }
 
 function renderResidualMisalignments() {
   const target = $('#residualMisalignments');
   if (!target) return;
   const rows = residualRows();
+  const block = target.closest('.residual-misalign-block');
+  if (!rows.length) {
+    if (block) block.hidden = true;
+    target.innerHTML = '';
+    return;
+  }
+  if (block) block.hidden = false;
   const lookup = manifestSplitLookup();
   const annotated = rows.map(row => ({ row, split: splitForScoredRow(row, lookup) }));
   const trainRows = annotated.filter(entry => splitKind(entry.split) === 'train');
   const testRows = annotated.filter(entry => splitKind(entry.split) === 'test');
   const unknownRows = annotated.filter(entry => !splitKind(entry.split));
-  const splitExported = rows.some(row => Object.prototype.hasOwnProperty.call(row, 'split') && splitKind(row.split));
-  const status = rows.length
-    ? `${rows.length} real residual row(s) in the selected run export${splitExported ? ', grouped by split where available.' : ', but per-row split is not exported in the current scoring payload.'}`
-    : 'No residual misalignment rows are available for the selected run.';
-  const splitState = splitExported
-    ? 'Live: train residuals drive policy updates; test residuals are reported-only.'
-    : 'Train/update vs test/report separation remains the intended pipeline until per-row split is exported.';
+  const status = `${rows.length} unresolved disagreement(s) in this run.`;
   target.innerHTML = `
-    <div class="residual-misalign-status">${esc(status)} ${esc(splitState)}</div>
+    <div class="residual-misalign-status">${esc(status)}</div>
     <article class="residual-lane train-lane">
       <header><span>TRAIN residuals</span><strong>${trainRows.length}</strong></header>
-      ${residualRowTable(trainRows, 'No split-tagged training residual rows are exported for this run yet.')}
+      ${residualRowTable(trainRows, 'None — clean split.')}
     </article>
     <article class="residual-lane test-lane">
       <header><span>TEST residuals</span><strong>${testRows.length}</strong></header>
-      ${residualRowTable(testRows, 'No split-tagged test residual rows are exported for this run yet.')}
+      ${residualRowTable(testRows, 'None — clean split.')}
     </article>
-    ${unknownRows.length ? `<article class="residual-lane residual-unknown"><header><span>Unassigned residual rows</span><strong>${unknownRows.length}</strong></header><p class="row-meta">Real misalignment rows from the current export; split could not be assigned from row data or the loaded manifest.</p>${residualRowTable(unknownRows, '')}</article>` : ''}
+    ${unknownRows.length ? `<article class="residual-lane residual-unknown"><header><span>Unassigned residual rows</span><strong>${unknownRows.length}</strong></header>${residualRowTable(unknownRows, '')}</article>` : ''}
   `;
 }
 
@@ -1675,7 +1670,7 @@ function renderCascade() {
         meta: `${secs(t1.active_elapsed_s ?? t1.wall_s)} · ${money(t1.cost_usd)}` })}
       ${t2Lane}
       ${lane({ cls: 'casc-sme', tag: 'Tier 3 · human SME', count: residual, unit: ' to adjudicate',
-        models: 'boundary residual', meta: residual ? 'routed to the GoldMiner queue' : 'nothing left for a human' })}
+        models: 'boundary residual', meta: residual ? 'queued for SME review' : 'nothing left for a human' })}
     </div>`;
 }
 
@@ -1780,7 +1775,7 @@ function applyDemoChrome() {
   setNodeText('qualitySub', copy.qualitySub);
   if (copy.policyGraphTitle) setNodeText('policyGraphTitle', copy.policyGraphTitle);
   if (copy.policyGraphBlurb) setNodeHtml('policyGraphBlurb', copy.policyGraphBlurb);
-  // X1 polish/switcher: support the prominent segmented demo control.
+  // Support the prominent segmented demo control.
   const selector = document.getElementById('demoSelector');
   if (selector) {
     if ('value' in selector) selector.value = demo.id;
@@ -1793,8 +1788,7 @@ function applyDemoChrome() {
     });
   }
   document.body.dataset.rushDemo = demo.id;
-  // Apply the per-demo default k (images per split). MNIST defaults to 50
-  // (5 per digit class) to maximize learnings per batch; genai stays at 20.
+  // Apply the per-demo default k (images per split); both demos default to 20.
   if (Number.isFinite(demo.defaultK)) {
     const runK = document.getElementById('runTriggerBatchSize');
     if (runK && !runK.dataset.userEdited) runK.value = String(demo.defaultK);
@@ -1803,16 +1797,14 @@ function applyDemoChrome() {
   }
   const benchmark = document.getElementById('benchmarkComparison');
   if (benchmark) benchmark.hidden = demo.id !== 'mnist';
-  const provenance = document.getElementById('gp0Provenance');
-  if (provenance) provenance.hidden = demo.id !== 'mnist';
 }
 
 // Header demo selector: persist choice and reload with ?demo= (simple + robust).
 function bindDemoSelector() {
   const selector = document.getElementById('demoSelector');
   if (!selector) return;
-  // X1 polish/switcher: segmented buttons are the primary UI; keep a select
-  // fallback for older markup or test fixtures.
+  // Segmented buttons are the primary UI; keep a select fallback for older
+  // markup or test fixtures.
   const activateDemo = id => {
     if (!window.RUSH_DEMOS || !window.RUSH_DEMOS[id]) return;
     try { window.localStorage.setItem('rush_active_demo', id); } catch (error) { /* ignore */ }

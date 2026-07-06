@@ -27,9 +27,9 @@
     { id: 'openai/gpt-5.4-mini-medium', checked: false },
     { id: 'openai/gpt-5.4-mini-low', checked: true },
     { id: 'google/gemini-3.5-flash', checked: false },
-    // TODO(attila-confirm): distinct gemini-3.1-flash SKU/rate is UNVERIFIED
-    // (public sources show the 3.1 gen as Pro + Flash-Lite; the full Flash is
-    // 3.5). Rate mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
+    // Note: distinct gemini-3.1-flash SKU/rate is unverified (public sources
+    // show the 3.1 gen as Pro + Flash-Lite; the full Flash is 3.5). Rate
+    // mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
     { id: 'google/gemini-3.1-flash', checked: false },
     { id: 'google/gemini-3-flash-preview', checked: false },
     { id: 'anthropic/claude-haiku-4-5-low', checked: true },
@@ -99,9 +99,9 @@
     'anthropic/claude-haiku-4-5-low': { input: 1.0, output: 5.0 },
     'anthropic/claude-haiku-4-5-medium': { input: 1.0, output: 5.0 },
     'google/gemini-3.5-flash': { input: 1.50, output: 9.0 },
-    // TODO(attila-confirm): gemini-3.1-flash rate UNVERIFIED — mirrors
-    // gemini-3-flash-preview (0.50/3.00); may be the same SKU. Keep in sync
-    // with pipeline/providers/pricing.py (sync-tested).
+    // Note: gemini-3.1-flash rate unverified — mirrors gemini-3-flash-preview
+    // (0.50/3.00); may be the same SKU. Keep in sync with
+    // pipeline/providers/pricing.py (sync-tested).
     'google/gemini-3.1-flash': { input: 0.50, output: 3.0 },
     'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
     'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
@@ -522,8 +522,9 @@
     } else {
       const estimate = estimatePerThousandLabels(model);
       const tier = reasoningTierFor(model);
-      const tierNote = tier === 'none' ? 'rough estimate' : `${tier} reasoning · rough estimate`;
-      estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(2)} / 1k labels (${tierNote})`;
+      estimateText = estimate === null
+        ? 'estimate unavailable'
+        : `$${estimate.toFixed(2)} / 1k labels${tier === 'none' ? '' : ` (${tier} reasoning)`}`;
     }
     // Measured speed from this machine's recent runs (seconds/image), when we have it.
     const speed = MODEL_SECONDS_PER_IMAGE[model];
@@ -985,7 +986,7 @@
       state.pollStartedAt = Date.now();
       state.finished = false;
       if (!state.runId) throw new Error('API did not return a run_id.');
-      status(`Started cascade ${state.runId}; tier banners appear in the log tail…`);
+      status(`Cascade ${state.runId} running — tier 1 cheap panel first…`);
       await pollStatus();
     } catch (error) {
       status(`Could not start cascade: ${error.message}`, true);
@@ -1058,7 +1059,7 @@
     refreshRunButtonLabel();
     await rushApiLoadCatalog();
     populatePolicies();
-    status('Local API connected. Set k per split (split=all runs up to k train + k test).');
+    status('Connected. Ready to run.');
     resumeActiveRun();
     refreshModelSpeedEstimates();  // fill in measured seconds/image (async, best-effort)
   }

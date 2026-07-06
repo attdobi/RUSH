@@ -32,9 +32,8 @@
   }
 
   function selectedPolicyMode() {
-    const samplerMode = qs('#samplerMode')?.value || 'cold_start';
     const runMode = qs('#runTriggerMode')?.value || 'cold_start';
-    return samplerMode === 'warm_start' || runMode === 'warm_start' ? 'warm_start' : 'cold_start';
+    return runMode === 'warm_start' ? 'warm_start' : 'cold_start';
   }
 
   function modeBaseVersion(mode = state.mode) {
@@ -70,8 +69,8 @@
     slot.innerHTML = `
       <div class="policy-grow-header generator-prompt-header">
         <div>
-          <h3>Author the Generator Prompt</h3>
-          <p class="body-copy">The policy graph is the generator prompt, versioned as v_n. Cold start authors V0; warm mode drafts SME-reviewable prompt updates from the selected scored run.</p>
+          <h3>Author the policy</h3>
+          <p class="body-copy">Cold start drafts policy V0 from a task brief; warm start drafts SME-reviewable updates from the selected scored run.</p>
         </div>
         <span id="policyGrowStatus" class="status-line" role="status"></span>
       </div>
@@ -79,13 +78,13 @@
       <div class="policy-grow-mode-cold generator-prompt-setup" data-policy-grow-panel="cold">
         <label>Task brief
           <textarea id="policyGrowTaskDescription" class="generator-prompt-textarea" rows="4">${esc(taskDescriptionForDemo())}</textarea>
-          <small class="muted">Describe the labeling task; this becomes Generator Prompt V0.</small>
+          <small class="muted">Describe the labeling task; this becomes policy V0.</small>
         </label>
         <div class="policy-grow-form-row policy-grow-form-row--cold">
           <label>Drafting model
             <select id="policyGrowColdModel">${modelOptions()}</select>
           </label>
-          <button id="policyGrowSeedBtn" class="primary-action generator-prompt-seed-action" type="button">Seed the Generator Prompt</button>
+          <button id="policyGrowSeedBtn" class="primary-action generator-prompt-seed-action" type="button">Seed policy V0</button>
         </div>
       </div>
 
@@ -105,9 +104,9 @@
           <label>Drafting model
             <select id="policyGrowWarmModel">${modelOptions()}</select>
           </label>
-          <button id="policyGrowRunBatchBtn" class="primary-action" type="button">Suggest batch changes</button>
+          <button id="policyGrowRunBatchBtn" class="primary-action" type="button" hidden>Suggest batch changes</button>
         </div>
-        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 with the next generator prompt version.</p>
+        <p id="policyGrowBatchMeta" class="policy-grow-batch-meta">After review, accept or reject the proposal below, then return to §3 with the next policy version.</p>
       </div>`;
 
     qs('#policyGrowSeedBtn')?.addEventListener('click', seedColdStart);
@@ -125,7 +124,7 @@
     if (history) return history;
     history = document.createElement('div');
     history.className = 'policy-version-history';
-    history.setAttribute('aria-label', 'Generator prompt version history');
+    history.setAttribute('aria-label', 'Policy version history');
     const proposals = qs('.policy-proposals-block');
     if (proposals) proposals.insertAdjacentElement('afterend', history);
     else grow.appendChild(history);
@@ -168,7 +167,7 @@
       .filter(Boolean);
     state.history = versions;
     if (!versions.length) {
-      history.innerHTML = '<span class="muted">No generator prompt versions found yet.</span>';
+      history.innerHTML = '<span class="muted">No policy versions yet.</span>';
       return;
     }
     const current = window.RUSH_API?.catalog?.currentPolicyVersion || versions[versions.length - 1];
@@ -264,7 +263,7 @@
     if (!api.available) status('Local API offline — start the rush web server to grow policy.', true);
   }
 
-  ['#samplerMode', '#runTriggerMode', '#runTriggerPolicyVersion', '#policyGraphVersion'].forEach(selector => {
+  ['#runTriggerMode', '#runTriggerPolicyVersion', '#policyGraphVersion'].forEach(selector => {
     qs(selector)?.addEventListener('change', () => {
       updateControls();
       renderHistory();

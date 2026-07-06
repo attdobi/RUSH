@@ -3,7 +3,7 @@
  * Dependency-free browser/Node module for the VC demo reset path. It never reads
  * image bytes, invokes Python, or writes/embeds manifests.
  *
- * X2 API:
+ * API:
  *   window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode, humanLabelOverrides })
  *     -> { devGolden, holdout, combined, summary, leakageChecks, assumptions }
  *

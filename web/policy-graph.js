@@ -165,7 +165,7 @@
   }
 
   function promptVersionLabel(version = currentVersion) {
-    return `Generator Prompt ${version || 'v_n'} (rendered)`;
+    return `Policy graph ${version || 'v_n'}`;
   }
 
   function truncate(text, max = 26) {
@@ -181,7 +181,7 @@
       .filter(Boolean);
     availableVersions = list;
     if (!list.length) {
-      select.innerHTML = rushApiOptionHtml('', 'No generator prompt versions found', true);
+      select.innerHTML = rushApiOptionHtml('', 'No policy versions yet', true);
       updateVersionStepper('');
       return;
     }
@@ -232,10 +232,10 @@
     if (next) {
       next.disabled = !hasNext;
       next.textContent = hasNext ? `Next: ${list[index + 1]}` : 'Next version';
-      next.setAttribute('aria-label', hasNext ? `Load generator prompt ${list[index + 1]}` : 'Accept a policy proposal to materialize the next generator prompt version');
+      next.setAttribute('aria-label', hasNext ? `Load policy version ${list[index + 1]}` : 'Accept a proposal to create the next policy version');
     }
     if (note) {
-      note.textContent = hasNext ? 'loaded version available' : 'accept a proposal to materialize the next version';
+      note.textContent = hasNext ? 'loaded version available' : 'accept a proposal to create the next version';
     }
   }
 
@@ -367,8 +367,7 @@
         <div><dt>Parent</dt><dd>${esc(node.parent || '—')}</dd></div>
       </dl>
       <div id="policyNodeMarkdown" class="policy-node-markdown">${markdownHtml}</div>
-      <p class="policy-node-file">This guideline lives as <code>${esc(node.id)}.md</code> in the versioned policy folder —
-      the graph is a set of Markdown files policy owners edit; every accepted change becomes the next version.</p>`;
+      <p class="policy-node-file">Source: <code>${esc(node.id)}.md</code> in the versioned policy folder.</p>`;
   }
 
   async function openPanel(node) {
@@ -445,7 +444,7 @@
     d3.selectAll('.policy-node').classed('selected ancestor descendant dimmed', false);
     d3.selectAll('.policy-link').classed('ancestor-edge descendant-edge dimmed', false);
     if (!id) {
-      if (panel) panel.innerHTML = '<h3>Guideline details</h3><p class="muted">Hover any node to trace its connections. Click one to open the guideline — its text, its lineage to the root, and its type. Every node is a Markdown file a policy owner can read and edit.</p>';
+      if (panel) panel.innerHTML = '<h3>Guideline details</h3><p class="muted">Hover to trace connections; click a node to read its guideline. Every node is a Markdown file SMEs edit.</p>';
       return;
     }
     const nodes = currentPayload?.nodes || [];
@@ -521,7 +520,7 @@
       ['root-link', 'links to root'],
       ['same-family', 'within one family'],
       ['cross-family', 'cross-family'],
-      ['confused-with', 'confused_with (real error pair)'],
+      ['confused-with', 'confused_with'],
     ]
       .filter(([kind]) => lineKinds.has(kind))
       .map(([kind, label]) => `<span><i class="policy-legend-line ${kind}"></i>${esc(label)}</span>`)
@@ -529,20 +528,19 @@
 
     wrap.innerHTML = `<div class="policy-graph-render-caption">
         <span>${esc(promptVersionLabel(payload.version || currentVersion))}</span>
-        <p>The rendered graph below is the active generator prompt. Accepted SME diffs create later versions; future growth slots stay explicit until executed.</p>
       </div>
       <div class="policy-graph-layout">
         <div class="policy-graph-canvas" aria-label="Interactive policy force graph">
-          <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Generator prompt policy graph ${esc(payload.version || '')}"></svg>
+          <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Policy graph ${esc(payload.version || '')}"></svg>
         </div>
         <aside id="policyGraphPanel" class="policy-graph-panel" aria-live="polite">
           <h3>Guideline details</h3>
-          <p class="muted">Hover any node to trace its connections. Click one to open the guideline — its text, its lineage to the root, and its type. Every node is a Markdown file a policy owner can read and edit.</p>
+          <p class="muted">Hover to trace connections; click a node to read its guideline. Every node is a Markdown file SMEs edit.</p>
         </aside>
       </div>
       <div class="policy-graph-legend">${legendItems}${edgeLegend}</div>`;
 
-    qs('#policyGraphTitle').textContent = payload.title || 'Generator Prompt v_n (policy graph)';
+    qs('#policyGraphTitle').textContent = payload.title || 'Policy graph v_n';
 
     const svg = d3.select('#policyGraphSvg');
     const viewport = svg.append('g').attr('class', 'policy-graph-viewport');
@@ -853,7 +851,7 @@
       return [{ source_node_id: nodeIdFor(a), target_node_id: nodeIdFor(b), edge_type: 'confused_with', provenance: 'demo config', synthetic: true }];
     });
     return {
-      title: demo.sectionCopy?.policyGraphTitle || 'MNIST Generator Prompt v0.1 (policy graph)',
+      title: demo.sectionCopy?.policyGraphTitle || 'MNIST policy graph v0.1',
       version,
       available_versions: [version],
       nodes,

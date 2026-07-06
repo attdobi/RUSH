@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r24" />
-  <script src="demos.js?v=demo-mnist-kdd-r24"></script>
+  <title>RUSH — SME policy, LLM labeling, measurable quality</title>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r25" />
+  <script src="demos.js?v=demo-mnist-kdd-r25"></script>
 </head>
 <body>
   <header class="hero">
     <nav class="topbar" aria-label="Primary">
       <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
       <div class="demo-selector" aria-label="Active demo">
-        <span class="demo-switcher-label" id="demoSelectorLabel">Demo track</span>
+        <span class="demo-switcher-label" id="demoSelectorLabel">Demo</span>
         <div id="demoSelector" class="demo-switcher" role="group" aria-labelledby="demoSelectorLabel">
           <button class="demo-switcher-option" type="button" data-demo-id="genai" aria-pressed="false">
             <span>GenAI Image Classification</span>
@@ -33,26 +33,26 @@
       <div class="topbar-actions" aria-label="Repository actions">
         <div class="topbar-action-links">
           <a class="nav-pill" href="https://github.com/attdobi/RUSH" target="_blank" rel="noopener">GitHub ↗</a>
-          <a id="downloadRepoBtn" class="nav-pill nav-pill-cta" href="/download/rush.zip" rel="nofollow">⬇ Download repo</a>
+          <a id="downloadRepoBtn" class="nav-pill" href="/download/rush.zip" rel="nofollow">Download repo</a>
         </div>
       </div>
     </nav>
 
     <section class="hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow" id="heroEyebrow">Bulk LLM image audit with SME policy</p>
-        <h1 id="heroH1">RUSH turns SME policy into a repeatable image-audit loop.</h1>
-        <p class="lede" id="heroLede">Sample images, author Generator Prompt V0 as a policy graph, run a 20-image LLM panel, then use disagreement to propose SME-reviewed updates.</p>
+        <p class="eyebrow" id="heroEyebrow">Reinforcement learning Using SME feedback and High-reasoning models</p>
+        <h1 id="heroH1">Cheap models label. Hard cases escalate. SMEs decide — and the policy learns.</h1>
+        <p class="lede" id="heroLede">A panel of low-cost models labels everything against an SME-owned policy graph; disagreements climb to a high-reasoning judge, the residue goes to experts, and every accepted ruling becomes the next policy version. Decision quality grows run over run.</p>
         <div class="hero-actions">
           <a class="primary-action" id="heroCta" href="#sample">Start GenAI demo</a>
         </div>
       </div>
       <aside class="hero-panel" aria-label="RUSH operating loop">
-        <div class="loop-step active"><strong>1</strong><span>Sample images</span></div>
-        <div class="loop-step"><strong>2</strong><span>Seed the Generator Prompt</span></div>
-        <div class="loop-step"><strong>3</strong><span>Label a 20-image batch</span></div>
-        <div class="loop-step"><strong>4</strong><span>Propose prompt updates</span></div>
-        <div class="loop-step"><strong>5</strong><span>Accept → next version</span></div>
+        <div class="loop-step active"><strong>1</strong><span>Sample the golden set</span></div>
+        <div class="loop-step"><strong>2</strong><span>Grow the policy graph</span></div>
+        <div class="loop-step"><strong>3</strong><span>Label — cheap panel + cascade</span></div>
+        <div class="loop-step"><strong>4</strong><span>Score — consensus &amp; confusion</span></div>
+        <div class="loop-step"><strong>5</strong><span>Quality climbs per policy version</span></div>
       </aside>
     </section>
   </header>
@@ -63,21 +63,14 @@
         <summary class="section-head compact sample-preview-summary">
           <p class="eyebrow">§1 Sample</p>
           <h2 id="sampleH2">Sample the golden set.</h2>
-          <p id="sampleSub">Start with a balanced catalog slice: real image manifests when present, deterministic synthetics otherwise.</p>
+          <p id="sampleSub">A balanced, seeded golden set: dev images drive policy work; a locked holdout reports the metrics.</p>
         </summary>
         <div class="sample-preview-body">
           <div id="demoSummaryStrip" class="demo-summary-strip" hidden></div>
           <details class="sampling-settings">
-            <summary>Sampling settings <span class="muted">(seed, N, mode, leakage)</span></summary>
+            <summary>Sampling settings <span class="muted">(seed, N)</span></summary>
             <div class="demo-controls" aria-label="Sampler controls">
               <label>Seed <input id="samplerSeed" type="number" min="1" max="2147483647" value="20260510" /></label>
-              <label>Mode
-                <select id="samplerMode">
-                  <option value="cold_start">Cold start — baseline policy v0.0 (no learning)</option>
-                  <option value="warm_start" data-warm-template="Warm start — latest policy (currently {version})">Warm start — latest policy (currently …)</option>
-                </select>
-                <small class="muted policy-mode-help">Cold start ignores prior runs; warm start re-uses the latest policy graph.</small>
-              </label>
               <label>Dev golden N <input id="samplerDevN" type="number" min="1" max="300" value="100" /></label>
               <label>Locked holdout N <input id="samplerHoldoutN" type="number" min="1" max="300" value="100" /></label>
               <button id="runSampler" class="primary-action" type="button">Run sample</button>
@@ -101,52 +94,42 @@
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
     <section id="grow" class="section grow-section">
       <div class="section-head compact">
-        <p class="eyebrow">§2 Grow the generator prompt</p>
-        <h2>Make generator-prompt growth the demo loop.</h2>
-        <p id="growSub">The reinforcement loop: label with v_k → mine misalignments + boundary cases → propose the policy diff → SME accepts → materialize v_<sub>k+1</sub> → relabel. The policy graph is the generator prompt, versioned as v_n, and every accepted SME update strengthens the next run.</p>
+        <p class="eyebrow">§2 Grow the policy graph</p>
+        <h2>Grow the policy graph.</h2>
+        <p id="growSub">Label with the current policy, mine the disagreements, review the proposed diff — every SME-accepted change becomes the next policy version.</p>
       </div>
-      <div class="growth-loop-strip rl-iteration-strip" aria-label="Policy iteration (RL) loop steps">
-        <article><span>1</span><strong>Seed / select v_k</strong><p>Author Generator Prompt V0 or pick the current policy version as the base.</p></article>
-        <article><span>2</span><strong>Label with v_k</strong><p id="growLoopStep2Body">Jump to §3 and label a batch with the selected generator prompt version.</p></article>
-        <article><span>3</span><strong>Mine misalignments + boundaries</strong><p>The selected scored run's SME/model misalignments and boundary cases drive the update.</p></article>
-        <article><span>4</span><strong>Propose the policy diff</strong><p>Draft an SME-reviewable graph diff from those disagreements.</p></article>
-        <article><span>5</span><strong>Accept → v_<sub>k+1</sub></strong><p>SME accept materializes the next KG version; then <a href="#label">relabel with v_<sub>k+1</sub></a> to close the loop.</p></article>
-      </div>
-      <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls (Phase 2c)"></div>
       <div class="policy-graph-block policy-graph-spotlight">
         <div class="policy-graph-copy">
           <div>
-            <h3 id="policyGraphTitle">Generator Prompt v_n as policy graph</h3>
-            <p class="body-copy" id="policyGraphBlurb">This rendered graph is the current generator prompt version: Markdown nodes plus edges that the labeling model must cite. Hover to trace neighbors; click to drill into criteria.</p>
+            <h3 id="policyGraphTitle">Policy graph v_n</h3>
+            <p class="body-copy" id="policyGraphBlurb">This graph IS the prompt the labelers run: Markdown guidelines plus the edges models must cite. Hover to trace; click to read a guideline.</p>
           </div>
-          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Generator prompt version picker">
-            <label>Generator prompt version
+          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Policy version picker">
+            <label>Policy version
               <select id="policyGraphVersion"></select>
             </label>
-            <div class="policy-graph-version-stepper" aria-label="Generator prompt version stepper">
+            <div class="policy-graph-version-stepper" aria-label="Policy version stepper">
               <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
               <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
-              <span id="policyGraphNextNote">accept a proposal to materialize the next version</span>
+              <span id="policyGraphNextNote">accept a proposal to create the next version</span>
             </div>
             <span id="policyGraphStatus" class="status-line" role="status"></span>
           </div>
         </div>
-        <article id="gp0Provenance" class="gp0-provenance" hidden>
-          <div class="gp0-provenance-head">
-            <p class="eyebrow">MNIST §2 task brief</p>
-            <h4>Gp-0 provenance — MNIST Generator Prompt V0</h4>
-          </div>
-          <p class="body-copy">The V0 MNIST policy (MNIST_Digits v0.1) is a cold-start SEED authored by an agent running on Claude Opus 4-8 (commit 6b985a35), derived from digit stroke/topology knowledge — it was NOT generated by a model labeling images.</p>
-          <div class="gp0-schema-block" aria-label="Gp-0 generator labeler prompt output schema">
-            <span>Gp-0 generator/labeler prompt OUTPUT SCHEMA</span>
-            <pre><code>{label 0-9, justification (grounded in policy), difficulty, confidence 0-1, is_boundary}</code></pre>
-          </div>
-          <p class="gp0-status-badge">Prompt defined; not yet executed; no labels collected.</p>
-          <a class="gp0-spec-link" href="../docs/mnist-prompt-v0.md">MNIST V0 prompt spec</a>
-        </article>
         <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-        <p class="fineprint">Provider images are prepared for labeling with longest edge ≤1024 and JPEG quality around 85; policy truth stays in Markdown nodes and <code>edges.json</code>.</p>
+        <p class="fineprint">Policy truth lives in Markdown nodes and <code>edges.json</code>.</p>
       </div>
+      <details class="growth-loop-details">
+        <summary>How the loop grows / author a new version</summary>
+        <div class="growth-loop-strip rl-iteration-strip" aria-label="Policy growth loop">
+          <article><span>1</span><strong>Seed / select v_k</strong><p>Seed policy V0 or pick the current version as the base.</p></article>
+          <article><span>2</span><strong>Label with v_k</strong><p id="growLoopStep2Body">Jump to §3 and label a batch with the selected policy version.</p></article>
+          <article><span>3</span><strong>Mine misalignments + boundaries</strong><p>Misalignments and boundary cases from the scored run drive the update.</p></article>
+          <article><span>4</span><strong>Propose the policy diff</strong><p>Draft an SME-reviewable graph diff from those disagreements.</p></article>
+          <article><span>5</span><strong>Accept → v_<sub>k+1</sub></strong><p>SME accept creates the next policy version; then <a href="#label">relabel with v_<sub>k+1</sub></a> to close the loop.</p></article>
+        </div>
+        <div id="policyGrowControlsSlot" class="policy-grow-controls-slot" aria-label="Growth controls"></div>
+      </details>
       <div class="policy-proposals-block api-section">
         <h3>Review policy proposals.</h3>
         <p class="body-copy">Diffs are generated from scored runs and remain pending until an SME accepts or rejects them.</p>
@@ -167,14 +150,13 @@
         </div>
         <div id="proposalGroupedList" class="proposal-grouped-list" aria-label="Proposal review list"></div>
         <div class="proposal-actions">
-          <button id="proposeDiff" class="primary-action" type="button">Suggest changes from current run</button>
+          <button id="proposeDiff" class="primary-action" type="button">Propose policy diff from run</button>
           <button id="acceptProposal" type="button">Accept update</button>
           <button id="rejectProposal" type="button">Reject</button>
           <span id="proposalStatus" class="status-line" role="status"></span>
         </div>
         <div class="proposal-export-actions" aria-label="Policy export actions">
-          <span class="fineprint">Need a shareable artifact?</span>
-          <button id="buildPolicyPdf" type="button">Export current graph PDF</button>
+          <button id="buildPolicyPdf" type="button">Export policy PDF</button>
         </div>
         <div id="proposalSummary" class="stat-grid"></div>
         <div id="proposalDiffViewer" class="diff-viewer"></div>
@@ -190,7 +172,6 @@
         <div class="label-run-head">
           <div>
             <h3>Start a new run</h3>
-            <p class="body-copy">Quick path keeps the demo moving; advanced controls stay tucked away until needed.</p>
           </div>
           <button id="startLabelingRun" class="primary-action start-run-button" type="button">Run panel · k=20</button>
         </div>
@@ -204,11 +185,6 @@
             <label for="runTriggerBatchSize">k per split</label>
             <input id="runTriggerBatchSize" type="number" min="1" max="200" value="20" />
             <span id="labelDefaultBatch" class="run-k-hint">split <code>all</code> → up to k train + k test</span>
-          </div>
-          <div class="run-k-control" aria-label="Images per API call">
-            <label for="runTriggerImagesPerCall">images per API call</label>
-            <input id="runTriggerImagesPerCall" type="number" min="1" max="20" value="5" />
-            <span class="run-k-hint">1 = single-image calls; N = batched (cost win). Local models always run single-image.</span>
           </div>
         </div>
         <div class="run-trigger-cascade-row" aria-label="Escalation cascade">
@@ -245,6 +221,11 @@
               <input id="runTriggerConcurrency" type="number" min="1" max="4" value="4" />
               <small class="muted">1 = sequential by model; higher = providers run in parallel (faster; locals still single-GPU)</small>
             </label>
+            <div class="run-k-control" aria-label="Images per API call">
+              <label for="runTriggerImagesPerCall">images per API call</label>
+              <input id="runTriggerImagesPerCall" type="number" min="1" max="20" value="5" />
+              <span class="run-k-hint">Batching N images per call cuts cost; local models always run 1.</span>
+            </div>
             <label class="checkbox-label"><input id="runTriggerAllowSpend" type="checkbox" checked /> Allow spend</label>
           </div>
         </details>
@@ -278,33 +259,21 @@
     <section id="score" class="section">
       <div class="section-head compact">
         <p class="eyebrow">§4 Score</p>
-        <h2>Per-image audit.</h2>
-        <p id="scoreSub">Consensus, misalignment, and borderline views share the selected run and stay in one audit surface.</p>
+        <h2>How good was the panel — and what escalates?</h2>
+        <p id="scoreSub">Headline test accuracy, per-model votes, and the disagreements that climb the cascade.</p>
       </div>
-      <div class="score-algo-card" aria-labelledby="scoreAlgoTitle">
+      <div id="scoreReportedMetrics" class="run-summary-metrics" aria-live="polite"></div>
+      <div id="scoreConfusionMatrix" class="score-confusion" aria-live="polite" hidden></div>
+      <div id="scoreCascade" class="score-cascade" aria-live="polite" hidden></div>
+      <details class="score-algo-card" aria-labelledby="scoreAlgoTitle">
+        <summary>Methodology: train drives updates, test drives reported metrics</summary>
         <div class="score-algo-head">
           <div>
-            <h3 id="scoreAlgoTitle">Train/Test algorithm</h3>
-            <p>Intended round: take <strong>k images from TRAINING</strong>, classify with the panel, measure decision quality vs human labels, and surface boundary cases, misalignments, and lack-of-consensus. Also take <strong>k images from TEST</strong> and compute the decision-quality metric reported for the round.</p>
+            <h3 id="scoreAlgoTitle">Train / test discipline</h3>
+            <p>Learn from train, report on test. Training disagreements drive policy updates; held-out test images produce the reported score.</p>
           </div>
-          <span id="scoreAlgoBadge" class="score-algo-badge">intended pipeline · defined-not-executed</span>
+          <span id="scoreAlgoBadge" class="score-algo-badge" hidden></span>
         </div>
-        <div class="score-algo-controls" aria-label="Score algorithm controls">
-          <label>k per split
-            <input id="scoreKPerSplit" type="number" min="1" max="200" value="20" />
-          </label>
-          <label>Next-run split
-            <select id="scoreSplitMirror">
-              <option value="all" selected>all · training + testing</option>
-              <option value="dev_golden">dev_golden/train · training only</option>
-              <option value="holdout">holdout/val · testing only</option>
-            </select>
-          </label>
-          <p id="scoreKNote">Mirrors §3 k per split and Split for the next run. k per split means up to k training + k test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
-        </div>
-        <div id="scoreCascade" class="score-cascade" aria-live="polite" hidden></div>
-        <div id="scoreReportedMetrics" class="run-summary-metrics" aria-live="polite"></div>
-        <div id="scoreConfusionMatrix" class="score-confusion" aria-live="polite" hidden></div>
         <div class="score-algo-lanes" aria-label="Train test separation">
           <article class="score-algo-lane train-lane">
             <span>TRAIN &rarr; drives PROMPT UPDATES</span>
@@ -318,17 +287,17 @@
           </article>
         </div>
         <div id="scoreUpdateCandidates"></div>
-        <p id="scoreAlgoRule" class="score-algo-rule">Learn from train, report on test — never leak. Current backend scoring exports one combined run-level decision-quality snapshot, so split-separated train updates vs test metrics are labeled here as the intended pipeline until backend separation is wired.</p>
-      </div>
+        <p id="scoreAlgoRule" class="score-algo-rule">Learn from train, report on test — never leak.</p>
+      </details>
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" data-score-panel-target="consensus" data-consensus-filter="all" id="scoreTabConsensus">Consensus</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-unanimous" data-score-panel-target="consensus" data-consensus-filter="unanimous" id="scoreTabConsensusUnanimous">Unanimous</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-split" data-score-panel-target="consensus" data-consensus-filter="split" id="scoreTabConsensusSplit">Split</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments">SME review-first</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="model-disagreement" id="scoreTabModelDisagreement">Model disagreement</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="boundary-concentration" id="scoreTabBoundaryConcentration">Boundary pairs</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments" hidden>SME review-first</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="model-disagreement" id="scoreTabModelDisagreement" hidden>Model disagreement</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="boundary-concentration" id="scoreTabBoundaryConcentration" hidden>Boundary pairs</button>
       </div>
       <div id="scoreInsightStatus" class="score-insight-status status-line" role="status"></div>
       <div class="score-tab-panel" data-score-panel="consensus" role="tabpanel" aria-labelledby="scoreTabConsensus">
@@ -343,13 +312,13 @@
       </div>
       <div class="score-tab-panel" data-score-panel="misalignment" role="tabpanel" aria-labelledby="scoreTabMisalignment" hidden>
         <h3 id="misalignmentH3">Model vs SME disagreement, ranked for review.</h3>
-        <p class="body-copy" id="misalignmentSub">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch; prepared-image audit metadata (sha256, dims, mime) is surfaced inline when present.</p>
+        <p class="body-copy" id="misalignmentSub">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch.</p>
 <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
       </div>
       <div class="score-tab-panel" data-score-panel="borderline" role="tabpanel" aria-labelledby="scoreTabBorderline" hidden>
         <h3 id="borderlineH3">Where models hedge, SMEs decide.</h3>
-        <p class="body-copy" id="borderlineSub">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>). Will fan out to L2 nodes as the graph grows.</p>
+        <p class="body-copy" id="borderlineSub">Boundary cases grouped by L0 bucket (<code>gen_ai</code> / <code>not_gen_ai</code> / <code>abstain</code>).</p>
 <div id="borderlineEmpty" class="empty-state">No borderline data yet for this run. <button type="button" data-compute-target="borderline" data-run-id="">Compute now</button></div>
       <div id="borderlineGroups" class="borderline-groups"></div>
       </div>
@@ -365,16 +334,15 @@
       </div>
       <div class="score-tab-panel" data-score-panel="boundary-concentration" role="tabpanel" aria-labelledby="scoreTabBoundaryConcentration" hidden>
         <h3>Boundary and confusion-pair concentration.</h3>
-        <p class="body-copy">Boundary buckets and recurring pair disagreements point to digit confusions worth clarifying in the prompt graph.</p>
+        <p class="body-copy">Recurring label-pair disagreements point to boundaries worth clarifying in the policy graph.</p>
         <div id="scoreInsightBoundary" class="score-insight-grid score-insight-grid-two"></div>
       </div>
       <div class="residual-misalign-block" aria-labelledby="residualMisalignTitle">
         <div class="residual-misalign-head">
           <div>
             <h3 id="residualMisalignTitle">Residual misalignments</h3>
-            <p>After the selected round, remaining train and test disagreements should be visible separately. Current rows are split-tagged when the export or loaded manifest can support it.</p>
+            <p>Disagreements left after this round, split by train/test.</p>
           </div>
-          <span class="score-algo-badge">label-cleanup hook coming soon</span>
         </div>
         <div id="residualMisalignments" class="residual-misalign-grid"></div>
       </div>
@@ -383,7 +351,7 @@
       <div class="section-head compact">
         <p class="eyebrow">§5 Quality</p>
         <h2 id="qualityH2">Decision quality is the gate for policy growth.</h2>
-        <p id="qualitySub">After the graph grows, this is the second key objective: compare accuracy, F1, FPR/FNR, review burden, and cost by labeler, run, and policy version.</p>
+        <p id="qualitySub">Per-labeler and ensemble decision quality — accuracy, F1, FPR/FNR, review burden, cost — tracked across policy versions. The number that should go up every time an SME accepts an update.</p>
       </div>
       <div class="run-controls" aria-label="Decision quality filters">
         <label>Run
@@ -398,29 +366,24 @@
       <div id="decisionQualitySummary" class="dq-summary-strip"></div>
       <div id="decisionQualityWarning" class="dq-warning-banner" hidden></div>
       <div id="decisionQualityNarrative" class="dq-narrative" hidden></div>
-      <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="decisionQualityChart" class="api-panel"></div>
+      <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="benchmarkComparison" class="benchmark-comparison" hidden>
         <div>
           <span>Benchmark comparison</span>
           <strong>RUSH MNIST result pending</strong>
-          <p>Reserved for a scored MNIST run. Current external anchor: 99.91% top-1 accuracy / 0.09% error on the standard 10k MNIST test set (<a href="https://arxiv.org/abs/2008.10400" target="_blank" rel="noopener">An et al., 2020</a>). RUSH scores stay empty until a real run writes multiclass decision-quality output.</p>
+          <p>External anchor: 99.91% top-1 accuracy / 0.09% error on the standard 10k MNIST test set (<a href="https://arxiv.org/abs/2008.10400" target="_blank" rel="noopener">An et al., 2020</a>).</p>
         </div>
         <a href="../docs/mnist-benchmarks-v0.md">Benchmark spec</a>
       </div>
     </section>
     <section id="about" class="section about-shell">
       <div class="section-head compact">
-        <p class="eyebrow">§6 About</p>
+        <p class="eyebrow">About</p>
         <h2>System, theory, and next steps.</h2>
       </div>
       <details class="about-block" open>
         <summary>System</summary>
-      <div class="section-head compact">
-        <p class="eyebrow">System view</p>
-        <h2>The RUSH loop at scale.</h2>
-        <p>Policy data and golden examples feed the graph, labeling, audit, metrics, and diffs.</p>
-      </div>
       <div class="system-card">
         <img class="architecture-visual" src="../docs/visuals/rush-system.svg" alt="RUSH system architecture" />
       </div>
@@ -440,7 +403,7 @@
           <table class="theory-table">
             <thead><tr><th>Dimension</th><th>Working assumption</th><th>Implication</th></tr></thead>
             <tbody>
-              <tr><td>Synthesis cost</td><td>Anthropic ≈ $42 / 1k images vs OpenAI ≈ $5 / 1k images</td><td>Use expensive synthesis only where it buys better policy patches or audit explanations.</td></tr>
+              <tr><td>Synthesis cost</td><td>High-reasoning labels cost ~10-40x cheap-tier labels per image</td><td>Use expensive synthesis only where it buys better policy patches or audit explanations.</td></tr>
               <tr><td>Label quality</td><td>Reasoning-tier models can improve boundary handling and policy-node citation quality.</td><td>Measure by scored runs, not vibes: accuracy, F1, false positives, false negatives, abstains, and review burden.</td></tr>
               <tr><td>Review allocation</td><td>Consensus rows are cheaper to accept; split or majority-wrong rows deserve SME attention.</td><td>Route scarce human time to the highest expected policy-learning value.</td></tr>
             </tbody>
@@ -453,13 +416,12 @@
       </details>
       <details class="about-block">
         <summary>Next</summary>
-      <p class="eyebrow">Future work</p>
-      <h2>Bulk LLM labeling → policy building → decision-quality evaluation.</h2>
+      <h2>What's next.</h2>
       <div class="roadmap-grid">
-        <article><span>01</span><h3>Bulk model labeling</h3><p>Multiple models, structured outputs, confidence, policy-node citations, abstain support.</p></article>
-        <article><span>02</span><h3>Misalignment mining</h3><p>Compare LLM labels to SME truth; separate correlated failure from useful consensus.</p></article>
-        <article><span>03</span><h3>Policy diffs</h3><p>Turn repeated ambiguity into graph patches: nodes, examples, exceptions, rejected memory.</p></article>
-        <article><span>04</span><h3>Decision quality</h3><p>Per-model accuracy, F1, FPR/FNR, coverage, CIs, and review burden by policy version.</p></article>
+        <article><span>01</span><h3>SME routing &amp; label cleanup</h3><p>Route residual disagreements to the right expert and fix bad gold labels before they propagate.</p></article>
+        <article><span>02</span><h3>Split-separated backend scoring</h3><p>Export train and test metrics separately so policy updates and reported scores never share rows.</p></article>
+        <article><span>03</span><h3>Confidence-interval bands</h3><p>CI bands on decision-quality metrics so small-sample runs read as directional, not definitive.</p></article>
+        <article><span>04</span><h3>Cost-optimal cascade tuning</h3><p>Tune escalation thresholds to hit target quality at the lowest cost per thousand labels.</p></article>
       </div>
       </details>
     </section>
@@ -473,17 +435,17 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r24"></script>
-  <script src="app.js?v=demo-mnist-kdd-r24"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r24"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r24"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r24"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r24"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r24"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r24"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r25"></script>
+  <script src="app.js?v=demo-mnist-kdd-r25"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r25"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r25"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r25"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r25"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r25"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r25"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r24"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r24"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r24"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r25"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r25"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r25"></script>
 </body>
 </html>

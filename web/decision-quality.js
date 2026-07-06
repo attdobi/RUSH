@@ -1,6 +1,6 @@
 (() => {
   const COLORS = ['#4de0a6', '#82b5ff', '#ffd166', '#ff6f91', '#d394ff', '#7dd0ff'];
-  const MNIST_EMPTY_RUN_MESSAGE = 'No scored MNIST run yet — run labeling to populate.';
+  const MNIST_EMPTY_RUN_MESSAGE = 'No scored MNIST run yet — start one in §3 Label.';
 
   function activeDemo() {
     return typeof window.rushActiveDemo === 'function'
@@ -165,17 +165,13 @@
     const imageCount = totalImages(runs);
     const f1Label = isMnistDemo() ? 'Ensemble macro F1' : 'Ensemble accuracy';
     const f1Value = ensemble ? rushApiFormatMetric(isMnistDemo() ? ensemble.f1 : ensemble.accuracy) : '—';
-    const recallLabel = isMnistDemo() ? 'Ensemble recall (macro)' : 'Ensemble recall';
-    const fprLabel = isMnistDemo() ? 'Ensemble FPR (macro)' : 'Ensemble FPR';
     target.innerHTML = [
       ['Scored runs', String(runs.length)],
       ['Images scored', imageCount ? String(imageCount) : '—'],
       ['Policy versions', policyVersionCount(runs) ? String(policyVersionCount(runs)) : '—'],
       [f1Label, f1Value],
-      [recallLabel, ensemble ? rushApiFormatMetric(ensemble.recall) : '—'],
-      [fprLabel, ensemble ? rushApiFormatMetric(ensemble.fpr) : '—'],
       ['Ensemble vs best model', formatSignedMetric(ensembleLift)],
-      ['Split / boundary review load', splitBoundaryText(runs)],
+      ['Needs review (split / boundary)', splitBoundaryText(runs)],
       ['Total cost (USD)', `$${totalCost.toFixed(4)}`]
     ].map(([label, value]) => `<div class="dq-summary-card"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('');
   }
@@ -185,7 +181,7 @@
     if (!target) return;
     const hasSmallN = rows.some(row => !isEnsembleRow(row) && Number(row.n || 0) < 30);
     target.hidden = !hasSmallN;
-    target.textContent = hasSmallN ? 'Sample sizes are small (N < 30); metrics are indicative, not statistical.' : '';
+    target.textContent = hasSmallN ? 'Small samples (N < 30) — treat metrics as directional, not statistically significant.' : '';
   }
 
   function renderNarrative(runs, rows) {
@@ -207,15 +203,21 @@
     const framing = isMnistDemo()
       ? 'watch per-digit errors, macro-F1, and confusion-pair review load for regressions by policy version.'
       : 'watch false positives/false negatives and the split/boundary review load for regressions by policy version.';
-    target.innerHTML = `<strong>Demo read:</strong> treat this panel as the decision-quality gate before accepting policy growth — ${esc(liftText)}; ${esc(framing)}`;
+    target.innerHTML = `<strong>The gate:</strong> policy growth is only accepted when decision quality holds — ${esc(liftText)}; ${esc(framing)}`;
     target.hidden = false;
   }
 
-  function setBenchmarkState(hasRuns) {
+  function setBenchmarkState(hasRuns, rows = []) {
     const target = $('#benchmarkComparison');
     if (!target || !isMnistDemo()) return;
+    target.hidden = !hasRuns;
+    if (!hasRuns) return;
     const strong = target.querySelector('strong');
-    if (strong) strong.textContent = hasRuns ? 'RUSH MNIST result available' : MNIST_EMPTY_RUN_MESSAGE;
+    if (!strong) return;
+    const ensemble = rows.find(row => row.labeler_id === 'majority_vote') || rows.find(isEnsembleRow);
+    strong.textContent = ensemble && isNumber(ensemble.accuracy)
+      ? `RUSH ensemble accuracy: ${rushApiFormatMetric(ensemble.accuracy)}`
+      : 'RUSH MNIST result pending';
   }
 
   function renderEmptyDecisionQuality(message) {
@@ -238,10 +240,10 @@
     setBenchmarkState(false);
   }
 
-  function renderCards(runs) {
+  function renderCards(runs, rows) {
     const target = $('#decisionQualityCards');
     if (!target) return;
-    const rows = aggregateLabelers(runs);
+    if (!Array.isArray(rows)) rows = aggregateLabelers(runs);
     target.classList.add('dq-table-wrap');
     renderSummary(runs, rows);
     renderSmallNWarning(rows);
@@ -270,9 +272,7 @@
       ['Recall', row => rushApiFormatMetric(row.recall), true],
       ['FPR', row => rushApiFormatMetric(row.fpr), true],
       ['FNR', row => rushApiFormatMetric(row.fnr), true],
-      ['Pos. Prop.', row => rushApiFormatMetric(row.positive_proportion), true],
       ['N', row => esc(row.n), true],
-      ['Informedness', row => rushApiFormatMetric(row.informedness), true],
       ['Cost / 1k labels', row => formatCostPerThousand(row.cost_per_1000_labels), true]
     ];
     const header = columns.map(([label]) => `<th scope="col">${esc(label)}</th>`).join('');
@@ -300,11 +300,11 @@
     if (!target) return;
     const { sortedRuns, series } = collectSeries(runs);
     if (!sortedRuns.length || !series.size) {
-      target.innerHTML = '<div class="empty-state">No accuracy history available yet.</div>';
+      target.innerHTML = '<div class="empty-state">Run and score a batch (§3) to start the convergence chart.</div>';
       return;
     }
     const width = 760;
-    const height = 200;
+    const height = 260;
     const pad = { left: 46, right: 18, top: 14, bottom: 38 };
     const innerW = width - pad.left - pad.right;
     const innerH = height - pad.top - pad.bottom;
@@ -313,7 +313,7 @@
     const y = value => pad.top + (1 - Math.max(0, Math.min(1, value))) * innerH;
     const grid = [0, 0.25, 0.5, 0.75, 1].map(value => {
       const yy = y(value).toFixed(1);
-      return `<line x1="${pad.left}" y1="${yy}" x2="${width - pad.right}" y2="${yy}" class="chart-grid" /><text x="8" y="${Number(yy) + 4}" class="chart-label" font-size="6.5" style="font-size:6.5px">${Math.round(value * 100)}%</text>`;
+      return `<line x1="${pad.left}" y1="${yy}" x2="${width - pad.right}" y2="${yy}" class="chart-grid" /><text x="8" y="${Number(yy) + 4}" class="chart-label" font-size="10" style="font-size:10px">${Math.round(value * 100)}%</text>`;
     }).join('');
     const lines = Array.from(series.entries()).map(([id, points], index) => {
       const color = COLORS[index % COLORS.length];
@@ -322,11 +322,13 @@
       return `<polyline points="${pointText}" fill="none" stroke="${color}" stroke-width="2.5" />${circles}`;
     }).join('');
     const labels = sortedRuns.map((run, index) => {
-      const shortId = String(run.run_id || `run-${index + 1}`).slice(0, 13);
-      return `<text x="${x(index).toFixed(1)}" y="${height - 18}" class="chart-label" font-size="6.5" style="font-size:6.5px" text-anchor="middle">${esc(shortId)}</text>`;
+      const tick = run.policy_graph_version
+        ? String(run.policy_graph_version)
+        : String(run.run_id || `run-${index + 1}`).slice(0, 13);
+      return `<text x="${x(index).toFixed(1)}" y="${height - 18}" class="chart-label" font-size="10" style="font-size:10px" text-anchor="middle">${esc(tick)}</text>`;
     }).join('');
     const legend = Array.from(series.keys()).map((id, index) => `<span><i style="background:${COLORS[index % COLORS.length]}"></i>${esc(id)}</span>`).join('');
-    target.innerHTML = `<div class="chart-wrap"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Accuracy across runs over time">${grid}${lines}${labels}</svg><div class="chart-legend">${legend}</div></div>`;
+    target.innerHTML = `<div class="chart-wrap"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Decision quality by policy version">${grid}${lines}${labels}</svg><div class="chart-legend"><span class="chart-legend-title">Decision quality by policy version</span>${legend}</div></div>`;
   }
 
   async function loadDecisionQuality() {
@@ -347,8 +349,9 @@
         status('No scored MNIST run yet.');
         return;
       }
-      setBenchmarkState(runs.length > 0);
-      renderCards(runs);
+      const rows = aggregateLabelers(runs);
+      setBenchmarkState(runs.length > 0, rows);
+      renderCards(runs, rows);
       renderChart(runs);
       status(`Loaded ${runs.length} scored run(s).`);
     } catch (error) {
