@@ -104,13 +104,15 @@ def ingest_manifest(conn, area: str) -> dict:
                 """
                 INSERT INTO rush.golden_label
                   (entity_id, current_label, seed_source, num_sme_labels,
-                   num_sme_agree_current, confidence_tier, at_cap, last_epoch, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+                   num_sme_agree_current, confidence_tier, human_confidence,
+                   at_cap, last_epoch, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now())
                 ON CONFLICT (entity_id) DO UPDATE SET
                   current_label = EXCLUDED.current_label,
                   num_sme_labels = EXCLUDED.num_sme_labels,
                   num_sme_agree_current = EXCLUDED.num_sme_agree_current,
                   confidence_tier = EXCLUDED.confidence_tier,
+                  human_confidence = EXCLUDED.human_confidence,
                   at_cap = EXCLUDED.at_cap,
                   last_epoch = EXCLUDED.last_epoch,
                   updated_at = now()
@@ -122,6 +124,7 @@ def ingest_manifest(conn, area: str) -> dict:
                     golden["num_sme_labels"],
                     golden["num_sme_agree_current"],
                     golden["confidence_tier"],
+                    golden["human_confidence"],
                     golden["at_cap"],
                     golden["last_epoch"],
                 ),

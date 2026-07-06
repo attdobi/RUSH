@@ -532,7 +532,7 @@
       ? `<em class="model-speed" title="median seconds/image over ${speed.samples} recent run(s) on this machine">~${speed.seconds < 10 ? speed.seconds.toFixed(1) : Math.round(speed.seconds)}s/img</em>`
       : '';
     const localClass = isLocal ? ' model-pick--local' : '';
-    const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}">${esc(badgeTier)}</span>`;
+    const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}" title="Relative COST tier from the estimated $/1k labels${isLocal ? ' (local GPU: free)' : ''}">${esc(badgeTier)}</span>`;
     const reasoningToggle = isLocal ? renderLocalReasoningToggle(model) : '';
     return `
       <div class="model-pick${localClass}">

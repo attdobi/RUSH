@@ -33,6 +33,20 @@ TIER_WEIGHTS = {
 SME_CAP = 3
 
 
+def human_confidence(num_agreeing: int) -> float:
+    """Attila's human-label confidence: p = 1 - 1/(m + 0.2).
+
+    ``m`` counts the human labels AGREEING with the current resolved label
+    (per category, or the high-level binary label). A lone human label is
+    weak evidence — m=1 -> 0.167, m=2 -> 0.545, m=3 -> 0.688 — agreement
+    compounds it, saturating toward 1.
+    """
+    m = max(0, int(num_agreeing))
+    # The raw formula goes negative below m=1 (1 - 1/0.2 = -4); clamp at 0 —
+    # "no agreeing human evidence" is zero confidence, not negative.
+    return max(0.0, 1.0 - 1.0 / (m + 0.2))
+
+
 def db_url() -> str:
     return os.environ.get("RUSH_DB_URL") or DEFAULT_DB_URL
 
@@ -106,6 +120,7 @@ def golden_row(sme_events: list[str], *, seed_source: str, last_epoch: int | Non
         "num_sme_labels": len(sme_events),
         "num_sme_agree_current": agree,
         "confidence_tier": tier,
+        "human_confidence": round(human_confidence(agree), 6),
         "at_cap": len(sme_events) >= SME_CAP,
         "last_epoch": last_epoch,
     }

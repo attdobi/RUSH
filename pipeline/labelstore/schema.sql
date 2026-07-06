@@ -59,11 +59,18 @@ CREATE TABLE IF NOT EXISTS rush.golden_label (  -- materialized from label_event
   num_sme_labels        INT NOT NULL DEFAULT 0,
   num_sme_agree_current INT NOT NULL DEFAULT 0,
   confidence_tier       TEXT NOT NULL,        -- §4.1 tiers
+  -- Human-label confidence (Attila 2026-07-06): p = 1 - 1/(m + 0.2) where
+  -- m = number of human labels AGREEING with the current resolved label.
+  -- m=1 -> 0.167, m=2 -> 0.545, m=3 -> 0.688 — a lone human label is weak
+  -- evidence ("the golden set is not so golden"); agreement compounds it.
+  human_confidence      NUMERIC,
   at_cap                BOOLEAN NOT NULL DEFAULT FALSE,
   persistent_misaligned BOOLEAN NOT NULL DEFAULT FALSE,
   last_epoch            INT,
   updated_at            TIMESTAMPTZ NOT NULL
 );
+-- Migration for stores created before human_confidence existed.
+ALTER TABLE rush.golden_label ADD COLUMN IF NOT EXISTS human_confidence NUMERIC;
 
 CREATE TABLE IF NOT EXISTS rush.cycle (
   cycle_id        INT PRIMARY KEY,
@@ -134,3 +141,65 @@ CREATE TABLE IF NOT EXISTS rush.misalignment (       -- cycle-close snapshot + q
     CHECK (queue_status IN ('pending','queued','adjudicated','skipped_cap','audit')),
   PRIMARY KEY (cycle_id, entity_id)
 );
+
+-- ---------------------------------------------------------------------------
+-- Derived per-sample gradient signals ("Notation and the per-sample gradient",
+-- Attila's policy-optimization note, 2026-07-06). For judge j on item i with
+-- self-reported confidence c in its OWN predicted label:
+--   p    = c            if prediction == golden label   (prob. on true class)
+--   p    = 1 - c        otherwise                        (binary approximation)
+--   |g|  = 1 - p        gradient magnitude: confident-wrong ~1 (most
+--                       informative error), confident-correct ~0 (ignore)
+--   h    = c(1 - c)     curvature/uncertainty: max at c=0.5, correctness-blind
+--   loss = -ln(p)       per-sample cross-entropy
+-- Views (not tables): always current w.r.t. golden_label overturns, nothing
+-- to re-materialize. Abstains and NULL confidences are excluded.
+CREATE OR REPLACE VIEW rush.sample_gradient AS
+SELECT
+  l.llm_label_id,
+  l.entity_id,
+  l.generator_id,
+  l.model_id,
+  l.decision,
+  l.confidence,
+  g.current_label,
+  g.human_confidence,
+  (l.decision = g.current_label)                          AS is_correct,
+  CASE WHEN l.decision = g.current_label
+       THEN l.confidence ELSE 1 - l.confidence END        AS p_true,
+  1 - CASE WHEN l.decision = g.current_label
+       THEN l.confidence ELSE 1 - l.confidence END        AS grad_magnitude,
+  l.confidence * (1 - l.confidence)                       AS hessian_uncertainty,
+  -ln(GREATEST(CASE WHEN l.decision = g.current_label
+       THEN l.confidence ELSE 1 - l.confidence END, 1e-6)) AS loss_ce,
+  l.is_boundary,
+  l.difficulty
+FROM rush.llm_label l
+JOIN rush.golden_label g USING (entity_id)
+WHERE l.decision <> 'abstain' AND l.confidence IS NOT NULL;
+
+-- Panel-level rollup per (item, policy version): the candidate-selection
+-- substrate for policy-gradient experiments. avg_grad_magnitude is the
+-- "average of confidence scores across the multiple LLMs" signal, expressed
+-- in gradient form; is_split / any_boundary / difficulty counts feed the
+-- other selection strategies.
+CREATE OR REPLACE VIEW rush.panel_signal AS
+SELECT
+  entity_id,
+  generator_id,
+  count(*)                                        AS n_judges,
+  avg(confidence)                                 AS avg_confidence,
+  avg(p_true)                                     AS avg_p_true,
+  avg(grad_magnitude)                             AS avg_grad_magnitude,
+  max(grad_magnitude)                             AS max_grad_magnitude,
+  avg(hessian_uncertainty)                        AS avg_hessian,
+  avg(loss_ce)                                    AS avg_loss,
+  count(DISTINCT decision)                        AS distinct_decisions,
+  (count(DISTINCT decision) > 1)                  AS is_split,
+  bool_or(is_boundary)                            AS any_boundary,
+  count(*) FILTER (WHERE NOT is_correct)          AS n_wrong,
+  count(*) FILTER (WHERE difficulty = 'high')     AS n_difficulty_high,
+  count(*) FILTER (WHERE difficulty = 'medium')   AS n_difficulty_medium,
+  max(human_confidence)                           AS human_confidence
+FROM rush.sample_gradient
+GROUP BY entity_id, generator_id;

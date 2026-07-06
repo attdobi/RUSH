@@ -1252,7 +1252,7 @@ table.misalignment a:focus-visible {
 .run-trigger-compact { display: grid; gap: 12px; }
 .run-trigger-primary-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) auto;
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
 }
@@ -1379,12 +1379,16 @@ table.misalignment a:focus-visible {
 .run-trigger-compact { display: grid; gap: 12px; }
 .run-trigger-primary-row {
   display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(220px, .45fr);
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: stretch;
 }
 .compact-model-picker .model-picker-list { grid-template-columns: 1fr; gap: 10px; }
-.compact-model-picker .model-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+/* Wide panel: three provider columns of models; badges stay on-row. */
+.compact-model-picker .model-picker-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 18px; }
+@media (max-width: 1100px) {
+  .compact-model-picker .model-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .compact-model-picker .model-pick { align-items: flex-start; padding: 2px 0; }
 .compact-model-picker .model-pick code { overflow-wrap: anywhere; }
 .run-default-card {
@@ -1423,6 +1427,7 @@ table.misalignment a:focus-visible {
   border-radius: 12px;
   padding: 10px 12px;
 }
+.legend-note { font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
 .run-k-inline { display: flex; flex-direction: column; gap: 3px; }
 .run-k-inline label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 950; white-space: nowrap; }
 .run-k-inline input { width: 74px; background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.22); border-radius: 8px; color: #eaf3ff; padding: 5px 8px; font-size: 15px; font-weight: 800; }
