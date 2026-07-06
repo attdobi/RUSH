@@ -351,3 +351,53 @@ def test_score_labels_writes_consensus_artifacts(tmp_path: Path, monkeypatch):
     web_summary = json.loads((run_dir / "web" / "summary.json").read_text())
     assert "consensus_summary" in web_summary
     assert web_summary["consensus_summary"]["n_images_total"] == 1
+
+
+def test_select_escalation_ids_single_hedger_ignored_on_large_panel():
+    # 5-voter panel, unanimous label, exactly ONE voter flags boundary:
+    # measured on a real 5-model x 400-image run this is pure noise
+    # (98/98 correct majorities) -> must NOT escalate.
+    votes = [
+        _vote("img", "a", "4"),
+        _vote("img", "b", "4"),
+        _vote("img", "c", "4"),
+        _vote("img", "d", "4"),
+        _vote("img", "e", "4", is_boundary=True),
+    ]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    assert consensus_mod.select_escalation_ids(records) == []
+
+
+def test_select_escalation_ids_two_hedgers_escalate_on_large_panel():
+    votes = [
+        _vote("img", "a", "4"),
+        _vote("img", "b", "4"),
+        _vote("img", "c", "4"),
+        _vote("img", "d", "4", is_boundary=True),
+        _vote("img", "e", "4", is_boundary=True),
+    ]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    assert consensus_mod.select_escalation_ids(records) == ["img"]
+
+
+def test_select_escalation_ids_single_hedger_still_escalates_small_panel():
+    # 2-voter panel keeps the old sensitivity: one hedger escalates.
+    votes = [
+        _vote("img", "a", "7"),
+        _vote("img", "b", "7", is_boundary=True),
+    ]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    assert consensus_mod.select_escalation_ids(records) == ["img"]
+
+
+def test_select_escalation_ids_min_boundary_voters_override():
+    votes = [
+        _vote("img", "a", "4"),
+        _vote("img", "b", "4"),
+        _vote("img", "c", "4"),
+        _vote("img", "d", "4", is_boundary=True),
+        _vote("img", "e", "4", is_boundary=True),
+    ]
+    records = consensus_mod.build_consensus_records(votes, computed_at="2026-01-01T00:00:00Z")
+    # Raising the bar to 3 hedgers de-escalates this image.
+    assert consensus_mod.select_escalation_ids(records, min_boundary_voters=3) == []

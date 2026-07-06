@@ -203,6 +203,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--escalate-reasoning", default="on", choices=["off", "on"])
     ap.add_argument("--concurrency", type=int, default=2)
     ap.add_argument("--allow-holdout", action="store_true")
+    ap.add_argument("--from-run", default=None,
+                    help="Reuse an existing scored run as tier 1 (skip cheap-tier labeling; "
+                         "re-derives the escalation set from its consensus and runs tier 2 only).")
     args = ap.parse_args(argv)
 
     signal.signal(signal.SIGTERM, _forward_signal)
@@ -218,14 +221,29 @@ def main(argv: list[str] | None = None) -> int:
         locals_ = [m for m in models if m.startswith("local/")]
         return ",".join(f"{m}={mode}" for m in locals_) if locals_ else None
 
-    # --- Tier 1: cheap panel labels everything ---
-    tier1 = _run_tier(
-        models=cheap, area=args.area, policy_version=args.policy_version, manifest=args.manifest,
-        local_reasoning=local_reasoning_arg(cheap, args.cheap_reasoning),
-        concurrency=args.concurrency, allow_holdout=args.allow_holdout,
-        split=args.split, limit=args.limit, label="cheap",
-    )
-    run1 = tier1["run_id"]
+    # --- Tier 1: cheap panel labels everything (or reuse an existing run) ---
+    if args.from_run:
+        run1 = str(args.from_run)
+        manifest_path = _run_dir(run1) / "run_manifest.json"
+        if not manifest_path.exists():
+            raise SystemExit(f"[cascade] --from-run: no such run {run1}")
+        tier1_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        cheap = [
+            m.get("model_id") if isinstance(m, dict) else str(m)
+            for m in tier1_manifest.get("models", [])
+        ] or cheap
+        wall = _tier_cost_time(run1).get("active_elapsed_s")
+        tier1 = {"run_id": run1, "_wall_s": wall if wall is not None else 0.0}
+        print(f"[cascade] tier 'cheap': reusing scored run {run1} ({', '.join(cheap)})",
+              file=sys.stderr)
+    else:
+        tier1 = _run_tier(
+            models=cheap, area=args.area, policy_version=args.policy_version, manifest=args.manifest,
+            local_reasoning=local_reasoning_arg(cheap, args.cheap_reasoning),
+            concurrency=args.concurrency, allow_holdout=args.allow_holdout,
+            split=args.split, limit=args.limit, label="cheap",
+        )
+        run1 = tier1["run_id"]
     escalate_ids, resolved_ids, records = _partition_by_consensus(run1)
     n_total = len(records)
 

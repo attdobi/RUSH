@@ -57,6 +57,12 @@ class AnthropicClientConfig(ClientConfig):
     api_key_env_var: str = auth.ANTHROPIC_API_KEY_VAR
     max_tokens: int = LABELING_VISIBLE_OUTPUT_TOKENS
     thinking_budget_tokens: int | None = None
+    # Claude 5-generation models replaced the legacy budget-based extended
+    # thinking (thinking.type="enabled" + budget_tokens) with ADAPTIVE
+    # thinking: thinking.type="adaptive" + output_config.effort. Setting this
+    # selects the new scheme; thinking_budget_tokens then only sizes the
+    # max_tokens headroom and is NOT sent to the API.
+    thinking_effort: str | None = None
 
 
 class AnthropicClient(LabelClient):
@@ -134,7 +140,14 @@ class AnthropicClient(LabelClient):
             "messages": messages,
         }
         temperature = resolve_temperature(self.config.model_name)
-        if self.config.thinking_budget_tokens is not None and self.config.thinking_budget_tokens > 0:
+        if self.config.thinking_effort:
+            # Claude 5 generation: adaptive thinking + effort. The legacy
+            # "enabled"+budget_tokens config is a 400 on these models.
+            params["thinking"] = {"type": "adaptive"}
+            params["output_config"] = {"effort": str(self.config.thinking_effort)}
+            # Anthropic requires temperature=1 whenever thinking is on.
+            params["temperature"] = 1
+        elif self.config.thinking_budget_tokens is not None and self.config.thinking_budget_tokens > 0:
             params["thinking"] = {
                 "type": "enabled",
                 "budget_tokens": int(self.config.thinking_budget_tokens),
@@ -226,7 +239,7 @@ class AnthropicClient(LabelClient):
             return abstain_response(
                 image_id=request.image_id,
                 model_id=request.model_id,
-                error=f"provider_error:{type(exc).__name__}",
+                error=f"provider_error:{type(exc).__name__}:{str(exc)[:200]}",
                 latency_ms=elapsed,
                 attempts=attempts_holder["n"],
                 prepared=prepared,

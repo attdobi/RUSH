@@ -177,15 +177,24 @@ def select_escalation_ids(
     records: Iterable[dict[str, Any]],
     *,
     min_majority_fraction: float = 1.0,
+    min_boundary_voters: int | None = None,
 ) -> list[str]:
     """Image ids the cheap tier could not confidently resolve — the escalation set.
 
     An image escalates when the cheap panel **split**, **tied**, **all abstained**
-    (``majority_label`` is None), any voter flagged a **boundary**, or the majority
-    fell **below ``min_majority_fraction``**. Images where every decisive voter
-    agrees at/above the threshold with no boundary flag are resolved cheaply and
-    are NOT escalated. Needs >=2 voters for a meaningful signal (a single voter is
+    (``majority_label`` is None), the majority fell **below
+    ``min_majority_fraction``**, or at least ``min_boundary_voters`` voters flagged
+    a **boundary**. Images where every decisive voter agrees at/above the
+    threshold with too few boundary flags are resolved cheaply and are NOT
+    escalated. Needs >=2 voters for a meaningful signal (a single voter is
     trivially "consensus"). Returned in ``image_id`` order.
+
+    ``min_boundary_voters=None`` scales with panel size: 1 for panels of <=2
+    decisive voters, else 2. Measured on a 5-model x 400-image MNIST run,
+    single-hedger boundary flags were pure noise (98/98 images had correct
+    unanimous majorities) while >=2 hedgers caught the one unanimous-but-wrong
+    image — the scaled trigger cut escalation 60% -> 35% with zero cheap-tier
+    misses leaking past.
 
     This is the cascade trigger: it turns an already-scored tier-1 ``consensus``
     record list into the subset to re-judge with a higher-reasoning tier.
@@ -197,10 +206,21 @@ def select_escalation_ids(
             continue
         fraction = r.get("majority_fraction")
         below_threshold = fraction is not None and fraction < min_majority_fraction
+        boundary_voters = r.get("boundary_voter_count")
+        if min_boundary_voters is not None:
+            boundary_threshold = min_boundary_voters
+        else:
+            decisive = r.get("n_votes_decisive")
+            boundary_threshold = 1 if (isinstance(decisive, int) and decisive <= 2) else 2
+        if isinstance(boundary_voters, int):
+            boundary_trigger = boundary_voters >= boundary_threshold
+        else:
+            # Old records without the count: fall back to the any-voter flag.
+            boundary_trigger = bool(r.get("any_boundary_flag"))
         escalate = (
             bool(r.get("is_split"))
             or bool(r.get("tie"))
-            or bool(r.get("any_boundary_flag"))
+            or boundary_trigger
             or r.get("majority_label") is None
             or below_threshold
         )

@@ -227,7 +227,10 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
         },
     ),
-    # Cheap Sonnet 5 — MEDIUM reasoning (extended thinking budget).
+    # Cheap Sonnet 5 — MEDIUM reasoning. Claude 5 generation uses ADAPTIVE
+    # thinking (thinking.type=adaptive + output_config.effort); the legacy
+    # enabled+budget_tokens config 400s on this model. thinking_budget_tokens
+    # here only sizes max_tokens headroom (composed in build_client).
     "anthropic/claude-sonnet-5-medium": ModelSpec(
         model_id="anthropic/claude-sonnet-5-medium",
         provider="anthropic",
@@ -235,6 +238,7 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={
             "max_tokens": LABELING_VISIBLE_OUTPUT_TOKENS,
+            "thinking_effort": "medium",
             "thinking_budget_tokens": 4000,
         },
     ),
@@ -448,10 +452,24 @@ def build_client(
 
         max_tokens = params.pop("max_tokens", LABELING_VISIBLE_OUTPUT_TOKENS)
         thinking_budget_tokens = params.pop("thinking_budget_tokens", None)
+        thinking_effort = params.pop("thinking_effort", None)
+        if thinking_budget_tokens:
+            # Anthropic's max_tokens is the COMBINED cap (thinking + visible)
+            # and the API rejects any request where it does not exceed
+            # thinking.budget_tokens. Entries declare the visible-only budget,
+            # so compose the combined cap here (uncomposed, every call on the
+            # *-medium / opus-4-7 extended-thinking entries 400'd).
+            max_tokens = max(
+                int(max_tokens),
+                int(thinking_budget_tokens) + LABELING_VISIBLE_OUTPUT_TOKENS,
+            )
         config = AnthropicClientConfig(
             model_name=spec.provider_model_name,
             max_tokens=max_tokens,
-            thinking_budget_tokens=thinking_budget_tokens,
+            # Adaptive-thinking (Claude 5 gen) models must NOT send the legacy
+            # budget config; the budget above only sized max_tokens headroom.
+            thinking_budget_tokens=None if thinking_effort else thinking_budget_tokens,
+            thinking_effort=thinking_effort,
             extra_params=params,
         )
         return AnthropicClient(config=config, client=client)

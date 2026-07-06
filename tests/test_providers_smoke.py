@@ -927,14 +927,44 @@ class TestRegistry:
             assert client.config.max_tokens == 1000
             assert client.config.thinking_budget_tokens is None
 
-        for model_id in ("anthropic/claude-sonnet-5-medium", "anthropic/claude-haiku-4-5-medium"):
+        # haiku-4-5 (pre-Claude-5 gen) keeps LEGACY extended thinking: the
+        # combined max_tokens cap MUST exceed the budget or the API 400s every
+        # call (this exact bug killed a live cascade tier-2 run). Combined =
+        # thinking budget + the shared 1000-token visible cap.
+        client = build_client(
+            "anthropic/claude-haiku-4-5-medium",
+            client=_RecordingAnthropicClient(_fake_anthropic_response()),
+        )
+        assert isinstance(client, AnthropicClient)
+        assert client.config.thinking_budget_tokens == 4000
+        assert client.config.thinking_effort is None
+        assert client.config.max_tokens == 5000
+
+        # sonnet-5 (Claude 5 gen) uses ADAPTIVE thinking: effort is sent, the
+        # legacy budget is NOT (it only sizes max_tokens headroom).
+        client = build_client(
+            "anthropic/claude-sonnet-5-medium",
+            client=_RecordingAnthropicClient(_fake_anthropic_response()),
+        )
+        assert isinstance(client, AnthropicClient)
+        assert client.config.thinking_effort == "medium"
+        assert client.config.thinking_budget_tokens is None
+        assert client.config.max_tokens == 5000
+
+    def test_anthropic_extended_thinking_max_tokens_always_exceeds_budget(self) -> None:
+        # Registry-wide invariant: every anthropic thinking entry must produce
+        # a max_tokens cap that exceeds its declared thinking budget (legacy
+        # scheme 400s otherwise; adaptive needs the headroom for thinking).
+        for model_id, spec in MODEL_REGISTRY.items():
+            if spec.provider != "anthropic" or not spec.params.get("thinking_budget_tokens"):
+                continue
             client = build_client(
                 model_id,
                 client=_RecordingAnthropicClient(_fake_anthropic_response()),
             )
-            assert isinstance(client, AnthropicClient)
-            assert client.config.max_tokens == 1000
-            assert client.config.thinking_budget_tokens == 4000
+            assert client.config.max_tokens > int(spec.params["thinking_budget_tokens"]), model_id
+            if client.config.thinking_effort is None:
+                assert client.config.max_tokens > client.config.thinking_budget_tokens, model_id
 
     def test_build_client_local_routes_to_openai_with_base_url(self) -> None:
         from pipeline.providers.registry import local_base_url
