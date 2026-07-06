@@ -367,6 +367,9 @@ def _mis(image_id, sme_truth, split, mtype="model_wrong", severity="high"):
     }
 
 
+GENAI_CLASSES = ("gen_ai", "not_gen_ai")
+
+
 def test_stratified_batch_excludes_holdout_and_all_agree():
     # Only TRAIN misalignments may seed a growth batch; holdout (reported-only)
     # and all_agree rows must never reach the prompt.
@@ -377,10 +380,26 @@ def test_stratified_batch_excludes_holdout_and_all_agree():
         _mis("h_neg", "not_gen_ai", "locked_holdout"),    # test split -> excluded
         _mis("agree", "gen_ai", "dev_golden", mtype="all_agree"),  # excluded
     ]
-    rows, n_pos, n_neg = _stratified_batch_rows(records, batch_index=0, batch_size=10)
+    rows, counts = _stratified_batch_rows(
+        records, classes=GENAI_CLASSES, batch_index=0, batch_size=10
+    )
     ids = {r["image_id"] for r in rows}
     assert ids == {"t_pos", "t_neg"}
-    assert (n_pos, n_neg) == (1, 1)
+    assert counts == {"gen_ai": 1, "not_gen_ai": 1}
+
+
+def test_stratified_batch_multiclass_round_robin_mnist():
+    # MNIST (digits 0-9) must stratify across all 10 classes, not the binary
+    # gen_ai/not_gen_ai labels (which would filter every row out).
+    mnist_classes = tuple(str(d) for d in range(10))
+    records = [_mis(f"d{d}_a", str(d), "dev_golden") for d in range(10)]
+    records += [_mis(f"d{d}_b", str(d), "dev_golden") for d in range(10)]
+    rows, counts = _stratified_batch_rows(
+        records, classes=mnist_classes, batch_index=0, batch_size=10
+    )
+    assert len(rows) == 10
+    # one per digit at batch_size 10 across 10 classes
+    assert counts == {str(d): 1 for d in range(10)}
 
 
 def test_select_priority_rows_excludes_holdout():
@@ -391,3 +410,17 @@ def test_select_priority_rows_excludes_holdout():
     ]}
     rows = _select_priority_rows(mis)
     assert {r["image_id"] for r in rows} == {"t1", "t2"}
+
+
+def test_grow_batch_raises_on_empty_train_batch(tmp_path: Path) -> None:
+    # A run with only holdout (test) misalignments must not silently prompt the
+    # drafter with zero evidence — it should raise, not produce an empty proposal.
+    import pytest as _pytest
+    root = _seed_policy_graph(tmp_path)
+    run_id = "20260518T180099-abcdef09"
+    _write_misalignment(root, run_id, n_pos=2, n_neg=2, split="holdout")
+    with _pytest.raises(ValueError, match="no eligible train misalignments"):
+        propose_growth_batch(
+            repo_root=root, run_id=run_id, base_version="v0.1",
+            batch_index=0, batch_size=4, proposed_files={"GA.x.md": "---\nid: x\n---\n"},
+        )

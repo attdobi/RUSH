@@ -24,6 +24,7 @@ from pipeline.policy_iterator import (
     load_policy_markdown,
     strip_leading_markers,
 )
+from pipeline.providers.ontology import get_ontology
 from pipeline.scoring.decision_quality import split_kind
 
 DOMAIN = "Generative_AI"
@@ -774,53 +775,64 @@ DEFAULT_GROW_BATCH_SIZE = 20
 def _stratified_batch_rows(
     records: list[dict[str, Any]],
     *,
+    classes: tuple[str, ...],
     batch_index: int,
     batch_size: int,
-) -> tuple[list[dict[str, Any]], int, int]:
-    """Return (rows, n_positives, n_negatives) for a stratified 50/50 batch.
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """Round-robin stratified batch of TRAIN misalignments across an area's L1 classes.
 
-    Each class is sorted deterministically by image_id. If one class is
-    exhausted, the remainder is filled from the other class. Only TRAIN residuals
-    that are actual misalignments feed the batch — test/holdout rows are
-    reported-only (train/test leak) and ``all_agree`` rows never reach the prompt,
-    so counting them would inflate the reported batch size.
+    Works for binary (``gen_ai``/``not_gen_ai``) and multiclass (MNIST digits
+    ``0``..``9``): each class is sorted deterministically by ``image_id`` and
+    windowed by ``batch_index``; any shortfall is filled from other classes'
+    leftovers without repeats. Only train-split, non-``all_agree`` rows are
+    eligible (the train-only discipline; ``all_agree`` never reaches the prompt,
+    so counting it would inflate the reported batch size). Returns
+    ``(rows, counts_by_class)``.
     """
+    class_list = list(classes)
     eligible = [
         r for r in records
         if split_kind(r.get("split")) == "train"
         and r.get("misalignment_type") != "all_agree"
     ]
-    positives = sorted(
-        [r for r in eligible if r.get("sme_truth") == SME_TRUTH_POSITIVE_LABEL],
-        key=lambda r: str(r.get("image_id", "")),
-    )
-    negatives = sorted(
-        [r for r in eligible if r.get("sme_truth") == SME_TRUTH_NEGATIVE_LABEL],
-        key=lambda r: str(r.get("image_id", "")),
-    )
+    by_class: dict[str, list[dict[str, Any]]] = {
+        c: sorted(
+            (r for r in eligible if r.get("sme_truth") == c),
+            key=lambda r: str(r.get("image_id", "")),
+        )
+        for c in class_list
+    }
+    counts: dict[str, int] = {c: 0 for c in class_list}
+    if not class_list:
+        return [], counts
 
-    half = batch_size // 2
-    start = batch_index * half
-    end = start + half
-    pos_slice = list(positives[start:end])
-    neg_slice = list(negatives[start:end])
+    per = max(1, batch_size // len(class_list))
+    picked: list[dict[str, Any]] = []
+    seen: set[int] = set()
 
-    # Fallback: if one class came up short for this batch_index, fill the
-    # remainder from the other class's leftover rows (beyond ``end``). Never
-    # wrap or repeat rows.
-    remaining = batch_size - len(pos_slice) - len(neg_slice)
-    if remaining > 0:
-        if len(neg_slice) < half:
-            extra = positives[end : end + remaining]
-            pos_slice.extend(extra)
-            remaining -= len(extra)
-        if remaining > 0 and len(pos_slice) < half:
-            # positives slice was short; pull from negatives' leftover too
-            extra = negatives[end : end + remaining]
-            neg_slice.extend(extra)
+    def _take(row: dict[str, Any], cls: str) -> None:
+        picked.append(row)
+        seen.add(id(row))
+        counts[cls] += 1
 
-    rows = pos_slice + neg_slice
-    return rows, len(pos_slice), len(neg_slice)
+    window_end = batch_index * per + per
+    # 1) windowed per-class slice (fair share, offset by batch_index)
+    for cls in class_list:
+        for row in by_class[cls][batch_index * per : window_end]:
+            if len(picked) >= batch_size:
+                break
+            _take(row, cls)
+    # 2) fill remaining capacity from rows BEYOND each class's window only, so
+    #    consecutive batch_index pages never repeat a row.
+    for cls in class_list:
+        if len(picked) >= batch_size:
+            break
+        for row in by_class[cls][window_end:]:
+            if len(picked) >= batch_size:
+                break
+            if id(row) not in seen:
+                _take(row, cls)
+    return picked, counts
 
 
 def propose_growth_batch(
@@ -871,10 +883,20 @@ def propose_growth_batch(
 
     misalignment = json.loads(mis_path.read_text(encoding="utf-8"))
     records = misalignment.get("records", []) or []
-    batch_rows, n_positives, n_negatives = _stratified_batch_rows(
-        records, batch_index=batch_index, batch_size=batch_size
+    classes = get_ontology(domain).l1_classes
+    batch_rows, class_counts = _stratified_batch_rows(
+        records, classes=classes, batch_index=batch_index, batch_size=batch_size
     )
-    batch_size_actual = n_positives + n_negatives
+    batch_size_actual = len(batch_rows)
+    if batch_size_actual == 0:
+        # Empty batch (e.g. a multiclass area whose truth labels don't match the
+        # binary defaults, a holdout-only run, or a clean-on-train run). Fail
+        # loud instead of prompting the drafter with zero misalignment evidence.
+        raise ValueError(
+            "no eligible train misalignments for a growth batch: need at least "
+            f"one misaligned TRAIN image in {domain} across classes "
+            f"{list(classes)} (batch_index={batch_index})."
+        )
 
     bord_path = run_dir / "scoring" / "borderline.json"
     borderline = (
@@ -891,14 +913,18 @@ def propose_growth_batch(
 
     proposal_id = _new_proposal_id()
     created_at = datetime.now(timezone.utc).isoformat()
-    batch_meta = {
+    batch_meta: dict[str, Any] = {
         "batch_size_requested": batch_size,
         "batch_size_actual": batch_size_actual,
-        "n_positives": n_positives,
-        "n_negatives": n_negatives,
-        "sme_truth_positive_label": SME_TRUTH_POSITIVE_LABEL,
-        "sme_truth_negative_label": SME_TRUTH_NEGATIVE_LABEL,
+        "classes": list(classes),
+        "per_class_counts": class_counts,
     }
+    # Keep the binary fields for the GenAI area so existing readers/UI still work.
+    if tuple(classes) == (SME_TRUTH_POSITIVE_LABEL, SME_TRUTH_NEGATIVE_LABEL):
+        batch_meta["n_positives"] = class_counts.get(SME_TRUTH_POSITIVE_LABEL, 0)
+        batch_meta["n_negatives"] = class_counts.get(SME_TRUTH_NEGATIVE_LABEL, 0)
+        batch_meta["sme_truth_positive_label"] = SME_TRUTH_POSITIVE_LABEL
+        batch_meta["sme_truth_negative_label"] = SME_TRUTH_NEGATIVE_LABEL
 
     if proposed_files is None:
         if chat_callable is None:
@@ -920,8 +946,8 @@ def propose_growth_batch(
             "batch_index": batch_index,
             "batch_size_requested": batch_size,
             "batch_size_actual": batch_size_actual,
-            "n_positives": n_positives,
-            "n_negatives": n_negatives,
+            "classes": list(classes),
+            "per_class_counts": class_counts,
             "base_version": base_version,
         }
         prompt = {
