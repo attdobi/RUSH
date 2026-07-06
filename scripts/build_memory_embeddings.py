@@ -7,6 +7,7 @@ import argparse
 import datetime as dt
 import glob
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -19,7 +20,11 @@ OUTPUT_DIR = REPO_ROOT / "docs" / "ai-handoff" / "memory-embeddings"
 INDEX_PATH = OUTPUT_DIR / "index.jsonl"
 MANIFEST_PATH = OUTPUT_DIR / "manifest.json"
 
-ENDPOINT = "http://127.0.0.1:1234/v1"
+# Point at the LM Studio server (Gemma-embedding). Defaults to loopback, but any
+# machine — including a networked agent reaching Attila's GPU host — can override
+# with RUSH_LOCAL_BASE_URL=http://<host>:1234/v1 (same var the labeling pipeline
+# uses in pipeline/providers/registry.py, so the whole repo honors one setting).
+ENDPOINT = os.environ.get("RUSH_LOCAL_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
 EMBEDDINGS_URL = f"{ENDPOINT}/embeddings"
 MODEL = "text-embedding-embeddinggemma-300m-qat"
 DIMS = 768
@@ -32,6 +37,7 @@ MAX_INDEX_BYTES = 10_000_000
 
 CURATED_PATHS = [
     "docs/ai-handoff/HANDOFF.md",
+    "docs/ai-handoff/SESSION-2026-07-05-fable5.md",
     "README.md",
     "docs/architecture.md",
     "docs/architecture-bulk-labeling.md",
@@ -46,6 +52,8 @@ CURATED_PATHS = [
 CURATED_GLOBS = [
     "policy-graph/MNIST_Digits/v0.1/*.md",
     "policy-graph/Generative_AI/v0.1/*.md",
+    # current GenAI policy (v0.3) so semantic recall returns live policy, not just the seed
+    "policy-graph/Generative_AI/v0.3/*.md",
 ]
 
 

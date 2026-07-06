@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -17,7 +18,10 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INDEX_PATH = REPO_ROOT / "docs" / "ai-handoff" / "memory-embeddings" / "index.jsonl"
 
-ENDPOINT = "http://127.0.0.1:1234/v1"
+# LM Studio Gemma-embedding endpoint. Override with RUSH_LOCAL_BASE_URL to point
+# at a networked GPU host instead of loopback (shared with the labeling pipeline
+# and scripts/build_memory_embeddings.py — one var for the whole repo).
+ENDPOINT = os.environ.get("RUSH_LOCAL_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/")
 EMBEDDINGS_URL = f"{ENDPOINT}/embeddings"
 MODEL = "text-embedding-embeddinggemma-300m-qat"
 DIMS = 768
