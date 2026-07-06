@@ -142,8 +142,25 @@ def _tier_cost_time(run_id: str) -> dict:
     return {
         "cost_usd": round(float(total.get("total_cost_usd") or 0.0), 6),
         "active_elapsed_s": total.get("active_elapsed_s"),
-        "calls": total.get("calls"),
+        "calls": total.get("calls_done"),
     }
+
+
+def tier2_accounting(
+    escalate_ids: list[str],
+    still_unresolved: list[str],
+    tier2_records: list[dict],
+) -> tuple[int, list[str], list[str]]:
+    """(judged_n, errored_ids, residual_ids) for the tier-2 pass.
+
+    An escalated image with no tier-2 consensus record got no verdict (its call
+    errored in a completed-with-errors run): it falls through to the SME queue
+    alongside the still-unresolved, rather than silently vanishing.
+    """
+    judged_ids = {str(r.get("image_id")) for r in tier2_records if r.get("image_id")}
+    errored = sorted(set(escalate_ids) - judged_ids)
+    residual = sorted(set(still_unresolved) | set(errored))
+    return len(judged_ids & set(escalate_ids)), errored, residual
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -187,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
     # --- Tier 2: escalate only the disagreements ---
     tier2 = None
     residual_ids: list[str] = []
+    tier2_judged = 0
+    tier2_errored: list[str] = []
     if escalate_ids:
         tier2 = _run_tier(
             models=escalate, area=args.area, policy_version=args.policy_version, manifest=args.manifest,
@@ -195,7 +214,10 @@ def main(argv: list[str] | None = None) -> int:
             sample_ids=escalate_ids, label="escalate",
         )
         # Residual = still unresolved after the high-reasoning pass -> SME queue.
-        residual_ids, _, _ = _partition_by_consensus(tier2["run_id"])
+        still_unresolved, _, tier2_records = _partition_by_consensus(tier2["run_id"])
+        tier2_judged, tier2_errored, residual_ids = tier2_accounting(
+            escalate_ids, still_unresolved, tier2_records
+        )
 
     cascade = {
         "area": args.area,
@@ -209,7 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         "tier2_escalate": (
             {
                 "run_id": tier2["run_id"], "models": escalate, "reasoning": args.escalate_reasoning,
-                "judged": len(escalate_ids), "residual_to_sme": len(residual_ids),
+                "judged": tier2_judged, "errored": len(tier2_errored),
+                "residual_to_sme": len(residual_ids),
                 "wall_s": tier2["_wall_s"], **_tier_cost_time(tier2["run_id"]),
             }
             if tier2 else None
@@ -228,8 +251,9 @@ def main(argv: list[str] | None = None) -> int:
           f"escalated {t1['escalated']} · {t1['wall_s']}s · ${t1['cost_usd']:.4f}")
     if tier2:
         t2 = cascade["tier2_escalate"]
+        errored = f" · errored {t2['errored']}" if t2["errored"] else ""
         print(f"Tier 2 (escalate: {', '.join(escalate)}, reasoning {args.escalate_reasoning}):")
-        print(f"  re-judged {t2['judged']} · residual to SME {t2['residual_to_sme']} · "
+        print(f"  re-judged {t2['judged']}{errored} · residual to SME {t2['residual_to_sme']} · "
               f"{t2['wall_s']}s · ${t2['cost_usd']:.4f}")
     frac = cascade["resolved_cheap_fraction"]
     if frac is not None:

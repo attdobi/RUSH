@@ -1650,9 +1650,10 @@ function renderCascade() {
     </article>`;
 
   const t2Lane = t2
-    ? lane({ cls: 'casc-escalate', tag: 'Tier 2 · high-reasoning', count: t2.judged || escalated, unit: ' re-judged',
+    ? lane({ cls: 'casc-escalate', tag: 'Tier 2 · high-reasoning', count: t2.judged ?? escalated, unit: ' re-judged',
         models: `${models(t2.models)} · reasoning ${esc(t2.reasoning || 'on')}`,
-        meta: `${secs(t2.active_elapsed_s ?? t2.wall_s)} · ${money(t2.cost_usd)}` })
+        meta: `${secs(t2.active_elapsed_s ?? t2.wall_s)} · ${money(t2.cost_usd)}`
+          + (t2.errored ? ` · ${t2.errored} errored → falls through to SME` : '') })
     : lane({ cls: 'casc-escalate casc-empty', tag: 'Tier 2 · high-reasoning', count: 0, unit: ' re-judged',
         models: 'not needed', meta: 'cheap tier reached consensus on everything' });
 
