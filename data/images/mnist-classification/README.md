@@ -66,3 +66,33 @@ This directory has its own `.gitignore`: bulk image payloads and thumbnails are
 ignored by default. Only the folder skeleton, `.gitkeep` files, this README,
 ignore rules, and the deterministic `manifests/` (CSV + JSON) are committed.
 Regenerate the images from the upstream export using the sampler above.
+
+**Exception (committed for the portable demo):** the 2,500 sampled demo PNGs
+under `source-datasets/mnist/<digit>/` (~1.6 MB) **and** `mnist_full.npz`
+(~11.5 MB) are intentionally committed so the demo runs from a fresh clone.
+
+## Run / full dataset on another machine (e.g. Mac Pro)
+
+The full 70,000-image MNIST set is shipped compact in-repo as **`mnist_full.npz`**
+(uint8 `images (70000,28,28)` + `labels` + `index`, ~11.5 MB). No 12 GB download
+needed.
+
+```bash
+# Expand the full 70k PNGs locally (digit layout into source-datasets/mnist/<digit>/):
+python3 scripts/unpack_mnist.py
+# ...or a Downloads-style flat export (data/f{index}.png + labels_and_paths.csv):
+python3 scripts/unpack_mnist.py --layout flat --out ~/Downloads/mnist_png
+
+# Regenerate the compact npz from a local PNG export:
+python3 scripts/pack_mnist_full.py --source-root ~/Downloads/mnist_png
+
+# Resample any gold-set size from the unpacked PNGs:
+python3 scripts/sample_mnist_gold_sets.py \
+  --n-train 2000 --n-val 500 --seed 20260703 --source-root ~/Downloads/mnist_png --force
+```
+
+### Where to find the full dataset
+
+- In-repo: `mnist_full.npz` (unpack with `scripts/unpack_mnist.py`).
+- On the Mac mini: original export at `~/Downloads/mnist_png/` (70k `data/f{N}.png` + `labels_and_paths.csv`).
+- Public: MNIST as image files + labels is widely available on **Kaggle** and many **GitHub** repos (e.g. `mnist_png`-style exports).

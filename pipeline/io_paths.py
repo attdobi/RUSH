@@ -77,7 +77,7 @@ def genai_manifest_default() -> Path:
     """Return the default GenAI manifest for this checkout.
 
     Set ``RUSH_PORTABLE=1`` (also accepts ``true`` or ``yes``, case-insensitive)
-    to force the committed portable 48-row fixture. Without that override, the
+    to force the committed portable 72-row fixture. Without that override, the
     full 200-row GenAI manifest is used only when the local
     ``source-datasets`` image tree exists and contains at least one image file;
     sparse/portable clones fall back to the committed portable manifest.

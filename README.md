@@ -93,6 +93,57 @@ Image bytes are **never committed to git**. The repo tracks manifests that refer
 
 Generate manifests with `python3 scripts/sample_genai_gold_sets.py` against ignored `data/images/genai-classification/source-datasets/` folders. The CLI reads local images and writes ignored manifests without adding bytes to git.
 
+## Run the demos on another machine (e.g. Mac Pro)
+
+Both demos ship with a **committed portable fixture** (~56 MB total), so a fresh `git clone` runs end-to-end **without** the local ~12 GB source tree.
+
+What's committed:
+- **MNIST** — the full 2,500-image demo gold set as PNGs under `data/images/mnist-classification/source-datasets/mnist/<digit>/` (~1.6 MB), **plus** the entire 70k MNIST set packed compactly in `data/images/mnist-classification/mnist_full.npz` (~11.5 MB).
+- **GenAI** — a balanced 72-image sample (12 per dataset×class, both splits, original bytes, ~43 MB) under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`.
+
+### Option A — clone and go (portable fixture)
+
+```bash
+git clone <repo> RUSH && cd RUSH
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+
+# MNIST demo (offline dry-run, no API keys needed):
+./.venv/bin/python scripts/run_bulk_labeling.py \
+  --area MNIST_Digits --models openai/gpt-5.5 --split dev_golden --limit 5
+
+# GenAI demo — force the committed portable fixture:
+RUSH_PORTABLE=1 ./.venv/bin/python scripts/run_bulk_labeling.py \
+  --area Generative_AI --models openai/gpt-5.5 --split dev_golden --limit 5
+
+# Web UI:
+./.venv/bin/python scripts/rush_web_server.py   # http://127.0.0.1:8766/web/
+```
+
+`RUSH_PORTABLE=1` forces the portable GenAI manifest; even without it, the pipeline auto-falls back to the portable fixture whenever the full `source-datasets/` image tree is absent (a sparse clone). Live model calls need a local **LM Studio** endpoint running plus provider keys in `.env`, and `--live --allow-spend`.
+
+### Option B — full parity (all images)
+
+Only needed to resample gold sets larger than the committed fixture.
+
+Expand the full 70k MNIST set locally from the committed archive, then resample any size:
+```bash
+./.venv/bin/python scripts/unpack_mnist.py            # writes all 70k PNGs into source-datasets/mnist/<digit>/
+./.venv/bin/python scripts/sample_mnist_gold_sets.py \
+  --n-train 2000 --n-val 500 --seed 20260703 --source-root ~/Downloads/mnist_png --force
+```
+
+Pull the full ~12 GB GenAI source tree from the Mac mini and regenerate its manifests:
+```bash
+rsync -avh <mac-mini-host>:/Users/sacsimoto/GitHub/RUSH/data/images/genai-classification/source-datasets/ \
+  data/images/genai-classification/source-datasets/
+./.venv/bin/python scripts/sample_genai_gold_sets.py --n-dev 100 --n-holdout 100 --seed 20260510 --force
+```
+
+### Where to find the full datasets
+
+- **MNIST (70k):** already shipped compact in-repo as `mnist_full.npz` — unpack with `scripts/unpack_mnist.py`, or regenerate from `~/Downloads/mnist_png/` with `scripts/pack_mnist_full.py`. Publicly, MNIST as image files + labels is widely available on **Kaggle** and many **GitHub** repos (e.g. `mnist_png`-style exports).
+- **GenAI (~12 GB, ~20k raw images):** byte-exact copies live on the **Mac mini** at `data/images/genai-classification/source-datasets/{midjourney,sdv1_4,wfir}/{ai_generated,not_ai_generated}/` — `rsync` from there for full parity (command above). Dataset identities: `midjourney` = Midjourney-generated vs real, `sdv1_4` = Stable Diffusion v1.4 generated vs real, `wfir` = StyleGAN faces (“Which Face Is Real”-style) vs real. No single canonical public URL is recorded in-repo; the Mac mini tree is the source of truth.
+
 ## Labels and guardrails
 
 Initial labels: `gen_ai` means likely fully/materially AI-generated or synthetic; `not_gen_ai` means likely authentic, conventionally edited, CGI/game/rendered, or insufficiently evidenced.

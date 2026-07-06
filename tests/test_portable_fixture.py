@@ -34,8 +34,9 @@ def test_portable_fixture_builder_is_deterministic_and_balanced() -> None:
 
     rows = builder.read_jsonl(DEFAULT_SAMPLE_MANIFEST)
     candidates = builder.candidates_from_rows(rows)
-    selected_once = builder.select_under_budget(candidates, 10 * 1024 * 1024)
-    selected_twice = builder.select_under_budget(candidates, 10 * 1024 * 1024)
+    # The committed fixture is built with --max-mb 50 --per-stratum 12.
+    selected_once = builder.select_per_stratum(candidates, 50 * 1024 * 1024, 12)
+    selected_twice = builder.select_per_stratum(candidates, 50 * 1024 * 1024, 12)
 
     assert [c.sample_id for c in selected_once] == [c.sample_id for c in selected_twice]
 
@@ -61,13 +62,14 @@ def test_portable_fixture_builder_is_deterministic_and_balanced() -> None:
         "not_ai_generated",
     }
     assert {split for _dataset, _label, split in strata} == {"dev_golden", "holdout"}
-    assert sum(candidate.size_bytes for candidate in selected_once) <= 10 * 1024 * 1024
+    assert len(selected_once) == 72
+    assert sum(candidate.size_bytes for candidate in selected_once) <= 50 * 1024 * 1024
 
 
 def test_portable_manifest_integrity() -> None:
     records = load_records(GENAI_PORTABLE_MANIFEST)
 
-    assert len(records) == 48
+    assert len(records) == 72
     for record in records:
         assert record.repo_rel_path.startswith("data/images/genai-classification/sample/")
         assert (REPO_ROOT / record.repo_rel_path).is_file()
@@ -122,7 +124,7 @@ def test_run_bulk_labeling_plan_only_uses_portable_manifest_with_env() -> None:
 
     assert proc.returncode == 0, proc.stderr
     plan = json.loads(proc.stdout)
-    assert plan["n_samples"] == expected == 26
+    assert plan["n_samples"] == expected == 40
 
 
 def test_web_start_job_uses_portable_manifest_with_env(
