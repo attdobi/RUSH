@@ -424,3 +424,24 @@ def test_grow_batch_raises_on_empty_train_batch(tmp_path: Path) -> None:
             repo_root=root, run_id=run_id, base_version="v0.1",
             batch_index=0, batch_size=4, proposed_files={"GA.x.md": "---\nid: x\n---\n"},
         )
+
+
+def test_accept_rejects_stale_base_proposal(tmp_path: Path) -> None:
+    # Proposal drafted against v0.1; a newer v0.2 lands before it's accepted.
+    # Accepting must refuse rather than build v0.3 from v0.1 and drop v0.2.
+    import shutil
+    import pytest as _pytest
+    root = _seed_policy_graph(tmp_path)  # creates v0.1
+    run_id = "20260518T180111-abcdef11"
+    _write_misalignment(root, run_id, n_pos=2, n_neg=2)
+    proposal = propose_growth_batch(
+        repo_root=root, run_id=run_id, base_version="v0.1",
+        batch_index=0, batch_size=4,
+        proposed_files={"GA.new.md": "---\nid: GA.new\nnode_type: leaf\nparent: GA.root\n---\n# new\n"},
+    )
+    assert proposal["status"] == "pending"
+    # A newer version materializes out of band.
+    base = root / "policy-graph" / "Generative_AI"
+    shutil.copytree(base / "v0.1", base / "v0.2")
+    with _pytest.raises(ValueError, match="stale"):
+        accept_proposal(repo_root=root, proposal_id=proposal["proposal_id"])

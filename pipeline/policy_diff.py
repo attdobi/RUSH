@@ -1117,6 +1117,17 @@ def _next_version(repo_root: Path | str, domain: str = DOMAIN) -> str:
     return f"v{major}.{minor + 1}"
 
 
+def _latest_version(repo_root: Path | str, domain: str = DOMAIN) -> str | None:
+    """Return the highest existing policy version dir name, or None if none."""
+    domain_dir = _policy_domain_dir(repo_root, domain)
+    if not domain_dir.is_dir():
+        return None
+    dirs = [p.name for p in domain_dir.iterdir() if p.is_dir() and _VERSION_RE.match(p.name)]
+    if not dirs:
+        return None
+    return max(dirs, key=_version_key)
+
+
 def _find_proposal_json(repo_root: Path | str, proposal_id: str) -> Path:
     active = _proposal_dir(repo_root, proposal_id) / "proposal.json"
     if active.exists():
@@ -1245,6 +1256,19 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
     new_dir = _policy_domain_dir(root, domain) / new_version
     if new_dir.exists():
         raise FileExistsError(f"policy version already exists: {new_version}")
+
+    # Stale-base guard: the new version is copied from ``base_version`` but
+    # numbered after the CURRENT latest. If a newer version was materialized
+    # after this proposal was drafted, accepting would silently revert it.
+    if base_version is not None:
+        latest = _latest_version(root, domain)
+        if latest is not None and _version_key(base_version) != _version_key(latest):
+            raise ValueError(
+                f"proposal base {base_version} is stale: the current policy "
+                f"version is {latest}. Accepting would build {new_version} from "
+                f"{base_version} and silently drop {latest}'s changes. Regenerate "
+                f"the proposal against {latest} first."
+            )
 
     if base_version is None:
         # Cold-start path: there is no base version to copy from. Start with
