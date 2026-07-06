@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import re
 import secrets
@@ -33,6 +34,14 @@ GENAI_PORTABLE_MANIFEST = (
     / "combined_labels.portable.jsonl"
 )
 
+GENAI_SOURCE_DATASETS_ROOT = (
+    REPO_ROOT
+    / "data"
+    / "images"
+    / "genai-classification"
+    / "source-datasets"
+)
+
 MNIST_SAMPLE_MANIFEST = (
     REPO_ROOT
     / "data"
@@ -50,6 +59,35 @@ DEFAULT_POLICY_GRAPH_DIR = REPO_ROOT / "policy-graph" / "Generative_AI" / "v0.1"
 DEFAULT_POLICY_GRAPH_VERSION = "v0.1"
 
 RUN_ID_PATTERN = re.compile(r"^[0-9]{8}T[0-9]{6}-[a-f0-9]{8}$")
+
+_GENAI_IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+
+
+def _genai_source_tree_has_images(root: Path = GENAI_SOURCE_DATASETS_ROOT) -> bool:
+    if not root.is_dir():
+        return False
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for filename in filenames:
+            if Path(filename).suffix.lower() in _GENAI_IMAGE_SUFFIXES:
+                return True
+    return False
+
+
+def genai_manifest_default() -> Path:
+    """Return the default GenAI manifest for this checkout.
+
+    Set ``RUSH_PORTABLE=1`` (also accepts ``true`` or ``yes``, case-insensitive)
+    to force the committed portable 48-row fixture. Without that override, the
+    full 200-row GenAI manifest is used only when the local
+    ``source-datasets`` image tree exists and contains at least one image file;
+    sparse/portable clones fall back to the committed portable manifest.
+    """
+    portable_env = os.environ.get("RUSH_PORTABLE", "").strip().lower()
+    if portable_env in {"1", "true", "yes"}:
+        return GENAI_PORTABLE_MANIFEST
+    if not _genai_source_tree_has_images():
+        return GENAI_PORTABLE_MANIFEST
+    return DEFAULT_SAMPLE_MANIFEST
 
 
 def mint_run_id(now: datetime | None = None, *, rng: object | None = None) -> str:
@@ -139,12 +177,14 @@ __all__ = [
     "REPO_ROOT",
     "DEFAULT_SAMPLE_MANIFEST",
     "GENAI_PORTABLE_MANIFEST",
+    "GENAI_SOURCE_DATASETS_ROOT",
     "MNIST_SAMPLE_MANIFEST",
     "DEFAULT_RUNS_ROOT",
     "DEFAULT_POLICY_GRAPH_DIR",
     "DEFAULT_POLICY_GRAPH_VERSION",
     "RUN_ID_PATTERN",
     "RunPaths",
+    "genai_manifest_default",
     "mint_run_id",
     "is_valid_run_id",
     "run_paths",

@@ -14,7 +14,7 @@ import time
 import traceback
 from typing import Any
 
-from pipeline.io_paths import DEFAULT_SAMPLE_MANIFEST, MNIST_SAMPLE_MANIFEST
+from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default
 from pipeline.io_paths import RUN_ID_PATTERN
 from pipeline.scoring import run_scoring
 from pipeline.scoring.cost_ledger import build_model_speed_summary
@@ -392,7 +392,7 @@ class RunRegistry:
             f"{area}.{policy_version}" if area == MNIST_POLICY_AREA else policy_version
         )
         sample_manifest = (
-            MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else DEFAULT_SAMPLE_MANIFEST
+            MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
         )
         # X2 MNIST separation: keep the web launcher responsible only for
         # threading demo area + the matching sample manifest into the runner.
