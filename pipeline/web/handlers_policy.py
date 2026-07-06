@@ -27,6 +27,7 @@ from pipeline.policy_diff import (
     reject_proposal,
     seed_cold_start_proposal,
 )
+from pipeline.policy_iterator import strip_leading_markers
 from pipeline.web.demo_area import (
     DEFAULT_POLICY_AREA,
     area_from_policy_version,
@@ -282,6 +283,7 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     """Extract a small YAML-frontmatter scalar map using stdlib only."""
+    text = strip_leading_markers(text)
     match = _FRONTMATTER_RE.match(text)
     if not match:
         return {}, text
@@ -358,7 +360,7 @@ def _parse_inline_mapping(text: str) -> dict[str, str]:
 
 
 def _frontmatter_edges(text: str, source_node_id: str) -> list[dict[str, Any]]:
-    match = _FRONTMATTER_RE.match(text)
+    match = _FRONTMATTER_RE.match(strip_leading_markers(text))
     if not match:
         return []
     edges: list[dict[str, Any]] = []

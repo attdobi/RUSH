@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol
 
@@ -263,13 +264,36 @@ def propose_policy_patches(
 # ---------------------------------------------------------------------------
 
 def load_policy_markdown(policy_dir: Path) -> str:
-    """Concatenate policy-graph MD files in deterministic order."""
+    """Concatenate policy-graph MD files in deterministic order.
+
+    Each file is prefixed with a ``<!-- name.md -->`` marker so the bundle stays
+    legible. Draft LLMs sometimes echo that marker back into a proposed file, so
+    every place that writes or parses a node runs the content through
+    ``strip_leading_markers`` first — otherwise the echoed comment sits before the
+    ``---`` frontmatter and the (start-of-file-anchored) parsers read the node as
+    untyped/unparented. See ``strip_leading_markers``.
+    """
     md_files = sorted(p for p in policy_dir.glob("*.md") if p.is_file())
     chunks: list[str] = []
     for p in md_files:
         chunks.append(f"\n\n<!-- {p.name} -->\n")
-        chunks.append(p.read_text(encoding="utf-8"))
+        chunks.append(strip_leading_markers(p.read_text(encoding="utf-8")))
     return "".join(chunks).strip() + "\n"
+
+
+# Matches one-or-more HTML comments (with surrounding whitespace) at the very
+# start of a string — e.g. the injected ``<!-- GA.root.md -->`` bundle markers.
+_LEADING_MARKER_RE = re.compile(r"\A(?:\s*<!--.*?-->)+\s*", re.DOTALL)
+
+
+def strip_leading_markers(text: str) -> str:
+    """Drop any leading HTML comment markers so ``---`` frontmatter starts at BOF.
+
+    A well-formed policy node begins with ``---``; this only removes comment
+    cruft before it (single or doubled ``<!-- name.md -->`` markers an LLM echoed
+    into a proposal) and is a no-op for clean files.
+    """
+    return _LEADING_MARKER_RE.sub("", text, count=1)
 
 
 def write_patches_jsonl(path: Path, patches: Iterable[dict[str, Any]]) -> None:

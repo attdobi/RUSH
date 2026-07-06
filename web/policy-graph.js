@@ -239,12 +239,19 @@
     }
   }
 
+  // Drop any leading <!-- name.md --> markers a draft LLM echoed into a node so
+  // the ---frontmatter--- block still starts at position 0 (mirrors the backend
+  // strip_leading_markers in pipeline/policy_iterator.py).
+  function stripLeadingMarkers(markdown) {
+    return String(markdown || '').replace(/^(?:\s*<!--[\s\S]*?-->)+\s*/, '');
+  }
+
   function stripFrontmatter(markdown) {
-    return String(markdown || '').replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim();
+    return stripLeadingMarkers(markdown).replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '').trim();
   }
 
   function parseFrontmatter(markdown) {
-    const match = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(String(markdown || ''));
+    const match = /^---\s*\n([\s\S]*?)\n---\s*\n?/.exec(stripLeadingMarkers(markdown));
     if (!match) return {};
     const fields = {};
     for (const line of match[1].split(/\r?\n/)) {

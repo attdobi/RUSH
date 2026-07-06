@@ -1,4 +1,3 @@
-<!-- GA.boundary.low_quality_uncertain.md -->
 ---
 id: GA.boundary.low_quality_uncertain
 version: Generative_AI.v0.2

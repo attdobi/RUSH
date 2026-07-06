@@ -1,4 +1,3 @@
-<!-- GA.visual_artifacts.eyes.md -->
 ---
 id: GA.visual_artifacts.eyes
 version: Generative_AI.v0.1

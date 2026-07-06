@@ -1,4 +1,3 @@
-<!-- GA.boundary.cgi_game_render.md -->
 ---
 id: GA.boundary.cgi_game_render
 version: Generative_AI.v0.1

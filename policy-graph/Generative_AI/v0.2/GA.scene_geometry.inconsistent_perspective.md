@@ -1,4 +1,3 @@
-<!-- GA.scene_geometry.inconsistent_perspective.md -->
 ---
 id: GA.scene_geometry.inconsistent_perspective
 version: Generative_AI.v0.1

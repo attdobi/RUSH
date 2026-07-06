@@ -1,4 +1,3 @@
-<!-- GA.visual_artifacts.nature_wildlife.md -->
 ---
 id: GA.visual_artifacts.nature_wildlife
 version: Generative_AI.v0.1

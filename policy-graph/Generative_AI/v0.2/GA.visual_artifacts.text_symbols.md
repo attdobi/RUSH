@@ -1,4 +1,3 @@
-<!-- GA.visual_artifacts.text_symbols.md -->
 ---
 id: GA.visual_artifacts.text_symbols
 version: Generative_AI.v0.1

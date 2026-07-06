@@ -1,4 +1,3 @@
-<!-- GA.root.md -->
 ---
 id: GA.root
 version: Generative_AI.v0.1

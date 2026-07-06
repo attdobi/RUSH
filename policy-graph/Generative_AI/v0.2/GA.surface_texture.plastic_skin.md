@@ -1,4 +1,3 @@
-<!-- GA.surface_texture.plastic_skin.md -->
 ---
 id: GA.surface_texture.plastic_skin
 version: Generative_AI.v0.1

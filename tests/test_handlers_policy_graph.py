@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from pipeline.web.handlers_policy import handle_policy_graph, handle_policy_versions
+from pipeline.web.handlers_policy import (
+    _frontmatter_edges,
+    _parse_frontmatter,
+    handle_policy_graph,
+    handle_policy_versions,
+)
+from pipeline.policy_iterator import strip_leading_markers
 
 
 def _write_node(path: Path, *, node_id: str, title: str, node_type: str, polarity: str, parent: str = "GA.root") -> None:
@@ -22,6 +28,36 @@ edges:
 """,
         encoding="utf-8",
     )
+
+
+def test_strip_leading_markers_removes_echoed_bundle_comments() -> None:
+    # Single, doubled, and no-marker cases.
+    assert strip_leading_markers("<!-- GA.root.md -->\n---\nid: GA.root\n---\n") == "---\nid: GA.root\n---\n"
+    assert strip_leading_markers("<!-- a.md -->\n<!-- a.md -->\n---\nid: x\n---\n") == "---\nid: x\n---\n"
+    clean = "---\nid: GA.root\n---\n# body\n"
+    assert strip_leading_markers(clean) == clean
+
+
+def test_frontmatter_parsing_tolerates_echoed_marker() -> None:
+    # A draft LLM echoing the bundle's <!-- name.md --> marker into a node must
+    # not knock the node's frontmatter/edges out (regression: untyped/unparented).
+    node = (
+        "<!-- GA.visual_artifacts.eyes.md -->\n"
+        "---\n"
+        "id: GA.visual_artifacts.eyes\n"
+        "node_type: category\n"
+        "parent: GA.root\n"
+        "edges:\n"
+        "  - {type: boundary_with, to: GA.boundary.photo_editing}\n"
+        "---\n"
+        "# Eyes\n"
+    )
+    meta, _ = _parse_frontmatter(node)
+    assert meta["id"] == "GA.visual_artifacts.eyes"
+    assert meta["node_type"] == "category"
+    assert meta["parent"] == "GA.root"
+    edges = _frontmatter_edges(node, "GA.visual_artifacts.eyes")
+    assert any(e.get("edge_type") == "boundary_with" for e in edges)
 
 
 def test_handle_policy_graph_reads_nodes_edges_and_versions(tmp_path: Path) -> None:

@@ -1,4 +1,3 @@
-<!-- GA.visual_artifacts.anatomy.hands.md -->
 ---
 id: GA.visual_artifacts.anatomy.hands
 version: Generative_AI.v0.1

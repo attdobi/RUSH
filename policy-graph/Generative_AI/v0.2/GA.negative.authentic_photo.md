@@ -1,4 +1,3 @@
-<!-- GA.negative.authentic_photo.md -->
 ---
 id: GA.negative.authentic_photo
 version: Generative_AI.v0.1

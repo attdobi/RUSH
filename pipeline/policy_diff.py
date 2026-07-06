@@ -22,6 +22,7 @@ from pipeline.policy_iterator import (
     PolicyIterationInputs,
     build_user_prompt,
     load_policy_markdown,
+    strip_leading_markers,
 )
 
 DOMAIN = "Generative_AI"
@@ -210,7 +211,9 @@ def _load_run_inputs(
 def _coerce_content(value: Any, *, filename: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"proposed content for {filename} must be a string")
-    return value
+    # Draft LLMs echo the bundle's ``<!-- name.md -->`` markers into full-file
+    # content; strip them so the persisted node keeps ``---`` frontmatter at BOF.
+    return strip_leading_markers(value)
 
 
 def _proposal_from_llm_json(raw: str) -> tuple[dict[str, str], list[str]]:
