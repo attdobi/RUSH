@@ -1277,11 +1277,13 @@ function residualRowTable(entries, emptyMessage) {
   const body = entries.slice(0, 30).map(entry => {
     const row = entry.row;
     const id = row.image_id || row.sample_id || '';
+    const thumbSrc = row.repo_rel_path ? thumbnailSrcForPath(row.repo_rel_path) : thumbnailSrcForImageId(id);
+    const thumb = thumbSrc ? `<img class="row-thumb thumb-loading" src="${attr(thumbSrc)}" alt="${attr(id)}" loading="lazy" decoding="async" onload="this.classList.remove('thumb-loading')" onerror="this.replaceWith(safeImageFallback('image unavailable','local path missing'))" />` : '';
     const sme = row.sme_truth || row.truth || '—';
     const reason = row.disagreement_reason || row.reason || row.misalignment_type || '—';
     const pairChip = boundaryPairChip(row);
-    return `<tr>
-      <td><strong>${esc(id)}</strong></td>
+    return `<tr data-image-id="${attr(id)}">
+      <td><div class="thumb-wrap">${thumb}<button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button></div></td>
       <td>${esc(splitLabel(entry.split))}</td>
       <td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td>
       <td>${majorityPill(row)}</td>
@@ -1759,11 +1761,7 @@ function applyDemoChrome() {
   setNodeText('growLoopStep2Body', copy.growLoopStep2Body);
   setNodeText('labelH2', copy.labelH2);
   setNodeText('labelSub', copy.labelSub);
-  setNodeText('labelStartButton', copy.labelStartButton);
-  const startBtn = document.getElementById('startLabelingRun');
-  if (startBtn && copy.labelStartButton) startBtn.textContent = copy.labelStartButton;
   setNodeText('labelDefaultBatch', copy.labelDefaultBatch);
-  setNodeHtml('labelDefaultDetail', copy.labelDefaultDetail);
   setNodeText('scoreSub', copy.scoreSub);
   setNodeText('consensusH3', copy.consensusH3);
   setNodeText('consensusSub', copy.consensusSub);

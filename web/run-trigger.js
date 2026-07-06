@@ -933,10 +933,12 @@
     try {
       const payload = buildStartPayload();
       status('Starting labeling run…');
-      $('#startLabelingRun').disabled = true;
+      const btn = $('#startCascadeRun');
+      if (btn) btn.disabled = true;
       const response = await rushApiPostJson('/api/runs/start', payload);
       state.runId = response.run_id || response.job_id || '';
       state.runModels = payload.models || [];
+      state.kind = 'run';
       state.pollStartedAt = Date.now();
       state.finished = false;
       if (!state.runId) throw new Error('API did not return a run_id.');
@@ -945,27 +947,45 @@
     } catch (error) {
       status(`Could not start run: ${error.message}`, true);
     } finally {
-      $('#startLabelingRun').disabled = false;
+      const btn = $('#startCascadeRun');
+      if (btn) btn.disabled = false;
     }
   }
 
-  // Tier-2 judge choices for the cascade button: reasoning-capable steps up
-  // from the cheap default panel. First entry is the default.
+  // Tier-2 judge choices for the run button. "None" runs the cheap panel
+  // only; the model options are reasoning-capable steps up from the cheap
+  // default panel (the first three are the planned next escalation tiers).
   const CASCADE_ESCALATE_OPTIONS = [
-    'anthropic/claude-sonnet-5-medium',
-    'anthropic/claude-haiku-4-5-medium',
-    'openai/gpt-5.5-medium',
-    'google/gemini-3.1-pro-preview',
-    'anthropic/claude-opus-4-7',
-    'local/qwen3.6-35b-a3b'
+    ['', 'None — cheap panel only'],
+    ['openai/gpt-5.5-low', 'openai/gpt-5.5-low'],
+    ['google/gemini-3.5-flash', 'google/gemini-3.5-flash'],
+    ['anthropic/claude-sonnet-5-low', 'anthropic/claude-sonnet-5-low'],
+    ['anthropic/claude-sonnet-5-medium', 'anthropic/claude-sonnet-5-medium'],
+    ['anthropic/claude-haiku-4-5-medium', 'anthropic/claude-haiku-4-5-medium'],
+    ['openai/gpt-5.5-medium', 'openai/gpt-5.5-medium'],
+    ['google/gemini-3.1-pro-preview', 'google/gemini-3.1-pro-preview'],
+    ['anthropic/claude-opus-4-7', 'anthropic/claude-opus-4-7'],
+    ['local/qwen3.6-35b-a3b', 'local/qwen3.6-35b-a3b — free, slow']
   ];
 
   function populateCascadeEscalate() {
     const select = $('#cascadeEscalateModel');
     if (!select) return;
     select.innerHTML = CASCADE_ESCALATE_OPTIONS
-      .map(id => `<option value="${attr(id)}">${esc(id)}</option>`)
+      .map(([value, label]) => `<option value="${attr(value)}">${esc(label)}</option>`)
       .join('');
+  }
+
+  function selectedEscalateModel() {
+    return ($('#cascadeEscalateModel')?.value || '').trim();
+  }
+
+  // One button, two paths: escalate model chosen -> two-tier cascade;
+  // "None" (or explicit sample IDs, a plain-run feature) -> plain panel run.
+  async function startRunOrCascade() {
+    const sampleIds = ($('#runTriggerSampleIds')?.value || '').trim();
+    if (!selectedEscalateModel() || sampleIds) return startRun();
+    return startCascade();
   }
 
   async function startCascade() {
@@ -975,7 +995,7 @@
       // plain-run feature.
       payload.sample_ids = null;
       if (payload.limit == null) payload.limit = currentK();
-      const escalateModel = $('#cascadeEscalateModel')?.value || CASCADE_ESCALATE_OPTIONS[0];
+      const escalateModel = selectedEscalateModel();
       payload.escalate_models = [escalateModel];
       status('Starting escalation cascade (tier 1 cheap panel → tier 2 judge)…');
       $('#startCascadeRun').disabled = true;
@@ -1017,21 +1037,24 @@
   }
 
   function refreshRunButtonLabel() {
-    const btn = $('#startLabelingRun');
-    if (btn) {
-      const ids = ($('#runTriggerSampleIds')?.value || '').trim();
-      btn.textContent = ids ? 'Run panel · sample IDs' : `Run panel · k=${currentK()}`;
+    const btn = $('#startCascadeRun');
+    if (!btn) return;
+    const ids = ($('#runTriggerSampleIds')?.value || '').trim();
+    if (ids) {
+      btn.textContent = 'Run panel · sample IDs';
+    } else {
+      btn.textContent = selectedEscalateModel()
+        ? `Run cascade · k=${currentK()}`
+        : `Run panel · k=${currentK()}`;
     }
-    const cascadeBtn = $('#startCascadeRun');
-    if (cascadeBtn) cascadeBtn.textContent = `Run cascade · k=${currentK()}`;
   }
 
   function bind() {
-    $('#startLabelingRun')?.addEventListener('click', startRun);
-    $('#startCascadeRun')?.addEventListener('click', startCascade);
+    $('#startCascadeRun')?.addEventListener('click', startRunOrCascade);
     $('#scoreRunNow')?.addEventListener('click', scoreRun);
     $('#runTriggerBatchSize')?.addEventListener('input', refreshRunButtonLabel);
     $('#runTriggerSampleIds')?.addEventListener('input', refreshRunButtonLabel);
+    $('#cascadeEscalateModel')?.addEventListener('change', refreshRunButtonLabel);
     $('#runTriggerModels')?.addEventListener('change', event => {
       const input = event.target;
       if (!(input instanceof HTMLInputElement) || !input.classList.contains('local-reasoning-input')) return;
