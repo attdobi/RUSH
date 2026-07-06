@@ -24,9 +24,9 @@ window.RUSH_DEMOS = {
   mnist: {
     id: 'mnist', title: 'MNIST Digit Classification', kind: 'multiclass',
     classes: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], positiveClass: null,
-    // Default k per split: 50 => 5 stratified images per digit class, chosen to
-    // maximize learnings per batch across the 10 MNIST classes.
-    defaultK: 50,
+    // Default k per split: 20 => 2 stratified images per digit class — kept
+    // small so a labeling round stays quick (the default demo setting).
+    defaultK: 20,
     policyGraph: { area: 'MNIST_Digits', version: 'v0.1', rootId: 'MD.root', path: 'policy-graph/MNIST_Digits/v0.1' },
     manifests: {
       dev: '../data/images/mnist-classification/manifests/train_labels.csv',
@@ -69,9 +69,9 @@ window.RUSH_DEMOS = {
       growSub: 'Seed the MNIST Generator Prompt V0 as a per-digit policy graph → label a batch → propose prompt updates → accept → label again. Each accepted SME update creates the next generator prompt version.',
       growLoopStep2Body: 'Jump to §3 for the default 20-image train+holdout batch, labeled with the selected generator prompt version.',
       labelH2: 'Run the next digit-labeling round.',
-      labelSub: 'Default: k=50 MNIST digits per split (5 per digit class, stratified) from both training and holdout splits, scored against SME digit truth.',
-      labelStartButton: 'Start k=50 per-split run',
-      labelDefaultBatch: 'k=50 per split · 5/digit · train + holdout',
+      labelSub: 'Default: k=20 MNIST digits per split (2 per digit class, stratified) from both training and holdout splits, scored against SME digit truth.',
+      labelStartButton: 'Start k=20 per-split run',
+      labelDefaultBatch: 'k=20 per split · 2/digit · train + holdout',
       labelDefaultDetail: 'Uses split <code>all</code>, latest selected policy version, and true batched labeling of MNIST digits.',
       scoreSub: 'Consensus, misalignment, and confusion-pair views share the selected run and stay in one digit-audit surface.',
       consensusH3: 'What did the panel decide about each digit?',
