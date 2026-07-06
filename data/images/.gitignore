@@ -12,3 +12,4 @@
 # MNIST manifests are deterministic + regenerable but committed for the demo.
 !mnist-classification/manifests/*.csv
 !mnist-classification/manifests/*.json
+!mnist-classification/source-datasets/mnist/**/*.png

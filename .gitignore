@@ -31,6 +31,7 @@ data/images/**/*.jpg
 data/images/**/*.jpeg
 data/images/**/*.webp
 data/images/**/*.gif
+!data/images/mnist-classification/source-datasets/mnist/**/*.png
 
 # Bulk-labeling run output (X2): per-run artifacts are not committed.
 data/runs/
