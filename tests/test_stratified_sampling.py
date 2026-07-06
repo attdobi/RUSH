@@ -137,3 +137,17 @@ def test_backfills_when_class_short():
     ]
     picked = select_samples(rows, split="dev_golden", limit=4)
     assert len(picked) == 4  # back-filled from the majority class
+
+
+def test_explicit_sample_ids_override_split_filter():
+    # The CLI contract: --sample-ids overrides --split/--limit. A cascade
+    # tier-2 re-judge passes escalated ids from BOTH splits while the runner
+    # default split is dev_golden; the split filter must not silently drop
+    # the holdout-side ids (it did: only 61/142 escalated images were run).
+    rows = _mnist_like_records(per_class=2)
+    wanted = ["dev_golden_3_0000", "holdout_7_0001"]
+    picked = select_samples(rows, split="dev_golden", sample_ids=wanted)
+    assert sorted(r.sample_id for r in picked) == sorted(wanted)
+    # And split="all" behaves identically for explicit ids.
+    picked_all = select_samples(rows, split="all", sample_ids=wanted)
+    assert sorted(r.sample_id for r in picked_all) == sorted(wanted)

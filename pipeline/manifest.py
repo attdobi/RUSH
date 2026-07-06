@@ -172,9 +172,15 @@ def select_samples(
 
     keep: list[SampleRecord] = []
     for rec in records:
-        if split and split != "all" and rec.split != split:
+        # Explicit sample_ids override split filtering (the caller already
+        # named the exact rows — the CLI documents this contract). Silently
+        # intersecting with the default split dropped every holdout-side id
+        # from cascade tier-2 re-judge runs.
+        if explicit_ids is not None:
+            if rec.sample_id in explicit_ids:
+                keep.append(rec)
             continue
-        if explicit_ids is not None and rec.sample_id not in explicit_ids:
+        if split and split != "all" and rec.split != split:
             continue
         keep.append(rec)
 

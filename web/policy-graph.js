@@ -145,7 +145,23 @@
       const digit = /^MD\.digit\.(\d)$/.exec(String(node.id || ''));
       if (digit) return digit[1];
     }
-    return truncate(node.id || node.title || '?', 28);
+    // Human titles first: policy/SME partners read guideline names, not ids.
+    // The id stays visible in the details panel kicker.
+    return truncate(node.title || node.id || '?', 28);
+  }
+
+  // Ordered root-first parent chain (for the details-panel breadcrumb).
+  function lineagePath(id, nodes) {
+    const byId = new Map(nodes.map(n => [n.id, n]));
+    const path = [];
+    const seen = new Set();
+    let cur = byId.get(id);
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id);
+      path.push(cur);
+      cur = cur.parent && cur.parent !== cur.id ? byId.get(cur.parent) : null;
+    }
+    return path.reverse();
   }
 
   function promptVersionLabel(version = currentVersion) {
@@ -330,18 +346,29 @@
     return html.join('') || '<p class="muted">No markdown body found.</p>';
   }
 
-  function panelShell(node, markdownHtml = '<p class="muted">Loading node markdown…</p>') {
+  function panelShell(node, markdownHtml = '<p class="muted">Loading the guideline text…</p>') {
     const color = nodeColor(node);
     const clearButton = currentFocus ? '<button id="policyGraphClear" type="button" aria-label="Clear selection and return to full graph">Clear selection</button>' : '';
+    const lineage = lineagePath(node.id, currentPayload?.nodes || []);
+    const crumbs = lineage.length > 1
+      ? `<nav class="policy-crumbs" aria-label="Lineage to policy root">${lineage.map((n, i) =>
+          i === lineage.length - 1
+            ? `<span class="policy-crumb-current">${esc(truncate(n.title || n.id, 24))}</span>`
+            : `<button type="button" class="policy-crumb" data-node-id="${esc(n.id)}">${esc(truncate(n.title || n.id, 24))}</button>`
+        ).join('<span class="policy-crumb-sep" aria-hidden="true">›</span>')}</nav>`
+      : '';
     return `${clearButton}
       <div class="policy-node-kicker" style="--node-color:${color}">${esc(node.id)}</div>
       <h3>${esc(node.title || node.id)}</h3>
+      ${crumbs}
       <dl class="policy-node-meta">
         <div><dt>Type</dt><dd>${esc(node.node_type || 'unknown')}</dd></div>
         <div><dt>Polarity</dt><dd>${esc(node.polarity || 'mixed')}</dd></div>
         <div><dt>Parent</dt><dd>${esc(node.parent || '—')}</dd></div>
       </dl>
-      <div id="policyNodeMarkdown" class="policy-node-markdown">${markdownHtml}</div>`;
+      <div id="policyNodeMarkdown" class="policy-node-markdown">${markdownHtml}</div>
+      <p class="policy-node-file">This guideline lives as <code>${esc(node.id)}.md</code> in the versioned policy folder —
+      the graph is a set of Markdown files policy owners edit; every accepted change becomes the next version.</p>`;
   }
 
   async function openPanel(node) {
@@ -356,6 +383,8 @@
         : '<p class="muted">Loading node markdown…</p>';
     panel.innerHTML = panelShell(node, initialMarkdown);
     qs('#policyGraphClear')?.addEventListener('click', () => applySelection(null));
+    panel.querySelectorAll('.policy-crumb').forEach(btn =>
+      btn.addEventListener('click', () => applySelection(btn.dataset.nodeId)));
     if (hasMarkdown || localMarkdownMissing) return;
 
     try {
@@ -416,7 +445,7 @@
     d3.selectAll('.policy-node').classed('selected ancestor descendant dimmed', false);
     d3.selectAll('.policy-link').classed('ancestor-edge descendant-edge dimmed', false);
     if (!id) {
-      if (panel) panel.innerHTML = '<h3>Policy node details</h3><p class="muted">Hover a node to trace its neighbors. Click a node to see its lineage to the root and read its Markdown.</p>';
+      if (panel) panel.innerHTML = '<h3>Guideline details</h3><p class="muted">Hover any node to trace its connections. Click one to open the guideline — its text, its lineage to the root, and its type. Every node is a Markdown file a policy owner can read and edit.</p>';
       return;
     }
     const nodes = currentPayload?.nodes || [];
@@ -474,9 +503,29 @@
     const legendItems = legendBase
       .map(([label, color]) => `<span><i style="background:${color}"></i>${esc(label)}</span>`)
       .join('');
-    const edgeLegend = links.some(edge => String(edge.type || edge.edge_type || '').toLowerCase() === 'confused_with')
-      ? '<span><i class="policy-legend-line confused-with"></i>confused_with</span>'
-      : '';
+
+    function linkClass(edge) {
+      const type = String(edge.type || edge.edge_type || '').toLowerCase();
+      if (type === 'confused_with') return 'confused-with';
+      const sourceFamily = familyOf(edge.sourceId);
+      const targetFamily = familyOf(edge.targetId);
+      if (edge.sourceId === 'GA.root' || edge.targetId === 'GA.root') return 'root-link';
+      if (edge.sourceId === 'MD.root' || edge.targetId === 'MD.root') return 'root-link';
+      return sourceFamily === targetFamily ? 'same-family' : 'cross-family';
+    }
+
+    // Every line style present in THIS graph gets a legend entry — partners
+    // shouldn't have to guess what a dashed vs solid connection means.
+    const lineKinds = new Set(links.map(linkClass));
+    const edgeLegend = [
+      ['root-link', 'links to root'],
+      ['same-family', 'within one family'],
+      ['cross-family', 'cross-family'],
+      ['confused-with', 'confused_with (real error pair)'],
+    ]
+      .filter(([kind]) => lineKinds.has(kind))
+      .map(([kind, label]) => `<span><i class="policy-legend-line ${kind}"></i>${esc(label)}</span>`)
+      .join('');
 
     wrap.innerHTML = `<div class="policy-graph-render-caption">
         <span>${esc(promptVersionLabel(payload.version || currentVersion))}</span>
@@ -487,8 +536,8 @@
           <svg id="policyGraphSvg" viewBox="0 0 ${WIDTH} ${HEIGHT}" role="img" aria-label="Generator prompt policy graph ${esc(payload.version || '')}"></svg>
         </div>
         <aside id="policyGraphPanel" class="policy-graph-panel" aria-live="polite">
-          <h3>Policy node details</h3>
-          <p class="muted">Hover a node to trace its neighbors. Click a node to see its lineage to the root and read its Markdown.</p>
+          <h3>Guideline details</h3>
+          <p class="muted">Hover any node to trace its connections. Click one to open the guideline — its text, its lineage to the root, and its type. Every node is a Markdown file a policy owner can read and edit.</p>
         </aside>
       </div>
       <div class="policy-graph-legend">${legendItems}${edgeLegend}</div>`;
@@ -511,16 +560,6 @@
       neighborMap.get(link.sourceId)?.add(link.targetId);
       neighborMap.get(link.targetId)?.add(link.sourceId);
     });
-
-    function linkClass(edge) {
-      const type = String(edge.type || edge.edge_type || '').toLowerCase();
-      if (type === 'confused_with') return 'confused-with';
-      const sourceFamily = familyOf(edge.sourceId);
-      const targetFamily = familyOf(edge.targetId);
-      if (edge.sourceId === 'GA.root' || edge.targetId === 'GA.root') return 'root-link';
-      if (edge.sourceId === 'MD.root' || edge.targetId === 'MD.root') return 'root-link';
-      return sourceFamily === targetFamily ? 'same-family' : 'cross-family';
-    }
 
     const link = viewport.append('g')
       .attr('class', 'policy-links')
@@ -553,7 +592,7 @@
     node.append('text')
       .attr('y', d => nodeRadius(d, allNodes) + 13)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 9.5)
+      .attr('font-size', 11)
       .style('opacity', 1)
       .text(d => nodeLabel(d));
 

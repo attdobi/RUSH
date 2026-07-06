@@ -16,6 +16,7 @@ with the env-var name only — never the value, never a substring of it.
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Final
 
@@ -48,6 +49,7 @@ class MissingSecretError(RuntimeError):
 
 
 _loaded: bool = False
+_load_lock = threading.Lock()
 
 
 def load_dotenv_once(*, dotenv_path: str | os.PathLike[str] | None = None) -> Path | None:
@@ -63,31 +65,39 @@ def load_dotenv_once(*, dotenv_path: str | os.PathLike[str] | None = None) -> Pa
     2. ``$RUSH_DOTENV_PATH`` environment variable.
     3. ``./.env`` next to the current working directory.
 
-    Safe to call repeatedly; subsequent calls are no-ops.
+    Safe to call repeatedly AND concurrently; subsequent calls are no-ops.
+    The lock matters: the flag must flip only AFTER the load completes, or a
+    concurrent worker sees "loaded" while the env is still empty and raises a
+    spurious MissingSecretError (observed as ~3 phantom failures at the start
+    of concurrency-4 labeling runs).
     """
     global _loaded
     if _loaded:
         return None
-    _loaded = True
+    with _load_lock:
+        if _loaded:
+            return None
+        try:
+            if _load_dotenv is None:
+                return None
 
-    if _load_dotenv is None:
-        return None
+            candidate: Path | None
+            if dotenv_path is not None:
+                candidate = Path(dotenv_path)
+            elif os.environ.get(DOTENV_PATH_ENV_VAR):
+                candidate = Path(os.environ[DOTENV_PATH_ENV_VAR])
+            else:
+                default = Path.cwd() / ".env"
+                candidate = default if default.is_file() else None
 
-    candidate: Path | None
-    if dotenv_path is not None:
-        candidate = Path(dotenv_path)
-    elif os.environ.get(DOTENV_PATH_ENV_VAR):
-        candidate = Path(os.environ[DOTENV_PATH_ENV_VAR])
-    else:
-        default = Path.cwd() / ".env"
-        candidate = default if default.is_file() else None
+            if candidate is None or not candidate.is_file():
+                return None
 
-    if candidate is None or not candidate.is_file():
-        return None
-
-    # override=False: existing env wins. Never log the path's contents.
-    _load_dotenv(dotenv_path=str(candidate), override=False)
-    return candidate
+            # override=False: existing env wins. Never log the path's contents.
+            _load_dotenv(dotenv_path=str(candidate), override=False)
+            return candidate
+        finally:
+            _loaded = True
 
 
 def get_secret(

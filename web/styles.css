@@ -818,8 +818,10 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
 .policy-graph-wrap svg:active { cursor: grabbing; }
 .policy-node { cursor: pointer; transition: opacity .14s ease; }
 .policy-node circle { transition: stroke-width .14s ease, filter .14s ease, opacity .14s ease; }
-.policy-node text { font-size: 10.5px; fill: #d8dee9; pointer-events: none; paint-order: stroke; stroke: rgba(14,18,25,.92); stroke-width: 3px; stroke-linejoin: round; transition: opacity .14s ease; }
-.policy-node.leaf-node text { opacity: 0; }
+.policy-node text { font-size: 11px; fill: #d8dee9; pointer-events: none; paint-order: stroke; stroke: rgba(14,18,25,.92); stroke-width: 3px; stroke-linejoin: round; transition: opacity .14s ease; }
+/* Leaf labels stay READABLE by default — for policy/SME partners the
+   guideline names ARE the product; hover/selection brings them to full. */
+.policy-node.leaf-node text { opacity: .78; }
 .policy-node.leaf-node.highlighted text { opacity: 1; }
 .policy-node.highlighted circle { filter: drop-shadow(0 0 8px rgba(77,224,166,.35)); }
 .policy-node circle.pulse-new { animation: policy-pulse-new 2s ease-in-out; }
@@ -919,6 +921,16 @@ body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none;
   border-top: 2px solid rgba(255,111,145,.72);
 }
 .policy-graph-legend .policy-legend-line.confused-with { border-top-style: dashed; }
+.policy-graph-legend .policy-legend-line.root-link { border-top-color: rgba(216,226,242,.5); }
+.policy-graph-legend .policy-legend-line.same-family { border-top-color: rgba(77,224,166,.6); }
+.policy-graph-legend .policy-legend-line.cross-family { border-top-color: rgba(255,183,77,.6); border-top-style: dashed; }
+.policy-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 10px; font-size: 12px; }
+.policy-crumb { background: rgba(125,176,255,.08); border: 1px solid rgba(125,176,255,.28); border-radius: 7px; color: #aecdff; padding: 2px 8px; font-size: 11.5px; cursor: pointer; }
+.policy-crumb:hover { border-color: rgba(125,176,255,.65); color: #dce8ff; }
+.policy-crumb-current { color: #eaf3ff; font-weight: 800; padding: 2px 4px; }
+.policy-crumb-sep { color: #5d6a80; }
+.policy-node-file { margin: 10px 0 0; font-size: 11.5px; color: #9aa7bd; line-height: 1.45; border-top: 1px solid rgba(170,184,211,.14); padding-top: 8px; }
+.policy-node-file code { background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 5px; color: #cfeedd; }
 .policy-graph-spotlight { display: grid; gap: 14px; }
 .gp0-provenance {
   border: 1px solid rgba(130,181,255,.28);
