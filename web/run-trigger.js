@@ -34,7 +34,7 @@
     { id: 'google/gemini-3-flash-preview', checked: false },
     { id: 'anthropic/claude-haiku-4-5-low', checked: true },
     { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
-    { id: 'google/gemini-3.1-flash-lite', checked: false },
+    { id: 'google/gemini-3.1-flash-lite', checked: true },
     { id: 'local/qwen3.6-27b', checked: false },
     { id: 'local/qwen3.6-35b-a3b', checked: false },
     { id: 'local/qwen2.5-vl-7b', checked: true },
