@@ -1,6 +1,8 @@
 (() => {
   const DEFAULT_MODEL = 'openai/gpt-5.5';
-  const ALT_MODEL = 'anthropic/claude-opus-4-6';
+  // Must stay in sync with pipeline/policy_diff.py ALLOWED_POLICY_MODELS
+  // (backend 400s any other id). -4-6 predated the -4-7 the backend accepts.
+  const ALT_MODEL = 'anthropic/claude-opus-4-7';
   const DEFAULT_TASK_DESCRIPTION = 'Classify whether a given image is AI-generated. Use visual evidence (hand/finger anatomy, text/typography glitches, surface texture, scene geometry/reflections) as positive evidence; treat conventional photo edits, CGI/game renders, and low-quality uncertain inputs as boundaries; surface explicit synthetic provenance as a separate evidence class.';
   const MNIST_TASK_DESCRIPTION = 'Classify a handwritten MNIST glyph as one digit from 0-9. Use stroke topology, loops, bowls, tails, crossbars, and the confused_with pairs in the MNIST_Digits policy graph; abstain only when the digit criteria remain tied.';
 

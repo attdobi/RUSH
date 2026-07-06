@@ -579,7 +579,9 @@ _COLD_START_SYSTEM_PROMPT = (
     "existing schema (id, version, title, area, node_type, polarity, parent, "
     "status, edges). Produce a SKELETON graph: a root node plus 3-6 seed "
     "children that mix positive evidence, boundary cases, and provenance/negative "
-    "signals. Include edges.json as one of the files if needed. "
+    "signals. Return ONLY .md node files — express relationships as `edges:` in "
+    "each node's frontmatter, not as a separate edges.json (the parser rejects "
+    "non-.md files, which would fail the whole proposal). "
     "Use this shape: {\"files\":[{\"path\":\"GA.root.md\",\"change\":\"added\",\"content\":\"...full markdown...\"}]}. "
     "Never return unified diffs. Never invent example image URLs."
 )
