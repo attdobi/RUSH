@@ -333,6 +333,18 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
             "max_completion_tokens": 4000,
         },
     ),
+    "local/qwen2.5-vl-7b": ModelSpec(
+        model_id="local/qwen2.5-vl-7b",
+        provider="local",
+        provider_model_name="qwen/qwen2.5-vl-7b",
+        phase=2,
+        params={
+            # Compact 7B vision-language model — fast like gemma (Attila swapped
+            # it in for the slower qwen3 dense/MoE). No reasoning; direct answer.
+            "reasoning_effort": "none",
+            "max_completion_tokens": 4000,
+        },
+    ),
     "local/gemma-4-26b-a4b-qat": ModelSpec(
         model_id="local/gemma-4-26b-a4b-qat",
         provider="local",

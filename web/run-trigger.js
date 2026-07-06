@@ -25,18 +25,19 @@
     { id: 'openai/gpt-5.4-mini-xhigh', checked: false },
     { id: 'openai/gpt-5.4-mini-high', checked: false },
     { id: 'openai/gpt-5.4-mini-medium', checked: false },
-    { id: 'openai/gpt-5.4-mini-low', checked: false },
+    { id: 'openai/gpt-5.4-mini-low', checked: true },
     { id: 'google/gemini-3.5-flash', checked: false },
     // TODO(attila-confirm): distinct gemini-3.1-flash SKU/rate is UNVERIFIED
     // (public sources show the 3.1 gen as Pro + Flash-Lite; the full Flash is
     // 3.5). Rate mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
     { id: 'google/gemini-3.1-flash', checked: false },
     { id: 'google/gemini-3-flash-preview', checked: false },
-    { id: 'anthropic/claude-haiku-4-5-low', checked: false },
+    { id: 'anthropic/claude-haiku-4-5-low', checked: true },
     { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
     { id: 'google/gemini-3.1-flash-lite', checked: false },
     { id: 'local/qwen3.6-27b', checked: false },
-    { id: 'local/qwen3.6-35b-a3b', checked: true },
+    { id: 'local/qwen3.6-35b-a3b', checked: false },
+    { id: 'local/qwen2.5-vl-7b', checked: true },
     { id: 'local/gemma-4-26b-a4b-qat', checked: true }
   ];
 
@@ -107,6 +108,7 @@
     'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
     'local/qwen3.6-27b-low': { input: 0.0, output: 0.0 },
     'local/qwen3.6-35b-a3b': { input: 0.0, output: 0.0 },
+    'local/qwen2.5-vl-7b': { input: 0.0, output: 0.0 },
     'local/gemma-4-26b-a4b-qat': { input: 0.0, output: 0.0 }
   };
 
@@ -523,6 +525,11 @@
       const tierNote = tier === 'none' ? 'rough estimate' : `${tier} reasoning · rough estimate`;
       estimateText = estimate === null ? 'rough estimate unavailable' : `$${estimate.toFixed(2)} / 1k labels (${tierNote})`;
     }
+    // Measured speed from this machine's recent runs (seconds/image), when we have it.
+    const speed = MODEL_SECONDS_PER_IMAGE[model];
+    const speedText = (speed && speed.seconds)
+      ? `<em class="model-speed" title="median seconds/image over ${speed.samples} recent run(s) on this machine">~${speed.seconds < 10 ? speed.seconds.toFixed(1) : Math.round(speed.seconds)}s/img</em>`
+      : '';
     const localClass = isLocal ? ' model-pick--local' : '';
     const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}">${esc(badgeTier)}</span>`;
     const reasoningToggle = isLocal ? renderLocalReasoningToggle(model) : '';
@@ -530,11 +537,45 @@
       <div class="model-pick${localClass}">
         <label class="model-pick-select">
           <input class="model-select-input" type="checkbox" value="${attr(model)}"${checked ? ' checked' : ''} />
-          <span class="model-pick-body"><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em></span>
+          <span class="model-pick-body"><code>${esc(model)}</code><em class="rough-estimate">${esc(estimateText)}</em>${speedText}</span>
           ${badge}
         </label>
         ${reasoningToggle}
       </div>`;
+  }
+
+  // model_id -> { seconds: median seconds/image, samples: n runs } aggregated
+  // from this machine's recent runs' per-model timing (server-recorded).
+  let MODEL_SECONDS_PER_IMAGE = {};
+
+  async function refreshModelSpeedEstimates() {
+    try {
+      // Speed is per-model / demo-agnostic; pull both demo lists for more samples.
+      const results = await Promise.all(
+        ['mnist', 'genai'].map(demo =>
+          rushApiGetJson(`/api/runs?demo=${encodeURIComponent(demo)}`).catch(() => null))
+      );
+      const perModel = {};
+      for (const data of results) {
+        for (const run of (data && Array.isArray(data.runs) ? data.runs : [])) {
+          const rows = run.model_speed_summary && Array.isArray(run.model_speed_summary.models)
+            ? run.model_speed_summary.models : [];
+          for (const m of rows) {
+            const s = Number(m.avg_s_per_call);
+            if (m.model_id && Number.isFinite(s) && s > 0) {
+              (perModel[m.model_id] = perModel[m.model_id] || []).push(s);
+            }
+          }
+        }
+      }
+      const next = {};
+      for (const [id, arr] of Object.entries(perModel)) {
+        arr.sort((a, b) => a - b);
+        next[id] = { seconds: arr[Math.floor(arr.length / 2)], samples: arr.length };
+      }
+      MODEL_SECONDS_PER_IMAGE = next;
+      populateModels();  // re-render rows with the measured speed
+    } catch (_e) { /* speed estimate is best-effort */ }
   }
 
   function populateModels() {
@@ -879,6 +920,7 @@
       const payload = await rushApiGetJson(`/api/runs/${encodeURIComponent(state.runId)}/status`);
       renderStatus(payload);
       if (payload.running === true) schedulePoll();
+      else refreshModelSpeedEstimates();  // run finished -> update measured seconds/image
     } catch (error) {
       status(`Status check failed: ${error.message}`, true);
       schedulePoll();
@@ -966,6 +1008,7 @@
     populatePolicies();
     status('Local API connected. Set k per split (split=all runs up to k train + k test).');
     resumeActiveRun();
+    refreshModelSpeedEstimates();  // fill in measured seconds/image (async, best-effort)
   }
 
   // On (re)load, re-attach to an already-running run so a browser refresh does
