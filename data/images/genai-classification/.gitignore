@@ -6,3 +6,10 @@
 !README.md
 !*/
 !.gitkeep
+!manifests/combined_labels.portable.jsonl
+!sample/**/*.png
+!sample/**/*.jpg
+!sample/**/*.jpeg
+!sample/**/*.JPEG
+!sample/**/*.webp
+!sample/**/*.gif

@@ -13,3 +13,10 @@
 !mnist-classification/manifests/*.csv
 !mnist-classification/manifests/*.json
 !mnist-classification/source-datasets/mnist/**/*.png
+!genai-classification/manifests/combined_labels.portable.jsonl
+!genai-classification/sample/**/*.png
+!genai-classification/sample/**/*.jpg
+!genai-classification/sample/**/*.jpeg
+!genai-classification/sample/**/*.JPEG
+!genai-classification/sample/**/*.webp
+!genai-classification/sample/**/*.gif
