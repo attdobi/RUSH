@@ -11,6 +11,8 @@ plumbing per slice; per-feature handlers stay in their own modules.
 from __future__ import annotations
 
 import json
+import sys
+import traceback
 from typing import Any
 from urllib.parse import parse_qs, quote, urlsplit
 
@@ -260,3 +262,13 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
         raise _not_found(path)
     except APIError as exc:
         send_api_error(handler, exc)
+    except Exception as exc:  # noqa: BLE001 — last line of defense for /api/*
+        # Without this, a non-APIError (bad subprocess spawn, disk IO error,
+        # a bug in a handler) would escape into BaseHTTPRequestHandler, print a
+        # traceback, and drop the socket with no body — the client just sees a
+        # failed fetch. Turn it into a clean JSON 500 and log the trace.
+        traceback.print_exc(file=sys.stderr)
+        send_api_error(
+            handler,
+            APIError(500, "internal_error", f"{type(exc).__name__}: {exc}"),
+        )

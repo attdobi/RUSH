@@ -9,6 +9,7 @@ from pathlib import Path
 import secrets
 import signal
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -360,6 +361,21 @@ def _scoring_done(run_dir: Path) -> bool:
     ).exists()
 
 
+def _runner_python(repo_root: Path) -> str:
+    """Resolve the interpreter used to launch the bulk-labeling subprocess.
+
+    The runner needs the repo venv (it has ``openai`` etc.); a bare system
+    ``python3`` would ``ModuleNotFoundError`` and abstain on every call. Prefer
+    the repo's own ``.venv/bin/python`` when present, else fall back to the
+    interpreter running the server (which is that venv when started per the
+    LaunchAgent). Must stay machine-independent — no hardcoded home dirs.
+    """
+    candidate = repo_root / ".venv" / "bin" / "python"
+    if candidate.exists():
+        return str(candidate)
+    return sys.executable
+
+
 class RunRegistry:
     """Discovers completed runs and tracks subprocess-backed live jobs."""
 
@@ -398,7 +414,7 @@ class RunRegistry:
         # threading demo area + the matching sample manifest into the runner.
         # X1 may merge liveness/finalization changes around this block.
         argv = [
-            "/Users/sacsimoto/GitHub/RUSH/.venv/bin/python",
+            _runner_python(self.repo_root),
             "-u",
             "scripts/run_bulk_labeling.py",
             "--models",
@@ -465,16 +481,27 @@ class RunRegistry:
         env = os.environ.copy()
         log_path = self._log_path(job_id)
         tail: deque[str] = deque(maxlen=200)
-        proc = subprocess.Popen(
-            argv,
-            cwd=str(self.repo_root),
-            env=env,
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
+        try:
+            proc = subprocess.Popen(
+                argv,
+                cwd=str(self.repo_root),
+                env=env,
+                shell=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except OSError as exc:
+            # Spawn failed (e.g. interpreter missing) before any process
+            # existed. Remove the just-written state so we don't leak an
+            # orphan job that liveness checks would later have to reap.
+            self._state_path(job_id).unlink(missing_ok=True)
+            raise APIError(
+                500,
+                "runner_spawn_failed",
+                f"could not launch labeling runner ({argv[0]}): {exc}",
+            ) from exc
         state["pid"] = proc.pid
         self._write_state(state)
 

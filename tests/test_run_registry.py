@@ -631,7 +631,10 @@ def test_status_transitions_from_running_job_to_resolved_run(monkeypatch, tmp_pa
     )
 
     assert created
-    assert created[0].argv[:4] == ["/Users/sacsimoto/GitHub/RUSH/.venv/bin/python", "-u", "scripts/run_bulk_labeling.py", "--models"]
+    expected_python = run_registry_mod._runner_python(tmp_path.resolve())
+    assert created[0].argv[:4] == [expected_python, "-u", "scripts/run_bulk_labeling.py", "--models"]
+    # Machine-independent: never a hardcoded home directory (regression guard).
+    assert "/Users/sacsimoto/" not in created[0].argv[0]
     assert "--reasoning-effort" in created[0].argv
     assert created[0].argv[created[0].argv.index("--reasoning-effort") + 1] == "high"
     assert state["reasoning_effort"] == "high"
@@ -809,3 +812,48 @@ def test_start_job_threads_mnist_area_manifest_and_policy(monkeypatch, tmp_path:
     )
     assert state["area"] == "MNIST_Digits"
     assert state["policy_graph_version"] == "MNIST_Digits.v0.1"
+
+
+def test_runner_python_prefers_repo_venv_then_falls_back(tmp_path: Path) -> None:
+    # No venv on disk -> fall back to the running interpreter, never a
+    # hardcoded home directory (regression guard for the sacsimoto path).
+    resolved = run_registry_mod._runner_python(tmp_path)
+    assert resolved == run_registry_mod.sys.executable
+    assert "/Users/sacsimoto/" not in resolved
+
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    assert run_registry_mod._runner_python(tmp_path) == str(venv_python)
+
+
+def test_start_job_spawn_failure_raises_api_error_and_leaves_no_orphan(
+    monkeypatch, tmp_path: Path
+) -> None:
+    def boom(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory")
+
+    monkeypatch.setattr(run_registry_mod.subprocess, "Popen", boom)
+    registry = RunRegistry(tmp_path)
+
+    with pytest.raises(run_registry_mod.APIError) as excinfo:
+        registry.start_job(
+            {
+                "models": ["openai/gpt-5.5"],
+                "split": "dev_golden",
+                "limit": 1,
+                "sample_ids": None,
+                "policy_version": "v0.1",
+                "mode": "cold_start",
+                "reasoning_effort": None,
+                "allow_spend": True,
+                "allow_holdout": False,
+                "concurrency": 1,
+            }
+        )
+
+    assert excinfo.value.status == 500
+    assert excinfo.value.code == "runner_spawn_failed"
+    # No orphan job-state file left behind for liveness checks to reap.
+    assert list((tmp_path / "data" / "runs" / "_jobs").glob("*.json")) == []
+    assert registry.list_runs() == []
