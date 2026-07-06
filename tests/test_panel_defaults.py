@@ -5,14 +5,11 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Default init = single cheapest hosted model per provider + BOTH free locals
-# (Attila's preference). Cheapest-per-provider: gpt-5.4-mini-low (OpenAI),
-# haiku-4-5-low (Anthropic), gemini-3.1-flash-lite (Gemini).
+# Default init = free local consensus only (Attila's 2026-07-06 preference): the
+# two free local models, gemma + the qwen3.6-35b-a3b MoE. A default Start spends
+# $0 and skips the slow dense qwen3.6-27b; hosted models stay one-click to add.
 EXPECTED_DEFAULT_CHECKED = {
-    "openai/gpt-5.4-mini-low",
-    "anthropic/claude-haiku-4-5-low",
-    "google/gemini-3.1-flash-lite",
-    "local/qwen3.6-27b",
+    "local/qwen3.6-35b-a3b",
     "local/gemma-4-26b-a4b-qat",
 }
 
