@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Protocol
 
 from .scoring import _common
+from .scoring.decision_quality import split_kind
 
 logger = logging.getLogger(__name__)
 
@@ -83,10 +84,14 @@ def _select_priority_rows(
     severity: tuple[str, ...] = ("high", "medium"),
     max_rows: int = 40,
 ) -> list[dict[str, Any]]:
+    # Train-only discipline: policy is tuned from TRAIN residuals; test/holdout
+    # rows are reported-only and must never reach a proposal prompt (else the
+    # reported test metric leaks into the thing it's meant to hold out).
     rows = [
         r for r in misalignment.get("records", [])
         if r.get("severity") in severity
         and r.get("misalignment_type") != "all_agree"
+        and split_kind(r.get("split")) == "train"
     ]
     # high first, then medium, deterministic by image_id
     order = {s: i for i, s in enumerate(severity)}

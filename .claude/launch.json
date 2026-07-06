@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rush-web",
+      "runtimeExecutable": "/Users/adobi/RUSH/.venv/bin/python",
+      "runtimeArgs": [
+        "scripts/rush_web_server.py",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8790",
+        "--repo-root",
+        "/Users/adobi/RUSH"
+      ],
+      "port": 8790
+    }
+  ]
+}

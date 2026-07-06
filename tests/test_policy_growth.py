@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 
 from pipeline.policy_diff import (
+    _stratified_batch_rows,
     accept_proposal,
     get_proposal,
     propose_growth_batch,
     seed_cold_start_proposal,
 )
+from pipeline.policy_iterator import _select_priority_rows
 
 
 COLD_ROOT_MD = (
@@ -52,6 +54,7 @@ def _write_misalignment(
     *,
     n_pos: int,
     n_neg: int,
+    split: str = "dev_golden",
 ) -> Path:
     run_dir = root / "data" / "runs" / run_id
     scoring = run_dir / "scoring"
@@ -62,6 +65,7 @@ def _write_misalignment(
             {
                 "image_id": f"pos_{i:03d}",
                 "sme_truth": "gen_ai",
+                "split": split,
                 "misalignment_type": "model_wrong",
                 "severity": "high",
                 "votes": [
@@ -82,6 +86,7 @@ def _write_misalignment(
             {
                 "image_id": f"neg_{i:03d}",
                 "sme_truth": "not_gen_ai",
+                "split": split,
                 "misalignment_type": "model_wrong",
                 "severity": "high",
                 "votes": [
@@ -350,3 +355,39 @@ def test_grow_batch_validates_inputs(tmp_path: Path) -> None:
             batch_index=0,
             batch_size=1,
         )
+
+
+def _mis(image_id, sme_truth, split, mtype="model_wrong", severity="high"):
+    return {
+        "image_id": image_id,
+        "sme_truth": sme_truth,
+        "split": split,
+        "misalignment_type": mtype,
+        "severity": severity,
+    }
+
+
+def test_stratified_batch_excludes_holdout_and_all_agree():
+    # Only TRAIN misalignments may seed a growth batch; holdout (reported-only)
+    # and all_agree rows must never reach the prompt.
+    records = [
+        _mis("t_pos", "gen_ai", "dev_golden"),
+        _mis("t_neg", "not_gen_ai", "train"),
+        _mis("h_pos", "gen_ai", "holdout"),               # test split -> excluded
+        _mis("h_neg", "not_gen_ai", "locked_holdout"),    # test split -> excluded
+        _mis("agree", "gen_ai", "dev_golden", mtype="all_agree"),  # excluded
+    ]
+    rows, n_pos, n_neg = _stratified_batch_rows(records, batch_index=0, batch_size=10)
+    ids = {r["image_id"] for r in rows}
+    assert ids == {"t_pos", "t_neg"}
+    assert (n_pos, n_neg) == (1, 1)
+
+
+def test_select_priority_rows_excludes_holdout():
+    mis = {"records": [
+        _mis("t1", "gen_ai", "dev_golden"),
+        _mis("h1", "gen_ai", "holdout"),
+        _mis("t2", "not_gen_ai", "training"),
+    ]}
+    rows = _select_priority_rows(mis)
+    assert {r["image_id"] for r in rows} == {"t1", "t2"}

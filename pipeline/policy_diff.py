@@ -24,6 +24,7 @@ from pipeline.policy_iterator import (
     load_policy_markdown,
     strip_leading_markers,
 )
+from pipeline.scoring.decision_quality import split_kind
 
 DOMAIN = "Generative_AI"
 _ALLOWED_DOMAINS = {"Generative_AI", "MNIST_Digits"}
@@ -777,14 +778,22 @@ def _stratified_batch_rows(
     """Return (rows, n_positives, n_negatives) for a stratified 50/50 batch.
 
     Each class is sorted deterministically by image_id. If one class is
-    exhausted, the remainder is filled from the other class.
+    exhausted, the remainder is filled from the other class. Only TRAIN residuals
+    that are actual misalignments feed the batch — test/holdout rows are
+    reported-only (train/test leak) and ``all_agree`` rows never reach the prompt,
+    so counting them would inflate the reported batch size.
     """
+    eligible = [
+        r for r in records
+        if split_kind(r.get("split")) == "train"
+        and r.get("misalignment_type") != "all_agree"
+    ]
     positives = sorted(
-        [r for r in records if r.get("sme_truth") == SME_TRUTH_POSITIVE_LABEL],
+        [r for r in eligible if r.get("sme_truth") == SME_TRUTH_POSITIVE_LABEL],
         key=lambda r: str(r.get("image_id", "")),
     )
     negatives = sorted(
-        [r for r in records if r.get("sme_truth") == SME_TRUTH_NEGATIVE_LABEL],
+        [r for r in eligible if r.get("sme_truth") == SME_TRUTH_NEGATIVE_LABEL],
         key=lambda r: str(r.get("image_id", "")),
     )
 

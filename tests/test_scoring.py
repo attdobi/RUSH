@@ -315,6 +315,7 @@ def test_policy_iterator_includes_images_via_helper(tmp_path):
                     "image_id": "img_pos_2",
                     "repo_rel_path": "data/images/x/pos2.png",
                     "sme_truth": "gen_ai",
+                    "split": "dev_golden",
                     "misalignment_type": "consensus_wrong",
                     "severity": "high",
                     "votes": [],
