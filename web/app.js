@@ -1125,6 +1125,98 @@ function renderScoreAlgorithmState() {
   }
   renderScoreReportedMetrics();
   renderScoreUpdateCandidates();
+  renderScoreConfusionMatrix();
+}
+
+function pickConfusionLabeler(summary) {
+  const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+  const withCM = labelers.filter(l => l?.metrics?.confusion_matrix && typeof l.metrics.confusion_matrix === 'object');
+  if (!withCM.length) return null;
+  return withCM.find(l => window.rushIsEnsembleRow?.(l))
+    || withCM.find(l => String(l?.labeler_id || '').toLowerCase() === 'majority_vote')
+    || withCM[0];
+}
+
+// §4 confusion matrix for multiclass (MNIST) runs. Data already ships in
+// web/summary.json (labelers[*].metrics.confusion_matrix / per_class); this
+// renders it as a heat grid where the diagonal is correct and off-diagonal
+// cells are digit confusions, highlighting the policy graph's confused_with pairs.
+function renderScoreConfusionMatrix() {
+  const target = $('#scoreConfusionMatrix');
+  if (!target) return;
+  const summary = runState.summary || {};
+  const labeler = pickConfusionLabeler(summary);
+  if (!labeler) { target.hidden = true; target.innerHTML = ''; return; }
+
+  const cm = labeler.metrics.confusion_matrix;
+  const perClass = labeler.metrics.per_class || {};
+  const classes = Object.keys(cm).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  if (!classes.length) { target.hidden = true; target.innerHTML = ''; return; }
+
+  const demo = (typeof activeDemo === 'function' ? activeDemo() : null) || {};
+  const confused = new Set();
+  (demo.confusionPairs || []).forEach(p => {
+    if (Array.isArray(p.pair) && p.pair.length === 2) {
+      confused.add(`${p.pair[0]}|${p.pair[1]}`);
+      confused.add(`${p.pair[1]}|${p.pair[0]}`);
+    }
+  });
+
+  let maxOff = 0, totalOff = 0, total = 0;
+  classes.forEach(t => classes.forEach(p => {
+    const v = cm[t]?.[p] || 0;
+    total += v;
+    if (t !== p) { maxOff = Math.max(maxOff, v); totalOff += v; }
+  }));
+
+  const cellHtml = (t, p) => {
+    const v = cm[t]?.[p] || 0;
+    const isDiag = t === p;
+    const isConfusedPair = !isDiag && confused.has(`${t}|${p}`);
+    let cls = 'cm-cell';
+    let style = '';
+    if (v > 0 && isDiag) {
+      cls += ' cm-correct';
+    } else if (v > 0) {
+      cls += ' cm-confusion';
+      const intensity = maxOff ? (0.18 + 0.62 * (v / maxOff)) : 0.4;
+      style = `background:rgba(255,111,145,${intensity.toFixed(2)});`;
+    }
+    if (isConfusedPair) cls += ' cm-flagged';
+    const title = `truth ${t} → predicted ${p}: ${v}`;
+    return `<td class="${cls}" style="${style}" title="${esc(title)}">${v || ''}</td>`;
+  };
+
+  const perClassCell = (c) => {
+    const f1 = perClass[c]?.f1;
+    const txt = (f1 === null || f1 === undefined) ? '—' : Number(f1).toFixed(2);
+    return `<td class="cm-f1" title="${esc(`digit ${c} F1`)}">${txt}</td>`;
+  };
+
+  const headCols = classes.map(c => `<th class="cm-head" scope="col">${esc(c)}</th>`).join('');
+  const rows = classes.map(t => `
+    <tr>
+      <th class="cm-head cm-row-head" scope="row">${esc(t)}</th>
+      ${classes.map(p => cellHtml(t, p)).join('')}
+      ${perClassCell(t)}
+    </tr>`).join('');
+
+  const modelLabel = esc(labeler.labeler_id || 'labeler');
+  const acc = labeler.metrics.accuracy;
+  const accTxt = (acc === null || acc === undefined) ? '' : ` · accuracy ${(Number(acc) * 100).toFixed(0)}%`;
+  target.hidden = false;
+  target.innerHTML = `
+    <div class="cm-header">
+      <h3>Confusion matrix — ${modelLabel}${accTxt}</h3>
+      <p class="cm-sub">Rows = SME truth, columns = predicted. Diagonal = correct; off-diagonal = confusions (${totalOff}/${total}).
+      <span class="cm-flag-key">Outlined</span> cells are the policy graph's <code>confused_with</code> pairs.</p>
+    </div>
+    <div class="cm-scroll">
+      <table class="cm-table">
+        <thead><tr><th class="cm-corner"><span>truth ＼ pred</span></th>${headCols}<th class="cm-head cm-f1-head">F1</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderScoreAlgorithmControls() {
