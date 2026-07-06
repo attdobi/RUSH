@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r17" />
-  <script src="demos.js?v=demo-mnist-kdd-r17"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r18" />
+  <script src="demos.js?v=demo-mnist-kdd-r18"></script>
 </head>
 <body>
   <header class="hero">
@@ -295,6 +295,7 @@
           </label>
           <p id="scoreKNote">Mirrors §3 k per split and Split for the next run. k per split means up to k training + k test images when split=all; set k=10 for a 10+10 pass. §1 N per class builds the pool.</p>
         </div>
+        <div id="scoreCascade" class="score-cascade" aria-live="polite" hidden></div>
         <div id="scoreReportedMetrics" class="run-summary-metrics" aria-live="polite"></div>
         <div id="scoreConfusionMatrix" class="score-confusion" aria-live="polite" hidden></div>
         <div class="score-algo-lanes" aria-label="Train test separation">
@@ -465,17 +466,17 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r17"></script>
-  <script src="app.js?v=demo-mnist-kdd-r17"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r17"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r17"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r17"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r17"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r17"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r17"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r18"></script>
+  <script src="app.js?v=demo-mnist-kdd-r18"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r18"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r18"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r18"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r18"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r18"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r18"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r17"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r17"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r17"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r18"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r18"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r18"></script>
 </body>
 </html>

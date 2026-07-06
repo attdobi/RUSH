@@ -688,13 +688,16 @@ async function loadRun(runId) {
     status.textContent = `Loading run ${runId}…`;
   }
   const base = `${RUNS_DIR_URL}${encodeURIComponent(runId)}/web`;
-  const [summary, borderline, misalignment, consensus, errors] = await Promise.all([
+  const runRoot = `${RUNS_DIR_URL}${encodeURIComponent(runId)}`;
+  const [summary, borderline, misalignment, consensus, errors, cascade] = await Promise.all([
     fetchJsonOptional(`${base}/summary.json`),
     fetchJsonOptional(`${base}/borderline.json`),
     fetchJsonOptional(`${base}/misalignment.json`),
     fetchJsonOptional(`${base}/consensus.json`),
-    fetchRunErrors(runId)
+    fetchRunErrors(runId),
+    fetchJsonOptional(`${runRoot}/cascade.json`)
   ]);
+  runState.cascade = cascade || null;
   if (runState.selectedRunId !== runId) runState.expandedRows = {};
   runState.selectedRunId = runId;
   runState.summary = summary;
@@ -1610,10 +1613,63 @@ function renderRun() {
   renderScoreAlgorithmState();
   renderRunPicker();
   renderRunSummary();
+  renderCascade();
   renderBorderline();
   renderMisalignment();
   renderConsensus();
   renderResidualMisalignments();
+}
+
+// §4 escalation-cascade summary. Rendered only when the loaded run carries a
+// cascade.json (produced by scripts/run_cascade.py): tier-1 cheap consensus
+// resolved N, only M escalated to the high-reasoning tier, K residual to a human.
+function renderCascade() {
+  const target = $('#scoreCascade');
+  if (!target) return;
+  const c = runState.cascade;
+  if (!c || !c.tier1_cheap) { target.hidden = true; target.innerHTML = ''; return; }
+  target.hidden = false;
+
+  const t1 = c.tier1_cheap || {};
+  const t2 = c.tier2_escalate || null;
+  const total = c.n_total || (t1.resolved || 0) + (t1.escalated || 0);
+  const resolved = t1.resolved || 0;
+  const escalated = t1.escalated || 0;
+  const residual = t2 ? (t2.residual_to_sme || 0) : escalated;
+  const pct = total ? Math.round((resolved / total) * 100) : 0;
+  const money = v => `$${Number(v || 0).toFixed(4)}`;
+  const secs = v => (v === null || v === undefined) ? '—' : `${Number(v).toFixed(0)}s`;
+  const models = arr => (Array.isArray(arr) ? arr : []).map(m => esc(String(m).replace(/^local\//, ''))).join(' + ');
+
+  const lane = (opts) => `
+    <article class="casc-lane ${opts.cls}">
+      <span class="casc-tag">${esc(opts.tag)}</span>
+      <strong class="casc-count">${opts.count}<small>${esc(opts.unit)}</small></strong>
+      <p class="casc-models">${opts.models}</p>
+      <p class="casc-meta">${opts.meta}</p>
+    </article>`;
+
+  const t2Lane = t2
+    ? lane({ cls: 'casc-escalate', tag: 'Tier 2 · high-reasoning', count: t2.judged || escalated, unit: ' re-judged',
+        models: `${models(t2.models)} · reasoning ${esc(t2.reasoning || 'on')}`,
+        meta: `${secs(t2.active_elapsed_s ?? t2.wall_s)} · ${money(t2.cost_usd)}` })
+    : lane({ cls: 'casc-escalate casc-empty', tag: 'Tier 2 · high-reasoning', count: 0, unit: ' re-judged',
+        models: 'not needed', meta: 'cheap tier reached consensus on everything' });
+
+  target.innerHTML = `
+    <div class="casc-header">
+      <h3>Escalation cascade</h3>
+      <p class="casc-sub">Cheap models label everything; only the disagreements climb the ladder.
+      <strong>The cheap tier resolved ${pct}% of the stream</strong> — only ${escalated} escalated, ${residual} reach a human.</p>
+    </div>
+    <div class="casc-lanes">
+      ${lane({ cls: 'casc-cheap', tag: 'Tier 1 · cheap', count: resolved, unit: `/${total} resolved`,
+        models: `${models(t1.models)} · reasoning ${esc(t1.reasoning || 'off')}`,
+        meta: `${secs(t1.active_elapsed_s ?? t1.wall_s)} · ${money(t1.cost_usd)}` })}
+      ${t2Lane}
+      ${lane({ cls: 'casc-sme', tag: 'Tier 3 · human SME', count: residual, unit: ' to adjudicate',
+        models: 'boundary residual', meta: residual ? 'routed to the GoldMiner queue' : 'nothing left for a human' })}
+    </div>`;
 }
 
 async function refreshRuns(autoSelectMostRecent = true) {
