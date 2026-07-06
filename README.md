@@ -198,13 +198,7 @@ In production this runs under the macOS LaunchAgent `com.attdobi.rush-web`; rest
 
 The web demo defaults to 100 dev golden + 100 locked holdout records. It first tries local manifests under `data/images/genai-classification/manifests/`; otherwise `window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode })` provides a synthetic fallback. Bulk multi-LLM labeling runs from §3 (`POST /api/runs/start`); §4 scores the results.
 
-**Get local image data first.** Image bytes are never committed, but a small sample rides in the repo as a zip. Unpack it so §1 previews real images and small labeling batches work:
-
-```bash
-python scripts/load_sample_data.py --demo all
-```
-
-See [docs/data-loading.md](docs/data-loading.md) for the sample vs. full-dataset workflow and how to rebuild the samples on the Mac mini.
+**Get local image data first.** A committed portable fixture (real MNIST + a balanced GenAI sample) lets a fresh clone run both demos with no local source tree — see [Run the demos on another machine](#run-the-demos-on-another-machine-eg-mac-pro) above (`scripts/unpack_mnist.py`, `RUSH_PORTABLE=1`).
 
 ## Validate
 

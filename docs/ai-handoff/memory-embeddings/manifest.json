@@ -1,17 +1,18 @@
 {
-  "chunk_count": 203,
+  "chunk_count": 298,
   "chunk_params": {
     "batch_size": 16,
     "min_chars": 650,
     "overlap_chars": 140,
     "target_chars": 1000
   },
-  "created_utc": "2026-07-06T01:34:58Z",
+  "created_utc": "2026-07-06T01:44:45Z",
   "dims": 768,
   "embedding_model": "text-embedding-embeddinggemma-300m-qat",
   "endpoint": "http://127.0.0.1:1234/v1",
   "source_files": [
     "docs/ai-handoff/HANDOFF.md",
+    "docs/ai-handoff/SESSION-2026-07-05-fable5.md",
     "README.md",
     "docs/architecture.md",
     "docs/architecture-bulk-labeling.md",
@@ -48,7 +49,25 @@
     "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.eyes.md",
     "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.md",
     "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.repeated_details.md",
-    "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.text_symbols.md"
+    "policy-graph/Generative_AI/v0.1/GA.visual_artifacts.text_symbols.md",
+    "policy-graph/Generative_AI/v0.3/GA.boundary.cgi_game_render.md",
+    "policy-graph/Generative_AI/v0.3/GA.boundary.low_quality_uncertain.md",
+    "policy-graph/Generative_AI/v0.3/GA.boundary.photo_editing.md",
+    "policy-graph/Generative_AI/v0.3/GA.exception.compression_artifacts.md",
+    "policy-graph/Generative_AI/v0.3/GA.exception.medical_prosthetic.md",
+    "policy-graph/Generative_AI/v0.3/GA.negative.authentic_photo.md",
+    "policy-graph/Generative_AI/v0.3/GA.provenance.synthetic_disclosure.md",
+    "policy-graph/Generative_AI/v0.3/GA.root.md",
+    "policy-graph/Generative_AI/v0.3/GA.scene_geometry.inconsistent_perspective.md",
+    "policy-graph/Generative_AI/v0.3/GA.surface_texture.md",
+    "policy-graph/Generative_AI/v0.3/GA.surface_texture.over_smoothed.md",
+    "policy-graph/Generative_AI/v0.3/GA.surface_texture.plastic_skin.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.anatomy.hands.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.eyes.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.nature_wildlife.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.repeated_details.md",
+    "policy-graph/Generative_AI/v0.3/GA.visual_artifacts.text_symbols.md"
   ],
-  "total_bytes": 3502819
+  "total_bytes": 5140614
 }
