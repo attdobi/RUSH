@@ -82,6 +82,14 @@ def build_summary(
         "misalignment_summary": misalignment.get("summary", {}),
         "borderline_summary": borderline.get("summary", {}),
     }
+    # Split-discipline block: the binary (GenAI) DQ computes test-reported metrics
+    # and train-only update candidates; pass them through so §4 renders the
+    # test-reported cards + train-update lane instead of the "defined-not-executed"
+    # fallback. The multiclass (MNIST) path omits these, which correctly leaves
+    # §4 in intended-pipeline mode until multiclass split discipline exists.
+    for key in ("reported", "reported_split", "by_split", "update_candidates", "cost"):
+        if key in decision_quality:
+            out[key] = decision_quality[key]
     if consensus:
         out["consensus_summary"] = consensus.get("summary", {})
     return out

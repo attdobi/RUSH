@@ -445,3 +445,29 @@ def test_accept_rejects_stale_base_proposal(tmp_path: Path) -> None:
     shutil.copytree(base / "v0.1", base / "v0.2")
     with _pytest.raises(ValueError, match="stale"):
         accept_proposal(repo_root=root, proposal_id=proposal["proposal_id"])
+
+
+def test_stratified_batch_pages_are_disjoint():
+    # Adversarial-review regression: imbalanced classes must not repeat a row
+    # across consecutive batch_index pages (window backfill used to overlap).
+    records = [_mis("g0", "gen_ai", "dev_golden")]
+    records += [_mis(f"n{i}", "not_gen_ai", "dev_golden") for i in range(10)]
+    page0, _ = _stratified_batch_rows(records, classes=GENAI_CLASSES, batch_index=0, batch_size=4)
+    page1, _ = _stratified_batch_rows(records, classes=GENAI_CLASSES, batch_index=1, batch_size=4)
+    ids0 = {r["image_id"] for r in page0}
+    ids1 = {r["image_id"] for r in page1}
+    assert ids0.isdisjoint(ids1), f"pages overlap: {ids0 & ids1}"
+    assert len(page0) == 4 and len(page1) == 4
+
+
+def test_accept_rejects_cold_start_over_existing_version(tmp_path: Path) -> None:
+    # Cold-start (base=None) accept must not drop an existing version's nodes.
+    import pytest as _pytest
+    root = _seed_policy_graph(tmp_path)  # creates v0.1 with 2 nodes
+    proposal = seed_cold_start_proposal(
+        repo_root=root,
+        task_description="Re-seed from scratch.",
+        proposed_files={"GA.root.md": COLD_ROOT_MD},
+    )
+    with _pytest.raises(ValueError, match="already exists"):
+        accept_proposal(repo_root=root, proposal_id=proposal["proposal_id"])

@@ -806,32 +806,27 @@ def _stratified_batch_rows(
     if not class_list:
         return [], counts
 
-    per = max(1, batch_size // len(class_list))
-    picked: list[dict[str, Any]] = []
-    seen: set[int] = set()
-
-    def _take(row: dict[str, Any], cls: str) -> None:
-        picked.append(row)
-        seen.add(id(row))
-        counts[cls] += 1
-
-    window_end = batch_index * per + per
-    # 1) windowed per-class slice (fair share, offset by batch_index)
-    for cls in class_list:
-        for row in by_class[cls][batch_index * per : window_end]:
-            if len(picked) >= batch_size:
-                break
-            _take(row, cls)
-    # 2) fill remaining capacity from rows BEYOND each class's window only, so
-    #    consecutive batch_index pages never repeat a row.
-    for cls in class_list:
-        if len(picked) >= batch_size:
+    # Interleave the classes round-robin into ONE deterministic ordering, then
+    # page it by batch_index. Slicing a fixed ordering makes consecutive pages
+    # disjoint by construction (no cross-page repeats even when a class is
+    # exhausted mid-page) while keeping each page balanced across classes.
+    ordering: list[tuple[dict[str, Any], str]] = []
+    depth = 0
+    while True:
+        advanced = False
+        for cls in class_list:
+            if depth < len(by_class[cls]):
+                ordering.append((by_class[cls][depth], cls))
+                advanced = True
+        if not advanced:
             break
-        for row in by_class[cls][window_end:]:
-            if len(picked) >= batch_size:
-                break
-            if id(row) not in seen:
-                _take(row, cls)
+        depth += 1
+
+    start = batch_index * batch_size
+    picked: list[dict[str, Any]] = []
+    for row, cls in ordering[start : start + batch_size]:
+        picked.append(row)
+        counts[cls] += 1
     return picked, counts
 
 
@@ -1260,15 +1255,25 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
     # Stale-base guard: the new version is copied from ``base_version`` but
     # numbered after the CURRENT latest. If a newer version was materialized
     # after this proposal was drafted, accepting would silently revert it.
-    if base_version is not None:
-        latest = _latest_version(root, domain)
-        if latest is not None and _version_key(base_version) != _version_key(latest):
+    latest = _latest_version(root, domain)
+    if base_version is None:
+        # Cold-start only makes sense on an empty graph — its accept path copies
+        # ONLY files_added, so accepting it over an existing version would drop
+        # every node the latest version has (same silent data loss as a stale base).
+        if latest is not None:
             raise ValueError(
-                f"proposal base {base_version} is stale: the current policy "
-                f"version is {latest}. Accepting would build {new_version} from "
-                f"{base_version} and silently drop {latest}'s changes. Regenerate "
-                f"the proposal against {latest} first."
+                f"cold-start proposal but policy {latest} already exists in "
+                f"{domain}: accepting would build {new_version} from only the "
+                f"seed files and drop {latest}'s nodes. Use a grow/diff proposal "
+                f"against {latest} instead."
             )
+    elif latest is not None and _version_key(base_version) != _version_key(latest):
+        raise ValueError(
+            f"proposal base {base_version} is stale: the current policy "
+            f"version is {latest}. Accepting would build {new_version} from "
+            f"{base_version} and silently drop {latest}'s changes. Regenerate "
+            f"the proposal against {latest} first."
+        )
 
     if base_version is None:
         # Cold-start path: there is no base version to copy from. Start with
