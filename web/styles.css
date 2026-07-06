@@ -1401,6 +1401,31 @@ table.misalignment a:focus-visible {
 .run-k-control input { width: 88px; background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.22); border-radius: 8px; color: #eaf3ff; padding: 6px 8px; font-size: 16px; font-weight: 800; }
 .run-k-hint { color: #cfeedd; font-size: 11px; line-height: 1.35; }
 .run-k-hint code { background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.18); border-radius: 6px; padding: 1px 5px; }
+.run-trigger-cascade-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid rgba(240,193,88,.30);
+  background: rgba(240,193,88,.06);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.cascade-escalate-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 950; white-space: nowrap; }
+.cascade-escalate-label select { background: rgba(7,16,31,.54); border: 1px solid rgba(170,184,211,.22); border-radius: 8px; color: #eaf3ff; padding: 6px 8px; font-size: 12px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cascade-run-button {
+  white-space: nowrap;
+  background: linear-gradient(135deg, rgba(240,193,88,.24), rgba(240,193,88,.10));
+  border: 1px solid rgba(240,193,88,.45);
+  color: #ffe9b8;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 950;
+  cursor: pointer;
+}
+.cascade-run-button:hover { border-color: rgba(240,193,88,.8); }
+.cascade-run-button:disabled { opacity: .55; cursor: default; }
+.cascade-hint { flex: 1; min-width: 220px; }
 .run-trigger-advanced { border: 1px solid rgba(170,184,211,.14); border-radius: 14px; background: rgba(7,16,31,.34); padding: 10px 12px; }
 .run-trigger-advanced summary { cursor: pointer; color: #dce8ff; font-size: 13px; font-weight: 950; }
 .run-trigger-advanced summary::marker { color: var(--green); }

@@ -907,7 +907,8 @@
       stopElapsedTicker();
       updateElapsed();
     }
-    status(running ? `Run ${runId} is running…` : `Run ${runId} ${lifecycleTitle(lifecycle, payload).toLowerCase()}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
+    const runNoun = state.kind === 'cascade' ? 'Cascade' : 'Run';
+    status(running ? `${runNoun} ${runId} is running…` : `${runNoun} ${runId} ${lifecycleTitle(lifecycle, payload).toLowerCase()}${payload.scoring_done ? ' and is already scored.' : '.'}`, ['aborted', 'stale', 'failed'].includes(lifecycle));
     if (!running) {
       stopPolling();
       rushApiLoadCatalog().catch(() => {});
@@ -947,6 +948,52 @@
     }
   }
 
+  // Tier-2 judge choices for the cascade button: reasoning-capable steps up
+  // from the cheap default panel. First entry is the default.
+  const CASCADE_ESCALATE_OPTIONS = [
+    'anthropic/claude-sonnet-5-medium',
+    'anthropic/claude-haiku-4-5-medium',
+    'openai/gpt-5.5-medium',
+    'google/gemini-3.1-pro-preview',
+    'anthropic/claude-opus-4-7',
+    'local/qwen3.6-35b-a3b'
+  ];
+
+  function populateCascadeEscalate() {
+    const select = $('#cascadeEscalateModel');
+    if (!select) return;
+    select.innerHTML = CASCADE_ESCALATE_OPTIONS
+      .map(id => `<option value="${attr(id)}">${esc(id)}</option>`)
+      .join('');
+  }
+
+  async function startCascade() {
+    try {
+      const payload = buildStartPayload();
+      // Cascade takes a split+limit slice; explicit sample IDs stay a
+      // plain-run feature.
+      payload.sample_ids = null;
+      if (payload.limit == null) payload.limit = currentK();
+      const escalateModel = $('#cascadeEscalateModel')?.value || CASCADE_ESCALATE_OPTIONS[0];
+      payload.escalate_models = [escalateModel];
+      status('Starting escalation cascade (tier 1 cheap panel → tier 2 judge)…');
+      $('#startCascadeRun').disabled = true;
+      const response = await rushApiPostJson('/api/runs/start-cascade', payload);
+      state.runId = response.run_id || response.job_id || '';
+      state.runModels = payload.models || [];
+      state.kind = 'cascade';
+      state.pollStartedAt = Date.now();
+      state.finished = false;
+      if (!state.runId) throw new Error('API did not return a run_id.');
+      status(`Started cascade ${state.runId}; tier banners appear in the log tail…`);
+      await pollStatus();
+    } catch (error) {
+      status(`Could not start cascade: ${error.message}`, true);
+    } finally {
+      $('#startCascadeRun').disabled = false;
+    }
+  }
+
   async function scoreRun() {
     if (!state.runId) return;
     try {
@@ -970,13 +1017,17 @@
 
   function refreshRunButtonLabel() {
     const btn = $('#startLabelingRun');
-    if (!btn) return;
-    const ids = ($('#runTriggerSampleIds')?.value || '').trim();
-    btn.textContent = ids ? 'Run panel · sample IDs' : `Run panel · k=${currentK()}`;
+    if (btn) {
+      const ids = ($('#runTriggerSampleIds')?.value || '').trim();
+      btn.textContent = ids ? 'Run panel · sample IDs' : `Run panel · k=${currentK()}`;
+    }
+    const cascadeBtn = $('#startCascadeRun');
+    if (cascadeBtn) cascadeBtn.textContent = `Run cascade · k=${currentK()}`;
   }
 
   function bind() {
     $('#startLabelingRun')?.addEventListener('click', startRun);
+    $('#startCascadeRun')?.addEventListener('click', startCascade);
     $('#scoreRunNow')?.addEventListener('click', scoreRun);
     $('#runTriggerBatchSize')?.addEventListener('input', refreshRunButtonLabel);
     $('#runTriggerSampleIds')?.addEventListener('input', refreshRunButtonLabel);
@@ -1002,6 +1053,7 @@
     if (section) section.hidden = false;
     if (hint) hint.hidden = true;
     populateModels();
+    populateCascadeEscalate();
     bind();
     refreshRunButtonLabel();
     await rushApiLoadCatalog();

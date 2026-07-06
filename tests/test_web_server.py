@@ -7,7 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.web._safety import APIError, safe_static_path, validate_start_payload
+from pipeline.web._safety import (
+    APIError,
+    safe_static_path,
+    validate_cascade_payload,
+    validate_start_payload,
+)
 from pipeline.web.server import create_server
 
 
@@ -20,6 +25,67 @@ _VALID = {
     "allow_spend": True,
     "concurrency": 1,
 }
+
+_VALID_CASCADE = {
+    "models": ["openai/gpt-5.4-mini-low", "anthropic/claude-haiku-4-5-low"],
+    "escalate_models": ["anthropic/claude-sonnet-5-medium"],
+    "split": "dev_golden",
+    "limit": 20,
+    "policy_version": "v0.1",
+    "mode": "cold_start",
+    "allow_spend": True,
+    "concurrency": 2,
+}
+
+
+def test_validate_cascade_payload_accepts_two_tier_request() -> None:
+    normalized = validate_cascade_payload(dict(_VALID_CASCADE))
+
+    assert normalized["models"] == [
+        "openai/gpt-5.4-mini-low",
+        "anthropic/claude-haiku-4-5-low",
+    ]
+    assert normalized["escalate_models"] == ["anthropic/claude-sonnet-5-medium"]
+    assert normalized["limit"] == 20
+
+
+def test_validate_cascade_payload_requires_escalate_models() -> None:
+    payload = dict(_VALID_CASCADE)
+    payload.pop("escalate_models")
+
+    with pytest.raises(APIError) as excinfo:
+        validate_cascade_payload(payload)
+    assert excinfo.value.status == 400
+
+
+def test_validate_cascade_payload_rejects_unknown_escalate_model() -> None:
+    payload = dict(_VALID_CASCADE)
+    payload["escalate_models"] = ["nope/not-a-model"]
+
+    with pytest.raises(APIError) as excinfo:
+        validate_cascade_payload(payload)
+    assert excinfo.value.code == "unknown_model_id"
+
+
+def test_validate_cascade_payload_rejects_single_cheap_model() -> None:
+    payload = dict(_VALID_CASCADE)
+    payload["models"] = ["openai/gpt-5.4-mini-low"]
+
+    with pytest.raises(APIError) as excinfo:
+        validate_cascade_payload(payload)
+    assert excinfo.value.status == 400
+    assert "consensus" in excinfo.value.message
+
+
+def test_validate_cascade_payload_rejects_sample_ids() -> None:
+    payload = dict(_VALID_CASCADE)
+    payload["limit"] = None
+    payload["sample_ids"] = "train_00001,train_00002"
+
+    with pytest.raises(APIError) as excinfo:
+        validate_cascade_payload(payload)
+    assert excinfo.value.status == 400
+    assert "sample_ids" in excinfo.value.message
 
 
 @pytest.fixture

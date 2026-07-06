@@ -19,7 +19,12 @@ from urllib.parse import parse_qs, quote, urlsplit
 from pipeline.thumbnails import thumbnail_rel_path_for_source, validate_source_repo_path
 
 from . import handlers_dq, handlers_policy
-from ._safety import APIError, read_json_body, validate_start_payload
+from ._safety import (
+    APIError,
+    read_json_body,
+    validate_cascade_payload,
+    validate_start_payload,
+)
 from .build_id import get_build_id
 from .demo_area import area_from_query, policy_version_matches_area
 from .run_registry import RunRegistry
@@ -128,6 +133,23 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
                 {
                     "run_id": run_token,
                     "job_id": run_token,
+                    "status_url": f"/api/runs/{run_token}/status",
+                    "log_url": f"/api/runs/{run_token}/log",
+                },
+            )
+            return
+
+        if method == "POST" and path == "/api/runs/start-cascade":
+            payload = validate_cascade_payload(read_json_body(handler))
+            state = registry.start_cascade_job(payload)
+            run_token = state["job_id"]
+            send_json(
+                handler,
+                202,
+                {
+                    "run_id": run_token,
+                    "job_id": run_token,
+                    "kind": "cascade",
                     "status_url": f"/api/runs/{run_token}/status",
                     "log_url": f"/api/runs/{run_token}/log",
                 },

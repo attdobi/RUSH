@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH Demo</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r21" />
-  <script src="demos.js?v=demo-mnist-kdd-r21"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r22" />
+  <script src="demos.js?v=demo-mnist-kdd-r22"></script>
 </head>
 <body>
   <header class="hero">
@@ -210,6 +210,13 @@
             <input id="runTriggerImagesPerCall" type="number" min="1" max="20" value="5" />
             <span class="run-k-hint">1 = single-image calls; N = batched (cost win). Local models always run single-image.</span>
           </div>
+        </div>
+        <div class="run-trigger-cascade-row" aria-label="Escalation cascade">
+          <label class="cascade-escalate-label">Escalate to
+            <select id="cascadeEscalateModel"></select>
+          </label>
+          <button id="startCascadeRun" class="cascade-run-button" type="button">Run cascade · k=20</button>
+          <span class="run-k-hint cascade-hint">cheap panel labels everything → non-consensus climbs to the tier-2 judge → the rest queue for SME</span>
         </div>
         <details class="run-trigger-advanced">
           <summary>Advanced controls <span class="muted">(split, sample IDs, policy version, mode, spend)</span></summary>
@@ -466,17 +473,17 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r21"></script>
-  <script src="app.js?v=demo-mnist-kdd-r21"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r21"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r21"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r21"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r21"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r21"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r21"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r22"></script>
+  <script src="app.js?v=demo-mnist-kdd-r22"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r22"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r22"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r22"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r22"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r22"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r22"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r21"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r21"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r21"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r22"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r22"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r22"></script>
 </body>
 </html>

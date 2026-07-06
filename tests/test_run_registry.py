@@ -857,3 +857,53 @@ def test_start_job_spawn_failure_raises_api_error_and_leaves_no_orphan(
     # No orphan job-state file left behind for liveness checks to reap.
     assert list((tmp_path / "data" / "runs" / "_jobs").glob("*.json")) == []
     assert registry.list_runs() == []
+
+
+def test_start_cascade_job_builds_cascade_argv(monkeypatch, tmp_path: Path) -> None:
+    created: list = []
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            assert kwargs["shell"] is False
+            self.argv = argv
+            self.pid = 4242
+            self.stdout = iter(())
+            created.append(self)
+
+        def poll(self):
+            return 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(run_registry_mod.subprocess, "Popen", FakePopen)
+    registry = RunRegistry(tmp_path)
+    state = registry.start_cascade_job(
+        {
+            "models": ["local/gemma-4-26b-a4b-qat", "local/qwen2.5-vl-7b"],
+            "escalate_models": ["anthropic/claude-sonnet-5-medium"],
+            "area": "MNIST_Digits",
+            "split": "all",
+            "limit": 20,
+            "sample_ids": None,
+            "policy_version": "v0.1",
+            "mode": "cold_start",
+            "allow_spend": True,
+            "allow_holdout": True,
+            "concurrency": 2,
+        }
+    )
+
+    assert created
+    argv = created[0].argv
+    expected_python = run_registry_mod._runner_python(tmp_path.resolve())
+    assert argv[:3] == [expected_python, "-u", "scripts/run_cascade.py"]
+    assert argv[argv.index("--cheap") + 1] == "local/gemma-4-26b-a4b-qat,local/qwen2.5-vl-7b"
+    assert argv[argv.index("--escalate") + 1] == "anthropic/claude-sonnet-5-medium"
+    assert argv[argv.index("--limit") + 1] == "20"
+    assert "--allow-holdout" in argv
+    # The job tracks the CHEAP panel so live status inference resolves to the
+    # tier-1 run while it labels.
+    assert state["kind"] == "cascade"
+    assert state["models"] == ["local/gemma-4-26b-a4b-qat", "local/qwen2.5-vl-7b"]
+    assert state["escalate_models"] == ["anthropic/claude-sonnet-5-medium"]

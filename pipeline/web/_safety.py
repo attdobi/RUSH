@@ -403,3 +403,61 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "concurrency": concurrency,
         "batch_size": batch_size,
     }
+
+
+def validate_cascade_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``POST /api/runs/start-cascade`` JSON.
+
+    The base fields (cheap-tier models, split, spend gates, ...) reuse
+    ``validate_start_payload``; on top of that the cascade needs a non-empty
+    ``escalate_models`` tier-2 panel, at least two cheap models (a one-model
+    "consensus" never disagrees, so nothing would escalate), and a split+limit
+    slice rather than explicit sample_ids.
+    """
+    request = validate_start_payload(payload)
+
+    raw_escalate = payload.get("escalate_models")
+    if not isinstance(raw_escalate, list) or not raw_escalate:
+        raise APIError(
+            400,
+            "validation_error",
+            "escalate_models must be a non-empty list",
+            details={"field": "escalate_models"},
+        )
+    escalate: list[str] = []
+    for model in raw_escalate:
+        if not isinstance(model, str) or not model.strip():
+            raise APIError(
+                400,
+                "validation_error",
+                "escalate_models must contain non-empty strings",
+                details={"field": "escalate_models"},
+            )
+        model_id = model.strip()
+        if model_id not in MODEL_REGISTRY:
+            raise APIError(
+                400,
+                "unknown_model_id",
+                f"unknown model_id: {model_id}",
+                details={"model_id": model_id},
+            )
+        if model_id not in escalate:
+            escalate.append(model_id)
+
+    if len(request["models"]) < 2:
+        raise APIError(
+            400,
+            "validation_error",
+            "cascade needs at least 2 cheap-tier models for a consensus signal",
+            details={"field": "models"},
+        )
+    if request.get("sample_ids"):
+        raise APIError(
+            400,
+            "validation_error",
+            "cascade runs take split+limit; sample_ids is not supported",
+            details={"field": "sample_ids"},
+        )
+
+    request["escalate_models"] = escalate
+    return request

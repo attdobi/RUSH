@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 import subprocess
 import sys
 import time
@@ -41,6 +42,22 @@ from pipeline.scoring.consensus import select_escalation_ids  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = "scripts/run_bulk_labeling.py"
+
+# The tier subprocess currently running, so a SIGTERM/SIGINT aimed at the
+# orchestrator (e.g. the web UI's Cancel) also stops the actual labeling run
+# instead of orphaning it.
+_CURRENT_CHILD: subprocess.Popen | None = None
+
+
+def _forward_signal(signum: int, _frame: object) -> None:  # pragma: no cover - signal path
+    child = _CURRENT_CHILD
+    if child is not None and child.poll() is None:
+        child.terminate()
+        try:
+            child.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            child.kill()
+    raise SystemExit(128 + signum)
 
 
 def _python() -> str:
@@ -104,12 +121,20 @@ def _run_tier(
 
     print(f"[cascade] tier '{label}': {' '.join(models)} "
           f"({'reasoning ' + local_reasoning if local_reasoning else 'default'})", file=sys.stderr)
+    global _CURRENT_CHILD
     t0 = time.monotonic()
-    proc = subprocess.run(argv, cwd=str(ROOT), capture_output=True, text=True)
+    proc = subprocess.Popen(
+        argv, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    _CURRENT_CHILD = proc
+    try:
+        stdout, stderr = proc.communicate()
+    finally:
+        _CURRENT_CHILD = None
     wall = time.monotonic() - t0
-    payload = _last_json_object(proc.stdout)
+    payload = _last_json_object(stdout)
     if payload is None or not payload.get("run_id"):
-        sys.stderr.write(proc.stdout[-1500:] + "\n" + proc.stderr[-1500:] + "\n")
+        sys.stderr.write(stdout[-1500:] + "\n" + stderr[-1500:] + "\n")
         raise SystemExit(f"[cascade] tier '{label}' produced no run payload (exit {proc.returncode})")
     payload["_wall_s"] = round(wall, 1)
     return payload
@@ -179,6 +204,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--concurrency", type=int, default=2)
     ap.add_argument("--allow-holdout", action="store_true")
     args = ap.parse_args(argv)
+
+    signal.signal(signal.SIGTERM, _forward_signal)
+    signal.signal(signal.SIGINT, _forward_signal)
 
     cheap = [m.strip() for m in args.cheap.split(",") if m.strip()]
     escalate = [m.strip() for m in args.escalate.split(",") if m.strip()]
@@ -260,6 +288,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Cheap tier resolved {frac * 100:.0f}% of the stream; "
               f"only {len(escalate_ids)} escalated, {len(residual_ids)} reach a human.")
     print(f"wrote {out_path.relative_to(ROOT)}")
+    # Machine-readable trailer: the web job monitor picks the LAST JSON object
+    # off stdout to resolve the job to the tier-1 run (which carries cascade.json).
+    print(json.dumps({
+        "kind": "cascade",
+        "run_id": run1,
+        "tier2_run_id": tier2["run_id"] if tier2 else None,
+        "cascade_path": str(out_path.relative_to(ROOT)),
+        "status": "completed",
+    }))
     return 0
 
 

@@ -476,6 +476,82 @@ class RunRegistry:
             "sample_ids": request.get("sample_ids"),
             "batch_size": request.get("batch_size"),
         }
+        return self._spawn_and_monitor(state, argv)
+
+    def start_cascade_job(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Launch the two-tier escalation cascade as a tracked job.
+
+        ``scripts/run_cascade.py`` runs the cheap panel over the full slice,
+        escalates the non-consensus residual to the tier-2 panel, and writes
+        ``cascade.json`` into the tier-1 run dir. The job's ``models`` are the
+        CHEAP panel so live status inference resolves to the tier-1 run while
+        it labels; the orchestrator's final stdout JSON pins ``run_id`` there.
+        """
+        job_id = _job_id()
+        area = str(request.get("area") or DEFAULT_POLICY_AREA)
+        policy_version = str(request["policy_version"])
+        policy_graph_version = (
+            f"{area}.{policy_version}" if area == MNIST_POLICY_AREA else policy_version
+        )
+        sample_manifest = (
+            MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
+        )
+        cheap = list(request["models"])
+        escalate = list(request["escalate_models"])
+        argv = [
+            _runner_python(self.repo_root),
+            "-u",
+            "scripts/run_cascade.py",
+            "--area",
+            area,
+            "--split",
+            request["split"],
+            "--limit",
+            str(request["limit"]),
+            "--policy-version",
+            policy_version,
+            "--manifest",
+            str(sample_manifest),
+            "--cheap",
+            ",".join(cheap),
+            "--escalate",
+            ",".join(escalate),
+            "--concurrency",
+            str(request["concurrency"]),
+        ]
+        if request.get("split") == "holdout" or request.get("allow_holdout"):
+            argv.append("--allow-holdout")
+
+        state: dict[str, Any] = {
+            "job_id": job_id,
+            "kind": "cascade",
+            "run_id": None,
+            "pid": None,
+            "argv": argv,
+            "started_at": utcnow_iso(),
+            "finished_at": None,
+            "returncode": None,
+            "models": cheap,
+            "escalate_models": escalate,
+            "demo": request.get("demo"),
+            "area": area,
+            "split": request["split"],
+            "mode": request["mode"],
+            "reasoning_effort": None,
+            "local_reasoning": {},
+            "policy_version": policy_version,
+            "policy_graph_version": policy_graph_version,
+            "sample_manifest_path": str(sample_manifest),
+            "allow_spend": bool(request["allow_spend"]),
+            "allow_holdout": bool(request.get("allow_holdout")),
+            "limit": request.get("limit"),
+            "sample_ids": None,
+            "batch_size": request.get("batch_size"),
+        }
+        return self._spawn_and_monitor(state, argv)
+
+    def _spawn_and_monitor(self, state: dict[str, Any], argv: list[str]) -> dict[str, Any]:
+        job_id = state["job_id"]
         self._write_state(state)
 
         env = os.environ.copy()
