@@ -1070,6 +1070,10 @@ function renderScoreReportedMetrics() {
     ['Reported majority accuracy', rushApiFormatMetric(reportedAccuracy), `${decisionQualityLabelerName(reportedRow)} · test only`]
   ];
   if (reportedF1 !== null) cards.push(['Reported majority F1', rushApiFormatMetric(reportedF1), 'test-only decision quality']);
+  const reportedRecall = decisionQualityMetric(reportedRow, 'recall') ?? decisionQualityMetric(reportedRow, 'macro_recall');
+  const reportedFpr = decisionQualityMetric(reportedRow, 'fpr') ?? decisionQualityMetric(reportedRow, 'macro_fpr');
+  if (reportedRecall !== null) cards.push(['Reported recall', rushApiFormatMetric(reportedRecall), 'test-only · TP / (TP + FN)']);
+  if (reportedFpr !== null) cards.push(['Reported FPR', rushApiFormatMetric(reportedFpr), 'test-only · FP / (FP + TN)']);
 
   const train = summary.by_split?.train;
   if (train && typeof train === 'object') {
@@ -1190,10 +1194,10 @@ function renderScoreConfusionMatrix() {
     return `<td class="${cls}" style="${style}" title="${esc(title)}">${v || ''}</td>`;
   };
 
-  const perClassCell = (c) => {
-    const f1 = perClass[c]?.f1;
-    const txt = (f1 === null || f1 === undefined) ? '—' : Number(f1).toFixed(2);
-    return `<td class="cm-f1" title="${esc(`digit ${c} F1`)}">${txt}</td>`;
+  const perClassCell = (c, field, digits = 2) => {
+    const v = perClass[c]?.[field];
+    const txt = (v === null || v === undefined) ? '—' : Number(v).toFixed(digits);
+    return `<td class="cm-f1" title="${esc(`digit ${c} ${field}`)}">${txt}</td>`;
   };
 
   const headCols = classes.map(c => `<th class="cm-head" scope="col">${esc(c)}</th>`).join('');
@@ -1201,7 +1205,9 @@ function renderScoreConfusionMatrix() {
     <tr>
       <th class="cm-head cm-row-head" scope="row">${esc(t)}</th>
       ${classes.map(p => cellHtml(t, p)).join('')}
-      ${perClassCell(t)}
+      ${perClassCell(t, 'f1')}
+      ${perClassCell(t, 'recall')}
+      ${perClassCell(t, 'fpr', 3)}
     </tr>`).join('');
 
   const modelLabel = esc(labeler.labeler_id || 'labeler');
@@ -1216,7 +1222,7 @@ function renderScoreConfusionMatrix() {
     </div>
     <div class="cm-scroll">
       <table class="cm-table">
-        <thead><tr><th class="cm-corner"><span>truth ＼ pred</span></th>${headCols}<th class="cm-head cm-f1-head">F1</th></tr></thead>
+        <thead><tr><th class="cm-corner"><span>truth ＼ pred</span></th>${headCols}<th class="cm-head cm-f1-head">F1</th><th class="cm-head cm-f1-head">Recall</th><th class="cm-head cm-f1-head">FPR</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;

@@ -165,11 +165,15 @@
     const imageCount = totalImages(runs);
     const f1Label = isMnistDemo() ? 'Ensemble macro F1' : 'Ensemble accuracy';
     const f1Value = ensemble ? rushApiFormatMetric(isMnistDemo() ? ensemble.f1 : ensemble.accuracy) : '—';
+    const recallLabel = isMnistDemo() ? 'Ensemble recall (macro)' : 'Ensemble recall';
+    const fprLabel = isMnistDemo() ? 'Ensemble FPR (macro)' : 'Ensemble FPR';
     target.innerHTML = [
       ['Scored runs', String(runs.length)],
       ['Images scored', imageCount ? String(imageCount) : '—'],
       ['Policy versions', policyVersionCount(runs) ? String(policyVersionCount(runs)) : '—'],
       [f1Label, f1Value],
+      [recallLabel, ensemble ? rushApiFormatMetric(ensemble.recall) : '—'],
+      [fprLabel, ensemble ? rushApiFormatMetric(ensemble.fpr) : '—'],
       ['Ensemble vs best model', formatSignedMetric(ensembleLift)],
       ['Split / boundary review load', splitBoundaryText(runs)],
       ['Total cost (USD)', `$${totalCost.toFixed(4)}`]
@@ -253,6 +257,7 @@
       ['Macro F1', row => rushApiFormatMetric(row.f1), true],
       ['Per-digit precision', row => rushApiFormatMetric(row.precision), true],
       ['Per-digit recall', row => rushApiFormatMetric(row.recall), true],
+      ['FPR (macro)', row => rushApiFormatMetric(row.fpr), true],
       ['Digit labels', () => '0-9', false],
       ['N', row => esc(row.n), true],
       ['Cost / 1k labels', row => formatCostPerThousand(row.cost_per_1000_labels), true]

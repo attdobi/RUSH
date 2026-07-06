@@ -79,6 +79,7 @@ def _web_labeler_row(row: dict[str, Any]) -> dict[str, Any]:
             "precision": metrics.get("precision", metrics.get("macro_precision")),
             "recall": metrics.get("recall", metrics.get("macro_recall")),
             "f1": metrics.get("f1", metrics.get("macro_f1")),
+            "fpr": metrics.get("fpr", metrics.get("macro_fpr")),
         }
         return {**row, "metrics": metrics}
     return row

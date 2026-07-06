@@ -121,11 +121,13 @@ def compute_multiclass_metrics(
 
     accuracy = _safe_div(correct, n)
 
-    # One-vs-rest counts per class.
+    # One-vs-rest counts per class, plus pooled counts for micro averages.
     per_class: dict[str, dict[str, Any]] = {}
     precisions: list[float | None] = []
     recalls: list[float | None] = []
     f1s: list[float | None] = []
+    fprs: list[float | None] = []
+    pooled_tp = pooled_fp = pooled_tn = pooled_fn = 0
     for cls in classes:
         tp = fp = tn = fn = 0
         for pred, truth in decided:
@@ -154,6 +156,19 @@ def compute_multiclass_metrics(
         precisions.append(precision)
         recalls.append(recall)
         f1s.append(f1)
+        fprs.append(fpr)
+        pooled_tp += tp
+        pooled_fp += fp
+        pooled_tn += tn
+        pooled_fn += fn
+
+    # Micro = pooled one-vs-rest counts across classes. For single-label
+    # multiclass, micro precision == micro recall == accuracy over decided rows
+    # (every error is one FP for the predicted class and one FN for the true
+    # class); micro FPR is the genuinely new pooled signal.
+    micro_recall = _safe_div(pooled_tp, pooled_tp + pooled_fn)
+    micro_precision = _safe_div(pooled_tp, pooled_tp + pooled_fp)
+    micro_fpr = _safe_div(pooled_fp, pooled_fp + pooled_tn)
 
     return {
         "accuracy": _round(accuracy),
@@ -162,6 +177,10 @@ def compute_multiclass_metrics(
         "macro_precision": _round(_macro(precisions)),
         "macro_recall": _round(_macro(recalls)),
         "macro_f1": _round(_macro(f1s)),
+        "macro_fpr": _round(_macro(fprs)),
+        "micro_precision": _round(micro_precision),
+        "micro_recall": _round(micro_recall),
+        "micro_fpr": _round(micro_fpr),
         "per_class": per_class,
         "confusion_matrix": {
             t: dict(sorted(confusion[t].items()))

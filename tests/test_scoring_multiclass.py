@@ -348,3 +348,33 @@ def test_run_scoring_default_is_binary_backcompat(tmp_path):
         run_scoring(
             "runX", tmp_path, runs_root=runs_root,
         )
+
+
+# ---------------------------------------------------------------------------
+# micro (pooled) metrics
+# ---------------------------------------------------------------------------
+
+def test_micro_metrics_hand_computed():
+    # 3 classes in play, 4 decided: one error (truth 1 predicted as 7).
+    preds = ["0", "1", "7", "7"]
+    truths = ["0", "1", "1", "7"]
+    m = dqmc.compute_multiclass_metrics(preds, truths, classes=CLASSES)
+    # Single-label multiclass: micro recall == micro precision == accuracy.
+    assert m["accuracy"] == pytest.approx(0.75)
+    assert m["micro_recall"] == pytest.approx(0.75)
+    assert m["micro_precision"] == pytest.approx(0.75)
+    # Pooled counts across 10 classes x 4 rows: TP=3, FN=1, FP=1,
+    # TN = 10*4 - 3 - 1 - 1 = 35 -> micro FPR = 1/36.
+    assert m["micro_fpr"] == pytest.approx(1 / 36, rel=1e-4)
+    # macro_fpr = mean of per-class fpr over all 10 classes; only class 7 has
+    # a false positive (fp=1, tn=2 -> 1/3), the rest are 0.
+    assert m["macro_fpr"] == pytest.approx((1 / 3) / 10, rel=1e-4)
+
+
+def test_micro_metrics_perfect_run_zero_fpr():
+    preds = list(CLASSES)
+    truths = list(CLASSES)
+    m = dqmc.compute_multiclass_metrics(preds, truths, classes=CLASSES)
+    assert m["micro_recall"] == pytest.approx(1.0)
+    assert m["micro_fpr"] == pytest.approx(0.0)
+    assert m["macro_fpr"] == pytest.approx(0.0)

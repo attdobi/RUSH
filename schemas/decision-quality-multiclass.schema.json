@@ -138,6 +138,18 @@
         "macro_f1": {
           "$ref": "#/$defs/ratio_or_null"
         },
+        "macro_fpr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "micro_precision": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "micro_recall": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "micro_fpr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
         "per_class": {
           "type": "object",
           "additionalProperties": {

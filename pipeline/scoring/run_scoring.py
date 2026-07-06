@@ -70,6 +70,7 @@ def _metrics_for_web(metrics: dict[str, Any]) -> dict[str, Any]:
     out.setdefault("precision", metrics.get("macro_precision"))
     out.setdefault("recall", metrics.get("macro_recall"))
     out.setdefault("f1", metrics.get("macro_f1"))
+    out.setdefault("fpr", metrics.get("macro_fpr"))
     return out
 
 
