@@ -35,6 +35,7 @@ from pipeline.io_paths import (  # noqa: E402  (after sys.path edit)
     DEFAULT_RUNS_ROOT,
     DEFAULT_SAMPLE_MANIFEST,
     MNIST_SAMPLE_MANIFEST,
+    genai_manifest_default,
 )
 from pipeline.manifest import HOLDOUT_SPLITS, load_records, select_samples  # noqa: E402
 from pipeline.providers._config import resolve_temperature  # noqa: E402
@@ -60,8 +61,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=DEFAULT_SAMPLE_MANIFEST,
-        help=f"Path to combined_labels.jsonl (default: {DEFAULT_SAMPLE_MANIFEST}).",
+        default=None,
+        help=(
+            "Path to combined_labels.jsonl. Default: auto-selects the MNIST "
+            "manifest for area=MNIST_Digits; for Generative_AI uses the "
+            "portable manifest when RUSH_PORTABLE=1 or the full source image "
+            f"tree is absent, otherwise {DEFAULT_SAMPLE_MANIFEST}."
+        ),
     )
     parser.add_argument("--split", choices=["dev_golden", "holdout", "all"], default="dev_golden")
     parser.add_argument("--limit", type=int, default=None)
@@ -145,6 +151,15 @@ def _local_reasoning_runtime_params(model_id: str, enabled: bool) -> dict[str, i
     return {"reasoning_effort": "medium", "max_completion_tokens": 6000}
 
 
+def _resolve_sample_manifest(area: str, manifest: Path | None) -> Path:
+    """Resolve the effective sample manifest while preserving explicit overrides."""
+    if manifest is not None:
+        return manifest
+    if area == MNIST_POLICY_AREA:
+        return MNIST_SAMPLE_MANIFEST
+    return genai_manifest_default()
+
+
 def _resolve_factory(
     use_live: bool,
     *,
@@ -194,8 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[X2] {exc}", file=sys.stderr)
         return 2
 
-    if args.manifest == DEFAULT_SAMPLE_MANIFEST and area == MNIST_POLICY_AREA:
-        args.manifest = MNIST_SAMPLE_MANIFEST
+    args.manifest = _resolve_sample_manifest(area, args.manifest)
 
     if args.live and not args.allow_spend:
         print("[X2] refusing to dispatch live calls without --allow-spend", file=sys.stderr)

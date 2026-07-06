@@ -29,6 +29,10 @@ _STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
         "data/images/genai-classification/source-datasets",
     ),
     (
+        "/data/images/genai-classification/sample/",
+        "data/images/genai-classification/sample",
+    ),
+    (
         "/data/images/genai-classification/manifests/",
         "data/images/genai-classification/manifests",
     ),

@@ -31,6 +31,13 @@ data/images/**/*.jpg
 data/images/**/*.jpeg
 data/images/**/*.webp
 data/images/**/*.gif
+!data/images/mnist-classification/mnist_full.npz
+!data/images/genai-classification/sample/**/*.png
+!data/images/genai-classification/sample/**/*.jpg
+!data/images/genai-classification/sample/**/*.jpeg
+!data/images/genai-classification/sample/**/*.JPEG
+!data/images/genai-classification/sample/**/*.webp
+!data/images/genai-classification/sample/**/*.gif
 
 # Bulk-labeling run output (X2): per-run artifacts are not committed.
 data/runs/

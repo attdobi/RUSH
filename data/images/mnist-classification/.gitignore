@@ -10,3 +10,4 @@
 !manifests/*.csv
 !manifests/*.json
 !manifests/*.jsonl
+!mnist_full.npz
