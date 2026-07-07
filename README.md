@@ -179,6 +179,8 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is three views ar
 
 Presenting it? **[`docs/DEMO-FLOW.md`](docs/DEMO-FLOW.md)** is the 10-minute walkthrough script (with a 3-minute short version and a claim-verification appendix).
 
+The research agenda behind the crank — is textual policy-gradient descent a sound optimizer (overfitting/generalization, convergence in both the learning-rate and chaos/Lyapunov senses, and the random-vs-stack-ranked ablation) — is written up in **[`docs/RESEARCH.md`](docs/RESEARCH.md)**, summarized in-app on the About tab.
+
 Two demos ship: **Generative_AI** (binary violative-style classification with L2 subcategories and boundary nodes) and **MNIST_Digits** (10-class, proving the same graph machinery beyond binary). Both run from a committed portable data fixture — a fresh clone works end to end.
 
 ---

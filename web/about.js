@@ -118,6 +118,33 @@ re-adjudication= I_base · amp · (1 − p_human)       → ranks the human queu
     <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
     (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror
     the <code>rush.sample_gradient</code> / <code>rush.panel_signal</code> SQL views.</p>
+
+    <h2>Open research questions — is textual policy-gradient descent sound?</h2>
+    <p>RUSH treats the policy prompt as the parameter and runs textual gradient descent on it. The crank
+    is the harness for testing whether that optimizer is sound. The methodological spine: <strong>every
+    gradient / stack-ranked strategy is compared against random selection</strong> on the same seed —
+    random is the null hypothesis the gradient has to beat. Full writeup in
+    <code>docs/RESEARCH.md</code>.</p>
+    <ul>
+      <li><strong>Overfitting / generalization</strong> — does an edit learn a general rule ("fire is
+      hot") or a hyper-specific one ("the blue [stove] ring is hot", which fails on the red ring, or
+      memorizes the training image)? Measured by the train → test → holdout → benchmark generalization
+      gap; the fixed cross-run benchmark exists for exactly this. Regularizers: the ≤5-change clip, the
+      gate's trust region, the "no per-image answers" drafter constraint, and the aligned anchors.</li>
+      <li><strong>Convergence, two senses</strong> — (a) does DQ plateau over accepted steps on the
+      <em>honest</em> holdout/benchmark curve (not the winner's-curse-biased gate set), and does the SME
+      queue shrink to a trickle? (b) the chaos sense: run the same config under different seeds — do the
+      final policy documents converge, or does a positive Lyapunov exponent send them to wildly different
+      policies (measured as spread in policy-embedding space)?</li>
+      <li><strong>Random vs stack-ranked selection</strong> — the central ablation: does ranking anchors
+      by the four-tier importance converge faster / higher / with fewer human touches than random
+      sampling? If not, the gradient formalism isn't earning its complexity — itself a result.</li>
+      <li><strong>Prompt-tuning architectures</strong> — the drafter is one optimizer; the crank A/Bs it
+      against reflective / GEPA-style / node-statistic alternatives on the same seeds and splits.</li>
+    </ul>
+    <p class="hint">Known bias to fix before publishing: the gate's winner's curse (one noisy eval,
+    ε=0, inherited baseline). Mitigations to A/B — ε&gt;0, paired incumbent re-eval, N-consecutive-wins —
+    and always report lift from the holdout/benchmark, never the gate set alone.</p>
   </div>`;
 
   function init() {
