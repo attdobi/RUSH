@@ -1115,3 +1115,23 @@ def test_select_anchors_top_importance_leads_with_confident_unanimous_wrong():
     anchors = exp.select_anchors(records, seed=1, k=1, max_anchors=3,
                                  strategy="top_importance")
     assert anchors[0]["image_id"] == "systematic"
+
+
+def test_importance_tie_is_low_consensus_not_high():
+    # An even split (1-1, 2-2) has consensus fraction exactly 0.5 — a TIE, not
+    # consensus. It must land in the low-consensus tier (T2 misaligned / T3
+    # aligned), never T1/T4. The continuous score is unaffected (only the badge).
+    tie_misaligned = exp.importance_scores(
+        sme_fraction=0.0, consensus_fraction=0.5, majority_aligned=False,
+        mean_grad=0.5, boundary_rate=0.0)
+    assert tie_misaligned["tier"] == 2
+    real_consensus = exp.importance_scores(
+        sme_fraction=0.0, consensus_fraction=0.75, majority_aligned=False,
+        mean_grad=0.5, boundary_rate=0.0)
+    assert real_consensus["tier"] == 1
+    # A 4-judge 2-2 split, both pairs wrong different ways, is tier 2 via panel_signal.
+    sig = exp.panel_signal({"sme_truth": "7", "votes": [
+        {"label": "1", "confidence": 0.9}, {"label": "1", "confidence": 0.9},
+        {"label": "3", "confidence": 0.9}, {"label": "3", "confidence": 0.9}]})
+    assert sig["consensus"]["fraction"] == 0.5 and sig["consensus"]["tie"] is True
+    assert sig["importance"]["tier"] == 2

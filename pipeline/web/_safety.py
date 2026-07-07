@@ -465,11 +465,13 @@ def validate_cascade_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _experiment_strategy(value: object) -> str:
     strategy = str(value or "random_misalignment")
-    allowed = {"random_misalignment", "top_gradient"}
-    if strategy not in allowed:
+    # Derive the allow-set from the canonical tuple so a new strategy never
+    # gets 400'd here after the CLI/UI already offer it (top_importance did).
+    from pipeline.experiment import STRATEGIES
+    if strategy not in STRATEGIES:
         raise APIError(
             400, "validation_error",
-            "strategy must be one of: " + ", ".join(sorted(allowed)),
+            "strategy must be one of: " + ", ".join(STRATEGIES),
             details={"field": "strategy"},
         )
     return strategy

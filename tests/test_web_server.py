@@ -417,5 +417,12 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
     assert request["strategy"] == "top_gradient"
     assert request["drafter_model"] == "openai/gpt-5.4-mini-low"
 
+    # Every strategy the backend/UI offers must validate here — the web layer
+    # can't be stricter than the CLI (top_importance regression).
+    from pipeline.experiment import STRATEGIES
+    for strategy in STRATEGIES:
+        assert validate_experiment_payload(
+            _experiment_payload(strategy=strategy))["strategy"] == strategy
+
     with pytest.raises(APIError):
         validate_experiment_payload(_experiment_payload(strategy="s9_hunches"))

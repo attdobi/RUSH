@@ -1095,7 +1095,10 @@ def _avg(values: list[float]) -> float | None:
 # Two derived scores then amplify by the panel's confidence (mean |g|) and its
 # boundary rate; re-adjudication additionally fades with the human-label
 # confidence, because a re-confirmed golden label barely needs another look.
-CONSENSUS_HIGH = 0.5     # k threshold for the discrete tier badge
+# k threshold for the discrete tier badge. STRICT (k > 0.5): a plurality that
+# is only half the panel is a TIE, not consensus — an even split (1-1, 2-2)
+# lands in the low-consensus tier, not the high one.
+CONSENSUS_HIGH = 0.5
 GRAD_WEIGHT = 1.0        # confidence amplifier: x (1 + w * mean|g|)
 BOUNDARY_WEIGHT = 0.5    # boundary amplifier:   x (1 + w * boundary_rate)
 
@@ -1121,10 +1124,11 @@ def importance_scores(*, sme_fraction, consensus_fraction, majority_aligned,
     amp = (1.0 + GRAD_WEIGHT * (mean_grad or 0.0)) * (1.0 + BOUNDARY_WEIGHT * (boundary_rate or 0.0))
     anchor = base * amp
     h = human_confidence(sme_confirmations)
+    high_consensus = k > CONSENSUS_HIGH   # strict: an even-split tie is NOT consensus
     if majority_aligned:
-        tier = 4 if k >= CONSENSUS_HIGH else 3
+        tier = 4 if high_consensus else 3
     else:
-        tier = 1 if k >= CONSENSUS_HIGH else 2
+        tier = 1 if high_consensus else 2
     return {
         "base": round(base, 6),
         "tier": tier,
