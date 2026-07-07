@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r34" />
-  <script src="demos.js?v=demo-mnist-kdd-r34"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r35" />
+  <script src="demos.js?v=demo-mnist-kdd-r35"></script>
 </head>
 <body>
   <header class="hero">
@@ -26,6 +26,7 @@
         <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
         <button class="view-switcher-option" type="button" data-view="summary" aria-pressed="false">Run summary</button>
         <button class="view-switcher-option" type="button" data-view="adjudicate" aria-pressed="false">Adjudicate</button>
+        <button class="view-switcher-option" type="button" data-view="about" aria-pressed="false">About</button>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
         <div class="topbar-action-links">
@@ -104,8 +105,11 @@
             <select id="experimentStrategy">
               <option value="random_misalignment" selected>random misalignments (S1)</option>
               <option value="top_gradient">top gradient |g| — most informative first</option>
+              <option value="top_importance">top importance — 4-tier (misalignment × consensus × boundary)</option>
             </select>
           </label>
+          <label title="misaligned (error/SVM) anchors sent to the drafter">Misaligned<input id="experimentMaxAnchors" type="number" value="10" min="1" max="20"></label>
+          <label title="correctly-classified anchors sent alongside so the drafter learns from correct calls too (0 = off)">Aligned<input id="experimentMaxAlignedAnchors" type="number" value="10" min="0" max="20"></label>
           <label>Max changes<input id="experimentMaxChanges" type="number" value="5" min="1" max="5"></label>
         </div>
         <div class="run-controls experiment-config-row" aria-label="Gate and readouts">
@@ -224,26 +228,27 @@
         <p class="eyebrow">Adjudication queue</p>
         <h2>Still misaligned after the loop — flagged for a human SME.</h2>
         <p>The running cross-run list: every train / test / holdout / benchmark image whose latest
-        evaluation still shows a misalignment, with the run number(s) that flagged it. Stack-ranked
-        by LLM consensus (or lack of it), then the judges' confidence and difficulty, averaged across
-        the panel — or by the per-sample gradient |g| = 1&#8722;p, which puts confident-wrong panels first
-        (the strongest hint that the policy, or the golden label itself, needs a human look).
-        Dry runs never queue human work.</p>
+        evaluation still shows a misalignment, deduped by image and tagged with the run number(s)
+        that flagged it. Two distinct signals rank it — <strong>SME agreement</strong> (LLM&#8596;human)
+        and <strong>LLM consensus</strong> (LLM&#8596;LLM, SME-blind) — combined into the four-tier
+        importance. <strong>Click any column header to sort by it.</strong> Full definitions are on the
+        <a href="#about" class="inline-link">About tab</a>. Dry runs never queue human work.</p>
+        <p class="adjudicate-tier-legend">
+          <span class="adjudicate-tier adjudicate-tier--1">T1</span> misaligned + high consensus (worst)
+          <span class="adjudicate-tier adjudicate-tier--2">T2</span> misaligned + low consensus
+          <span class="adjudicate-tier adjudicate-tier--3">T3</span> aligned + low consensus
+          <span class="adjudicate-tier adjudicate-tier--4">T4</span> aligned + high consensus (ideal)
+        </p>
       </div>
       <div class="run-controls" aria-label="Adjudication controls">
-        <label>Rank by
-          <select id="adjudicateSort">
-            <option value="composite">consensus &#8594; confidence &#8594; difficulty</option>
-            <option value="gradient">gradient |g| — confident-wrong first</option>
-            <option value="loss">loss &#8722;ln p</option>
-            <option value="runs">times flagged</option>
-          </select>
-        </label>
         <button id="adjudicateRefresh" type="button">Refresh</button>
         <span id="adjudicateStatusLine" class="status-line" role="status"></span>
       </div>
       <div id="adjudicateSummary" class="experiment-summary"></div>
       <div id="adjudicateTable"></div>
+    </section>
+    <section id="about" data-view="about" class="section api-section">
+      <div id="aboutContent"></div>
     </section>
     <details id="provenance" class="section provenance-section">
       <summary>How this policy was created — provenance &amp; Gp-0 prompt spec</summary>
@@ -255,13 +260,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r34"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r34"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r34"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r34"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r34"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r34"></script>
+  <script src="app.js?v=demo-mnist-kdd-r35"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r35"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r35"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r35"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r35"></script>
+  <script src="about.js?v=demo-mnist-kdd-r35"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r35"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r34"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r35"></script>
 </body>
 </html>

@@ -314,6 +314,9 @@ def test_drafter_prompt_formats_and_targets_subnodes():
     assert "boundary node" in rendered
     assert "frozen" in rendered  # the root is not a dumping ground
     assert "abstain" in rendered  # decisive-label rule retained
+    # Two anchor sets: fix the misaligned without regressing the aligned.
+    assert "MISALIGNED" in rendered and "ALIGNED" in rendered
+    assert "regress" in rendered
 
 
 def test_gate_off_accepts_regardless_of_metric_and_agent():
@@ -707,11 +710,16 @@ def test_build_readjudication_sources_and_ranking():
     assert items["train_a"]["source"]["k"] == 1
     assert items["test_c"]["source"]["policy"] == "MNIST_Digits.v0.2"
     assert items["bench_d"]["source"]["policy"] == "MNIST_Digits.v0.2"
-    # default stack rank: no machine signal first (all-abstain), then the
-    # split panel, then unanimous-wrong panels by ascending confidence
+    # Four-tier importance rank: the confident-unanimous-wrong panels (T1)
+    # lead, most-confident first (test_c @0.95 > train_a @0.9); the split
+    # panel (train_b) next; the no-signal all-abstain panel (bench_d) last.
     assert [i["image_id"] for i in block["items"]] == [
-        "bench_d", "train_b", "train_a", "test_c",
+        "test_c", "train_a", "train_b", "bench_d",
     ]
+    # T1 = misaligned (majority disagrees with SME) + high LLM-consensus.
+    assert items["test_c"]["importance"]["tier"] == 1
+    assert items["test_c"]["sme_agreement"]["fraction"] == 0.0
+    assert items["test_c"]["consensus"]["fraction"] == 1.0
 
 
 def test_build_readjudication_falls_back_to_baseline_test():
@@ -958,3 +966,152 @@ def test_build_drafter_messages_attaches_images_per_provider():
     }
     # System stays a plain string either way (anthropic flattens it to text).
     assert isinstance(openai_msgs[0]["content"], str)
+
+
+# ---------------------------------------------------------------------------
+# Aligned anchors (Attila 2026-07-07): learn from correct classifications too
+
+
+def test_select_aligned_anchors_picks_only_correct_and_respects_cap():
+    records = ([_mis(f"ok{i}", "all_agree") for i in range(15)]
+               + [_mis(f"bad{i}") for i in range(5)])
+    aligned = exp.select_aligned_anchors(records, seed=5, k=1, max_aligned=8)
+    assert len(aligned) == 8
+    assert all(a["misalignment_type"] == "all_agree" for a in aligned)
+    # seeded + reproducible; varies by cycle k
+    assert aligned == exp.select_aligned_anchors(records, seed=5, k=1, max_aligned=8)
+    assert aligned != exp.select_aligned_anchors(records, seed=5, k=2, max_aligned=8)
+
+
+def test_select_aligned_anchors_respects_train_ids_and_disable():
+    records = [_mis("in1", "all_agree"), _mis("out1", "all_agree"),
+               _mis("in2", "consensus_wrong")]
+    aligned = exp.select_aligned_anchors(records, seed=1, k=1, max_aligned=5,
+                                         train_ids=["in1", "in2"])
+    assert [a["image_id"] for a in aligned] == ["in1"]  # out1 excluded, in2 not all_agree
+    # max_aligned == 0 disables the aligned side entirely
+    assert exp.select_aligned_anchors(records, seed=1, k=1, max_aligned=0) == []
+
+
+def test_build_drafter_messages_carries_aligned_anchors_and_images():
+    mis = [{"image_id": "wrong1", "sme_truth": "4", "misalignment_type": "consensus_wrong",
+            "severity": "high", "votes": []}]
+    aligned = [{"image_id": "right1", "sme_truth": "8", "misalignment_type": "all_agree",
+                "severity": "low", "votes": []}]
+    mis_imgs = [{"image_id": "wrong1", "sme_truth": "4", "mime_type": "image/jpeg", "b64": "QUJD"}]
+    aligned_imgs = [{"image_id": "right1", "sme_truth": "8", "mime_type": "image/jpeg", "b64": "WFla"}]
+
+    # Text-only path still carries aligned_samples in the JSON payload.
+    plain = exp.build_drafter_messages(
+        policy_markdown="# p", base_version="v0.1", area="MNIST_Digits",
+        anchors=mis, aligned_anchors=aligned, max_changes=1, k=2)
+    payload = json.loads(plain[1]["content"])
+    assert [s["image_id"] for s in payload["misaligned_samples"]] == ["wrong1"]
+    assert [s["image_id"] for s in payload["aligned_samples"]] == ["right1"]
+
+    # Multimodal: BOTH image groups attach, each labeled, aligned marked correct.
+    msgs = exp.build_drafter_messages(
+        policy_markdown="# p", base_version="v0.1", area="MNIST_Digits",
+        anchors=mis, aligned_anchors=aligned, max_changes=1, k=2,
+        anchor_images=mis_imgs, aligned_images=aligned_imgs, provider="openai")
+    parts = msgs[1]["content"]
+    urls = [p["image_url"]["url"] for p in parts if p.get("type") == "image_url"]
+    assert urls == ["data:image/jpeg;base64,QUJD", "data:image/jpeg;base64,WFla"]
+    texts = " ".join(p.get("text", "") for p in parts if p.get("type") == "text")
+    assert "MISALIGNED" in texts and "ALIGNED" in texts and "CORRECTLY" in texts
+
+    # Aligned images alone (misaligned images suppressed) still trigger multimodal.
+    only_aligned = exp.build_drafter_messages(
+        policy_markdown="# p", base_version="v0.1", area="MNIST_Digits",
+        anchors=mis, aligned_anchors=aligned, max_changes=1, k=2,
+        aligned_images=aligned_imgs, provider="openai")
+    assert isinstance(only_aligned[1]["content"], list)
+
+
+# ---------------------------------------------------------------------------
+# Wave 7: the importance formalism — SME alignment vs LLM consensus, 4 tiers
+
+
+def _panel(truth, votes):
+    return _mis_record("x", truth, votes, mis_type="model_vs_sme")
+
+
+def test_panel_signal_splits_sme_alignment_from_llm_consensus():
+    # 4 judges, SME truth = 7. Three say "1" (wrong, agree with each other),
+    # one says "7" (right). LLM consensus is HIGH (3/4 on "1"); SME agreement
+    # is LOW (1/4 match the human). The two signals must not be conflated.
+    sig = exp.panel_signal(_panel("7", [
+        {"label": "1", "confidence": 0.9, "difficulty": "high"},
+        {"label": "1", "confidence": 0.9, "difficulty": "high"},
+        {"label": "1", "confidence": 0.8, "difficulty": "medium"},
+        {"label": "7", "confidence": 0.6, "difficulty": "low"},
+    ]))
+    assert sig["consensus"]["fraction"] == 0.75          # LLM<->LLM
+    assert sig["sme_agreement"]["fraction"] == 0.25      # LLM<->SME
+    assert sig["sme_agreement"]["n_agree"] == 1
+    assert sig["majority_aligned"] is False              # plurality "1" != 7
+    assert sig["importance"]["tier"] == 1                # misaligned + high consensus
+
+
+def test_importance_four_tier_ordering():
+    def score(sme_frac, consensus, aligned):
+        return exp.importance_scores(
+            sme_fraction=sme_frac, consensus_fraction=consensus,
+            majority_aligned=aligned, mean_grad=0.5, boundary_rate=0.0,
+        )
+    t1 = score(0.0, 1.0, False)   # misaligned + high consensus
+    t2 = score(0.0, 0.34, False)  # misaligned + low consensus
+    t3 = score(1.0, 0.34, True)   # aligned + low consensus
+    t4 = score(1.0, 1.0, True)    # aligned + high consensus (ideal)
+    assert (t1["tier"], t2["tier"], t3["tier"], t4["tier"]) == (1, 2, 3, 4)
+    # The continuous base score respects the same ordering.
+    assert t1["base"] > t2["base"] > t3["base"] > t4["base"]
+
+
+def test_importance_boundary_and_confidence_amplify():
+    plain = exp.importance_scores(sme_fraction=0.0, consensus_fraction=1.0,
+                                  majority_aligned=False, mean_grad=0.0,
+                                  boundary_rate=0.0)
+    boundaried = exp.importance_scores(sme_fraction=0.0, consensus_fraction=1.0,
+                                       majority_aligned=False, mean_grad=0.9,
+                                       boundary_rate=1.0)
+    assert boundaried["anchor"] > plain["anchor"]        # both amplifiers raise it
+    assert boundaried["tier"] == plain["tier"] == 1      # tier is amplifier-blind
+
+
+def test_human_confidence_fades_readjudication():
+    assert exp.human_confidence(0) == 0.0
+    assert exp.human_confidence(1) == pytest.approx(0.166667, abs=1e-5)
+    assert exp.human_confidence(2) == pytest.approx(0.545455, abs=1e-5)
+    assert exp.human_confidence(3) > exp.human_confidence(2)
+    # A re-confirmed label (m=3) has far lower re-adjudication priority than a
+    # default single-confirmation one, with identical panel evidence.
+    common = dict(sme_fraction=0.0, consensus_fraction=1.0, majority_aligned=False,
+                  mean_grad=0.9, boundary_rate=0.0)
+    fresh = exp.importance_scores(**common, sme_confirmations=1)
+    confirmed = exp.importance_scores(**common, sme_confirmations=3)
+    assert confirmed["readjudication"] < fresh["readjudication"]
+    assert confirmed["anchor"] == fresh["anchor"]        # policy value is unchanged
+
+
+def test_select_anchors_top_importance_leads_with_confident_unanimous_wrong():
+    records = [
+        # aligned, unanimous (T4) — least important
+        _mis_record("aligned", "7", [
+            {"label": "7", "confidence": 0.9, "difficulty": "low"},
+            {"label": "7", "confidence": 0.9, "difficulty": "low"},
+        ], mis_type="model_vs_sme"),
+        # misaligned, split (T2)
+        _mis_record("split", "7", [
+            {"label": "1", "confidence": 0.6, "difficulty": "medium"},
+            {"label": "3", "confidence": 0.6, "difficulty": "medium"},
+        ]),
+        # misaligned, unanimous & confident (T1) — most important
+        _mis_record("systematic", "7", [
+            {"label": "1", "confidence": 0.95, "difficulty": "high"},
+            {"label": "1", "confidence": 0.95, "difficulty": "high"},
+        ]),
+    ]
+    anchors = exp.select_anchors(records, seed=1, k=1, max_anchors=3,
+                                 strategy="top_importance")
+    assert anchors[0]["image_id"] == "systematic"

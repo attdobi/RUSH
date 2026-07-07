@@ -2722,10 +2722,44 @@ main { padding-bottom: 82px; }
 .view-switcher-option[aria-pressed="true"] { background: var(--blue); color: #06101f; }
 .view-switcher-option:hover { color: var(--text); }
 .view-switcher-option[aria-pressed="true"]:hover { color: #06101f; }
-/* Tabs: sections opt into a view via data-view. Default (no JS) shows all. */
-body.view-loop section[data-view="summary"], body.view-loop section[data-view="adjudicate"] { display: none !important; }
-body.view-summary section[data-view="loop"], body.view-summary section[data-view="adjudicate"] { display: none !important; }
-body.view-adjudicate section[data-view="loop"], body.view-adjudicate section[data-view="summary"] { display: none !important; }
+/* Tabs: sections opt into a view via data-view. Default (no JS) shows all;
+   each active view hides the three sections that aren't its own. */
+body.view-loop section[data-view="summary"], body.view-loop section[data-view="adjudicate"], body.view-loop section[data-view="about"] { display: none !important; }
+body.view-summary section[data-view="loop"], body.view-summary section[data-view="adjudicate"], body.view-summary section[data-view="about"] { display: none !important; }
+body.view-adjudicate section[data-view="loop"], body.view-adjudicate section[data-view="summary"], body.view-adjudicate section[data-view="about"] { display: none !important; }
+body.view-about section[data-view="loop"], body.view-about section[data-view="summary"], body.view-about section[data-view="adjudicate"] { display: none !important; }
+
+/* Adjudication queue: tier badges, sortable headers, alignment cells */
+.adjudicate-table-scroll { overflow-x: auto; }
+.adjudicate-table { min-width: 940px; }
+.adjudicate-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.adjudicate-sortable:hover { color: var(--text); }
+.adjudicate-sorted { color: var(--text); }
+.adjudicate-misaligned { color: var(--red); font-weight: 700; }
+.adjudicate-tier { display: inline-block; border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: 800; letter-spacing: .02em; }
+.adjudicate-tier--1 { color: #1a0710; background: var(--red); }
+.adjudicate-tier--2 { color: #1a1207; background: var(--amber, #ffce6a); }
+.adjudicate-tier--3 { color: #06101f; background: var(--blue, #82b5ff); }
+.adjudicate-tier--4 { color: #04140d; background: var(--green, #4de0a6); }
+.adjudicate-tier-legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.adjudicate-tier-legend .adjudicate-tier { margin-left: 10px; }
+.adjudicate-tier-legend .adjudicate-tier:first-child { margin-left: 0; }
+.inline-link { color: var(--blue, #82b5ff); text-decoration: underline; }
+
+/* About this demo — the metric formalism writeup */
+.about-doc { max-width: 68ch; }
+.about-doc h2 { margin: 26px 0 8px; font-size: 20px; }
+.about-doc h3 { margin: 22px 0 6px; font-size: 15px; color: var(--text); }
+.about-doc p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
+.about-doc ul { margin: 8px 0; padding-left: 20px; color: var(--muted); line-height: 1.6; }
+.about-doc li { margin: 4px 0; }
+.about-doc code, .about-doc .about-formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.about-doc code { background: rgba(130, 181, 255, .12); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; color: var(--text); }
+.about-formula { display: block; margin: 10px 0; padding: 10px 14px; border-left: 3px solid var(--blue, #82b5ff); background: rgba(8, 16, 31, .55); color: var(--text); font-size: 13px; white-space: pre-wrap; }
+.about-doc strong { color: var(--text); }
+.about-tier-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+.about-tier-table th, .about-tier-table td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+.about-tier-table th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 
 /* Config groups (wave 6 menu cleanup) */
 .experiment-config-row { align-items: center; }

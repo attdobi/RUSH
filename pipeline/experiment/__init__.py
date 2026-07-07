@@ -66,9 +66,11 @@ DEFAULT_DRAFTER_MODEL = "openai/gpt-5.5"
 DEFAULT_MAX_CHANGES = 5
 MAX_CHANGES_HARD_CAP = 5  # Attila: "limit to 1, max 5 changes at a time"
 DEFAULT_STRATEGY = "random_misalignment"  # S1; S2-S4 are the next experiments
-# Anchor-selection strategies the driver accepts. top_gradient is the
-# S5-flavored "most important misalignments" ranking (avg |g| descending).
-STRATEGIES = ("random_misalignment", "top_gradient")
+# Anchor-selection strategies the driver accepts. top_gradient ranks by avg
+# |g| (confidence x error) descending; top_importance ranks by the full
+# four-tier importance score (misalignment x LLM-consensus x confidence x
+# boundary) — "leverage all information to stack-rank the anchors" (Attila).
+STRATEGIES = ("random_misalignment", "top_gradient", "top_importance")
 GATE_METRIC = "test_system_macro_f1"
 
 _EXPERIMENT_ID_RE = re.compile(r"^exp-[0-9]{8}T[0-9]{6}-[a-f0-9]{6}$")
@@ -224,6 +226,14 @@ def select_anchors(
             return (-(magnitude if magnitude is not None else 2.0),
                     str(record.get("image_id")))
         return sorted(eligible, key=_grad_key)[:max_anchors]
+    if strategy == "top_importance":
+        def _imp_key(record: dict[str, Any]) -> tuple[float, str]:
+            # Full four-tier anchor value: misalignment x LLM-consensus x
+            # confidence x boundary. T1 (unanimous & wrong) leads.
+            score = (panel_signal(record).get("importance") or {}).get("anchor")
+            return (-(score if score is not None else 0.0),
+                    str(record.get("image_id")))
+        return sorted(eligible, key=_imp_key)[:max_anchors]
     rng = random.Random(f"{seed}:anchors:{k}")
     if len(eligible) <= max_anchors:
         return eligible
@@ -778,74 +788,36 @@ DRAFTER_SYSTEM_PROMPT = (
 )
 
 
-def build_drafter_messages(
-    *,
-    policy_markdown: str,
-    base_version: str,
-    area: str,
-    anchors: list[dict[str, Any]],
-    max_changes: int,
-    k: int,
-    anchor_images: list[dict[str, Any]] | None = None,
-    provider: str = "openai",
-) -> list[dict[str, Any]]:
-    """Assemble the drafter packet: current bundle + anchors + the budget.
-
-    ``anchor_images`` (Attila 2026-07-07: "feed the misaligned images back")
-    attaches the actual anchor images so the drafter SEES what the judges
-    misread instead of reasoning from justifications alone. Each entry:
-    ``{"image_id", "sme_truth", "mime_type", "b64"}``. When provided, the
-    user message content becomes a provider-shaped parts array (OpenAI
-    ``image_url`` data URLs / Anthropic base64 ``image`` blocks — both chat
-    transports forward user content verbatim). Without it the message stays
-    a plain string (dry runs, old tests).
-    """
-    payload = {
-        "task": (
-            "Improve the policy so ALL judges (and human raters) decide these "
-            "misaligned samples correctly — without regressing the rest."
-        ),
-        "area": area,
-        "base_version": base_version,
-        "cycle_k": k,
-        "max_changes": max_changes,
-        "policy_markdown": policy_markdown,
-        "misaligned_samples": [
+def _anchor_sample_block(anchor: dict[str, Any]) -> dict[str, Any]:
+    """Compact per-anchor record for the drafter text payload."""
+    return {
+        "image_id": anchor.get("image_id"),
+        "sme_truth": anchor.get("sme_truth"),
+        "misalignment_type": anchor.get("misalignment_type"),
+        "severity": anchor.get("severity"),
+        "votes": [
             {
-                "image_id": a.get("image_id"),
-                "sme_truth": a.get("sme_truth"),
-                "misalignment_type": a.get("misalignment_type"),
-                "severity": a.get("severity"),
-                "votes": [
-                    {
-                        "model": _common.labeler_id_for(v),
-                        "label": v.get("label"),
-                        "confidence": v.get("confidence"),
-                        "is_boundary": v.get("is_boundary"),
-                        "difficulty": v.get("difficulty"),
-                        "justification": str(v.get("justification", ""))[:400],
-                    }
-                    for v in a.get("votes", [])
-                ],
+                "model": _common.labeler_id_for(v),
+                "label": v.get("label"),
+                "confidence": v.get("confidence"),
+                "is_boundary": v.get("is_boundary"),
+                "difficulty": v.get("difficulty"),
+                "justification": str(v.get("justification", ""))[:400],
             }
-            for a in anchors
+            for v in anchor.get("votes", [])
         ],
     }
-    system = {
-        "role": "system",
-        "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
-    }
-    if not anchor_images:
-        return [system, {"role": "user", "content": json.dumps(payload, indent=2)}]
 
-    parts: list[dict[str, Any]] = [
-        {"type": "text", "text": json.dumps(payload, indent=2)},
-        {"type": "text", "text": (
-            "The misaligned anchor images follow, in order. Look at each one: "
-            "the visual evidence outranks any judge's justification."
-        )},
-    ]
-    for image in anchor_images:
+
+def _append_image_parts(
+    parts: list[dict[str, Any]], images: list[dict[str, Any]], *,
+    provider: str, lead: str,
+) -> None:
+    """Append a labeled group of image blocks (provider-shaped) to ``parts``."""
+    if not images:
+        return
+    parts.append({"type": "text", "text": lead})
+    for image in images:
         parts.append({"type": "text", "text": (
             f"anchor {image.get('image_id')} — SME truth: {image.get('sme_truth')}"
         )})
@@ -858,6 +830,75 @@ def build_drafter_messages(
             parts.append({"type": "image_url", "image_url": {
                 "url": f"data:{mime};base64,{image['b64']}",
             }})
+
+
+def build_drafter_messages(
+    *,
+    policy_markdown: str,
+    base_version: str,
+    area: str,
+    anchors: list[dict[str, Any]],
+    max_changes: int,
+    k: int,
+    aligned_anchors: list[dict[str, Any]] | None = None,
+    anchor_images: list[dict[str, Any]] | None = None,
+    aligned_images: list[dict[str, Any]] | None = None,
+    provider: str = "openai",
+) -> list[dict[str, Any]]:
+    """Assemble the drafter packet: current bundle + both anchor sets + budget.
+
+    Two anchor sets (Attila 2026-07-07: "aligned and misaligned anchors"):
+    ``anchors`` are the panel's misalignments (the SVM/boundary errors to
+    fix); ``aligned_anchors`` are a sample of correctly-classified images
+    (the successes to protect). Both go to the drafter as text (compact vote
+    records) and — when the corresponding ``*_images`` are supplied — as the
+    actual images, so the drafter SEES what the panel misread AND what it got
+    right instead of reasoning from justifications alone. Each image entry:
+    ``{"image_id", "sme_truth", "mime_type", "b64"}``.
+
+    When either image set is provided the user message content becomes a
+    provider-shaped parts array (OpenAI ``image_url`` data URLs / Anthropic
+    base64 ``image`` blocks — both chat transports forward user content
+    verbatim). Without any images the message stays a plain string (dry runs,
+    old tests).
+    """
+    aligned_anchors = aligned_anchors or []
+    payload: dict[str, Any] = {
+        "task": (
+            "Improve the policy so ALL judges (and human raters) decide the "
+            "MISALIGNED samples correctly, WITHOUT regressing the ALIGNED "
+            "samples (already correct) or the rest of the set."
+        ),
+        "area": area,
+        "base_version": base_version,
+        "cycle_k": k,
+        "max_changes": max_changes,
+        "policy_markdown": policy_markdown,
+        "misaligned_samples": [_anchor_sample_block(a) for a in anchors],
+        "aligned_samples": [_anchor_sample_block(a) for a in aligned_anchors],
+    }
+    system = {
+        "role": "system",
+        "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
+    }
+    if not anchor_images and not aligned_images:
+        return [system, {"role": "user", "content": json.dumps(payload, indent=2)}]
+
+    parts: list[dict[str, Any]] = [
+        {"type": "text", "text": json.dumps(payload, indent=2)},
+    ]
+    _append_image_parts(
+        parts, anchor_images or [], provider=provider,
+        lead=("The MISALIGNED anchor images follow, in order — the panel got "
+              "these WRONG. Look at each: the visual evidence outranks any "
+              "judge's justification."),
+    )
+    _append_image_parts(
+        parts, aligned_images or [], provider=provider,
+        lead=("The ALIGNED anchor images follow — the panel classified these "
+              "CORRECTLY. Use them as positive references; your edit must not "
+              "regress them."),
+    )
     return [system, {"role": "user", "content": parts}]
 
 
@@ -972,8 +1013,9 @@ def build_run_summary(state: dict[str, Any]) -> dict[str, Any]:
             key: state.get(key)
             for key in (
                 "k_max", "batch_n", "test_n", "max_changes", "max_anchors",
-                "epsilon", "strategy", "gate_mode", "gate_model",
-                "drafter_model", "judge_models", "concurrency", "dry_run",
+                "max_aligned_anchors", "epsilon", "strategy", "gate_mode",
+                "gate_model", "drafter_model", "judge_models", "concurrency",
+                "dry_run",
             )
         },
         "policy": {
@@ -1033,31 +1075,119 @@ def _avg(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 6) if values else None
 
 
+# --- The importance formalism (Attila 2026-07-07) --------------------------
+# A multi-LLM judge over item i produces TWO alignment signals the single-vote
+# gradient (p, |g|) cannot express:
+#
+#   SME agreement  a = (#judges whose label == SME truth) / N_decisive
+#                      — how aligned the panel is with the HUMAN label.
+#                      Misalignment m = 1 - a.
+#   LLM consensus  k = (#judges on the modal label) / N_decisive
+#                      — how much the LLMs agree with EACH OTHER (SME-blind).
+#
+# Consensus flips meaning with alignment, giving the four-tier hierarchy:
+#   T1 misaligned + high k  (unanimous & wrong — systematic; the WORST)
+#   T2 misaligned + low  k  (split & wrong)
+#   T3 aligned    + low  k  (right but the panel argued — still instructive)
+#   T4 aligned    + high k  (unanimous & right — the ideal state)
+# Base importance reproduces that ordering continuously:
+#   I_base = m + k*(2m - 1)   in [-1, 2]      (normalized -> [0,1])
+# Two derived scores then amplify by the panel's confidence (mean |g|) and its
+# boundary rate; re-adjudication additionally fades with the human-label
+# confidence, because a re-confirmed golden label barely needs another look.
+CONSENSUS_HIGH = 0.5     # k threshold for the discrete tier badge
+GRAD_WEIGHT = 1.0        # confidence amplifier: x (1 + w * mean|g|)
+BOUNDARY_WEIGHT = 0.5    # boundary amplifier:   x (1 + w * boundary_rate)
+
+
+def human_confidence(sme_confirmations: int = 1) -> float:
+    """p_human = 1 - 1/(m + 0.2), m = # SME confirmations of the golden label.
+
+    HIS formula: m=1 (default) -> 0.167, m=2 -> 0.545, m=3 -> 0.688; m=0 -> 0.
+    Re-adjudication priority is multiplied by (1 - p_human), so a re-confirmed
+    label drops toward zero priority.
+    """
+    m = max(0, int(sme_confirmations))
+    return 0.0 if m == 0 else round(1.0 - 1.0 / (m + 0.2), 6)
+
+
+def importance_scores(*, sme_fraction, consensus_fraction, majority_aligned,
+                      mean_grad, boundary_rate, sme_confirmations=1):
+    """The four-tier hierarchy as a continuous score plus a discrete tier."""
+    a = sme_fraction if sme_fraction is not None else 0.0   # all-abstain -> 0
+    k = consensus_fraction if consensus_fraction is not None else 0.0
+    m = 1.0 - a
+    base = (m + k * (2.0 * m - 1.0) + 1.0) / 3.0            # [-1,2] -> [0,1]
+    amp = (1.0 + GRAD_WEIGHT * (mean_grad or 0.0)) * (1.0 + BOUNDARY_WEIGHT * (boundary_rate or 0.0))
+    anchor = base * amp
+    h = human_confidence(sme_confirmations)
+    if majority_aligned:
+        tier = 4 if k >= CONSENSUS_HIGH else 3
+    else:
+        tier = 1 if k >= CONSENSUS_HIGH else 2
+    return {
+        "base": round(base, 6),
+        "tier": tier,
+        "anchor": round(anchor, 6),                        # policy-learning value
+        "readjudication": round(anchor * (1.0 - h), 6),    # human-review priority
+        "human_confidence": h,
+    }
+
+
 def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
     """Per-image rollup across the judge panel — the stack-rank substrate.
 
-    Mirrors rush.panel_signal on a misalignment record: consensus count and
-    fraction over decisive votes, confidence and difficulty averaged across
-    judges (low=0, medium=0.5, high=1), and the gradient block.
+    Mirrors rush.panel_signal and adds the multi-LLM alignment layer. Two
+    distinct agreement signals are reported: ``consensus`` is strictly
+    LLM<->LLM agreement (SME-blind — the fraction on the modal label);
+    ``sme_agreement`` is alignment with the human label (graded m/N, its sign
+    the majority-vote collapse used for accounting). Plus a boundary rate and
+    the four-tier importance scores (see ``importance_scores``).
     """
     truth = str(record.get("sme_truth"))
     votes = record.get("votes") or []
+    n_judges = len(votes)
     decisive = [v for v in votes
                 if v.get("label") and str(v.get("label")) != _common.ABSTAIN]
+    n_dec = len(decisive)
     counts = Counter(str(v["label"]) for v in decisive)
     top = counts.most_common()
     tie = len(top) > 1 and top[0][1] == top[1][1]
     majority_count = top[0][1] if top else 0
+    majority_label = top[0][0] if top and not tie else None
+    majority_aligned = majority_label is not None and majority_label == truth
+
+    n_agree = sum(1 for v in decisive if str(v.get("label")) == truth)
+    sme_fraction = round(n_agree / n_dec, 6) if n_dec else None
+    consensus_fraction = round(majority_count / n_dec, 6) if n_dec else None
+    boundary_votes = sum(1 for v in votes if v.get("is_boundary"))
+    boundary_rate = round(boundary_votes / n_judges, 6) if n_judges else 0.0
+
     grads = [g for g in (vote_gradient(v, truth) for v in decisive) if g]
+    mean_grad = _avg([g["magnitude"] for g in grads])
+    importance = importance_scores(
+        sme_fraction=sme_fraction, consensus_fraction=consensus_fraction,
+        majority_aligned=majority_aligned, mean_grad=mean_grad,
+        boundary_rate=boundary_rate,
+        sme_confirmations=int(record.get("sme_confirmations") or 1),
+    )
     return {
-        "n_judges": len(votes),
-        "majority_label": top[0][0] if top and not tie else None,
+        "n_judges": n_judges,
+        "majority_label": majority_label,
+        "majority_aligned": majority_aligned,
+        # LLM<->LLM agreement (SME-blind).
         "consensus": {
-            "decisive": len(decisive),
+            "decisive": n_dec,
             "majority_count": majority_count,
-            "fraction": (round(majority_count / len(decisive), 6)
-                         if decisive else None),
+            "fraction": consensus_fraction,
             "tie": tie,
+        },
+        # LLM<->SME agreement (graded m/N; the majority collapse is the sign).
+        "sme_agreement": {
+            "n_agree": n_agree,
+            "decisive": n_dec,
+            "fraction": sme_fraction,
+            "majority_aligned": majority_aligned,
         },
         "avg_confidence": _avg([float(v["confidence"]) for v in decisive
                                 if v.get("confidence") is not None]),
@@ -1065,33 +1195,31 @@ def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
                                   if v.get("difficulty") in DIFFICULTY_SCORE]),
         "gradient": {
             "n": len(grads),
-            "avg_magnitude": _avg([g["magnitude"] for g in grads]),
+            "avg_magnitude": mean_grad,
             "max_magnitude": (round(max(g["magnitude"] for g in grads), 6)
                               if grads else None),
             "avg_hessian": _avg([g["hessian"] for g in grads]),
             "avg_loss": _avg([g["loss"] for g in grads]),
         },
-        "any_boundary": any(bool(v.get("is_boundary")) for v in votes),
+        "boundary_rate": boundary_rate,
+        "any_boundary": boundary_votes > 0,
         "boundary_pairs": sorted({
             "↔".join(str(d) for d in (v.get("is_boundary_between") or []))
             for v in votes if v.get("is_boundary") and v.get("is_boundary_between")
         }),
+        "importance": importance,
     }
 
 
-def readjudication_sort_key(item: dict[str, Any]) -> tuple[float, float, float, str]:
-    """Attila's default stack rank: least consensus first, then least
-    confident, then hardest. Missing signal (all-abstain panels) outranks
-    everything — no machine verdict at all is the loudest call for a human."""
-    fraction = (item.get("consensus") or {}).get("fraction")
-    confidence = item.get("avg_confidence")
-    difficulty = item.get("difficulty_score")
-    return (
-        fraction if fraction is not None else -1.0,
-        confidence if confidence is not None else -1.0,
-        -(difficulty if difficulty is not None else 0.0),
-        str(item.get("image_id") or ""),
-    )
+def readjudication_sort_key(item: dict[str, Any]) -> tuple[float, str]:
+    """Default stack rank: the four-tier importance, most valuable first.
+
+    Misaligned-with-high-LLM-consensus (T1) leads — the panel is confidently,
+    unanimously wrong about the human label: the single most valuable case for
+    both re-adjudication and policy learning.
+    """
+    score = (item.get("importance") or {}).get("readjudication")
+    return (-(score if score is not None else 0.0), str(item.get("image_id") or ""))
 
 
 def build_readjudication(
@@ -1248,13 +1376,17 @@ def aggregate_readjudication(
                     "misalignment_type": item.get("misalignment_type"),
                     "severity": item.get("severity"),
                     "majority_label": item.get("majority_label"),
+                    "majority_aligned": item.get("majority_aligned"),
                     "n_judges": item.get("n_judges"),
                     "consensus": item.get("consensus"),
+                    "sme_agreement": item.get("sme_agreement"),
                     "avg_confidence": item.get("avg_confidence"),
                     "difficulty_score": item.get("difficulty_score"),
                     "gradient": item.get("gradient"),
+                    "boundary_rate": item.get("boundary_rate"),
                     "any_boundary": item.get("any_boundary"),
                     "boundary_pairs": item.get("boundary_pairs"),
+                    "importance": item.get("importance"),
                     "votes": item.get("votes"),
                 })
 
@@ -1275,21 +1407,25 @@ def aggregate_readjudication(
                                        if r.get("run_number") is not None})
         group["latest"] = runs[-1]
         group["agg"] = {
+            "importance": _mean(runs, lambda r: (r.get("importance") or {}).get("readjudication")),
+            "anchor": _mean(runs, lambda r: (r.get("importance") or {}).get("anchor")),
+            "sme_fraction": _mean(runs, lambda r: (r.get("sme_agreement") or {}).get("fraction")),
             "consensus_fraction": _mean(runs, lambda r: (r.get("consensus") or {}).get("fraction")),
             "avg_confidence": _mean(runs, lambda r: r.get("avg_confidence")),
             "difficulty_score": _mean(runs, lambda r: r.get("difficulty_score")),
             "grad_magnitude": _mean(runs, lambda r: (r.get("gradient") or {}).get("avg_magnitude")),
             "loss": _mean(runs, lambda r: (r.get("gradient") or {}).get("avg_loss")),
+            "boundary_rate": _mean(runs, lambda r: r.get("boundary_rate")),
             "any_boundary": any(r.get("any_boundary") for r in runs),
+            # Worst (lowest-numbered) tier the item ever hit — the reason to look.
+            "worst_tier": min((r.get("importance") or {}).get("tier") or 4 for r in runs),
         }
         items.append(group)
 
-    # Default order = the same composite the per-run queue uses, computed on
-    # the cross-run averages; the web tab re-sorts client-side.
+    # Default order = the four-tier importance (the per-run queue's rank),
+    # averaged across runs; the web tab re-sorts by any column client-side.
     items.sort(key=lambda g: (
-        g["agg"]["consensus_fraction"] if g["agg"]["consensus_fraction"] is not None else -1.0,
-        g["agg"]["avg_confidence"] if g["agg"]["avg_confidence"] is not None else -1.0,
-        -(g["agg"]["difficulty_score"] or 0.0),
+        -(g["agg"]["importance"] if g["agg"]["importance"] is not None else 0.0),
         str(g.get("image_id") or ""),
     ))
     return {

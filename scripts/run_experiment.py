@@ -356,7 +356,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--test-n", type=int, default=100,
                     help="Fixed seeded test partition size (the gate set).")
     ap.add_argument("--max-anchors", type=int, default=10,
-                    help="Max misalignment anchors per edit.")
+                    help="Max MISALIGNED anchors per edit (the panel's errors / SVM side).")
+    ap.add_argument("--max-aligned-anchors", type=int, default=10,
+                    help="Max ALIGNED anchors per edit — a sample of correctly-classified "
+                         "images so the drafter also learns from correct calls (0 disables). "
+                         "The mis/aligned split is a hyperparameter.")
     ap.add_argument("--max-changes", type=int, default=exp.DEFAULT_MAX_CHANGES,
                     help="Clip: max node-file changes per policy update (1-5).")
     ap.add_argument("--epsilon", type=float, default=0.0,
@@ -472,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
         "batch_n": args.batch_n,
         "test_n": args.test_n,
         "max_anchors": args.max_anchors,
+        "max_aligned_anchors": args.max_aligned_anchors,
         "max_changes": args.max_changes,
         "epsilon": args.epsilon,
         "strategy": args.strategy,
@@ -673,6 +678,13 @@ def main(argv: list[str] | None = None) -> int:
                 mis_records, seed=seed, k=k, max_anchors=args.max_anchors,
                 train_ids=train_ids, strategy=args.strategy,
             )
+            # Aligned anchors: a sample of the panel's CORRECT calls, fed
+            # alongside the errors so the drafter learns from correct
+            # classifications and does not regress them (Attila 2026-07-07).
+            aligned_anchors = exp.select_aligned_anchors(
+                mis_records, seed=seed, k=k, max_aligned=args.max_aligned_anchors,
+                train_ids=train_ids,
+            )
             eligible = [
                 r for r in mis_records
                 if r.get("misalignment_type") != "all_agree"
@@ -680,26 +692,28 @@ def main(argv: list[str] | None = None) -> int:
             ]
             cycle["n_misaligned"] = len(eligible)
             cycle["anchor_ids"] = [str(a.get("image_id")) for a in anchors]
+            cycle["aligned_anchor_ids"] = [str(a.get("image_id")) for a in aligned_anchors]
+
             # Compact anchor records so the ledger can show WHICH images drove
             # the edit (thumbnail path, truth, each judge's wrong/right vote).
-            cycle["anchors"] = [
-                {
-                    "image_id": a.get("image_id"),
-                    "repo_rel_path": a.get("repo_rel_path"),
-                    "sme_truth": a.get("sme_truth"),
-                    "misalignment_type": a.get("misalignment_type"),
-                    "severity": a.get("severity"),
+            def _compact(anchor: dict[str, Any]) -> dict[str, Any]:
+                return {
+                    "image_id": anchor.get("image_id"),
+                    "repo_rel_path": anchor.get("repo_rel_path"),
+                    "sme_truth": anchor.get("sme_truth"),
+                    "misalignment_type": anchor.get("misalignment_type"),
+                    "severity": anchor.get("severity"),
                     "votes": [
                         {
                             "model": v.get("labeler_id") or v.get("model_id"),
                             "label": v.get("label"),
                             "confidence": v.get("confidence"),
                         }
-                        for v in (a.get("votes") or [])
+                        for v in (anchor.get("votes") or [])
                     ],
                 }
-                for a in anchors
-            ]
+            cycle["anchors"] = [_compact(a) for a in anchors]
+            cycle["aligned_anchors"] = [_compact(a) for a in aligned_anchors]
             if not anchors:
                 cycle["status"] = "no_misalignments"
                 cycle["metrics"]["test"] = current_test_metrics
@@ -710,41 +724,49 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             # 3. drafter: one clipped edit from the anchors
-            _phase(f"cycle {k}/{args.k_max}: drafting edit from {len(anchors)} anchors "
-                   f"(max {args.max_changes} changes)")
+            _phase(f"cycle {k}/{args.k_max}: drafting edit from {len(anchors)} misaligned "
+                   f"+ {len(aligned_anchors)} aligned anchors (max {args.max_changes} changes)")
             from pipeline.policy_iterator import load_policy_markdown
 
             # Attach the anchor images themselves (downsampled like judge
-            # calls) so the drafter sees what the panel misread. A missing or
-            # unreadable file drops that image, never the draft. Only prepared
-            # for live runs — dry runs send no images (fake drafter, no spend),
-            # so we don't pay the LANCZOS/JPEG/base64 cost for nothing.
-            anchor_images = []
-            if live:
-                for a in anchors:
+            # calls) so the drafter sees what the panel misread AND what it got
+            # right. A missing or unreadable file drops that image, never the
+            # draft. Only prepared for live runs — dry runs send no images
+            # (fake drafter, no spend), so we don't pay the LANCZOS/JPEG/base64
+            # cost for nothing.
+            def _load_anchor_images(anchor_list: list[dict[str, Any]],
+                                    kind: str) -> list[dict[str, Any]]:
+                out: list[dict[str, Any]] = []
+                for a in anchor_list:
                     rel = a.get("repo_rel_path")
                     if not rel:
                         continue
                     try:
                         prepared = prepare_image(ROOT / rel)
-                    except Exception as prep_exc:  # noqa: BLE001 - image is optional evidence
-                        print(f"[experiment] k{k}: anchor image skipped "
+                    except Exception as prep_exc:  # noqa: BLE001 - optional evidence
+                        print(f"[experiment] k{k}: {kind} anchor image skipped "
                               f"({a.get('image_id')}): {prep_exc}", file=sys.stderr)
                         continue
-                    anchor_images.append({
+                    out.append({
                         "image_id": a.get("image_id"),
                         "sme_truth": a.get("sme_truth"),
                         "mime_type": prepared.mime_type,
                         "b64": prepared.to_base64(),
                     })
+                return out
+
+            anchor_images = _load_anchor_images(anchors, "misaligned") if live else []
+            aligned_images = _load_anchor_images(aligned_anchors, "aligned") if live else []
             messages = exp.build_drafter_messages(
                 policy_markdown=load_policy_markdown(base_dir),
                 base_version=state["current_version"],
                 area=area,
                 anchors=anchors,
+                aligned_anchors=aligned_anchors,
                 max_changes=args.max_changes,
                 k=k,
                 anchor_images=anchor_images or None,
+                aligned_images=aligned_images or None,
                 provider="anthropic" if args.drafter_model.startswith("anthropic/")
                 else "openai",
             )

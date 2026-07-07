@@ -599,6 +599,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "test_n": _int_field("test_n", 100, 10, 1000),
         "max_changes": _int_field("max_changes", 5, 1, 5),
         "max_anchors": _int_field("max_anchors", 10, 1, 20),
+        "max_aligned_anchors": _int_field("max_aligned_anchors", 10, 0, 20),
         "concurrency": _int_field("concurrency", 4, 1, 4),
         "epsilon": float(epsilon),
         "gate_mode": gate_mode,

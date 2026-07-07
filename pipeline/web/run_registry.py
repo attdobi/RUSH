@@ -582,6 +582,8 @@ class RunRegistry:
             str(request["max_changes"]),
             "--max-anchors",
             str(request["max_anchors"]),
+            "--max-aligned-anchors",
+            str(request["max_aligned_anchors"]),
             "--epsilon",
             str(request["epsilon"]),
             "--gate-model",
@@ -635,8 +637,9 @@ class RunRegistry:
                 key: request.get(key)
                 for key in (
                     "seed", "k_max", "batch_n", "test_n", "max_changes",
-                    "max_anchors", "epsilon", "gate_model", "gate_mode",
-                    "drafter_model", "live", "holdout_final",
+                    "max_anchors", "max_aligned_anchors", "epsilon",
+                    "gate_model", "gate_mode", "drafter_model", "live",
+                    "holdout_final",
                 )
             },
         }

@@ -1,10 +1,12 @@
-// Adjudication queue — Attila 2026-07-06: "keep a running list of the items
-// to adjudicate stack ranked by llm consensus count (or lack thereof), the
-// confidence score, and difficulty rating. Averaged across llm judges. Be
-// sure to indicate which run number(s) the item came from. (also stack rank
-// by the gradient descent formalism)".
-// Data: GET /api/adjudication?area=... — aggregated at read time from every
-// experiment.json readjudication block (live runs only; dry runs excluded).
+// Adjudication queue — the cross-run SME re-adjudication list.
+// Ranked by the four-tier importance (see the About tab for the formalism):
+//   T1 misaligned + high LLM-consensus  (unanimous & wrong — the worst)
+//   T2 misaligned + low  LLM-consensus
+//   T3 aligned    + low  LLM-consensus
+//   T4 aligned    + high LLM-consensus  (the ideal state)
+// Two DISTINCT signals drive it: SME agreement (LLM<->human) and LLM
+// consensus (LLM<->LLM, SME-blind). Every column is click-sortable.
+// Data: GET /api/adjudication?area=... (live runs only; dry runs excluded).
 (() => {
   const $ = (sel) => document.querySelector(sel);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -12,10 +14,12 @@
   })[ch]);
 
   const state = {
-    items: null,      // aggregated queue items for the active area
+    items: null,
     loaded: false,
     loadToken: 0,
-    expanded: new Set()
+    expanded: new Set(),
+    sortKey: 'importance',
+    sortDir: -1            // -1 desc, +1 asc
   };
 
   function activeArea() {
@@ -28,72 +32,87 @@
     if (el) el.textContent = text || '';
   }
 
-  const nz = (value, fallback) => (
-    typeof value === 'number' && Number.isFinite(value) ? value : fallback
-  );
-
-  // Rank modes. "composite" is the default stack rank he specified:
-  // least consensus first, then least confident, then hardest — items with
-  // no machine signal at all (all-abstain panels) sort to the very top.
-  // "gradient" is the rush.sample_gradient formalism: |g| = 1 - p with
-  // p = c if correct else 1 - c, so confident-wrong panels lead.
-  const SORTS = {
-    composite: (a, b) => (
-      (nz(a.agg.consensus_fraction, -1) - nz(b.agg.consensus_fraction, -1))
-      || (nz(a.agg.avg_confidence, -1) - nz(b.agg.avg_confidence, -1))
-      || (nz(b.agg.difficulty_score, 0) - nz(a.agg.difficulty_score, 0))
-      || String(a.image_id).localeCompare(String(b.image_id))
-    ),
-    gradient: (a, b) => (
-      (nz(b.agg.grad_magnitude, -1) - nz(a.agg.grad_magnitude, -1))
-      || String(a.image_id).localeCompare(String(b.image_id))
-    ),
-    loss: (a, b) => (
-      (nz(b.agg.loss, -1) - nz(a.agg.loss, -1))
-      || String(a.image_id).localeCompare(String(b.image_id))
-    ),
-    runs: (a, b) => (
-      ((b.n_runs || 0) - (a.n_runs || 0))
-      || (nz(b.agg.grad_magnitude, 0) - nz(a.agg.grad_magnitude, 0))
-      || String(a.image_id).localeCompare(String(b.image_id))
-    )
-  };
-
-  async function loadQueue() {
-    const token = ++state.loadToken;
-    setStatus('Loading queue…');
-    let payload;
-    try {
-      payload = await window.rushApiGetJson(
-        `/api/adjudication?area=${encodeURIComponent(activeArea())}`
-      );
-    } catch (err) {
-      if (token === state.loadToken) setStatus('Adjudication API unavailable.');
-      return;
-    }
-    if (token !== state.loadToken) return;
-    state.items = payload?.items || [];
-    state.loaded = true;
-    state.expanded.clear();
-    setStatus(`${state.items.length} item(s) awaiting SME re-adjudication`);
-    render();
-  }
-
   const fmt = (value, digits = 2) => (
-    (value === null || value === undefined) ? '—' : Number(value).toFixed(digits)
+    (value === null || value === undefined || Number.isNaN(value)) ? '—' : Number(value).toFixed(digits)
   );
+  const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
   function difficultyWord(score) {
-    if (score === null || score === undefined) return '—';
-    if (score >= 0.75) return `high (${fmt(score)})`;
-    if (score >= 0.25) return `medium (${fmt(score)})`;
-    return `low (${fmt(score)})`;
+    if (!isNum(score)) return '—';
+    if (score >= 0.75) return 'high';
+    if (score >= 0.25) return 'medium';
+    return 'low';
   }
+
+  const TIER_LABEL = {
+    1: 'T1 · misaligned + high LLM-consensus — unanimous & wrong (worst)',
+    2: 'T2 · misaligned + low LLM-consensus — the panel split and missed',
+    3: 'T3 · aligned + low LLM-consensus — right, but the panel argued',
+    4: 'T4 · aligned + high LLM-consensus — unanimous & right (ideal)'
+  };
+
+  function tierBadge(tier) {
+    if (!tier) return '—';
+    return `<span class="adjudicate-tier adjudicate-tier--${tier}" title="${esc(TIER_LABEL[tier] || '')}">T${tier}</span>`;
+  }
+
+  // --- columns: every one is click-sortable ---------------------------------
+  // get() returns the sort value (null sorts last); cell() renders the td.
+  // dir is the default direction when the column is first clicked.
+  const COLUMNS = [
+    { key: 'expand', label: '', sortable: false,
+      cell: (it, exp) => `<td><button type="button" class="experiment-detail-toggle" data-key="${esc(it.key || it.image_id)}" aria-expanded="${exp}">${exp ? '▾' : '▸'}</button></td>` },
+    { key: 'image', label: 'Image', dir: 1, get: (it) => String(it.image_id || ''),
+      cell: (it) => {
+        const img = it.repo_rel_path
+          ? `<img src="/api/thumbnail?path=${encodeURIComponent(it.repo_rel_path)}" alt="${esc(it.image_id)}" loading="lazy" />` : '';
+        return `<td>${img}<span class="hint">${esc(it.image_id)}<br/>${esc(it.split ?? '')}</span></td>`;
+      } },
+    { key: 'runs', label: 'Flagged by', dir: -1, get: (it) => it.n_runs || 0,
+      title: 'how many runs flagged this image (run numbers shown)',
+      cell: (it) => `<td>${(it.runs || []).map(runChip).join(' ')}</td>` },
+    { key: 'tier', label: 'Tier', dir: 1, get: (it) => it.agg?.worst_tier ?? 9,
+      title: 'worst four-tier bucket this item hit — T1 misaligned+high-consensus is the most important',
+      cell: (it) => `<td>${tierBadge(it.agg?.worst_tier)}</td>` },
+    { key: 'truth', label: 'SME truth', dir: 1, get: (it) => String(it.sme_truth || ''),
+      title: 'the human (golden) label',
+      cell: (it) => `<td><strong>${esc(it.sme_truth)}</strong></td>` },
+    { key: 'sme', label: 'SME agree', dir: 1, get: (it) => it.agg?.sme_fraction,
+      title: 'LLM↔HUMAN: fraction of judges matching the SME label (m/N). Low = misaligned. Sorts ascending (most misaligned first).',
+      cell: (it) => {
+        const s = (it.latest || {}).sme_agreement || {};
+        const frac = it.agg?.sme_fraction;
+        const md = s.decisive ? `${s.n_agree}/${s.decisive}` : '—';
+        return `<td class="${isNum(frac) && frac < 0.5 ? 'adjudicate-misaligned' : ''}">${md} <span class="hint">${fmt(frac)}</span></td>`;
+      } },
+    { key: 'consensus', label: 'LLM consensus', dir: -1, get: (it) => it.agg?.consensus_fraction,
+      title: 'LLM↔LLM (SME-blind): fraction of judges on the modal label. High + misaligned = systematic error (worst).',
+      cell: (it) => {
+        const c = (it.latest || {}).consensus || {};
+        const frac = it.agg?.consensus_fraction;
+        const md = c.decisive ? `${c.majority_count}/${c.decisive}${c.tie ? ' tie' : ''}` : '—';
+        return `<td>${md} <span class="hint">${fmt(frac)}</span></td>`;
+      } },
+    { key: 'conf', label: 'Avg conf', dir: -1, get: (it) => it.agg?.avg_confidence,
+      title: 'mean self-reported confidence across judges and runs',
+      cell: (it) => `<td>${fmt(it.agg?.avg_confidence)}</td>` },
+    { key: 'difficulty', label: 'Difficulty', dir: -1, get: (it) => it.agg?.difficulty_score,
+      title: 'low=0, medium=0.5, high=1 averaged across judges and runs',
+      cell: (it) => `<td>${difficultyWord(it.agg?.difficulty_score)} <span class="hint">${fmt(it.agg?.difficulty_score)}</span></td>` },
+    { key: 'boundary', label: 'Boundary', dir: -1, get: (it) => it.agg?.boundary_rate,
+      title: 'fraction of judges flagging is_boundary (a documented confusion case)',
+      cell: (it) => `<td>${fmt(it.agg?.boundary_rate)}${it.agg?.any_boundary ? ' <span class="summary-flag summary-flag--boundary" title="≥1 judge flagged a boundary">⧉</span>' : ''}</td>` },
+    { key: 'grad', label: '|g|', dir: -1, get: (it) => it.agg?.grad_magnitude,
+      title: 'gradient magnitude |g| = 1 − p, p = confidence if correct else 1 − confidence; confident-wrong ≈ 1',
+      cell: (it) => `<td>${fmt(it.agg?.grad_magnitude)}</td>` },
+    { key: 'importance', label: 'Importance', dir: -1, get: (it) => it.agg?.importance,
+      title: 'the four-tier re-adjudication priority: base(misalignment×consensus) × confidence × boundary × (1 − human-confidence). The default rank.',
+      cell: (it) => `<td><strong>${fmt(it.agg?.importance, 3)}</strong></td>` }
+  ];
 
   function runChip(run) {
     const where = run.kind === 'train' ? `k${run.k} train`
-      : run.kind === 'test' ? 'test'
-        : run.kind; // holdout / benchmark
+      : run.kind === 'test' ? 'test' : run.kind;
     const title = `${run.policy || ''} · ${run.misalignment_type || ''} · majority ${run.majority_label ?? 'tie'}`;
     return `<span class="adjudicate-run-chip" title="${esc(title)}">#${esc(run.run_number ?? '?')} · ${esc(where)}</span>`;
   }
@@ -113,17 +132,20 @@
 
   function detailBlock(item) {
     const runs = (item.runs || []).map((run) => {
-      const consensus = run.consensus || {};
+      const c = run.consensus || {};
+      const s = run.sme_agreement || {};
       const grad = run.gradient || {};
+      const imp = run.importance || {};
       const meta = [
         `${esc(run.kind)}${run.k !== null && run.k !== undefined ? ` · k=${esc(run.k)}` : ''}`,
         `policy ${esc(run.policy ?? '—')}`,
-        `majority ${esc(run.majority_label ?? (consensus.tie ? 'tie' : '—'))}`,
-        `consensus ${esc(consensus.majority_count ?? '—')}/${esc(consensus.decisive ?? '—')}`,
+        `tier ${esc(imp.tier ?? '—')}`,
+        `SME agree ${esc(s.n_agree ?? '—')}/${esc(s.decisive ?? '—')}`,
+        `LLM consensus ${esc(c.majority_count ?? '—')}/${esc(c.decisive ?? '—')}${c.tie ? ' tie' : ''}`,
         `avg conf ${fmt(run.avg_confidence)}`,
-        `difficulty ${esc(difficultyWord(run.difficulty_score))}`,
-        `|g| ${fmt(grad.avg_magnitude)} · loss ${fmt(grad.avg_loss)}`,
-        esc(run.misalignment_type ?? '')
+        `difficulty ${difficultyWord(run.difficulty_score)}`,
+        `|g| ${fmt(grad.avg_magnitude)}`,
+        `importance ${fmt(imp.readjudication, 3)}`
       ].join(' · ');
       return `<div class="adjudicate-detail">
         <h5>Run #${esc(run.run_number ?? '?')} <span class="hint">${esc(run.run_id ?? '')}</span></h5>
@@ -134,73 +156,90 @@
     return runs || '<p class="hint">no per-run evidence recorded</p>';
   }
 
+  async function loadQueue() {
+    const token = ++state.loadToken;
+    setStatus('Loading queue…');
+    let payload;
+    try {
+      payload = await window.rushApiGetJson(`/api/adjudication?area=${encodeURIComponent(activeArea())}`);
+    } catch (err) {
+      if (token === state.loadToken) setStatus('Adjudication API unavailable.');
+      return;
+    }
+    if (token !== state.loadToken) return;
+    state.items = payload?.items || [];
+    state.loaded = true;
+    state.expanded.clear();
+    setStatus(`${state.items.length} item(s) awaiting SME re-adjudication`);
+    render();
+  }
+
+  function comparator() {
+    const col = COLUMNS.find((c) => c.key === state.sortKey) || COLUMNS.find((c) => c.key === 'importance');
+    const dir = state.sortDir;
+    return (a, b) => {
+      const va = col.get ? col.get(a) : null;
+      const vb = col.get ? col.get(b) : null;
+      const na = va === null || va === undefined || (typeof va === 'number' && Number.isNaN(va));
+      const nb = vb === null || vb === undefined || (typeof vb === 'number' && Number.isNaN(vb));
+      if (na && nb) return String(a.image_id).localeCompare(String(b.image_id));
+      if (na) return 1;   // nulls always last, both directions
+      if (nb) return -1;
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return String(a.image_id).localeCompare(String(b.image_id));
+    };
+  }
+
   function render() {
     const host = $('#adjudicateTable');
     const summaryHost = $('#adjudicateSummary');
     if (!host) return;
-    if (!state.items) {
-      host.innerHTML = '<p class="hint">Loading…</p>';
-      return;
-    }
+    if (!state.items) { host.innerHTML = '<p class="hint">Loading…</p>'; return; }
     if (summaryHost) {
-      const boundary = state.items.filter((it) => it.agg?.any_boundary).length;
-      const multi = state.items.filter((it) => (it.n_runs || 0) > 1).length;
+      const byTier = (t) => state.items.filter((it) => it.agg?.worst_tier === t).length;
       summaryHost.innerHTML = `<div class="experiment-summary-grid">
         <div><span>Queue</span><strong>${state.items.length} item(s)</strong></div>
-        <div><span>Flagged by &gt;1 run</span><strong>${multi}</strong></div>
-        <div><span>Boundary-flagged</span><strong>${boundary}</strong></div>
+        <div><span title="${esc(TIER_LABEL[1])}">Tier 1 — worst</span><strong>${byTier(1)}</strong></div>
+        <div><span title="${esc(TIER_LABEL[2])}">Tier 2</span><strong>${byTier(2)}</strong></div>
+        <div><span>Flagged by &gt;1 run</span><strong>${state.items.filter((it) => (it.n_runs || 0) > 1).length}</strong></div>
+        <div><span>Boundary-flagged</span><strong>${state.items.filter((it) => it.agg?.any_boundary).length}</strong></div>
       </div>`;
     }
     if (!state.items.length) {
-      host.innerHTML = '<p class="hint">Nothing to adjudicate — no completed live run has left misalignments behind (or none has finished since this was added).</p>';
+      host.innerHTML = '<p class="hint">Nothing to adjudicate — no completed live run has left misalignments behind yet.</p>';
       return;
     }
-    const mode = $('#adjudicateSort')?.value || 'composite';
-    const items = [...state.items].sort(SORTS[mode] || SORTS.composite);
+    const items = [...state.items].sort(comparator());
     const body = items.map((item) => {
       const key = item.key || item.image_id;
       const expanded = state.expanded.has(key);
-      const latest = item.latest || {};
-      const consensus = latest.consensus || {};
-      const img = item.repo_rel_path
-        ? `<img src="/api/thumbnail?path=${encodeURIComponent(item.repo_rel_path)}" alt="${esc(item.image_id)}" loading="lazy" />`
-        : '';
-      const consensusText = consensus.decisive
-        ? `${consensus.majority_count}/${consensus.decisive}${consensus.tie ? ' · tie' : ''} (${fmt(item.agg.consensus_fraction)})`
-        : 'no decisive votes';
-      const row = `<tr>
-        <td><button type="button" class="experiment-detail-toggle" data-key="${esc(key)}" aria-expanded="${expanded}">${expanded ? '▾' : '▸'}</button></td>
-        <td>${img}<span class="hint">${esc(item.image_id)}<br/>${esc(item.split ?? '')}</span></td>
-        <td>${(item.runs || []).map(runChip).join(' ')}</td>
-        <td><strong>${esc(item.sme_truth)}</strong></td>
-        <td>${esc(latest.majority_label ?? (consensus.tie ? 'tie' : '—'))}</td>
-        <td>${esc(consensusText)}</td>
-        <td>${fmt(item.agg.avg_confidence)}</td>
-        <td>${esc(difficultyWord(item.agg.difficulty_score))}</td>
-        <td>${fmt(item.agg.grad_magnitude)}${item.agg.any_boundary ? ' <span class="summary-flag summary-flag--boundary" title="at least one judge flagged a boundary case">⧉</span>' : ''}</td>
-      </tr>`;
-      const detail = expanded
-        ? `<tr><td colspan="9">${detailBlock(item)}</td></tr>`
-        : '';
+      const row = `<tr>${COLUMNS.map((c) => c.cell(item, expanded)).join('')}</tr>`;
+      const detail = expanded ? `<tr><td colspan="${COLUMNS.length}">${detailBlock(item)}</td></tr>` : '';
       return row + detail;
     }).join('');
-    host.innerHTML = `
-      <table class="summary-table">
-        <thead><tr>
-          <th></th><th>Image</th><th>Flagged by</th><th>SME truth</th>
-          <th title="majority label in the most recent flagging run">Majority</th>
-          <th title="majority count / decisive votes (cross-run avg fraction)">Consensus</th>
-          <th title="average self-reported confidence across judges and runs">Avg conf</th>
-          <th title="low=0, medium=0.5, high=1 averaged across judges and runs">Difficulty</th>
-          <th title="gradient magnitude |g| = 1 - p, p = confidence if correct else 1 - confidence; confident-wrong ≈ 1">|g|</th>
-        </tr></thead>
-        <tbody>${body}</tbody>
-      </table>`;
+    const head = COLUMNS.map((c) => {
+      if (!c.sortable && c.sortable !== undefined) return `<th>${esc(c.label)}</th>`;
+      if (c.get === undefined) return `<th>${esc(c.label)}</th>`;
+      const active = state.sortKey === c.key;
+      const arrow = active ? (state.sortDir === -1 ? ' ▾' : ' ▴') : '';
+      return `<th class="adjudicate-sortable${active ? ' adjudicate-sorted' : ''}" data-sort="${c.key}" title="${esc(c.title || '')}">${esc(c.label)}${arrow}</th>`;
+    }).join('');
+    host.innerHTML = `<div class="adjudicate-table-scroll"><table class="summary-table adjudicate-table">
+      <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
     host.querySelectorAll('.experiment-detail-toggle').forEach((button) => {
       button.addEventListener('click', () => {
         const key = button.dataset.key;
-        if (state.expanded.has(key)) state.expanded.delete(key);
-        else state.expanded.add(key);
+        if (state.expanded.has(key)) state.expanded.delete(key); else state.expanded.add(key);
+        render();
+      });
+    });
+    host.querySelectorAll('.adjudicate-sortable').forEach((th) => {
+      th.addEventListener('click', () => {
+        const k = th.dataset.sort;
+        const col = COLUMNS.find((c) => c.key === k);
+        if (state.sortKey === k) state.sortDir = -state.sortDir;
+        else { state.sortKey = k; state.sortDir = col?.dir ?? -1; }
         render();
       });
     });
@@ -208,7 +247,6 @@
 
   function init() {
     if (!$('#adjudicate')) return;
-    $('#adjudicateSort')?.addEventListener('change', render);
     $('#adjudicateRefresh')?.addEventListener('click', () => loadQueue());
     window.addEventListener('rush-api-catalog', () => { if (state.loaded) loadQueue(); });
     window.addEventListener('rush-view-changed', (event) => {
@@ -217,9 +255,6 @@
     if (document.body.classList.contains('view-adjudicate')) loadQueue();
   }
 
-  if (typeof window.rushApiOnReady === 'function') {
-    window.rushApiOnReady(() => init());
-  } else {
-    document.addEventListener('DOMContentLoaded', init);
-  }
+  if (typeof window.rushApiOnReady === 'function') window.rushApiOnReady(() => init());
+  else document.addEventListener('DOMContentLoaded', init);
 })();

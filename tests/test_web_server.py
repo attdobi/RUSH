@@ -257,10 +257,24 @@ def test_validate_experiment_payload_defaults() -> None:
     assert request["batch_n"] == 20
     assert request["test_n"] == 100
     assert request["max_changes"] == 5
+    assert request["max_anchors"] == 10
+    assert request["max_aligned_anchors"] == 10  # aligned-anchor split default
     assert request["gate_model"] == "openai/gpt-5.5"
     assert request["gate_mode"] == "agent"
     assert request["seed"] is None
     assert request["epsilon"] == 0.0
+
+
+def test_validate_experiment_payload_aligned_anchor_split() -> None:
+    from pipeline.web._safety import validate_experiment_payload
+
+    # 0 disables the aligned side; explicit values pass through and clamp.
+    off = validate_experiment_payload(_experiment_payload(max_aligned_anchors=0))
+    assert off["max_aligned_anchors"] == 0
+    explicit = validate_experiment_payload(
+        _experiment_payload(max_anchors=6, max_aligned_anchors=4)
+    )
+    assert explicit["max_anchors"] == 6 and explicit["max_aligned_anchors"] == 4
 
 
 def test_validate_experiment_payload_panel_bounds() -> None:

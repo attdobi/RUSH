@@ -61,10 +61,10 @@
 
   // ---- view switcher (loop | summary | adjudicate) --------------------------
 
+  const VIEWS = ['loop', 'summary', 'adjudicate', 'about'];
+
   function applyView(view) {
-    document.body.classList.toggle('view-loop', view === 'loop');
-    document.body.classList.toggle('view-summary', view === 'summary');
-    document.body.classList.toggle('view-adjudicate', view === 'adjudicate');
+    VIEWS.forEach((v) => document.body.classList.toggle(`view-${v}`, view === v));
     document.querySelectorAll('#viewSwitcher .view-switcher-option').forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.view === view));
     });
@@ -81,16 +81,14 @@
     const fromHash = location.hash.replace('#', '');
     let view = 'loop';
     try { view = sessionStorage.getItem('rush_view') || 'loop'; } catch (err) { /* ok */ }
-    if (!['loop', 'summary', 'adjudicate'].includes(view)) view = 'loop';
-    if (fromHash === 'experiment') view = 'loop';
-    if (fromHash === 'summary') view = 'summary';
-    if (fromHash === 'adjudicate') view = 'adjudicate';
+    if (!VIEWS.includes(view)) view = 'loop';
+    if (fromHash === 'experiment' || fromHash === 'policyEvolution') view = 'loop';
+    else if (VIEWS.includes(fromHash)) view = fromHash;
     applyView(view);
     window.addEventListener('hashchange', () => {
       const anchor = location.hash.replace('#', '');
       if (anchor === 'experiment' || anchor === 'policyEvolution') applyView('loop');
-      if (anchor === 'summary') applyView('summary');
-      if (anchor === 'adjudicate') applyView('adjudicate');
+      else if (VIEWS.includes(anchor)) applyView(anchor);
     });
   }
 
@@ -184,6 +182,8 @@
       batch_n: Number($('#experimentBatchN')?.value || 20),
       test_n: Number($('#experimentTestN')?.value || 100),
       max_changes: Number($('#experimentMaxChanges')?.value || 5),
+      max_anchors: Number($('#experimentMaxAnchors')?.value || 10),
+      max_aligned_anchors: Number($('#experimentMaxAlignedAnchors')?.value ?? 10),
       gate_mode: gateMode,
       gate_model: gateMode === 'agent' ? gateChoice : 'openai/gpt-5.5',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',

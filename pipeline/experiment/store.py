@@ -92,6 +92,7 @@ def sync_experiment_state(conn, state: dict[str, Any]) -> None:
                     "dry_run": state.get("dry_run", False),
                     "concurrency": state.get("concurrency"),
                     "max_anchors": state.get("max_anchors"),
+                    "max_aligned_anchors": state.get("max_aligned_anchors"),
                     "gate_mode": state.get("gate_mode"),
                     "cost_usd_total": state.get("cost_usd_total"),
                     "current_version": state.get("current_version"),
