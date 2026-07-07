@@ -39,12 +39,20 @@
       narrative.textContent = '';
     }
     $('#decisionQualityCards').innerHTML = '';
-    $('#decisionQualityChart').innerHTML = '';
+    const chartHost = $('#decisionQualityChart');
+    if (chartHost) chartHost.innerHTML = '';
   }
 
   function populateFilters() {
     const runSelect = $('#decisionQualityRunId');
-    if (runSelect) runSelect.innerHTML = rushApiRunOptions(runSelect.value, true, 'All scored runs');
+    if (runSelect) {
+      runSelect.innerHTML = rushApiRunOptions(runSelect.value, true, 'All scored runs (pooled)');
+      // Per-run by default: metrics pooled across runs hide per-run truth.
+      if (!runSelect.value) {
+        const newest = (window.RUSH_API?.catalog?.runs || []).find(r => r.scoring_done);
+        if (newest?.run_id) runSelect.value = newest.run_id;
+      }
+    }
     const versionSelect = $('#decisionQualityPolicyVersion');
     if (versionSelect) versionSelect.innerHTML = rushApiPolicyVersionOptions(versionSelect.value, true, 'All policy versions');
   }
@@ -368,7 +376,8 @@
         narrative.textContent = '';
       }
       $('#decisionQualityCards').innerHTML = '';
-      $('#decisionQualityChart').innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
+      const chartErrHost = $('#decisionQualityChart');
+      if (chartErrHost) chartErrHost.innerHTML = `<div class="empty-state">${esc(error.message)}</div>`;
       status(`Decision quality failed: ${error.message}`, true);
     }
   }

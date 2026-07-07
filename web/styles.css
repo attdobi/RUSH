@@ -2715,3 +2715,52 @@ main { padding-bottom: 82px; }
 .experiment-review-buttons button { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: #07101f; color: var(--text); font-size: 14px; cursor: pointer; }
 .experiment-review-buttons button:hover { border-color: var(--blue); }
 .experiment-holdout { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 12px 14px; color: var(--text); font-size: 13px; }
+
+/* ---- Loop-first restructure: view switcher + experiment redesign ---- */
+.view-switcher { display: inline-flex; gap: 4px; background: rgba(12, 20, 36, .8); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+.view-switcher-option { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .04em; padding: 7px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.view-switcher-option[aria-pressed="true"] { background: var(--blue); color: #06101f; }
+.view-switcher-option:hover { color: var(--text); }
+.view-switcher-option[aria-pressed="true"]:hover { color: #06101f; }
+/* Tabs: sections opt into a view via data-view. Default (no JS) shows all. */
+body.view-loop section[data-view="inspect"], body.view-loop .nav-pills[data-view="inspect"] { display: none !important; }
+body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-view="loop"] { display: none !important; }
+
+.experiment-config { padding: 16px 18px; margin-bottom: 16px; display: grid; gap: 12px; }
+.experiment-config .compact-model-picker { margin: 0; }
+.experiment-spend-label { align-self: end; }
+.experiment-block-title { margin: 26px 0 10px; font-size: 16px; }
+.experiment-block-title .muted { font-weight: 600; font-size: 13px; }
+
+.experiment-judge-table td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.experiment-judge-system td { background: rgba(130, 181, 255, .07); font-weight: 800; }
+.experiment-delta { font-size: 11px; font-weight: 800; margin-left: 6px; border-radius: 6px; padding: 1px 6px; }
+.experiment-delta--up { color: #07130c; background: var(--green); }
+.experiment-delta--down { color: #1a0710; background: var(--red); }
+.experiment-delta--flat { color: var(--muted); }
+
+.experiment-detail-toggle { display: block; margin-top: 6px; background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--blue); font-size: 11px; font-weight: 800; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.experiment-detail-toggle:hover { border-color: var(--blue); }
+.experiment-detail-row td { background: rgba(10, 16, 32, .65); }
+.experiment-cycle-detail { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr); gap: 18px; padding: 8px 4px 12px; }
+@media (max-width: 1100px) { .experiment-cycle-detail { grid-template-columns: 1fr; } }
+.experiment-cycle-detail h4 { margin: 4px 0 10px; font-size: 13px; }
+
+.experiment-anchor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.experiment-anchor-card { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 10px; display: grid; gap: 8px; }
+.experiment-anchor-card img { width: 84px; height: 84px; object-fit: contain; image-rendering: pixelated; background: #fff; border-radius: 8px; justify-self: center; }
+.experiment-anchor-card figcaption { display: grid; gap: 4px; font-size: 12px; color: var(--text); }
+.experiment-anchor-votes { display: flex; flex-wrap: wrap; gap: 4px; }
+.experiment-vote { font-size: 10px; font-weight: 800; border-radius: 6px; padding: 2px 6px; border: 1px solid var(--line); color: var(--muted); }
+.experiment-vote--wrong { color: var(--red); border-color: rgba(255, 111, 145, .5); }
+.experiment-vote--right { color: var(--green); border-color: rgba(77, 224, 166, .45); }
+
+.experiment-diff-block { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+.experiment-diff-head { padding: 8px 12px; font-size: 12px; font-weight: 800; color: var(--muted); background: rgba(18, 29, 51, .8); border-bottom: 1px solid var(--line); }
+.experiment-diff-head code { color: var(--text); }
+.experiment-diff-pre { margin: 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.5; overflow-x: auto; max-height: 340px; background: #07101f; color: var(--muted); }
+.experiment-diff-pre .diff-add { color: var(--green); }
+.experiment-diff-pre .diff-del { color: var(--red); }
+.experiment-diff-pre .diff-hunk { color: var(--blue); }
+.experiment-risk-flags { color: var(--gold); font-size: 12px; font-weight: 700; }
+#policyEvolution { margin-top: 26px; }

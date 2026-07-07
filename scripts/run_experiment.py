@@ -63,7 +63,6 @@ from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default  # n
 from pipeline.manifest import load_records  # noqa: E402
 from pipeline.policy_diff import (  # noqa: E402
     _call_chat_with_retries,
-    _latest_version,
     _proposal_from_llm_json,
     _version_dir,
     accept_proposal,
@@ -295,8 +294,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                     help="Clip: max node-file changes per policy update (1-5).")
     ap.add_argument("--epsilon", type=float, default=0.0,
                     help="Accept iff test system macro-F1 > before + epsilon.")
-    ap.add_argument("--policy-version", default=None,
-                    help="Starting policy version (default: latest for the area).")
+    ap.add_argument("--policy-version", default="v0.1",
+                    help="Starting generator (k=0). FIXED at v0.1 by default so every "
+                         "run number starts from the same baseline; accepted versions "
+                         "branch from it (lineage recorded per run).")
     ap.add_argument("--gate-model", default=exp.DEFAULT_GATE_MODEL)
     ap.add_argument("--gate-mode", choices=["agent", "metric_only"], default="agent")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
@@ -346,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
     )
 
-    base_version = args.policy_version or _latest_version(ROOT, area) or "v0.1"
+    base_version = args.policy_version or "v0.1"  # fixed k=0 baseline across runs
     if not _version_dir(ROOT, base_version, area).is_dir():
         print(f"[experiment] no such policy version: {area}/{base_version}", file=sys.stderr)
         return 2
@@ -563,6 +564,26 @@ def main(argv: list[str] | None = None) -> int:
             ]
             cycle["n_misaligned"] = len(eligible)
             cycle["anchor_ids"] = [str(a.get("image_id")) for a in anchors]
+            # Compact anchor records so the ledger can show WHICH images drove
+            # the edit (thumbnail path, truth, each judge's wrong/right vote).
+            cycle["anchors"] = [
+                {
+                    "image_id": a.get("image_id"),
+                    "repo_rel_path": a.get("repo_rel_path"),
+                    "sme_truth": a.get("sme_truth"),
+                    "misalignment_type": a.get("misalignment_type"),
+                    "severity": a.get("severity"),
+                    "votes": [
+                        {
+                            "model": v.get("labeler_id") or v.get("model_id"),
+                            "label": v.get("label"),
+                            "confidence": v.get("confidence"),
+                        }
+                        for v in (a.get("votes") or [])
+                    ],
+                }
+                for a in anchors
+            ]
             if not anchors:
                 cycle["status"] = "no_misalignments"
                 cycle["metrics"]["test"] = current_test_metrics
@@ -764,7 +785,11 @@ def main(argv: list[str] | None = None) -> int:
             inflight_proposal["id"] = None
             if outcome["decision"] == "accept":
                 accepted = accept_proposal(
-                    repo_root=ROOT, proposal_id=proposal["proposal_id"]
+                    repo_root=ROOT, proposal_id=proposal["proposal_id"],
+                    # Fixed-k=0 runs branch from the constant baseline, so the
+                    # stale-base guard would otherwise abort run #2's first
+                    # accept once run #1 minted a newer version.
+                    allow_branch=True,
                 )
                 state["current_version"] = accepted["new_version"]
                 cycle["new_version"] = accepted["new_version"]

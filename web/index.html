@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r28" />
-  <script src="demos.js?v=demo-mnist-kdd-r28"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r29" />
+  <script src="demos.js?v=demo-mnist-kdd-r29"></script>
 </head>
 <body>
   <header class="hero">
@@ -22,13 +22,16 @@
           </button>
         </div>
       </div>
-      <div class="nav-pills" aria-label="Page sections">
+      <div class="view-switcher" id="viewSwitcher" role="group" aria-label="View">
+        <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
+        <button class="view-switcher-option" type="button" data-view="inspect" aria-pressed="false">Inspect step-by-step</button>
+      </div>
+      <div class="nav-pills" data-view="inspect" aria-label="Inspect sections">
         <a href="#sample">Sample</a>
         <a href="#grow">Grow</a>
         <a href="#label">Label</a>
         <a href="#score">Score</a>
         <a href="#quality">Quality</a>
-        <a href="#experiment">Optimize</a>
         <a href="#about">About</a>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
@@ -59,7 +62,95 @@
   </header>
 
   <main>
-    <section id="sample" class="section demo-shell">
+    <section id="experiment" data-view="loop" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">The RUSH loop</p>
+        <h2>Pick the judges. Turn the crank. Watch the policy learn.</h2>
+        <p>Every run is numbered and seeded, and starts from the same fixed generator (k=0 = policy v0.1).
+        Each cycle: a seeded train mini-batch → the most instructive misalignments become anchors → one
+        policy edit (≤5 changes, human-reviewable) → scored on the run's fixed test partition → the gate
+        accepts only if the system-of-judges macro-F1 improves (a gate agent can veto, never force).
+        Accepted edits become new policy-graph nodes below. You audit the gate afterward — every verdict
+        is training data for the critic.</p>
+      </div>
+
+      <div class="experiment-config api-panel" aria-label="Configure and start a run">
+          <fieldset class="model-picker compact-model-picker" aria-label="Judge panel">
+            <legend>Judge panel — pick 2–5 models <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels)</span></legend>
+            <div id="runTriggerModels" class="model-picker-list"></div>
+          </fieldset>
+        <div class="run-controls experiment-start-row" aria-label="Run parameters">
+          <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
+          <label>Train batch N<input id="experimentBatchN" type="number" value="20" min="2" max="200"></label>
+          <label>Test size T<input id="experimentTestN" type="number" value="100" min="10" max="1000"></label>
+          <label>Max changes<input id="experimentMaxChanges" type="number" value="5" min="1" max="5"></label>
+          <label>Seed<input id="experimentSeed" type="number" placeholder="random"></label>
+          <label>Gate
+            <select id="experimentGateModel">
+              <option value="openai/gpt-5.5" selected>gpt-5.5 (default)</option>
+              <option value="openai/gpt-5.5-low">gpt-5.5-low</option>
+              <option value="anthropic/claude-opus-4-7">opus-4-7</option>
+              <option value="metric_only">Metric rule only (no agent)</option>
+            </select>
+          </label>
+          <label class="checkbox-label experiment-spend-label"><input id="experimentAllowSpend" type="checkbox" checked /> Allow spend</label>
+          <button id="experimentStart" class="primary-action" type="button">Start run</button>
+          <span id="experimentStartStatus" class="status-line" role="status"></span>
+        </div>
+        <p id="experimentPanelSummary" class="legend-note"></p>
+      </div>
+
+      <div class="run-controls" aria-label="Run picker">
+        <label>Run
+          <select id="experimentSelect"></select>
+        </label>
+        <button id="experimentRefresh" type="button">Refresh</button>
+        <span id="experimentStatusLine" class="status-line" role="status" aria-live="polite"></span>
+      </div>
+      <div id="experimentSummary" class="experiment-summary"></div>
+
+      <h3 class="experiment-block-title">Learning curve <span class="muted">— decision quality per cycle</span></h3>
+      <div class="run-controls experiment-chart-controls" aria-label="Trajectory metric">
+        <label>Metric
+          <select id="experimentMetric"></select>
+        </label>
+        <span class="legend-note">solid = test (gate set) · dashed = train batch · ▲ accepted · ○ skipped · per judge + <strong>system</strong></span>
+      </div>
+      <div id="experimentChart" class="api-panel experiment-chart"></div>
+
+      <h3 class="experiment-block-title">Judges on this run <span class="muted">— final test metrics vs k=0</span></h3>
+      <div id="experimentJudgeTable"></div>
+
+      <h3 class="experiment-block-title">Gate ledger <span class="muted">— every proposed edit, its anchors, and the verdict</span></h3>
+      <div id="experimentLedger"></div>
+      <div id="experimentHoldout"></div>
+
+      <div id="policyEvolution">
+        <h3 class="experiment-block-title">Policy evolution <span class="muted">— the knowledge graph the judges run on</span></h3>
+<div class="policy-graph-block policy-graph-spotlight">
+        <div class="policy-graph-copy">
+          <div>
+            <h3 id="policyGraphTitle">Policy graph v_n</h3>
+            <p class="body-copy" id="policyGraphBlurb">This graph IS the prompt the labelers run: Markdown guidelines plus the edges models must cite. Hover to trace; click to read a guideline.</p>
+          </div>
+          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Policy version picker">
+            <label>Policy version
+              <select id="policyGraphVersion"></select>
+            </label>
+            <div class="policy-graph-version-stepper" aria-label="Policy version stepper">
+              <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
+              <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
+              <span id="policyGraphNextNote">accept a proposal to create the next version</span>
+            </div>
+            <span id="policyGraphStatus" class="status-line" role="status"></span>
+          </div>
+        </div>
+        <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+        <p class="fineprint">Policy truth lives in Markdown nodes and <code>edges.json</code>.</p>
+      </div>
+      </div>
+    </section>
+    <section data-view="inspect" id="sample" class="section demo-shell">
       <details class="sample-preview-accordion">
         <summary class="section-head compact sample-preview-summary">
           <p class="eyebrow">§1 Sample</p>
@@ -93,32 +184,11 @@
       </details>
     </section>
     <div id="apiUnavailableHint" class="api-unavailable-hint" hidden>Local API offline. Start the rush web server to enable run controls, decision quality, insights, and proposals.</div>
-    <section id="grow" class="section grow-section">
+    <section data-view="inspect" id="grow" class="section grow-section">
       <div class="section-head compact">
-        <p class="eyebrow">§2 Grow the policy graph</p>
+        <p class="eyebrow">§2 Grow — manual proposal review</p>
         <h2>Grow the policy graph.</h2>
         <p id="growSub">Label with the current policy, mine the disagreements, review the proposed diff — every SME-accepted change becomes the next policy version.</p>
-      </div>
-      <div class="policy-graph-block policy-graph-spotlight">
-        <div class="policy-graph-copy">
-          <div>
-            <h3 id="policyGraphTitle">Policy graph v_n</h3>
-            <p class="body-copy" id="policyGraphBlurb">This graph IS the prompt the labelers run: Markdown guidelines plus the edges models must cite. Hover to trace; click to read a guideline.</p>
-          </div>
-          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Policy version picker">
-            <label>Policy version
-              <select id="policyGraphVersion"></select>
-            </label>
-            <div class="policy-graph-version-stepper" aria-label="Policy version stepper">
-              <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
-              <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
-              <span id="policyGraphNextNote">accept a proposal to create the next version</span>
-            </div>
-            <span id="policyGraphStatus" class="status-line" role="status"></span>
-          </div>
-        </div>
-        <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
-        <p class="fineprint">Policy truth lives in Markdown nodes and <code>edges.json</code>.</p>
       </div>
       <details class="growth-loop-details">
         <summary>How the loop grows / author a new version</summary>
@@ -163,7 +233,7 @@
         <div id="proposalDiffViewer" class="diff-viewer"></div>
       </div>
     </section>
-    <section id="label" class="section api-section">
+    <section data-view="inspect" id="label" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§3 Label</p>
         <h2 id="labelH2">Run the next labeling round.</h2>
@@ -176,12 +246,7 @@
           </div>
         </div>
         <div class="run-trigger-compact" aria-label="Start labeling run">
-        <div class="run-trigger-primary-row">
-          <fieldset class="model-picker compact-model-picker" aria-label="Models">
-            <legend>Panel models <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels)</span></legend>
-            <div id="runTriggerModels" class="model-picker-list"></div>
-          </fieldset>
-        </div>
+        <p class="legend-note">Judge panel: selected in the <strong>Run the loop</strong> view up top — the same panel drives manual runs here.</p>
         <div class="run-trigger-cascade-row" aria-label="Run controls">
           <div class="run-k-inline" aria-label="Run size">
             <label for="runTriggerBatchSize">k per split</label>
@@ -256,7 +321,7 @@
         <div id="runSummary" class="run-summary-card"></div>
       </div>
     </section>
-    <section id="score" class="section">
+    <section data-view="inspect" id="score" class="section">
       <div class="section-head compact">
         <p class="eyebrow">§4 Score</p>
         <h2>How good was the panel — and what escalates?</h2>
@@ -347,7 +412,7 @@
         <div id="residualMisalignments" class="residual-misalign-grid"></div>
       </div>
     </section>
-    <section id="quality" class="section api-section">
+    <section data-view="inspect" id="quality" class="section api-section">
       <div class="section-head compact">
         <p class="eyebrow">§5 Quality</p>
         <h2 id="qualityH2">Decision quality is the gate for policy growth.</h2>
@@ -366,7 +431,6 @@
       <div id="decisionQualitySummary" class="dq-summary-strip"></div>
       <div id="decisionQualityWarning" class="dq-warning-banner" hidden></div>
       <div id="decisionQualityNarrative" class="dq-narrative" hidden></div>
-      <div id="decisionQualityChart" class="api-panel"></div>
       <div id="decisionQualityCards" class="quality-grid"></div>
       <div id="benchmarkComparison" class="benchmark-comparison" hidden>
         <div>
@@ -377,55 +441,7 @@
         <a href="../docs/mnist-benchmarks-v0.md">Benchmark spec</a>
       </div>
     </section>
-    <section id="experiment" class="section api-section">
-      <div class="section-head compact">
-        <p class="eyebrow">§6 Optimize</p>
-        <h2>Turn the crank: seeded, gated policy iteration.</h2>
-        <p>One experiment = a numbered run with a fixed random seed: k cycles of
-        train mini-batch → one clipped policy edit (≤5 changes, human-reviewable)
-        → candidate scored on a fixed test partition → PPO-style gate that
-        auto-accepts only if the system-of-judges macro-F1 improves (the gate
-        agent can veto, never force). The locked holdout is never touched by the
-        loop. Judges come from the §3 panel selection; review each gate decision
-        below — your verdicts are recorded as training data for the critic.</p>
-      </div>
-      <div class="run-controls experiment-start-row" aria-label="Start experiment">
-        <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
-        <label>Train batch N<input id="experimentBatchN" type="number" value="20" min="2" max="200"></label>
-        <label>Test size T<input id="experimentTestN" type="number" value="100" min="10" max="1000"></label>
-        <label>Max changes<input id="experimentMaxChanges" type="number" value="5" min="1" max="5"></label>
-        <label>Seed<input id="experimentSeed" type="number" placeholder="random"></label>
-        <label>Gate
-          <select id="experimentGateModel">
-            <option value="openai/gpt-5.5" selected>gpt-5.5 (default)</option>
-            <option value="openai/gpt-5.5-low">gpt-5.5-low</option>
-            <option value="anthropic/claude-opus-4-7">opus-4-7</option>
-            <option value="metric_only">Metric rule only (no agent)</option>
-          </select>
-        </label>
-        <button id="experimentStart" type="button">Start experiment</button>
-        <span id="experimentStartStatus" class="status-line" role="status"></span>
-      </div>
-      <p id="experimentPanelSummary" class="legend-note"></p>
-      <div class="run-controls" aria-label="Experiment picker">
-        <label>Experiment
-          <select id="experimentSelect"></select>
-        </label>
-        <button id="experimentRefresh" type="button">Refresh</button>
-        <span id="experimentStatusLine" class="status-line" role="status" aria-live="polite"></span>
-      </div>
-      <div id="experimentSummary" class="experiment-summary"></div>
-      <div class="run-controls experiment-chart-controls" aria-label="Trajectory metric">
-        <label>Metric
-          <select id="experimentMetric"></select>
-        </label>
-        <span class="legend-note">solid = test (gate set) · dashed = train batch · ▲ accepted · ○ skipped · per judge + <strong>system</strong></span>
-      </div>
-      <div id="experimentChart" class="api-panel experiment-chart"></div>
-      <div id="experimentLedger"></div>
-      <div id="experimentHoldout"></div>
-    </section>
-    <section id="about" class="section about-shell">
+    <section data-view="inspect" id="about" class="section about-shell">
       <div class="section-head compact">
         <p class="eyebrow">About</p>
         <h2>System, theory, and next steps.</h2>
@@ -483,18 +499,18 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r28"></script>
-  <script src="app.js?v=demo-mnist-kdd-r28"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r28"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r28"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r28"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r28"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r28"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r28"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r28"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r29"></script>
+  <script src="app.js?v=demo-mnist-kdd-r29"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r29"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r29"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r29"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r29"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r29"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r29"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r29"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r28"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r28"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r28"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r29"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r29"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r29"></script>
 </body>
 </html>

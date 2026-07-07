@@ -489,3 +489,29 @@ def test_multiclass_snapshot_passes_schema_validation(tmp_path):
     )
     assert errors == [], errors
     assert "fnr" in json.loads(schema_path.read_text())["$defs"]["per_class_metrics"]["properties"]
+
+
+def test_accept_proposal_allow_branch_from_fixed_baseline(tmp_path):
+    # Fixed-k=0 runs: run #2 accepts from v0.1 even after run #1 minted v0.2.
+    from pipeline.policy_diff import accept_proposal, propose_diff
+
+    graph = tmp_path / "policy-graph" / "MNIST_Digits"
+    (graph / "v0.1").mkdir(parents=True)
+    (graph / "v0.1" / "MD.root.md").write_text("# root v0.1\n", encoding="utf-8")
+    (graph / "v0.2").mkdir()  # run #1's accepted version — v0.1 is now stale
+    (graph / "v0.2" / "MD.root.md").write_text("# root v0.2\n", encoding="utf-8")
+
+    proposal = propose_diff(
+        repo_root=tmp_path, run_id="r1", base_version="v0.1", domain="MNIST_Digits",
+        proposed_files={"MD.root.md": "# root improved from v0.1\n"},
+    )
+    # The manual path still refuses stale bases…
+    with pytest.raises(ValueError, match="stale"):
+        accept_proposal(repo_root=tmp_path, proposal_id=proposal["proposal_id"])
+    # …the crank branches from the fixed baseline.
+    accepted = accept_proposal(
+        repo_root=tmp_path, proposal_id=proposal["proposal_id"], allow_branch=True
+    )
+    assert accepted["new_version"] == "v0.3"
+    new_root = graph / "v0.3" / "MD.root.md"
+    assert new_root.read_text(encoding="utf-8") == "# root improved from v0.1\n"

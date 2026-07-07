@@ -1230,8 +1230,19 @@ def get_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any]:
     return out
 
 
-def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any]:
-    """Accept a pending proposal and create the next policy version."""
+def accept_proposal(
+    *, repo_root: Path | str, proposal_id: str, allow_branch: bool = False
+) -> dict[str, Any]:
+    """Accept a pending proposal and create the next policy version.
+
+    ``allow_branch=True`` (the experiment crank) skips the stale-base guard:
+    every crank run starts from the SAME fixed baseline generator (k=0 is
+    constant across run numbers), so accepted versions legitimately BRANCH
+    from a non-latest base — v0.4 can have parent v0.1. Lineage is recorded
+    per proposal/experiment; version numbers stay globally unique. The manual
+    web flow keeps the guard: there, building from a stale base is always a
+    silent revert.
+    """
     root = _repo_root(repo_root)
     prop_dir = _proposal_dir(root, proposal_id)
     proposal_json = prop_dir / "proposal.json"
@@ -1263,7 +1274,11 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
                 f"seed files and drop {latest}'s nodes. Use a grow/diff proposal "
                 f"against {latest} instead."
             )
-    elif latest is not None and _version_key(base_version) != _version_key(latest):
+    elif (
+        not allow_branch
+        and latest is not None
+        and _version_key(base_version) != _version_key(latest)
+    ):
         raise ValueError(
             f"proposal base {base_version} is stale: the current policy "
             f"version is {latest}. Accepting would build {new_version} from "
@@ -1301,6 +1316,8 @@ def accept_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any
 
     meta["status"] = "accepted"
     meta["accepted_into_version"] = new_version
+    if allow_branch:
+        meta["accepted_as_branch"] = True  # parent = base_version, not latest
     _atomic_write_json(proposal_json, meta)
     return {"new_version": new_version, "path": str(new_dir.relative_to(root))}
 
