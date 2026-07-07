@@ -426,3 +426,43 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
 
     with pytest.raises(APIError):
         validate_experiment_payload(_experiment_payload(strategy="s9_hunches"))
+
+
+def test_handle_adjudication_review_records_and_returns_queue(tmp_path) -> None:
+    from pipeline import experiment as exp
+    from pipeline.web.handlers_experiment import (
+        handle_adjudication_review, handle_adjudication_queue,
+    )
+    from pipeline.web._safety import APIError
+
+    # Seed one queued item.
+    exp_dir = tmp_path / "data" / "experiments" / "exp-20260101T000000-bbbbbb"
+    exp_dir.mkdir(parents=True)
+    votes = [{"model": f"m{i}", "label": "1", "confidence": 0.9, "difficulty": "high",
+              "is_boundary": False} for i in range(3)]
+    sig = exp.panel_signal({"sme_truth": "7", "votes": votes})
+    item = {"image_id": "img1", "sha256": "sha-9", "repo_rel_path": "p.png",
+            "split": "dev_golden", "sme_truth": "7", "misalignment_type": "consensus_wrong",
+            "severity": "high", "source": {"kind": "test", "k": 0, "run_id": "r0"},
+            **sig, "votes": votes}
+    state = {"experiment_id": "exp-20260101T000000-bbbbbb", "run_number": 1,
+             "area": "MNIST_Digits", "seed": 1, "status": "completed",
+             "started_at": "2026-01-01T00:00:00Z", "dry_run": False,
+             "cycles": [], "readjudication": {"items": [item]}}
+    exp.write_state(tmp_path, state)
+
+    status, body = handle_adjudication_review(tmp_path, {
+        "area": "MNIST_Digits", "key": "sha-9", "image_id": "img1",
+        "verdict": "confirm", "prior_truth": "7"})
+    assert status == 200
+    assert body["recorded"]["verdict"] == "confirm"
+    assert body["queue"]["items"][0]["review"]["resolution"] == "confirmed"
+
+    for bad in ({"area": "MNIST_Digits", "key": "", "verdict": "confirm"},
+                {"area": "MNIST_Digits", "key": "sha-9", "verdict": "nope"},
+                {"area": "MNIST_Digits", "key": "sha-9", "verdict": "overturn"}):
+        try:
+            handle_adjudication_review(tmp_path, bad)
+            assert False, f"expected APIError for {bad}"
+        except APIError:
+            pass

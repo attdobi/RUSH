@@ -1135,3 +1135,112 @@ def test_importance_tie_is_low_consensus_not_high():
         {"label": "3", "confidence": 0.9}, {"label": "3", "confidence": 0.9}]})
     assert sig["consensus"]["fraction"] == 0.5 and sig["consensus"]["tie"] is True
     assert sig["importance"]["tier"] == 2
+
+
+# ---------------------------------------------------------------------------
+# SME re-adjudication actions (confirm fades, overturn re-scores)
+
+
+def _seed_queue_experiment(tmp_path, votes, truth="7"):
+    """Write one completed experiment.json whose queue holds a single item."""
+    exp_dir = tmp_path / "data" / "experiments" / "exp-20260101T000000-aaaaaa"
+    exp_dir.mkdir(parents=True)
+    sig = exp.panel_signal({"sme_truth": truth, "votes": votes})
+    item = {"image_id": "img1", "sha256": "sha-1", "repo_rel_path": "p.png",
+            "split": "dev_golden", "sme_truth": truth,
+            "misalignment_type": "consensus_wrong", "severity": "high",
+            "source": {"kind": "test", "k": 0, "run_id": "r0", "policy": "MNIST_Digits.v0.1"},
+            **sig, "votes": votes}
+    state = {"experiment_id": "exp-20260101T000000-aaaaaa", "run_number": 1,
+             "area": "MNIST_Digits", "seed": 1, "status": "completed",
+             "started_at": "2026-01-01T00:00:00Z", "dry_run": False,
+             "cycles": [], "readjudication": {"items": [item]}}
+    (exp_dir / "experiment.json").write_text(json.dumps(state), encoding="utf-8")
+
+
+def test_record_and_fold_adjudications(tmp_path):
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="k1", image_id="i1",
+                            verdict="confirm", prior_truth="7")
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="k1", image_id="i1",
+                            verdict="confirm")
+    by_key = exp.load_adjudications(tmp_path, area="MNIST_Digits")
+    eff, conf, res = exp._fold_reviews(by_key["k1"], "7")
+    assert (eff, conf, res) == ("7", 3, "confirmed")  # seed + 2 confirms
+    # An overturn resets to the new label with the overturning SME as sole confirmer.
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="k1", image_id="i1",
+                            verdict="overturn", new_label="1")
+    by_key = exp.load_adjudications(tmp_path, area="MNIST_Digits")
+    eff, conf, res = exp._fold_reviews(by_key["k1"], "7")
+    assert (eff, conf, res) == ("1", 1, "overturned")
+    with pytest.raises(ValueError):
+        exp.record_adjudication(tmp_path, area="MNIST_Digits", key="k1", image_id="i1",
+                                verdict="overturn")  # missing new_label
+    with pytest.raises(ValueError):
+        exp.record_adjudication(tmp_path, area="MNIST_Digits", key="k1", image_id="i1",
+                                verdict="bogus")
+
+
+def test_confirm_fades_and_overturn_reclassifies(tmp_path):
+    # 4 judges all say "1"; SME truth "7" -> T1 (unanimous & wrong).
+    votes = [{"model": f"m{i}", "label": "1", "confidence": 0.9, "difficulty": "high",
+              "is_boundary": False} for i in range(4)]
+    _seed_queue_experiment(tmp_path, votes, truth="7")
+
+    q0 = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    it0 = q0["items"][0]
+    assert q0["n_open"] == 1
+    assert it0["review"]["resolution"] == "open"
+    base_imp = it0["agg"]["effective_importance"]
+    assert it0["agg"]["worst_tier"] == 1
+
+    # CONFIRM: the golden label holds, human confidence rises -> importance fades.
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="sha-1", image_id="img1",
+                            verdict="confirm", prior_truth="7")
+    q1 = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    it1 = q1["items"][0]
+    assert it1["review"]["resolution"] == "confirmed"
+    assert it1["review"]["resolved"] is True      # m=2 (seed + confirm) -> ≥2 SMEs agree
+    assert q1["n_open"] == 0
+    assert it1["agg"]["effective_importance"] < base_imp
+    assert it1["agg"]["human_confidence"] > 0.5   # m=2 -> 0.545
+
+    # OVERTURN to "1" (what the panel confidently said): the item is re-scored
+    # against the new truth and becomes T4 (aligned & unanimous) — it drops.
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="sha-1", image_id="img1",
+                            verdict="overturn", prior_truth="7", new_label="1")
+    q2 = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    it2 = q2["items"][0]
+    assert it2["review"]["resolution"] == "overturned"
+    assert it2["review"]["effective_label"] == "1"
+    assert it2["review"]["overturned_from"] == "7"
+    # A lone overturn is one SME's new opinion (m=1) — it stays OPEN for a 2nd.
+    assert it2["review"]["resolved"] is False
+    assert q2["n_open"] == 1
+    assert it2["agg"]["recomputed"]["tier"] == 4          # aligned + high consensus
+    assert it2["agg"]["recomputed"]["sme_fraction"] == 1.0
+    assert it2["agg"]["effective_importance"] < base_imp  # dropped hard
+
+
+def test_still_misaligned_overturn_stays_open_and_top_priority(tmp_path):
+    # The review's finding: overturning to a label NO judge gave leaves the
+    # panel still misaligned (T1). It must stay OPEN and high-priority — a
+    # lone overturn is not a resolution, and the item still needs a 2nd SME.
+    votes = [{"model": f"m{i}", "label": "9", "confidence": 0.9, "difficulty": "high",
+              "is_boundary": False} for i in range(4)]
+    _seed_queue_experiment(tmp_path, votes, truth="8")
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="sha-1", image_id="img1",
+                            verdict="overturn", prior_truth="8", new_label="3")
+    q = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    it = q["items"][0]
+    assert it["review"]["resolution"] == "overturned"
+    assert it["review"]["effective_label"] == "3"
+    assert it["review"]["resolved"] is False       # only 1 SME so far
+    assert q["n_open"] == 1                          # still needs a human
+    assert it["agg"]["recomputed"]["tier"] == 1     # panel still confidently wrong vs "3"
+    assert it["agg"]["recomputed"]["sme_fraction"] == 0.0
+    # A second SME confirming the overturn (m=2) finally resolves it.
+    exp.record_adjudication(tmp_path, area="MNIST_Digits", key="sha-1", image_id="img1",
+                            verdict="confirm", prior_truth="3")
+    q2 = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    assert q2["items"][0]["review"]["resolved"] is True
+    assert q2["n_open"] == 0

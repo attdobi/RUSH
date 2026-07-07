@@ -1323,6 +1323,108 @@ def build_readjudication(
     }
 
 
+# --- SME re-adjudication actions (Attila 2026-07-07) -----------------------
+# The queue is not read-only: an SME can CONFIRM the golden label (the LLMs
+# were wrong — raises human confidence, fades the item), OVERTURN it to a new
+# label (the golden set was wrong — the item is re-scored against the new
+# truth, and if the panel now agrees it drops out of the misaligned queue), or
+# mark it UNCERTAIN (needs another look). Actions append to a portable
+# JSONL log — file = truth, same as everything else — read back at query time.
+VERDICTS = ("confirm", "overturn", "uncertain")
+
+
+def adjudication_log_path(repo_root: Path | str) -> Path:
+    return Path(repo_root) / "data" / "adjudication_reviews.jsonl"
+
+
+def record_adjudication(
+    repo_root: Path | str, *, area: str, key: str, image_id: str | None,
+    verdict: str, prior_truth: str | None = None, new_label: str | None = None,
+    reviewer: str = "sme", comment: str = "",
+) -> dict[str, Any]:
+    """Append one SME re-adjudication event to the portable review log."""
+    if verdict not in VERDICTS:
+        raise ValueError(f"verdict must be one of {VERDICTS}: {verdict!r}")
+    if verdict == "overturn" and not new_label:
+        raise ValueError("overturn requires a new_label")
+    record = {
+        "recorded_at": utcnow_iso(),
+        "area": area,
+        "key": key,
+        "image_id": image_id,
+        "verdict": verdict,
+        "prior_truth": prior_truth,
+        "new_label": new_label if verdict == "overturn" else None,
+        "reviewer": (reviewer or "sme")[:80],
+        "comment": (comment or "")[:2000],
+    }
+    path = adjudication_log_path(repo_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, sort_keys=True) + "\n")
+    return record
+
+
+def load_adjudications(
+    repo_root: Path | str, *, area: str | None = None
+) -> dict[str, list[dict[str, Any]]]:
+    """Review events grouped by item key, time-sorted (oldest first)."""
+    path = adjudication_log_path(repo_root)
+    by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    if not path.exists():
+        return by_key
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if area and rec.get("area") != area:
+            continue
+        if rec.get("key"):
+            by_key[rec["key"]].append(rec)
+    for events in by_key.values():
+        events.sort(key=lambda r: str(r.get("recorded_at") or ""))
+    return by_key
+
+
+def _fold_reviews(reviews: list[dict[str, Any]], seed_label: str | None):
+    """Collapse an item's review history into (effective_label,
+    sme_confirmations, resolution). The seed golden label counts as one
+    human's assertion; each confirm adds one; an overturn resets to the new
+    label with the overturning SME as its sole confirmer."""
+    effective = seed_label
+    confirmations = 1
+    resolution = "open"
+    for r in reviews:
+        verdict = r.get("verdict")
+        if verdict == "confirm":
+            confirmations += 1
+            resolution = "confirmed"
+        elif verdict == "overturn":
+            effective = r.get("new_label") or effective
+            confirmations = 1
+            resolution = "overturned"
+        elif verdict == "uncertain":
+            resolution = "uncertain"
+    return effective, confirmations, resolution
+
+
+def _recompute_importance(votes, effective_label, sme_confirmations):
+    """Re-score the panel against a new golden label (after an overturn)."""
+    record = {
+        "sme_truth": effective_label,
+        "sme_confirmations": sme_confirmations,
+        "votes": [{
+            "label": v.get("label"), "confidence": v.get("confidence"),
+            "difficulty": v.get("difficulty"), "is_boundary": v.get("is_boundary"),
+        } for v in (votes or [])],
+    }
+    return panel_signal(record)
+
+
 def aggregate_readjudication(
     repo_root: Path | str,
     *,
@@ -1339,6 +1441,7 @@ def aggregate_readjudication(
     deterministic fake votes would pollute a queue meant for humans.
     """
     root = experiments_root(repo_root)
+    reviews_by_key = load_adjudications(repo_root, area=area)
     grouped: dict[str, dict[str, Any]] = {}
     if root.is_dir():
         for entry in sorted(root.iterdir()):
@@ -1424,18 +1527,56 @@ def aggregate_readjudication(
             # Worst (lowest-numbered) tier the item ever hit — the reason to look.
             "worst_tier": min((r.get("importance") or {}).get("tier") or 4 for r in runs),
         }
+
+        # Fold in SME re-adjudication: confirm fades via human confidence,
+        # overturn re-scores the panel against the new golden label.
+        reviews = reviews_by_key.get(group["key"], [])
+        effective_label, sme_conf, resolution = _fold_reviews(reviews, group["sme_truth"])
+        h = human_confidence(sme_conf)
+        agg = group["agg"]
+        agg["human_confidence"] = h
+        overturned = resolution == "overturned" and effective_label != group["sme_truth"]
+        if overturned:
+            recomputed = _recompute_importance(group["latest"].get("votes"),
+                                               effective_label, sme_conf)
+            imp = recomputed.get("importance") or {}
+            agg["effective_importance"] = imp.get("readjudication")
+            agg["recomputed"] = {
+                "sme_fraction": (recomputed.get("sme_agreement") or {}).get("fraction"),
+                "consensus_fraction": (recomputed.get("consensus") or {}).get("fraction"),
+                "tier": imp.get("tier"),
+                "majority_aligned": recomputed.get("majority_aligned"),
+            }
+        else:
+            anchor = agg.get("anchor")
+            agg["effective_importance"] = (round(anchor * (1.0 - h), 6)
+                                           if isinstance(anchor, (int, float)) else agg.get("importance"))
+        group["review"] = {
+            "resolution": resolution,
+            # Resolved = TWO+ humans agree on the current effective label
+            # (HIS confidence tiers: 1 SME = default/open, 2 = re-confirmed).
+            # A lone overturn (m=1) is one SME's new opinion — it stays OPEN
+            # for a second SME to confirm, even if the panel is still wrong.
+            "resolved": sme_conf >= 2,
+            "effective_label": effective_label,
+            "overturned_from": group["sme_truth"] if overturned else None,
+            "sme_confirmations": sme_conf,
+            "count": len(reviews),
+            "events": reviews[-6:],
+        }
         items.append(group)
 
-    # Default order = the four-tier importance (the per-run queue's rank),
-    # averaged across runs; the web tab re-sorts by any column client-side.
-    items.sort(key=lambda g: (
-        -(g["agg"]["importance"] if g["agg"]["importance"] is not None else 0.0),
-        str(g.get("image_id") or ""),
-    ))
+    # Default order = the effective four-tier importance after SME actions
+    # (re-confirmed items fade via human confidence); re-sortable client-side.
+    def _eff(g):
+        v = g["agg"].get("effective_importance")
+        return v if isinstance(v, (int, float)) else -1.0
+    items.sort(key=lambda g: (-_eff(g), str(g.get("image_id") or "")))
     return {
         "generated_at": utcnow_iso(),
         "area": area,
         "n_items": len(items),
+        "n_open": sum(1 for g in items if not g["review"]["resolved"]),
         "items": items,
     }
 

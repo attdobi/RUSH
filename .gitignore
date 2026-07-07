@@ -54,3 +54,6 @@ data/policy_proposals/
 
 # in-repo git worktrees (should never be committed)
 /RUSH-wt-*
+
+# SME re-adjudication actions are local runtime state, not committed demo data
+data/adjudication_reviews.jsonl

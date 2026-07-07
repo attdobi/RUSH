@@ -53,6 +53,41 @@ def handle_adjudication_queue(
     return 200, exp.aggregate_readjudication(repo_root, area=area)
 
 
+def handle_adjudication_review(
+    repo_root: Path | str, body: dict[str, Any] | None
+) -> tuple[int, dict[str, Any]]:
+    """Record an SME's confirm / overturn / uncertain verdict on a queue item,
+    then return the refreshed queue for the item's area."""
+    body = body or {}
+    area = str(body.get("area") or "").strip()
+    key = str(body.get("key") or "").strip()
+    verdict = str(body.get("verdict") or "").strip()
+    if not area or not key:
+        raise APIError(400, "validation_error", "area and key are required",
+                       details={"field": "key" if area else "area"})
+    if verdict not in exp.VERDICTS:
+        raise APIError(400, "validation_error",
+                       "verdict must be one of: " + ", ".join(exp.VERDICTS),
+                       details={"field": "verdict"})
+    new_label = body.get("new_label")
+    if verdict == "overturn" and not str(new_label or "").strip():
+        raise APIError(400, "validation_error", "overturn requires a new_label",
+                       details={"field": "new_label"})
+    try:
+        record = exp.record_adjudication(
+            repo_root, area=area, key=key,
+            image_id=str(body.get("image_id") or "") or None,
+            verdict=verdict, prior_truth=str(body.get("prior_truth") or "") or None,
+            new_label=str(new_label or "") or None,
+            reviewer=str(body.get("reviewer") or "sme"),
+            comment=str(body.get("comment") or ""),
+        )
+    except ValueError as excinfo:
+        raise APIError(400, "validation_error", str(excinfo)) from excinfo
+    return 200, {"recorded": record,
+                 "queue": exp.aggregate_readjudication(repo_root, area=area)}
+
+
 def handle_gate_review(
     repo_root: Path | str, experiment_id: str, body: dict[str, Any] | None
 ) -> tuple[int, dict[str, Any]]:

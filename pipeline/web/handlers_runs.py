@@ -175,6 +175,12 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             )
             send_json(handler, status, body)
             return
+        if method == "POST" and path == "/api/adjudication/review":
+            status, body = handlers_experiment.handle_adjudication_review(
+                handler.repo_root, read_json_body(handler)
+            )
+            send_json(handler, status, body)
+            return
         if method == "POST" and path == "/api/experiments/start":
             payload = validate_experiment_payload(read_json_body(handler))
             state = registry.start_experiment_job(payload)

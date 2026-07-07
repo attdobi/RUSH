@@ -2741,6 +2741,24 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .adjudicate-tier--2 { color: #1a1207; background: var(--amber, #ffce6a); }
 .adjudicate-tier--3 { color: #06101f; background: var(--blue, #82b5ff); }
 .adjudicate-tier--4 { color: #04140d; background: var(--green, #4de0a6); }
+.adjudicate-res { display: inline-block; border-radius: 6px; padding: 1px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; border: 1px solid var(--line); color: var(--muted); }
+.adjudicate-res--open { color: var(--muted); }
+.adjudicate-res--uncertain { color: var(--amber, #ffce6a); border-color: rgba(255, 206, 106, .5); }
+.adjudicate-res--confirmed { color: var(--green, #4de0a6); border-color: rgba(77, 224, 166, .5); }
+.adjudicate-res--overturned { color: var(--blue, #82b5ff); border-color: rgba(130, 181, 255, .5); }
+.adjudicate-res--done { font-weight: 800; }
+.adjudicate-res--done::after { content: ' ✓'; }
+.adjudicate-action { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(8, 16, 31, .6); display: flex; flex-direction: column; gap: 6px; }
+.adjudicate-action > strong { font-size: 12.5px; }
+.adjudicate-action-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.adjudicate-overturn { display: inline-flex; gap: 4px; align-items: center; }
+.adjudicate-newlabel { padding: 3px 6px; border-radius: 6px; }
+.adjudicate-btn { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: 12px; }
+.adjudicate-btn:hover:not(:disabled) { background: rgba(130, 181, 255, .12); }
+.adjudicate-btn:disabled { opacity: .5; cursor: default; }
+.adjudicate-btn--confirm { color: var(--green, #4de0a6); border-color: rgba(77, 224, 166, .5); }
+.adjudicate-btn--overturn { color: var(--blue, #82b5ff); border-color: rgba(130, 181, 255, .5); }
+.adjudicate-action-hint { max-width: 80ch; }
 .adjudicate-tier-legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
 .adjudicate-tier-legend .adjudicate-tier { margin-left: 10px; }
 .adjudicate-tier-legend .adjudicate-tier:first-child { margin-left: 0; }

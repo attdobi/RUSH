@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r35" />
-  <script src="demos.js?v=demo-mnist-kdd-r35"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r36" />
+  <script src="demos.js?v=demo-mnist-kdd-r36"></script>
 </head>
 <body>
   <header class="hero">
@@ -241,9 +241,11 @@
         </p>
       </div>
       <div class="run-controls" aria-label="Adjudication controls">
+        <label class="checkbox-label"><input id="adjudicateHideResolved" type="checkbox" /> hide resolved</label>
         <button id="adjudicateRefresh" type="button">Refresh</button>
         <span id="adjudicateStatusLine" class="status-line" role="status"></span>
       </div>
+      <p class="hint adjudicate-action-hint">Expand a row (▸) to see the per-judge evidence and act: <strong>Confirm</strong> the golden label (the LLMs were wrong — raises human confidence, fades the item), <strong>Overturn</strong> it to a new label (the golden set was wrong — the panel is re-scored against the new truth), or <strong>Uncertain</strong>.</p>
       <div id="adjudicateSummary" class="experiment-summary"></div>
       <div id="adjudicateTable"></div>
     </section>
@@ -260,14 +262,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r35"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r35"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r35"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r35"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r35"></script>
-  <script src="about.js?v=demo-mnist-kdd-r35"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r35"></script>
+  <script src="app.js?v=demo-mnist-kdd-r36"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r36"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r36"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r36"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r36"></script>
+  <script src="about.js?v=demo-mnist-kdd-r36"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r36"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r35"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r36"></script>
 </body>
 </html>
