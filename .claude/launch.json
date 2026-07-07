@@ -13,7 +13,8 @@
         "--repo-root",
         "/Users/adobi/RUSH"
       ],
-      "port": 8790
+      "port": 8790,
+      "autoPort": false
     }
   ]
 }

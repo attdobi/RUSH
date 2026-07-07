@@ -18,11 +18,12 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 from pipeline.thumbnails import thumbnail_rel_path_for_source, validate_source_repo_path
 
-from . import handlers_dq, handlers_policy
+from . import handlers_dq, handlers_experiment, handlers_policy
 from ._safety import (
     APIError,
     read_json_body,
     validate_cascade_payload,
+    validate_experiment_payload,
     validate_start_payload,
 )
 from .build_id import get_build_id
@@ -155,6 +156,43 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
                 },
             )
             return
+
+        # ----- experiment crank (seeded PPO iteration runs) ----------------
+        if method == "GET" and path == "/api/experiments":
+            status, body = handlers_experiment.handle_list_experiments(handler.repo_root)
+            send_json(handler, status, body)
+            return
+        if method == "POST" and path == "/api/experiments/start":
+            payload = validate_experiment_payload(read_json_body(handler))
+            state = registry.start_experiment_job(payload)
+            job_token = state["job_id"]
+            send_json(
+                handler,
+                202,
+                {
+                    "run_id": job_token,
+                    "job_id": job_token,
+                    "kind": "experiment",
+                    "status_url": f"/api/runs/{job_token}/status",
+                    "log_url": f"/api/runs/{job_token}/log",
+                },
+            )
+            return
+        exp_parts = path.split("/")
+        if len(exp_parts) >= 4 and exp_parts[:3] == ["", "api", "experiments"]:
+            experiment_id = exp_parts[3]
+            if method == "GET" and len(exp_parts) == 4:
+                status, body = handlers_experiment.handle_get_experiment(
+                    handler.repo_root, experiment_id
+                )
+                send_json(handler, status, body)
+                return
+            if method == "POST" and len(exp_parts) == 5 and exp_parts[4] == "review":
+                status, body = handlers_experiment.handle_gate_review(
+                    handler.repo_root, experiment_id, read_json_body(handler)
+                )
+                send_json(handler, status, body)
+                return
 
         parts = path.split("/")
         if len(parts) == 5 and parts[:3] == ["", "api", "runs"]:

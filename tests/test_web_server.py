@@ -233,3 +233,100 @@ def test_static_path_validation_rejects_dotdot(tmp_path: Path) -> None:
 def test_server_refuses_non_localhost_bind(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="127.0.0.1"):
         create_server(host="0.0.0.0", port=0, repo_root=tmp_path)
+
+
+# ---- experiment crank payload validation ----------------------------------
+
+
+def _experiment_payload(**overrides):
+    payload = {
+        "area": "MNIST_Digits",
+        "models": ["openai/gpt-5.4-mini-low", "google/gemini-3.1-flash-lite"],
+        "allow_spend": True,
+        "live": True,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_validate_experiment_payload_defaults() -> None:
+    from pipeline.web._safety import validate_experiment_payload
+
+    request = validate_experiment_payload(_experiment_payload())
+    assert request["k_max"] == 5
+    assert request["batch_n"] == 20
+    assert request["test_n"] == 100
+    assert request["max_changes"] == 5
+    assert request["gate_model"] == "openai/gpt-5.5"
+    assert request["gate_mode"] == "agent"
+    assert request["seed"] is None
+    assert request["epsilon"] == 0.0
+
+
+def test_validate_experiment_payload_panel_bounds() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(models=["openai/gpt-5.4-mini-low"]))
+    six = [
+        "openai/gpt-5.4-mini-low", "google/gemini-3.1-flash-lite",
+        "anthropic/claude-haiku-4-5-low", "openai/gpt-5.5-low",
+        "google/gemini-3.5-flash", "anthropic/claude-sonnet-4-6",
+    ]
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(models=six))
+
+
+def test_validate_experiment_payload_rejects_bad_fields() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(max_changes=6))
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(gate_model="local/qwen2.5-vl-7b"))
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(gate_mode="vibes"))
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(policy_version="../etc"))
+    with pytest.raises(APIError):
+        # Live without allow_spend refuses (402).
+        validate_experiment_payload(_experiment_payload(allow_spend=False))
+
+
+def test_experiment_endpoints_list_detail_and_review(tmp_path: Path, monkeypatch) -> None:
+    from pipeline import experiment as exp
+    from pipeline.experiment import store as exp_store
+    from pipeline.web import handlers_experiment
+    from pipeline.web._safety import APIError
+
+    monkeypatch.setattr(exp_store, "try_sync_gate_review", lambda **_: False)
+    exp_id = exp.mint_experiment_id()
+    exp.write_state(tmp_path, {
+        "experiment_id": exp_id,
+        "area": "MNIST_Digits",
+        "seed": 7,
+        "status": "completed",
+        "started_at": exp.utcnow_iso(),
+        "cycles": [{"k": 0}, {"k": 1, "status": "skipped", "gate": {"decision": "skip"}}],
+    })
+
+    status, body = handlers_experiment.handle_list_experiments(tmp_path)
+    assert status == 200 and body["experiments"][0]["experiment_id"] == exp_id
+
+    status, body = handlers_experiment.handle_get_experiment(tmp_path, exp_id)
+    assert status == 200 and body["seed"] == 7
+
+    with pytest.raises(APIError) as excinfo:
+        handlers_experiment.handle_get_experiment(tmp_path, "exp-19990101T000000-abc123")
+    assert excinfo.value.status == 404
+    with pytest.raises(APIError):
+        handlers_experiment.handle_get_experiment(tmp_path, "../sneaky")
+
+    status, body = handlers_experiment.handle_gate_review(
+        tmp_path, exp_id, {"k": 1, "verdict": "incorrect", "comment": "bad skip"}
+    )
+    assert status == 200 and body["review"]["verdict"] == "incorrect"
+    with pytest.raises(APIError):
+        handlers_experiment.handle_gate_review(tmp_path, exp_id, {"k": 0, "verdict": "correct"})
+    with pytest.raises(APIError):
+        handlers_experiment.handle_gate_review(tmp_path, exp_id, {"k": 1, "verdict": "nope"})

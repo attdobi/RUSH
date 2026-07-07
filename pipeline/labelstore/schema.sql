@@ -203,3 +203,149 @@ SELECT
   max(human_confidence)                           AS human_confidence
 FROM rush.sample_gradient
 GROUP BY entity_id, generator_id;
+
+-- ---------------------------------------------------------------------------
+-- Experiment crank (Attila 2026-07-06): each demo is a seeded, numbered
+-- experiment run — a PPO-style loop of k_max cycles where a mini-batch of N
+-- train images drives a clipped (1..max_changes) policy edit, the fixed
+-- seeded test partition gates acceptance on system macro-F1, and the locked
+-- holdout is scored only at the start/final versions. Everything below is
+-- dual-written: data/experiments/<id>/ JSON stays the portable per-run truth
+-- (a fresh clone demos with no DB); these tables are the cross-experiment
+-- analysis layer for the paper.
+
+-- generator_version predates the crank: widen the gate vocabulary so
+-- candidate policy versions that were evaluated but not accepted persist
+-- ('skipped'), and staged-but-ungated ones are representable ('pending').
+ALTER TABLE rush.generator_version DROP CONSTRAINT IF EXISTS generator_version_gate_status_check;
+ALTER TABLE rush.generator_version ADD CONSTRAINT generator_version_gate_status_check
+  CHECK (gate_status IN ('accepted','rejected','skipped','pending'));
+ALTER TABLE rush.generator_version ADD COLUMN IF NOT EXISTS experiment_id TEXT;
+ALTER TABLE rush.generator_version ADD COLUMN IF NOT EXISTS n_changes INT;
+-- When a candidate is accepted it becomes a real policy-graph version; the
+-- candidate row keeps its evaluation verdicts (llm_label FKs) and points at
+-- the accepted generator_id here.
+ALTER TABLE rush.generator_version ADD COLUMN IF NOT EXISTS accepted_as TEXT;
+
+CREATE TABLE IF NOT EXISTS rush.experiment (
+  experiment_id  TEXT PRIMARY KEY,             -- exp-YYYYMMDDTHHMMSS-<hex6>
+  run_number     INT,                          -- human-friendly sequence per area
+  area           TEXT NOT NULL,
+  seed           BIGINT NOT NULL,              -- master RNG seed: test partition,
+                                               -- per-cycle train batches, anchors
+  k_max          INT NOT NULL,
+  batch_n        INT NOT NULL,                 -- train images per cycle
+  test_n         INT NOT NULL,                 -- fixed gate partition size
+  judge_models   JSONB NOT NULL,               -- the panel, e.g. ["openai/gpt-5.4-mini-low", ...]
+  gate_model     TEXT NOT NULL,
+  drafter_model  TEXT NOT NULL,
+  strategy       TEXT NOT NULL DEFAULT 'random_misalignment',  -- S1; S2-S5 later
+  max_changes    INT NOT NULL DEFAULT 5 CHECK (max_changes BETWEEN 1 AND 5),
+  epsilon        NUMERIC NOT NULL DEFAULT 0,   -- accept iff f1_after > f1_before + epsilon
+  base_generator TEXT,                         -- policy version at k=0 (e.g. 'MNIST_Digits.v0.1')
+  config         JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status         TEXT NOT NULL DEFAULT 'running'
+    CHECK (status IN ('running','completed','failed','stopped')),
+  started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at    TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS rush.experiment_cycle (
+  experiment_id       TEXT NOT NULL REFERENCES rush.experiment(experiment_id),
+  k                   INT  NOT NULL,           -- 0 = baseline eval, 1..k_max = crank turns
+  cycle_seed          BIGINT,                  -- derived from (seed, k); drives sampling
+  generator_before    TEXT,                    -- policy version entering the cycle
+  candidate_generator TEXT,                    -- minted candidate id (NULL if no edit proposed)
+  generator_after     TEXT,                    -- == candidate on accept, == before on skip
+  train_ids           JSONB,                   -- sample_ids labeled this cycle
+  n_misaligned        INT,
+  anchor_ids          JSONB,                   -- S1 random anchor sample_ids
+  n_changes_proposed  INT,                     -- what the drafter emitted
+  n_changes_applied   INT,                     -- after the 1..max_changes clip
+  proposal_id         TEXT,                    -- data/policy_proposals/<id>
+  train_run_id        TEXT,                    -- child labeling runs (data/runs/<id>)
+  candidate_run_id    TEXT,
+  status              TEXT NOT NULL DEFAULT 'open',
+  error               TEXT,
+  started_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at           TIMESTAMPTZ,
+  PRIMARY KEY (experiment_id, k)
+);
+-- Status vocabulary lives in a re-runnable named constraint so it can widen
+-- (baseline = the k=0 eval row; stopped = operator interrupted mid-cycle).
+ALTER TABLE rush.experiment_cycle DROP CONSTRAINT IF EXISTS experiment_cycle_status_check;
+ALTER TABLE rush.experiment_cycle ADD CONSTRAINT experiment_cycle_status_check
+  CHECK (status IN ('open','baseline','accepted','skipped','no_misalignments','failed','stopped'));
+
+-- Attila's tracking spec verbatim: "track accuracy, f1, precision, recall,
+-- fpr, fnr at each cycle for each model and the system of judges" — on both
+-- train and test. scorer = a judge model_id or 'system' (majority vote).
+-- Candidate evaluations land under the candidate's generator_id, so one
+-- cycle can carry test metrics for both baseline and candidate.
+CREATE TABLE IF NOT EXISTS rush.experiment_metric (
+  experiment_id   TEXT NOT NULL,
+  k               INT  NOT NULL,
+  split           TEXT NOT NULL CHECK (split IN ('train','test','holdout')),
+  scorer          TEXT NOT NULL,               -- model_id | 'system'
+  generator_id    TEXT NOT NULL,
+  n               INT NOT NULL,
+  n_abstained     INT NOT NULL DEFAULT 0,
+  accuracy        NUMERIC,
+  macro_f1        NUMERIC,
+  macro_precision NUMERIC,
+  macro_recall    NUMERIC,
+  macro_fpr       NUMERIC,
+  macro_fnr       NUMERIC,
+  micro_f1        NUMERIC,
+  micro_precision NUMERIC,
+  micro_recall    NUMERIC,
+  micro_fpr       NUMERIC,
+  micro_fnr       NUMERIC,
+  per_class       JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (experiment_id, k, split, scorer, generator_id),
+  FOREIGN KEY (experiment_id, k)
+    REFERENCES rush.experiment_cycle(experiment_id, k)
+);
+
+-- One row per gate evaluation. The deterministic rule (metric_pass) is the
+-- trust region hard wall; the gate agent (gpt-5.5 default) may veto a
+-- metric-passed candidate but can never force-accept a metric-failed one.
+CREATE TABLE IF NOT EXISTS rush.gate_decision (
+  gate_decision_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  experiment_id    TEXT NOT NULL,
+  k                INT  NOT NULL,
+  baseline_generator  TEXT NOT NULL,
+  candidate_generator TEXT NOT NULL,
+  gate_model       TEXT NOT NULL,
+  metric           TEXT NOT NULL DEFAULT 'test_system_macro_f1',
+  value_before     NUMERIC,
+  value_after      NUMERIC,
+  metric_pass      BOOLEAN NOT NULL,
+  decision         TEXT NOT NULL CHECK (decision IN ('accept','skip')),
+  decided_by       TEXT NOT NULL
+    CHECK (decided_by IN ('metric_rule','gate_agent','gate_agent_veto','human','override_guard')),
+  rationale        TEXT,
+  raw_response     TEXT,
+  cost_usd         NUMERIC,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (experiment_id, k)
+    REFERENCES rush.experiment_cycle(experiment_id, k)
+);
+
+-- The human "critic of the critic": SME review of gate decisions, deferred to
+-- the end of the iteration cycle so the loop stays automated. Recorded for
+-- future RLHF of the gate agent. Keyed by (experiment_id, k) because the UI
+-- reads the portable JSON, not gate_decision_id.
+CREATE TABLE IF NOT EXISTS rush.gate_review (
+  gate_review_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  experiment_id  TEXT NOT NULL,
+  k              INT  NOT NULL,
+  reviewer       TEXT NOT NULL,
+  verdict        TEXT NOT NULL CHECK (verdict IN ('correct','incorrect','unsure')),
+  comment        TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (experiment_id, k)
+    REFERENCES rush.experiment_cycle(experiment_id, k)
+);
+CREATE INDEX IF NOT EXISTS gate_review_exp_idx ON rush.gate_review (experiment_id, k);

@@ -88,12 +88,19 @@ def _spec_for(model_id: str) -> tuple[str, int]:
     return spec.provider_model_name, max(labeling_cap, _POLICY_MAX_TOKENS)
 
 
-def policy_chat_callable(model_id: str) -> ChatCallable:
+def policy_chat_callable(
+    model_id: str,
+    *,
+    usage_sink: list[dict[str, Any]] | None = None,
+) -> ChatCallable:
     """Return ``chat(messages, *, model_id, reasoning_effort='high', **_) -> str``.
 
     The callable maps OpenAI-style chat messages into Anthropic Messages API
     params: the first system message becomes ``system=...`` and subsequent
     user/assistant messages are forwarded via ``messages=[...]``.
+
+    ``usage_sink``, when given, receives one ``{"model_id", "input_tokens",
+    "output_tokens"}`` dict per call (see the OpenAI twin for rationale).
     """
     default_model_name, default_max_tokens = _spec_for(model_id)
     client_holder: dict[str, Any] = {}
@@ -144,6 +151,14 @@ def policy_chat_callable(model_id: str) -> ChatCallable:
             params["system"] = system
         response = _ensure_client().messages.create(**params)
         input_tokens, output_tokens = _extract_usage_tokens(response)
+        if usage_sink is not None:
+            usage_sink.append(
+                {
+                    "model_id": model_id,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                }
+            )
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s", model_id)
         return _extract_text(response)

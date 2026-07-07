@@ -18,12 +18,20 @@ Metric output shape (per labeler)
       "macro_precision": float | None,   # mean of defined per-class precision
       "macro_recall": float | None,
       "macro_f1": float | None,
+      "macro_fpr": float | None,
+      "macro_fnr": float | None,
+      "micro_precision": float | None,   # pooled one-vs-rest counts
+      "micro_recall": float | None,
+      "micro_f1": float | None,
+      "micro_fpr": float | None,
+      "micro_fnr": float | None,
       "per_class": {
         <class>: {
           "precision": float | None,     # tp / (tp + fp),  one-vs-rest
           "recall":    float | None,     # tp / (tp + fn)
           "f1":        float | None,     # harmonic mean of P/R
           "fpr":       float | None,     # fp / (fp + tn)
+          "fnr":       float | None,     # fn / (fn + tp) = 1 - recall
           "support":   int               # # of decided rows whose truth == class
         }, ...
       },
@@ -127,6 +135,7 @@ def compute_multiclass_metrics(
     recalls: list[float | None] = []
     f1s: list[float | None] = []
     fprs: list[float | None] = []
+    fnrs: list[float | None] = []
     pooled_tp = pooled_fp = pooled_tn = pooled_fn = 0
     for cls in classes:
         tp = fp = tn = fn = 0
@@ -142,6 +151,9 @@ def compute_multiclass_metrics(
         precision = _safe_div(tp, tp + fp)
         recall = _safe_div(tp, tp + fn)
         fpr = _safe_div(fp, fp + tn)
+        # fnr = fn / (fn + tp) = 1 - recall; computed from counts so it is
+        # None exactly when recall is None (zero support).
+        fnr = _safe_div(fn, fn + tp)
         if precision is None or recall is None or (precision == 0 and recall == 0):
             f1 = None
         else:
@@ -151,12 +163,14 @@ def compute_multiclass_metrics(
             "recall": _round(recall),
             "f1": _round(f1),
             "fpr": _round(fpr),
+            "fnr": _round(fnr),
             "support": tp + fn,
         }
         precisions.append(precision)
         recalls.append(recall)
         f1s.append(f1)
         fprs.append(fpr)
+        fnrs.append(fnr)
         pooled_tp += tp
         pooled_fp += fp
         pooled_tn += tn
@@ -169,6 +183,15 @@ def compute_multiclass_metrics(
     micro_recall = _safe_div(pooled_tp, pooled_tp + pooled_fn)
     micro_precision = _safe_div(pooled_tp, pooled_tp + pooled_fp)
     micro_fpr = _safe_div(pooled_fp, pooled_fp + pooled_tn)
+    micro_fnr = _safe_div(pooled_fn, pooled_fn + pooled_tp)
+    if micro_precision is None or micro_recall is None or (
+        micro_precision == 0 and micro_recall == 0
+    ):
+        micro_f1 = None
+    else:
+        micro_f1 = _safe_div(
+            2 * micro_precision * micro_recall, micro_precision + micro_recall
+        )
 
     return {
         "accuracy": _round(accuracy),
@@ -178,9 +201,12 @@ def compute_multiclass_metrics(
         "macro_recall": _round(_macro(recalls)),
         "macro_f1": _round(_macro(f1s)),
         "macro_fpr": _round(_macro(fprs)),
+        "macro_fnr": _round(_macro(fnrs)),
         "micro_precision": _round(micro_precision),
         "micro_recall": _round(micro_recall),
+        "micro_f1": _round(micro_f1),
         "micro_fpr": _round(micro_fpr),
+        "micro_fnr": _round(micro_fnr),
         "per_class": per_class,
         "confusion_matrix": {
             t: dict(sorted(confusion[t].items()))

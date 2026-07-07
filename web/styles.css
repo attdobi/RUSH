@@ -2687,3 +2687,31 @@ main { padding-bottom: 82px; }
 
 /* Measured seconds/image estimate in the model picker */
 .model-pick-body .model-speed { display: inline-block; margin-left: 8px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--gold); background: rgba(255,209,102,.10); border: 1px solid rgba(255,209,102,.28); border-radius: 6px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+
+/* ---- §6 Optimize: the experiment crank ---- */
+.experiment-start-row input[type="number"] { width: 92px; border: 1px solid var(--line); border-radius: 13px; background: #07101f; color: var(--text); padding: 11px 12px; }
+.experiment-start-row select { min-width: 200px; }
+#experimentSelect { min-width: 340px; }
+.experiment-chart-controls select { min-width: 220px; }
+.experiment-summary { margin: 6px 0 14px; }
+.experiment-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.experiment-summary-grid > div { background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 10px 12px; display: grid; gap: 4px; }
+.experiment-summary-grid span { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.experiment-summary-grid strong { color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+.experiment-chart svg { width: 100%; height: auto; display: block; }
+.experiment-chip { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .03em; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.experiment-chip--accepted { color: #07130c; background: var(--green); border-color: var(--green); }
+.experiment-chip--skipped { color: var(--gold); border-color: rgba(255, 209, 102, .55); }
+.experiment-chip--failed { color: #1a0710; background: var(--red); border-color: var(--red); }
+.experiment-chip--neutral { color: var(--muted); }
+.experiment-ledger-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+.experiment-ledger-table th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.experiment-ledger-table td { padding: 10px; border-bottom: 1px solid rgba(44, 62, 104, .5); vertical-align: top; color: var(--text); }
+.experiment-ledger-table code, .experiment-ledger-table td:nth-child(4) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.experiment-rationale { color: var(--muted); font-size: 12px; margin-top: 5px; max-width: 380px; }
+.experiment-kg-link { background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--blue); padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.experiment-kg-link:hover { border-color: var(--blue); }
+.experiment-review-buttons { display: inline-flex; gap: 6px; }
+.experiment-review-buttons button { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: #07101f; color: var(--text); font-size: 14px; cursor: pointer; }
+.experiment-review-buttons button:hover { border-color: var(--blue); }
+.experiment-holdout { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 12px 14px; color: var(--text); font-size: 13px; }

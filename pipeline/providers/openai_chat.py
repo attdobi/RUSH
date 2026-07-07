@@ -32,6 +32,25 @@ def _spec_for(model_id: str) -> tuple[str, int]:
     return spec.provider_model_name, max(labeling_cap, _DEFAULT_MAX_COMPLETION_TOKENS)
 
 
+_EFFORT_SUFFIXES = ("low", "medium", "high", "xhigh")
+
+
+def _effective_effort(model_id: str, requested: str) -> str:
+    """Honor the effort encoded in an effort-suffixed model id.
+
+    ``openai/gpt-5.5-low`` MEANS low reasoning effort — callers that pass a
+    generic default (e.g. policy drafting's ``reasoning_effort="high"``)
+    must not silently promote it. Non-suffixed ids keep the caller's choice.
+    """
+    tail = model_id.rsplit("-", 1)[-1]
+    if tail in _EFFORT_SUFFIXES:
+        spec = MODEL_REGISTRY.get(model_id)
+        if spec is not None and spec.params.get("reasoning_effort"):
+            return str(spec.params["reasoning_effort"])
+        return tail
+    return requested
+
+
 def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
     usage = getattr(response, "usage", None)
     if usage is None and isinstance(response, dict):
@@ -70,12 +89,21 @@ def _extract_text(response: Any) -> str:
     return "" if content is None else str(content)
 
 
-def policy_chat_callable(model_id: str) -> ChatCallable:
+def policy_chat_callable(
+    model_id: str,
+    *,
+    usage_sink: list[dict[str, Any]] | None = None,
+) -> ChatCallable:
     """Return ``chat(messages, *, model_id, reasoning_effort='high', **_) -> str``.
 
     Messages are forwarded directly to OpenAI's chat-completions endpoint with
     ``response_format={"type": "json_object"}`` to keep policy proposal parsing
     deterministic.
+
+    ``usage_sink``, when given, receives one ``{"model_id", "input_tokens",
+    "output_tokens"}`` dict per call — the hook cost-accounted callers (the
+    experiment crank's drafter/gate agents) use to ledger text-only spend,
+    which is otherwise only logged.
     """
     default_model_name, default_max_completion_tokens = _spec_for(model_id)
     client_holder: dict[str, Any] = {}
@@ -103,11 +131,19 @@ def policy_chat_callable(model_id: str) -> ChatCallable:
             "model": provider_model_name,
             "messages": messages,
             "response_format": {"type": "json_object"},
-            "reasoning_effort": reasoning_effort,
+            "reasoning_effort": _effective_effort(model_id, reasoning_effort),
             "max_completion_tokens": max_completion_tokens,
         }
         response = _ensure_client().chat.completions.create(**params)
         input_tokens, output_tokens = _extract_usage_tokens(response)
+        if usage_sink is not None:
+            usage_sink.append(
+                {
+                    "model_id": model_id,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                }
+            )
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s", model_id)
         else:

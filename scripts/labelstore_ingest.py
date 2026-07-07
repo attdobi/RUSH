@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -151,14 +152,21 @@ def ingest_run(conn, run_dir: Path) -> dict | None:
 
     lookup = _entity_lookup(conn, area)
     inserted = skipped_dupe = unmatched = 0
+    # Stub row so llm_label's FK is satisfied. Real policy-graph versions
+    # ('<area>.vX.Y' / 'vX.Y') were accepted by definition; anything else
+    # (experiment candidate generators) is 'pending' until the crank's own
+    # sync records the gate outcome — never pre-mark a candidate accepted.
+    stub_status = (
+        "accepted" if re.search(r"(^|\.)v\d+\.\d+$", generator_id) else "pending"
+    )
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO rush.generator_version (generator_id, diff_text, gate_status)
-            VALUES (%s, '', 'accepted')
+            VALUES (%s, '', %s)
             ON CONFLICT (generator_id) DO NOTHING
             """,
-            (generator_id,),
+            (generator_id, stub_status),
         )
         for raw in votes_path.read_text(encoding="utf-8").splitlines():
             if not raw.strip():

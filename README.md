@@ -86,11 +86,11 @@ RUSH makes three claims. Each has a specific measurement that would refute it.
 
 1. **Cost.** A cascade of cheap models + selective escalation labels a stream at a small fraction of expert-panel cost, *without* letting cheap-tier errors leak into the metric. Refuted if the cheap-resolved set shows material error. Measured status: none of the 258 cheap-resolved items on the k=200 MNIST run was wrong (caveats in the measured box above).
 2. **Quality.** Model consensus governed by a certified golden set matches or beats redundant non-expert human labeling. Measured status: 97.7% ensemble accuracy at 0.25% FPR in-repo; the Pinterest-scale comparison (85.7% consensus accuracy — an internal pilot figure against an internal 3× BPO baseline) is exec-brief context, not reproduced here.
-3. **Convergence.** The design target: decision quality on a locked holdout is non-decreasing over *accepted* policy edits, and human labeling demand decays to a maintenance trickle. Today an SME approves every diff; the automated held-out DQ gate is the next wiring step. Refuted if held-out DQ regresses across accepted versions, or the SME queue does not shrink. Monitored via the §5 accuracy-by-policy-version trend and the overturn rate.
+3. **Convergence.** The design target: decision quality on a locked holdout is non-decreasing over *accepted* policy edits, and human labeling demand decays to a maintenance trickle. The automated gate is now shipped as the §6 experiment crank: a candidate edit is accepted only if system macro-F1 on the experiment's fixed test partition strictly improves (a gate agent can veto a metric-passing edit, never force a failing one); §2 manual SME review remains for hand-driven iteration. Refuted if held-out DQ regresses across accepted versions, or the SME queue does not shrink. Monitored via the §5/§6 DQ-by-version trends and the overturn rate.
 
 "Converge" means two things in RUSH, and both are instrumented:
 
-**The policy converges upward — gated by humans today.** An edit ships only after review: today an SME approves every diff; the automated held-out DQ gate — commit an edit only when its realized held-out advantage is positive — is the next wiring step. Once that gate is wired, decision quality over *accepted* policy versions is non-decreasing on validation by construction: DQ(v₀) ≤ DQ(v₁) ≤ …. The raw per-iteration curve is allowed to be non-monotonic — the discipline is early stopping and a best-so-far checkpoint (*the best-so-far guideline, not the last one, is what ships*). The §5 accuracy-by-policy-version trend chart is this claim made visible: watch DQ(v_n) grow as the graph iterates n → n+1.
+**The policy converges upward — gated by measurement, reviewed by humans.** An edit ships only through a gate. Two paths exist: §2 manual (an SME approves every diff) and the §6 experiment crank, where the gate is automated — commit an edit only when its realized advantage on the experiment's fixed test partition is positive — and the human "critic" reviews the gate's decisions *after* the iteration cycle (each verdict is recorded as future RLHF data for the critic agent). Under the automated gate, decision quality over *accepted* policy versions is non-decreasing on the gate set by construction: DQ(v₀) ≤ DQ(v₁) ≤ …. The raw per-iteration curve is allowed to be non-monotonic — the discipline is early stopping and a best-so-far checkpoint (*the best-so-far guideline, not the last one, is what ships*). The §5 accuracy-by-policy-version trend chart is this claim made visible: watch DQ(v_n) grow as the graph iterates n → n+1.
 
 **The judge converges to maximum decision quality per dollar.** The system objective is DQ maximization subject to budget — prompt-length budget on the policy, token/dollar budget on the cascade, SME-minute budget on adjudication. The convergence signatures are all measurable and all trend downward as the system matures: escalation rate (fewer items defeat cheap consensus), overturn rate (fewer golden labels get flipped on re-adjudication — a falling overturn rate is the signature of a golden set that is converging), and flip rate across policy versions (the decision function stops moving). Steady state is a maintenance trickle: human attention flows only where the world, the policy, or the model actually moved.
 
@@ -135,7 +135,7 @@ RUSH's tuning loop is PPO transplanted to a text policy: there are no weights to
 | Reward | Decision-quality delta (accuracy/F1/recall/FPR) on **held-out** data vs the SME key |
 | Critic | An analyst model that reads misalignments and says, in words, where return is being lost |
 | Actor | An editor model that emits **exactly one** trackable, reversible edit |
-| Trust region / PPO clip | The gate: accept an edit only if held-out DQ improves **and** it changes a small fraction of the guideline (the technical-note spec defaults to a few percent of tokens); shrink-and-retry oversized wins; reject non-generalizing ones. Design spec — in the shipped code an SME approves every diff; the automated gate is the next wiring step |
+| Trust region / PPO clip | The gate: accept an edit only if test-partition system macro-F1 strictly improves **and** the edit stays inside the change budget — shipped in the §6 crank as a hard clip of **1–5 policy-node changes per version** (small enough that a human can review every accepted step), with a gate agent that can veto but never force. Shrink-and-retry for oversized wins remains spec |
 | KL / entropy regularizer | Brevity penalty — added policy length must pay for itself in held-out decision quality |
 | Reward model | The golden set — **maintained and certified**, not frozen: an SME overturn in adjudication *is* an update to the reward model |
 
@@ -143,7 +143,7 @@ RUSH's tuning loop is PPO transplanted to a text policy: there are no weights to
 
 Why the clip matters here, specifically: with frontier-model editors the binding risk is no longer competence but **strategic overfitting** — clever, hyper-specific patches that fix the sampled batch and degrade the guideline ("an edit that names an item is a memorized point in disguise"). The clip is precisely the control designed to contain that.
 
-**Where the code is today.** Shipped: §2 proposals are single trackable diffs accepted only via SME review, with stale-base and cold-start-over-existing guards; accepting materializes v_{n+1}; held-out DQ per policy version is charted in §5. The fully automated advantage/edit-size gate with shrink-and-retry is specified in the technical notes and is the near-term wiring on top of that shipped diff machinery.
+**Where the code is today.** Shipped: §2 proposals are single trackable diffs accepted via SME review, with stale-base and cold-start-over-existing guards; accepting materializes v_{n+1}; held-out DQ per policy version is charted in §5. Also shipped: the **§6 experiment crank** (`scripts/run_experiment.py`) — the fully automated advantage/edit-size gate running k seeded cycles end to end: train mini-batch → S1 random misalignment anchors → one 1–5-change clipped edit → candidate eval on a fixed seeded test partition → auto-accept iff system macro-F1 improves (gate agent veto allowed), with every cycle's per-judge accuracy/F1/precision/recall/FPR/FNR, every gate decision, and every post-hoc SME review of the gate recorded (portable JSON + Postgres `rush` schema). Shrink-and-retry on oversized edits remains spec.
 
 The tokenomics run through the learning loop too: SME labels are expensive, so the loop routes them by expected learning value — boundary cases, judge disagreements, contested items — instead of asking humans to re-label the easy majority. That is RLHF with minimal human intervention: the human signal is concentrated where one label teaches a durable rule.
 
@@ -151,13 +151,14 @@ The tokenomics run through the learning loop too: SME labels are expensive, so t
 
 ## See it live
 
-The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) walks the full loop in five sections:
+The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) walks the full loop in six sections:
 
 1. **§1 Sample** — draw dev-golden / locked-holdout splits.
 2. **§2 Grow** — the policy graph and SME-reviewable diff proposals; accepting materializes v_{n+1}.
 3. **§3 Label** — pick the panel and k per split; **Run panel** or **Run cascade** (tier-1 → tier-2 escalation live).
 4. **§4 Score** — consensus, confusion matrix, per-digit F1/recall/FPR, reported test-split tiles, escalation-cascade lanes.
-5. **§5 Quality** — the decision-quality table (accuracy/F1/precision/recall/FPR per labeler + ensemble), cost per 1k labels, and the accuracy-by-policy-version trend chart — the convergence claim on screen.
+5. **§5 Quality** — the decision-quality table (accuracy/F1/precision/recall/FPR/FNR per labeler + ensemble), cost per 1k labels, and the accuracy-by-policy-version trend chart — the convergence claim on screen.
+6. **§6 Optimize** — the experiment crank: start a seeded, numbered run (k cycles, batch N, test T, ≤5 changes/edit), watch the per-cycle DQ trajectory per judge + system (train dashed, test solid, accepted cycles marked with their new version), audit the gate ledger, and record SME verdicts on each gate decision — the critic-of-the-critic data for future RLHF.
 
 Presenting it? **[`docs/DEMO-FLOW.md`](docs/DEMO-FLOW.md)** is the 10-minute walkthrough script (with a 3-minute short version and a claim-verification appendix).
 

@@ -522,11 +522,44 @@ def build_client(
     raise ValueError(f"unsupported provider: {spec.provider}")
 
 
+def get_chat_callable(model_id: str, *, usage_sink: list | None = None):
+    """Return a TEXT-ONLY ``ChatCallable`` for a registry model id.
+
+    Dispatches by provider to the policy chat factories (OpenAI / Anthropic —
+    the only providers with a text-only path today). This is the factory
+    ``scripts/propose_policy_patch.py --execute`` probes for, and what the
+    experiment crank uses for its drafter and gate agents.
+
+    ``usage_sink`` is forwarded: when given, it receives one
+    ``{"model_id", "input_tokens", "output_tokens"}`` dict per call.
+
+    Raises:
+        KeyError: unknown model id.
+        ValueError: provider has no text-only chat path (gemini/local).
+    """
+    spec = MODEL_REGISTRY.get(model_id)
+    if spec is None:
+        raise KeyError(f"unknown model_id: {model_id}")
+    if spec.provider == "openai":
+        from pipeline.providers.openai_chat import policy_chat_callable
+
+        return policy_chat_callable(model_id, usage_sink=usage_sink)
+    if spec.provider == "anthropic":
+        from pipeline.providers.anthropic_chat import policy_chat_callable
+
+        return policy_chat_callable(model_id, usage_sink=usage_sink)
+    raise ValueError(
+        f"no text-only chat path for provider '{spec.provider}' (model {model_id}); "
+        "use an openai/* or anthropic/* model for drafter/gate agents"
+    )
+
+
 __all__ = [
     "ModelSpec",
     "MODEL_REGISTRY",
     "list_models",
     "build_client",
+    "get_chat_callable",
     "local_base_url",
     "DEFAULT_LOCAL_BASE_URL",
 ]

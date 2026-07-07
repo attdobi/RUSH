@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r27" />
-  <script src="demos.js?v=demo-mnist-kdd-r27"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r28" />
+  <script src="demos.js?v=demo-mnist-kdd-r28"></script>
 </head>
 <body>
   <header class="hero">
@@ -28,6 +28,7 @@
         <a href="#label">Label</a>
         <a href="#score">Score</a>
         <a href="#quality">Quality</a>
+        <a href="#experiment">Optimize</a>
         <a href="#about">About</a>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
@@ -376,6 +377,54 @@
         <a href="../docs/mnist-benchmarks-v0.md">Benchmark spec</a>
       </div>
     </section>
+    <section id="experiment" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">§6 Optimize</p>
+        <h2>Turn the crank: seeded, gated policy iteration.</h2>
+        <p>One experiment = a numbered run with a fixed random seed: k cycles of
+        train mini-batch → one clipped policy edit (≤5 changes, human-reviewable)
+        → candidate scored on a fixed test partition → PPO-style gate that
+        auto-accepts only if the system-of-judges macro-F1 improves (the gate
+        agent can veto, never force). The locked holdout is never touched by the
+        loop. Judges come from the §3 panel selection; review each gate decision
+        below — your verdicts are recorded as training data for the critic.</p>
+      </div>
+      <div class="run-controls experiment-start-row" aria-label="Start experiment">
+        <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
+        <label>Train batch N<input id="experimentBatchN" type="number" value="20" min="2" max="200"></label>
+        <label>Test size T<input id="experimentTestN" type="number" value="100" min="10" max="1000"></label>
+        <label>Max changes<input id="experimentMaxChanges" type="number" value="5" min="1" max="5"></label>
+        <label>Seed<input id="experimentSeed" type="number" placeholder="random"></label>
+        <label>Gate
+          <select id="experimentGateModel">
+            <option value="openai/gpt-5.5" selected>gpt-5.5 (default)</option>
+            <option value="openai/gpt-5.5-low">gpt-5.5-low</option>
+            <option value="anthropic/claude-opus-4-7">opus-4-7</option>
+            <option value="metric_only">Metric rule only (no agent)</option>
+          </select>
+        </label>
+        <button id="experimentStart" type="button">Start experiment</button>
+        <span id="experimentStartStatus" class="status-line" role="status"></span>
+      </div>
+      <p id="experimentPanelSummary" class="legend-note"></p>
+      <div class="run-controls" aria-label="Experiment picker">
+        <label>Experiment
+          <select id="experimentSelect"></select>
+        </label>
+        <button id="experimentRefresh" type="button">Refresh</button>
+        <span id="experimentStatusLine" class="status-line" role="status" aria-live="polite"></span>
+      </div>
+      <div id="experimentSummary" class="experiment-summary"></div>
+      <div class="run-controls experiment-chart-controls" aria-label="Trajectory metric">
+        <label>Metric
+          <select id="experimentMetric"></select>
+        </label>
+        <span class="legend-note">solid = test (gate set) · dashed = train batch · ▲ accepted · ○ skipped · per judge + <strong>system</strong></span>
+      </div>
+      <div id="experimentChart" class="api-panel experiment-chart"></div>
+      <div id="experimentLedger"></div>
+      <div id="experimentHoldout"></div>
+    </section>
     <section id="about" class="section about-shell">
       <div class="section-head compact">
         <p class="eyebrow">About</p>
@@ -434,17 +483,18 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r27"></script>
-  <script src="app.js?v=demo-mnist-kdd-r27"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r27"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r27"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r27"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r27"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r27"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r27"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r28"></script>
+  <script src="app.js?v=demo-mnist-kdd-r28"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r28"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r28"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r28"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r28"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r28"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r28"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r28"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r27"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r27"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r27"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r28"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r28"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r28"></script>
 </body>
 </html>

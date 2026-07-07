@@ -461,3 +461,145 @@ def validate_cascade_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     request["escalate_models"] = escalate
     return request
+
+
+def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate ``POST /api/experiments/start`` JSON (the crank launcher).
+
+    An experiment is a seeded PPO iteration run: judge panel (2-5 models),
+    k_max cycles of batch_n train images each, a fixed seeded test partition
+    of test_n images gating acceptance, and edits clipped to 1..5 changes.
+    """
+    raw_area = payload.get("area")
+    try:
+        area = normalize_policy_area(
+            raw_area if isinstance(raw_area, str) else None,
+            demo=payload.get("demo") if isinstance(payload.get("demo"), str) else None,
+        )
+    except ValueError as exc:
+        raise APIError(400, "validation_error", str(exc), details={"field": "area"}) from exc
+
+    raw_models = payload.get("models")
+    if not isinstance(raw_models, list) or not raw_models:
+        raise APIError(400, "validation_error", "models must be a non-empty list")
+    models: list[str] = []
+    for model in raw_models:
+        if not isinstance(model, str) or not model.strip():
+            raise APIError(400, "validation_error", "models must contain non-empty strings")
+        model_id = model.strip()
+        if model_id not in MODEL_REGISTRY:
+            raise APIError(
+                400, "unknown_model_id", f"unknown model_id: {model_id}",
+                details={"model_id": model_id},
+            )
+        if model_id not in models:
+            models.append(model_id)
+    if not 2 <= len(models) <= 5:
+        raise APIError(
+            400, "validation_error",
+            "experiment judge panel must have 2-5 models",
+            details={"field": "models"},
+        )
+
+    def _int_field(name: str, default: int, lo: int, hi: int) -> int:
+        raw = payload.get(name, default)
+        if raw is None:
+            raw = default
+        if not isinstance(raw, int) or isinstance(raw, bool) or not lo <= raw <= hi:
+            raise APIError(
+                400, "validation_error",
+                f"{name} must be an integer in [{lo}, {hi}]",
+                details={"field": name},
+            )
+        return raw
+
+    seed = payload.get("seed")
+    if seed is not None and (not isinstance(seed, int) or isinstance(seed, bool)):
+        raise APIError(400, "validation_error", "seed must be an integer",
+                       details={"field": "seed"})
+
+    import math
+
+    epsilon = payload.get("epsilon", 0)
+    if (
+        not isinstance(epsilon, (int, float))
+        or isinstance(epsilon, bool)
+        or not math.isfinite(epsilon)
+        or epsilon < 0
+    ):
+        raise APIError(400, "validation_error", "epsilon must be a finite non-negative number",
+                       details={"field": "epsilon"})
+
+    gate_mode = payload.get("gate_mode") or "agent"
+    if gate_mode not in {"agent", "metric_only"}:
+        raise APIError(400, "validation_error", "gate_mode must be agent|metric_only",
+                       details={"field": "gate_mode"})
+
+    def _agent_model(name: str, default: str, *, policy_allowed_only: bool = False) -> str:
+        raw = payload.get(name) or default
+        if not isinstance(raw, str) or raw.strip() not in MODEL_REGISTRY:
+            raise APIError(400, "unknown_model_id", f"unknown {name}: {raw}",
+                           details={"field": name})
+        model_id = raw.strip()
+        provider = model_id.split("/", 1)[0]
+        if provider not in {"openai", "anthropic"}:
+            raise APIError(
+                400, "validation_error",
+                f"{name} must be an openai/* or anthropic/* model (text-only agent path)",
+                details={"field": name},
+            )
+        if policy_allowed_only:
+            from pipeline.policy_diff import ALLOWED_POLICY_MODELS
+
+            # Proposals attribute their drafter honestly only for the policy
+            # whitelist; anything else would be recorded as gpt-5.5.
+            if model_id not in ALLOWED_POLICY_MODELS:
+                raise APIError(
+                    400, "validation_error",
+                    f"{name} must be one of {sorted(ALLOWED_POLICY_MODELS)}",
+                    details={"field": name},
+                )
+        return model_id
+
+    live = payload.get("live", True)
+    if not isinstance(live, bool):
+        raise APIError(400, "validation_error", "live must be a boolean",
+                       details={"field": "live"})
+    if live and payload.get("allow_spend") is not True:
+        raise APIError(
+            402, "spend_not_allowed",
+            "allow_spend must be true to start a live experiment",
+            details={"field": "allow_spend"},
+        )
+
+    return {
+        "area": area,
+        "demo": payload.get("demo"),
+        "models": models,
+        "seed": seed,
+        "k_max": _int_field("k_max", 5, 1, 50),
+        "batch_n": _int_field("batch_n", 20, 2, 200),
+        "test_n": _int_field("test_n", 100, 10, 1000),
+        "max_changes": _int_field("max_changes", 5, 1, 5),
+        "max_anchors": _int_field("max_anchors", 8, 1, 20),
+        "concurrency": _int_field("concurrency", 4, 1, 4),
+        "epsilon": float(epsilon),
+        "gate_mode": gate_mode,
+        "gate_model": _agent_model("gate_model", "openai/gpt-5.5"),
+        "drafter_model": _agent_model(
+            "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
+        ),
+        "policy_version": _experiment_policy_version(payload.get("policy_version")),
+        "holdout_final": bool(payload.get("holdout_final")),
+        "live": live,
+        "allow_spend": bool(payload.get("allow_spend")),
+    }
+
+
+def _experiment_policy_version(raw: Any) -> str | None:
+    if raw in (None, ""):
+        return None
+    if not isinstance(raw, str) or not _POLICY_VERSION_RE.match(raw.strip()):
+        raise APIError(400, "validation_error", f"invalid policy_version: {raw!r}",
+                       details={"field": "policy_version"})
+    return raw.strip()

@@ -1,6 +1,6 @@
 # RUSH demo flow — presenter script
 
-The five sections of the web demo *are* the story. This script walks them top to bottom in ten minutes for a VP/VC audience, with a 3-minute short version and a data-science verification appendix at the end.
+The six sections of the web demo *are* the story. This script walks them top to bottom in ten minutes for a VP/VC audience, with a 3-minute short version and a data-science verification appendix at the end.
 
 **Setup (before anyone is in the room):** start the server (`.venv/bin/python scripts/rush_web_server.py --host 127.0.0.1 --port 8766 --repo-root "$PWD"`, or use `rush.attiladobi.com`), open the UI, pick the **MNIST_Digits** demo, and confirm a scored cascade run is loaded so §4 and §5 have data. Keep the **Generative_AI** demo one click away for the "real policy" beat.
 
@@ -10,7 +10,7 @@ The five sections of the web demo *are* the story. This script walks them top to
 
 ---
 
-## The 10-minute walk (§1 → §5)
+## The 10-minute walk (§1 → §6)
 
 ### §1 Sample — "every honest metric starts with an honest sample" (~1 min)
 
@@ -50,11 +50,21 @@ The five sections of the web demo *are* the story. This script walks them top to
 
 **Click:** The decision-quality table (accuracy/F1/precision/recall/FPR per labeler *and* the majority-vote ensemble, with cost per 1k labels), then the **accuracy-by-policy-version trend chart**.
 
-**Say:** Two things converge here. First, the ensemble row: cheap consensus at **97.7% accuracy and 0.25% false-positive rate** at ~$2.23 per 1,000 completed labels — that is the production metric. Second, the trend: decision quality per policy version. Today an SME approves every diff before it ships; the automated held-out DQ gate — accept an edit only if it improves held-out decision quality — is the next wiring step. The design target is a non-decreasing accepted-version curve, and this chart is where that discipline shows up. And the two convergences are coupled: as the policy improves, fewer items hedge, escalation falls, and the same decision quality costs less each iteration.
+**Say:** Two things converge here. First, the ensemble row: cheap consensus at **97.7% accuracy and 0.25% false-positive rate** at ~$2.23 per 1,000 completed labels — that is the production metric. Second, the trend: decision quality per policy version. The design target is a non-decreasing accepted-version curve, and this chart is where that discipline shows up. And the two convergences are coupled: as the policy improves, fewer items hedge, escalation falls, and the same decision quality costs less each iteration.
 
 **Notice:** the reported tiles are test-split only, and the x-axis is policy versions, not the calendar — the chart plots the policy team's work.
 
 **Close:** *"Measured here: ~$2.23 per thousand completed labels with zero errors leaking past the trigger in this run. The at-scale comparison — $710K of 3× human review per million images versus under $71K, with prompt caching pushing toward 1/50th — is the exec-brief target this mechanism exists to hit, illustrative rather than measured."*
+
+### §6 Optimize — the crank: the loop runs itself (~2 min)
+
+**Click:** §6, pick the latest experiment (or start one: judges come from the §3 panel; k cycles × batch N, test T, ≤5 changes per edit, a seed). Watch the trajectory chart and the gate ledger fill per cycle.
+
+**Say:** Everything you just saw by hand, this section runs as a numbered, seeded experiment — the demo becomes an instrument. Each cycle: a fresh seeded train mini-batch, random misalignment anchors, ONE clipped policy edit — never more than five node changes, so a human can review every accepted step — evaluated on a fixed test partition, then the PPO-style gate: auto-accept only if the system-of-judges macro-F1 improves; a gpt-5.5 gate agent can veto a suspicious win but can never force a losing edit through. Accepted edits become real policy versions — click "View in KG" and §2 shows the new node. The human expert isn't removed, they're **repositioned**: instead of approving every diff in the loop, they audit the gate's decisions afterward — and every verdict is recorded as training data for the critic itself.
+
+**Notice:** solid lines are the test partition, dashed are the train batches, one line per judge plus the white system line; ▲ marks accepted cycles with their version. The locked holdout is never touched by the loop — it's scored only at the start and final versions for the untouched before/after readout.
+
+**Honesty beat, if a DS asks:** the gate set is formally a validation set (the loop adapts to it); that's exactly why the locked holdout exists. And a flat line at 100% is the trust region working — on a saturated test partition there is no measurable advantage, so nothing ships.
 
 ---
 
@@ -64,7 +74,7 @@ Skip §1 and §2. Three stops:
 
 1. **§3, Run cascade (30 s).** *"Five cheap models label everything for about $2.23 per thousand completed labels. Only genuine disagreement escalates."* Point at the live cost badge.
 2. **§4, cascade lanes (90 s).** *"35.5% escalated. The 64.5% the cheap tier kept had zero errors in this run — every error lives in the escalated lane. Expensive judgment is spent only where it changes the answer. That is the entire cost thesis, measured — with the toy-task caveat in the appendix."*
-3. **§5, convergence chart (60 s).** *"And it improves as it runs: the policy is a human-readable document graph. Today an SME approves every accepted edit; the automated held-out decision-quality gate is the next wiring step — the design target is a curve that only goes up while cost per decision goes down. Illustrative at platform scale: $710K of human review per million images → under $71K, with orders-of-magnitude faster turnaround (~24h vs multi-week BPO cycles)."*
+3. **§6, the crank (60 s).** *"And it improves itself: one click runs k cycles of label → propose → gate. Every accepted edit had to beat the current policy on a held-out test partition, every edit is small enough for a human to read, and the expert audits the gate instead of sitting inside the loop. The design target is a curve that only goes up while cost per decision goes down. Illustrative at platform scale: $710K of human review per million images → under $71K, with orders-of-magnitude faster turnaround (~24h vs multi-week BPO cycles)."*
 
 If they ask "what's the moat?": open a §2 policy node. *"The moat is this document — the policy, its edge cases, and the reasons, versioned and tested against production. Same bytes the judge runs on. Swap any model out; the asset stays."*
 
@@ -82,7 +92,8 @@ If they ask "what's the moat?": open a §2 policy node. *"The moat is this docum
 | Single-hedger flags are noise | 98/98 correct majorities | §4 consensus/audit view (boundary-voter counts) |
 | Split discipline | train updates / test reports, never blended | §1 split badges; §4 reported tiles are test-only |
 | Policy versioning + gated edits | v_n → v_{n+1} only via SME-accepted diff | §2 version badge + proposal review flow |
-| Convergence over accepted versions | SME approves every diff today; the automated held-out DQ gate is the next wiring step (design target: non-decreasing DQ(v_n) on holdout) | §5 accuracy-by-policy-version chart + §2 review flow |
+| Convergence over accepted versions | The §6 gate accepts an edit only on strict test-partition system macro-F1 improvement (≤5 changes/edit; gate agent can veto, never force), so DQ over accepted versions is non-decreasing on the gate set by construction; locked holdout scored at start/final only | §6 trajectory chart + gate ledger; §5 accuracy-by-policy-version chart |
+| Gate auditability (RLHF of the critic) | every gate decision carries the metric evidence, diff, rationale, and a post-hoc SME verdict (correct/incorrect/unsure) stored in `rush.gate_review` | §6 gate ledger review buttons; `data/experiments/<id>/agents/` |
 | Error honesty | errored tier-2 calls join the SME queue | §4 SME-queue lane; completed-with-errors run badge |
 | Per-model speed/cost provenance | gemma ~3.2 s/img, qwen ~4 s/img, $0 | §3 model picker (from recorded runs) |
 

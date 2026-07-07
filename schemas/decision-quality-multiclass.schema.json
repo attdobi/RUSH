@@ -98,6 +98,9 @@
         "fpr": {
           "$ref": "#/$defs/ratio_or_null"
         },
+        "fnr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
         "support": {
           "type": "integer",
           "minimum": 0
@@ -141,13 +144,22 @@
         "macro_fpr": {
           "$ref": "#/$defs/ratio_or_null"
         },
+        "macro_fnr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
         "micro_precision": {
           "$ref": "#/$defs/ratio_or_null"
         },
         "micro_recall": {
           "$ref": "#/$defs/ratio_or_null"
         },
+        "micro_f1": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
         "micro_fpr": {
+          "$ref": "#/$defs/ratio_or_null"
+        },
+        "micro_fnr": {
           "$ref": "#/$defs/ratio_or_null"
         },
         "per_class": {

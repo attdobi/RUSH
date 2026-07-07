@@ -81,6 +81,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Policy graph version directory to label against (default: v0.1).",
     )
     parser.add_argument(
+        "--policy-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Explicit policy bundle directory (overrides policy-graph/<area>/"
+            "<policy-version>). Used by the experiment crank to evaluate STAGED "
+            "candidate policies that are not accepted versions yet. Requires "
+            "--policy-graph-version-label."
+        ),
+    )
+    parser.add_argument(
+        "--policy-graph-version-label",
+        default=None,
+        help=(
+            "Generator id recorded in the run manifest when --policy-dir is "
+            "given (e.g. 'MNIST_Digits.exp-...k3-cand'). Ignored otherwise."
+        ),
+    )
+    parser.add_argument(
         "--area",
         default=DEFAULT_POLICY_AREA,
         help="Policy/demo area selecting ontology + policy graph (default: Generative_AI).",
@@ -281,13 +300,26 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
         return 0
 
-    policy_graph_dir = ROOT / "policy-graph" / area / args.policy_version
-    if not policy_graph_dir.is_dir():
-        print(f"[X2] unknown policy version directory: {policy_graph_dir}", file=sys.stderr)
-        return 2
-    policy_graph_version = (
-        f"{area}.{args.policy_version}" if area != DEFAULT_POLICY_AREA else args.policy_version
-    )
+    if args.policy_dir is not None:
+        # Experiment-crank path: evaluate a staged candidate bundle that is not
+        # (yet) an accepted policy-graph version. The explicit label keeps the
+        # run manifest / label store honest about which generator produced it.
+        if not args.policy_graph_version_label:
+            print("[X2] --policy-dir requires --policy-graph-version-label", file=sys.stderr)
+            return 2
+        policy_graph_dir = args.policy_dir
+        if not policy_graph_dir.is_dir():
+            print(f"[X2] --policy-dir is not a directory: {policy_graph_dir}", file=sys.stderr)
+            return 2
+        policy_graph_version = args.policy_graph_version_label
+    else:
+        policy_graph_dir = ROOT / "policy-graph" / area / args.policy_version
+        if not policy_graph_dir.is_dir():
+            print(f"[X2] unknown policy version directory: {policy_graph_dir}", file=sys.stderr)
+            return 2
+        policy_graph_version = (
+            f"{area}.{args.policy_version}" if area != DEFAULT_POLICY_AREA else args.policy_version
+        )
 
     factory = _resolve_factory(
         use_live=args.live,

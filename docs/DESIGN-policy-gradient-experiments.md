@@ -1,7 +1,9 @@
 # Optimizing the gradient descent — candidate selection & optimizer experiments
 
-*Status: design, 2026-07-06. Substrate shipped (label store views + confidence
-fields); experiments are the next build. Sources: "Notation and the per-sample
+*Status: substrate + harness shipped, 2026-07-07. The label store views,
+confidence fields, AND the experiment crank (`scripts/run_experiment.py` +
+`rush.experiment*` tables + the §6 web panel) exist; the S2–S5 strategy
+comparison is the next build on top. Sources: "Notation and the per-sample
 gradient" (policy-optimization note), re-adjudication loop MVP §4, Attila's
 2026-07-06 direction.*
 
@@ -147,14 +149,66 @@ The store makes every cell reproducible: `generator_version` records lineage
 for covered (item, judge) pairs, and views recompute against the current
 golden state after any overturn.
 
-## Build order
+## The experiment crank (shipped 2026-07-07)
 
-1. `scripts/select_candidates.py` — S1–S5 over `rush.panel_signal` (pure
-   read; each strategy ~a SQL query + tie-break).
-2. Wire selection strategy into the §2 grow-batch path (currently
-   priority-score-based) behind a `--strategy` flag.
-3. The experiment driver: run N batches under a (strategy, optimizer) cell,
-   record DQ per version per judge into `generator_version` /
-   `decision_quality` artifacts.
-4. The §5 chart already plots DQ by policy version — add per-judge series +
-   spread band, and the experiment comparison becomes visible in the demo.
+`scripts/run_experiment.py` is the harness the experiments run in — one
+**experiment** = one numbered, seeded PPO run:
+
+- **Seeded everything**: the master seed derives the fixed test partition
+  (stratified out of dev_golden; the gate set), each cycle's train
+  mini-batch (without replacement while the pool lasts), and the S1 anchor
+  sample. Same seed → same data path; the LLMs are the only nondeterminism.
+- **Per cycle**: label N train images with the fixed judge panel → S1 random
+  misalignment anchors → drafter (gpt-5.5) proposes ONE edit **clipped to
+  1..5 policy-node changes** (`max_changes`; hard cap 5 for human
+  debuggability) → candidate bundle evaluated on the test partition → gate.
+- **The PPO gate**: accept iff test **system macro-F1** (majority vote)
+  strictly improves (`> before + epsilon`). The gate agent (gpt-5.5 default)
+  reviews the metric table + unified diff + anchors and may **veto** a
+  metric-passing edit (leakage, judge-specific hacks) but can never force a
+  failing one. Accepted candidates become real `policy-graph` versions via
+  the same `accept_proposal` path the §2 UI uses; skipped proposals archive.
+- **Recorded per cycle, per judge AND the system, on train + test**:
+  accuracy, F1, precision, recall, FPR, FNR (macro + micro + per-class) —
+  `rush.experiment_metric` + portable `data/experiments/<id>/experiment.json`.
+- **The human critic is post-hoc by design** (automation stays unblocked):
+  every gate decision sits in the §6 ledger awaiting an SME
+  correct/incorrect/unsure verdict → `rush.gate_review` — the recorded
+  training data for future RLHF of the critic agent itself.
+- **Split honesty**: the gate set is formally a validation set (the loop
+  adapts to it); the 500-image locked holdout is scored only under the start
+  and final versions (`--holdout-final`) — the untouched before/after
+  readout for the paper.
+- **Coverage-honest gate**: before/after F1 is computed over the
+  *intersection* of test images where both policies produced a decided
+  system verdict (`gate_comparison`), so errored provider calls or majority
+  ties can never flip the gate on coverage alone; the compared-`n` is
+  recorded on every gate decision.
+- **Known bias, deliberately accepted for now (winner's curse)**: each
+  candidate gets ONE noisy evaluation and the baseline value is inherited,
+  not re-measured, so with `epsilon=0` the loop preferentially accepts
+  upward noise; the accepted-version trajectory on the gate set is
+  optimistically biased. This is exactly why the holdout readout exists —
+  report policy lift from holdout start→final, never from the gate
+  trajectory. Candidate mitigations to A/B later: `epsilon > 0`, re-scoring
+  the incumbent alongside each candidate (paired eval), or requiring two
+  consecutive wins.
+
+## Build order (remaining)
+
+1. S2–S5 in the crank: `--strategy` currently accepts only
+   `random_misalignment` (S1) — add consensus-lack / boundary / difficulty /
+   gradient-weighted selection over `rush.panel_signal` and the per-run
+   misalignment records.
+2. The (strategy × optimizer) comparison driver: same seed, same panel, same
+   budget, one experiment per cell; compare DQ trajectories + agnosticism
+   spread across cells (the `rush.experiment*` tables make this one SQL
+   query per readout).
+3. **Within-batch metric-driven descent** (Attila 2026-07-06): today one
+   batch → one clipped edit. When batches are large and misalignments exceed
+   what one edit can address, stack-rank them (by `ḡ_i × p_human_i`, S5) and
+   iterate edits *within* the batch, gating each. Test whether the extra
+   gate evaluations pay for themselves vs. simply running more cycles —
+   this is a tokenomics question as much as a quality one.
+4. §6 chart: add the agnosticism spread band (max−min per-judge DQ) and
+   cross-experiment overlay for the comparison view.

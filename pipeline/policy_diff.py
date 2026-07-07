@@ -31,7 +31,15 @@ DOMAIN = "Generative_AI"
 _ALLOWED_DOMAINS = {"Generative_AI", "MNIST_Digits"}
 DEFAULT_POLICY_MODEL = "openai/gpt-5.5"
 ANTHROPIC_POLICY_MODEL = "anthropic/claude-opus-4-7"
-ALLOWED_POLICY_MODELS = {DEFAULT_POLICY_MODEL, ANTHROPIC_POLICY_MODEL}
+# gpt-5.5 reasoning-effort variants are the same drafter at different depths;
+# the experiment crank selects among them, so proposals attribute honestly.
+ALLOWED_POLICY_MODELS = {
+    DEFAULT_POLICY_MODEL,
+    ANTHROPIC_POLICY_MODEL,
+    "openai/gpt-5.5-high",
+    "openai/gpt-5.5-medium",
+    "openai/gpt-5.5-low",
+}
 _VERSION_RE = re.compile(r"^v(\d+)\.(\d+)$")
 
 ChatCallable = Callable[..., str]
@@ -319,6 +327,17 @@ def _classify_changes(
     return changed, added, removed
 
 
+def _chat_callable_for(effective_model: str) -> ChatCallable:
+    """Provider-dispatched text chat for an ALLOWED_POLICY_MODELS id."""
+    if effective_model.startswith("openai/"):
+        from pipeline.providers.openai_chat import policy_chat_callable
+    elif effective_model.startswith("anthropic/"):
+        from pipeline.providers.anthropic_chat import policy_chat_callable
+    else:  # guarded by ALLOWED_POLICY_MODELS at every entry point
+        raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
+    return policy_chat_callable(effective_model)
+
+
 def _is_retryable_llm_exception(exc: BaseException) -> bool:
     if isinstance(exc, (TimeoutError, FutureTimeoutError)):
         return True
@@ -428,14 +447,7 @@ def propose_diff(
 
     if proposed_files is None:
         if chat_callable is None:
-            if effective_model == DEFAULT_POLICY_MODEL:
-                from pipeline.providers.openai_chat import policy_chat_callable
-            elif effective_model == ANTHROPIC_POLICY_MODEL:
-                from pipeline.providers.anthropic_chat import policy_chat_callable
-            else:  # guarded by ALLOWED_POLICY_MODELS above
-                raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
-
-            chat_callable = policy_chat_callable(effective_model)
+            chat_callable = _chat_callable_for(effective_model)
         inputs = _load_run_inputs(root, run_id, base_version, domain)
         user_payload = build_user_prompt(inputs)
         prompt = {
@@ -631,15 +643,7 @@ def seed_cold_start_proposal(
 
     if proposed_files is None:
         if chat_callable is None:
-            if effective_model == DEFAULT_POLICY_MODEL:
-                from pipeline.providers.openai_chat import policy_chat_callable
-            elif effective_model == ANTHROPIC_POLICY_MODEL:
-                from pipeline.providers.anthropic_chat import policy_chat_callable
-            else:  # guarded above
-                raise ValueError(
-                    f"unsupported policy proposal model_id: {effective_model}"
-                )
-            chat_callable = policy_chat_callable(effective_model)
+            chat_callable = _chat_callable_for(effective_model)
 
         user_payload = {
             "domain": domain,
@@ -923,15 +927,7 @@ def propose_growth_batch(
 
     if proposed_files is None:
         if chat_callable is None:
-            if effective_model == DEFAULT_POLICY_MODEL:
-                from pipeline.providers.openai_chat import policy_chat_callable
-            elif effective_model == ANTHROPIC_POLICY_MODEL:
-                from pipeline.providers.anthropic_chat import policy_chat_callable
-            else:
-                raise ValueError(
-                    f"unsupported policy proposal model_id: {effective_model}"
-                )
-            chat_callable = policy_chat_callable(effective_model)
+            chat_callable = _chat_callable_for(effective_model)
         # Build the user payload via the iterator helper (uses the batch only),
         # then annotate it with batch_context so the LLM sees the stratification.
         user_payload = build_user_prompt(

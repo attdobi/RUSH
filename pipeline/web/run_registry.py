@@ -550,6 +550,94 @@ class RunRegistry:
         }
         return self._spawn_and_monitor(state, argv)
 
+    def start_experiment_job(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Launch the seeded PPO experiment crank as a tracked job.
+
+        ``scripts/run_experiment.py`` runs k_max cycles of train-batch ->
+        clipped edit -> candidate test eval -> gate, spawning its own
+        run_bulk_labeling children and forwarding SIGTERM to them (so Cancel
+        works). Live progress is read from
+        ``data/experiments/<experiment_id>/experiment.json`` via the
+        /api/experiments endpoints; this job state covers process lifecycle +
+        log tail. ``models`` is the judge panel so live run inference resolves
+        to whichever child is currently labeling.
+        """
+        job_id = _job_id()
+        area = str(request.get("area") or DEFAULT_POLICY_AREA)
+        argv = [
+            _runner_python(self.repo_root),
+            "-u",
+            "scripts/run_experiment.py",
+            "--area",
+            area,
+            "--models",
+            ",".join(request["models"]),
+            "--k-max",
+            str(request["k_max"]),
+            "--batch-n",
+            str(request["batch_n"]),
+            "--test-n",
+            str(request["test_n"]),
+            "--max-changes",
+            str(request["max_changes"]),
+            "--max-anchors",
+            str(request["max_anchors"]),
+            "--epsilon",
+            str(request["epsilon"]),
+            "--gate-model",
+            request["gate_model"],
+            "--gate-mode",
+            request["gate_mode"],
+            "--drafter-model",
+            request["drafter_model"],
+            "--concurrency",
+            str(request["concurrency"]),
+        ]
+        if request.get("seed") is not None:
+            argv.extend(["--seed", str(request["seed"])])
+        if request.get("policy_version"):
+            argv.extend(["--policy-version", request["policy_version"]])
+        if request.get("holdout_final"):
+            argv.append("--holdout-final")
+        if request.get("live", True):
+            argv.extend(["--live", "--allow-spend"])
+
+        state: dict[str, Any] = {
+            "job_id": job_id,
+            "kind": "experiment",
+            "experiment_id": None,  # backfilled from the driver's JSON trailer
+            "run_id": None,
+            "pid": None,
+            "argv": argv,
+            "started_at": utcnow_iso(),
+            "finished_at": None,
+            "returncode": None,
+            "models": list(request["models"]),
+            "demo": request.get("demo"),
+            "area": area,
+            "split": "dev_golden",
+            "mode": "warm_start",
+            "reasoning_effort": None,
+            "local_reasoning": {},
+            "policy_version": request.get("policy_version") or "",
+            "policy_graph_version": "",
+            "sample_manifest_path": "",
+            "allow_spend": bool(request.get("allow_spend")),
+            "allow_holdout": bool(request.get("holdout_final")),
+            "limit": None,
+            "sample_ids": None,
+            "batch_size": None,
+            "experiment_config": {
+                key: request.get(key)
+                for key in (
+                    "seed", "k_max", "batch_n", "test_n", "max_changes",
+                    "max_anchors", "epsilon", "gate_model", "gate_mode",
+                    "drafter_model", "live", "holdout_final",
+                )
+            },
+        }
+        return self._spawn_and_monitor(state, argv)
+
     def _spawn_and_monitor(self, state: dict[str, Any], argv: list[str]) -> dict[str, Any]:
         job_id = state["job_id"]
         self._write_state(state)
@@ -620,6 +708,8 @@ class RunRegistry:
         was_canceled = existing_status == "canceled"
         if isinstance(run_id, str):
             state["run_id"] = run_id
+        if isinstance(parsed, dict) and isinstance(parsed.get("experiment_id"), str):
+            state["experiment_id"] = parsed["experiment_id"]
         state["finished_at"] = state.get("finished_at") or utcnow_iso()
         state["returncode"] = returncode
         manifest: dict[str, Any] = {}

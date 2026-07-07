@@ -1,0 +1,2930 @@
+{
+ "area": "MNIST_Digits",
+ "base_generator": "MNIST_Digits.v0.1",
+ "base_version": "v0.1",
+ "batch_n": 10,
+ "concurrency": 4,
+ "cost_usd_total": 1.040396,
+ "current_version": "v0.1",
+ "cycles": [
+  {
+   "closed_at": "2026-07-07T00:02:01.919587+00:00",
+   "cycle_seed": 109148818585979,
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 0,
+   "kind": "baseline",
+   "metrics": {
+    "test": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 22,
+      "n_abstained": 3,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.92,
+      "macro_f1": 0.908333,
+      "macro_fnr": 0.1,
+      "macro_fpr": 0.009091,
+      "macro_precision": 0.96,
+      "macro_recall": 0.9,
+      "micro_f1": 0.92,
+      "micro_fnr": 0.08,
+      "micro_fpr": 0.008889,
+      "micro_precision": 0.92,
+      "micro_recall": 0.92,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.75,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.6,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.88,
+      "macro_f1": 0.873333,
+      "macro_fnr": 0.116667,
+      "macro_fpr": 0.013241,
+      "macro_precision": 0.9,
+      "macro_recall": 0.883333,
+      "micro_f1": 0.88,
+      "micro_fnr": 0.12,
+      "micro_fpr": 0.013333,
+      "micro_precision": 0.88,
+      "micro_recall": 0.88,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "1": {
+        "f1": 0.666667,
+        "fnr": 0.333333,
+        "fpr": 0.045455,
+        "precision": 0.666667,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 24,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     }
+    }
+   },
+   "started_at": "2026-07-07T00:01:13.075618+00:00",
+   "status": "open",
+   "test_run_id": "20260707T000113-4b673e6c"
+  },
+  {
+   "anchor_ids": [
+    "train_01362"
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T000113-5c0772.k1",
+   "candidate_run_id": "20260707T000250-f4de9d92",
+   "closed_at": "2026-07-07T00:03:45.236974+00:00",
+   "cost_usd": 0.368684,
+   "cycle_seed": 193571039046227,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "modified",
+     "path": "MD.root.md"
+    }
+   ],
+   "gate": {
+    "decided_by": "metric_rule",
+    "decision": "skip",
+    "epsilon": 0.0,
+    "error": null,
+    "gate_model": "openai/gpt-5.5",
+    "metric": "test_system_macro_f1",
+    "metric_pass": false,
+    "rationale": "Skip because the hard acceptance rule requires test_system_macro_f1 to improve strictly. The candidate remains at 1.0 versus a 1.0 baseline with epsilon 0, so metric_pass is false. Even if the boundary rule appears generally plausible, a metric-failing candidate can never be accepted.",
+    "raw_response": "{\"decision\":\"skip\",\"rationale\":\"Skip because the hard acceptance rule requires test_system_macro_f1 to improve strictly. The candidate remains at 1.0 versus a 1.0 baseline with epsilon 0, so metric_pass is false. Even if the boundary rule appears generally plausible, a metric-failing candidate can never be accepted.\",\"risk_flags\":[\"metric_failed\",\"no_strict_improvement\"]}",
+    "risk_flags": [
+     "metric_failed",
+     "no_strict_improvement"
+    ],
+    "value_after": 1.0,
+    "value_before": 1.0
+   },
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 1,
+   "metrics": {
+    "test": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 22,
+      "n_abstained": 3,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.92,
+      "macro_f1": 0.908333,
+      "macro_fnr": 0.1,
+      "macro_fpr": 0.009091,
+      "macro_precision": 0.96,
+      "macro_recall": 0.9,
+      "micro_f1": 0.92,
+      "micro_fnr": 0.08,
+      "micro_fpr": 0.008889,
+      "micro_precision": 0.92,
+      "micro_recall": 0.92,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.75,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.6,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.88,
+      "macro_f1": 0.873333,
+      "macro_fnr": 0.116667,
+      "macro_fpr": 0.013241,
+      "macro_precision": 0.9,
+      "macro_recall": 0.883333,
+      "micro_f1": 0.88,
+      "micro_fnr": 0.12,
+      "micro_fpr": 0.013333,
+      "micro_precision": 0.88,
+      "micro_recall": 0.88,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "1": {
+        "f1": 0.666667,
+        "fnr": 0.333333,
+        "fpr": 0.045455,
+        "precision": 0.666667,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 24,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     }
+    },
+    "test_candidate": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 0.916667,
+      "macro_f1": 0.926667,
+      "macro_fnr": 0.066667,
+      "macro_fpr": 0.009091,
+      "macro_precision": 0.95,
+      "macro_recall": 0.933333,
+      "micro_f1": 0.916667,
+      "micro_fnr": 0.083333,
+      "micro_fpr": 0.009259,
+      "micro_precision": 0.916667,
+      "micro_recall": 0.916667,
+      "n": 24,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.96,
+      "macro_f1": 0.952381,
+      "macro_fnr": 0.05,
+      "macro_fpr": 0.004545,
+      "macro_precision": 0.975,
+      "macro_recall": 0.95,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.857143,
+        "fnr": 0.0,
+        "fpr": 0.045455,
+        "precision": 0.75,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.84,
+      "macro_f1": 0.83,
+      "macro_fnr": 0.15,
+      "macro_fpr": 0.017589,
+      "macro_precision": 0.883333,
+      "macro_recall": 0.85,
+      "micro_f1": 0.84,
+      "micro_fnr": 0.16,
+      "micro_fpr": 0.017778,
+      "micro_precision": 0.84,
+      "micro_recall": 0.84,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.5,
+        "fnr": 0.666667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.333333,
+        "support": 3
+       },
+       "1": {
+        "f1": 0.666667,
+        "fnr": 0.333333,
+        "fpr": 0.045455,
+        "precision": 0.666667,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.086957,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 24,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     }
+    },
+    "train": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.9,
+      "macro_f1": 0.92,
+      "macro_fnr": 0.066667,
+      "macro_fpr": 0.0125,
+      "macro_precision": 0.933333,
+      "macro_recall": 0.933333,
+      "micro_f1": 0.9,
+      "micro_fnr": 0.1,
+      "micro_fpr": 0.011111,
+      "micro_precision": 0.9,
+      "micro_recall": 0.9,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.125,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 1,
+   "proposal_id": "20260707T000250-b56656e5",
+   "started_at": "2026-07-07T00:02:01.951565+00:00",
+   "status": "skipped",
+   "train_ids": [
+    "train_00020",
+    "train_00054",
+    "train_00758",
+    "train_00785",
+    "train_00883",
+    "train_01162",
+    "train_01170",
+    "train_01244",
+    "train_01362",
+    "train_01399"
+   ],
+   "train_run_id": "20260707T000202-33aa9b9e"
+  },
+  {
+   "anchor_ids": [
+    "train_00570",
+    "train_01047",
+    "train_01602"
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T000113-5c0772.k2",
+   "candidate_run_id": "20260707T000433-26dfadd5",
+   "closed_at": "2026-07-07T00:05:29.293583+00:00",
+   "cost_usd": 0.367632,
+   "cycle_seed": 111473103416899,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "modified",
+     "path": "MD.root.md"
+    }
+   ],
+   "gate": {
+    "decided_by": "metric_rule",
+    "decision": "skip",
+    "epsilon": 0.0,
+    "error": null,
+    "gate_model": "openai/gpt-5.5",
+    "metric": "test_system_macro_f1",
+    "metric_pass": false,
+    "rationale": "Metric gate failed: test system macro-F1 did not improve (1.0 before, 1.0 after; epsilon 0.0 requires strictly greater). The hard rule forbids accepting any metric-failing candidate regardless of edit quality.",
+    "raw_response": "{\"decision\":\"skip\",\"rationale\":\"Metric gate failed: test system macro-F1 did not improve (1.0 before, 1.0 after; epsilon 0.0 requires strictly greater). The hard rule forbids accepting any metric-failing candidate regardless of edit quality.\",\"risk_flags\":[\"no_system_macro_f1_improvement\",\"metric_pass_false\"]}",
+    "risk_flags": [
+     "no_system_macro_f1_improvement",
+     "metric_pass_false"
+    ],
+    "value_after": 1.0,
+    "value_before": 1.0
+   },
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 2,
+   "metrics": {
+    "test": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 22,
+      "n_abstained": 3,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.92,
+      "macro_f1": 0.908333,
+      "macro_fnr": 0.1,
+      "macro_fpr": 0.009091,
+      "macro_precision": 0.96,
+      "macro_recall": 0.9,
+      "micro_f1": 0.92,
+      "micro_fnr": 0.08,
+      "micro_fpr": 0.008889,
+      "micro_precision": 0.92,
+      "micro_recall": 0.92,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.75,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.6,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.88,
+      "macro_f1": 0.873333,
+      "macro_fnr": 0.116667,
+      "macro_fpr": 0.013241,
+      "macro_precision": 0.9,
+      "macro_recall": 0.883333,
+      "micro_f1": 0.88,
+      "micro_fnr": 0.12,
+      "micro_fpr": 0.013333,
+      "micro_precision": 0.88,
+      "micro_recall": 0.88,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "1": {
+        "f1": 0.666667,
+        "fnr": 0.333333,
+        "fpr": 0.045455,
+        "precision": 0.666667,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 24,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     }
+    },
+    "test_candidate": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 0.956522,
+      "macro_f1": 0.96,
+      "macro_fnr": 0.033333,
+      "macro_fpr": 0.004762,
+      "macro_precision": 0.966667,
+      "macro_recall": 0.966667,
+      "micro_f1": 0.956522,
+      "micro_fnr": 0.043478,
+      "micro_fpr": 0.004831,
+      "micro_precision": 0.956522,
+      "micro_recall": 0.956522,
+      "n": 23,
+      "n_abstained": 2,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.047619,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.92,
+      "macro_f1": 0.908333,
+      "macro_fnr": 0.1,
+      "macro_fpr": 0.009091,
+      "macro_precision": 0.96,
+      "macro_recall": 0.9,
+      "micro_f1": 0.92,
+      "micro_fnr": 0.08,
+      "micro_fpr": 0.008889,
+      "micro_precision": 0.92,
+      "micro_recall": 0.92,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.75,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.6,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.88,
+      "macro_f1": 0.873333,
+      "macro_fnr": 0.116667,
+      "macro_fpr": 0.013241,
+      "macro_precision": 0.9,
+      "macro_recall": 0.883333,
+      "micro_f1": 0.88,
+      "micro_fnr": 0.12,
+      "micro_fpr": 0.013333,
+      "micro_precision": 0.88,
+      "micro_recall": 0.88,
+      "n": 25,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "1": {
+        "f1": 0.666667,
+        "fnr": 0.333333,
+        "fpr": 0.045455,
+        "precision": 0.666667,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 0.8,
+        "fnr": 0.0,
+        "fpr": 0.043478,
+        "precision": 0.666667,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 24,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       }
+      }
+     }
+    },
+    "train": {
+     "anthropic/claude-haiku-4-5-low": {
+      "accuracy": 0.8,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.333333,
+      "macro_fpr": 0.02,
+      "macro_precision": 0.666667,
+      "macro_recall": 0.666667,
+      "micro_f1": 0.8,
+      "micro_fnr": 0.2,
+      "micro_fpr": 0.022222,
+      "micro_precision": 0.8,
+      "micro_recall": 0.8,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.9,
+      "macro_f1": 0.966667,
+      "macro_fnr": 0.055556,
+      "macro_fpr": 0.01,
+      "macro_precision": 0.857143,
+      "macro_recall": 0.944444,
+      "micro_f1": 0.9,
+      "micro_fnr": 0.1,
+      "micro_fpr": 0.011111,
+      "micro_precision": 0.9,
+      "micro_recall": 0.9,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 10,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 3,
+   "proposal_id": "20260707T000433-766b738c",
+   "started_at": "2026-07-07T00:03:45.304236+00:00",
+   "status": "skipped",
+   "train_ids": [
+    "train_00159",
+    "train_00304",
+    "train_00368",
+    "train_00570",
+    "train_00849",
+    "train_00994",
+    "train_01031",
+    "train_01047",
+    "train_01193",
+    "train_01602"
+   ],
+   "train_run_id": "20260707T000345-66fa145c"
+  }
+ ],
+ "drafter_model": "openai/gpt-5.5",
+ "dry_run": false,
+ "epsilon": 0.0,
+ "experiment_id": "exp-20260707T000113-5c0772",
+ "finished_at": "2026-07-07T00:05:29.362770+00:00",
+ "gate_mode": "agent",
+ "gate_model": "openai/gpt-5.5",
+ "holdout": null,
+ "judge_models": [
+  "openai/gpt-5.4-mini-low",
+  "google/gemini-3.1-flash-lite",
+  "anthropic/claude-haiku-4-5-low"
+ ],
+ "k_max": 2,
+ "max_anchors": 8,
+ "max_changes": 5,
+ "phase": "completed: 0 accepted / 2 cycles, v0.1 -> v0.1",
+ "run_number": 2,
+ "seed": 20260707,
+ "splits": {
+  "holdout_locked": true,
+  "holdout_n": 500,
+  "pool_split": "dev_golden",
+  "test_ids": [
+   "train_00036",
+   "train_00118",
+   "train_00119",
+   "train_00246",
+   "train_00253",
+   "train_00284",
+   "train_00469",
+   "train_00523",
+   "train_00544",
+   "train_00650",
+   "train_00667",
+   "train_00677",
+   "train_00802",
+   "train_00885",
+   "train_00893",
+   "train_01088",
+   "train_01155",
+   "train_01210",
+   "train_01212",
+   "train_01422",
+   "train_01559",
+   "train_01693",
+   "train_01782",
+   "train_01956",
+   "train_01972"
+  ],
+  "train_pool_n": 1975
+ },
+ "started_at": "2026-07-07T00:01:13.075618+00:00",
+ "status": "completed",
+ "store_synced": true,
+ "strategy": "random_misalignment",
+ "test_n": 25,
+ "updated_at": "2026-07-07T00:05:29.389751+00:00"
+}
