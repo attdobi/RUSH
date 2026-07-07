@@ -204,15 +204,16 @@ class DeterministicFakeClient(LabelClient):
         if request.area == "MNIST_Digits" and is_boundary and label != "abstain":
             other = str((int(label) + 1) % 10)
             boundary_pair = sorted([label, other])
+        l2_label = (
+            f"MD.digit.{label}"
+            if request.area == "MNIST_Digits" and label != "abstain"
+            else ""
+        )
         return LabelResponse(
             image_id=request.image_id,
             model_id=request.model_id,
             label=label,
-            l2_label=(
-                f"MD.digit.{label}"
-                if request.area == "MNIST_Digits" and label != "abstain"
-                else ""
-            ),
+            l2_label=l2_label,
             justification=(
                 "Deterministic dry-run response: this image was NOT sent to a "
                 "provider. Generated for offline schema validation."
@@ -230,6 +231,11 @@ class DeterministicFakeClient(LabelClient):
             prepared_image_mime_type="image/jpeg",
             prepared_image_byte_size=int(digest[8:14], 16) % 200_000 + 10_000,
             is_boundary_between=boundary_pair,
+            policy_citations=[l2_label] if l2_label else [],
+            policy_quotes=(
+                ["Deterministic dry-run policy quote (offline schema validation)."]
+                if l2_label else []
+            ),
         )
 
     def label(self, request: LabelRequest) -> LabelResponse:
@@ -303,6 +309,12 @@ def _build_llm_output(response: LabelResponse) -> dict:
     }
     if response.is_boundary_between:
         output["is_boundary_between"] = list(response.is_boundary_between)
+    if response.policy_citations:
+        output["policy_citations"] = list(response.policy_citations)
+    if response.policy_quotes:
+        output["policy_quotes"] = list(response.policy_quotes)
+    if response.justification_too_long:
+        output["justification_too_long"] = True
     if response.prepared_image_sha256:
         output["prepared_image_sha256"] = response.prepared_image_sha256
     if response.prepared_image_width:
@@ -351,6 +363,15 @@ def _build_label_vote(
     }
     if response.is_boundary_between:
         vote["is_boundary_between"] = list(response.is_boundary_between)
+    # The full model reply survives to the vote record — scoring and the Run
+    # summary view surface citations/quotes per judge ("all fields returned
+    # by the llm", Attila 2026-07-06).
+    if response.policy_citations:
+        vote["policy_citations"] = list(response.policy_citations)
+    if response.policy_quotes:
+        vote["policy_quotes"] = list(response.policy_quotes)
+    if response.justification_too_long:
+        vote["justification_too_long"] = True
     if response.prepared_image_sha256:
         vote["prepared_image_sha256"] = response.prepared_image_sha256
     if response.prepared_image_width:

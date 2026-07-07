@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r32" />
-  <script src="demos.js?v=demo-mnist-kdd-r32"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r33" />
+  <script src="demos.js?v=demo-mnist-kdd-r33"></script>
 </head>
 <body>
   <header class="hero">
@@ -25,6 +25,7 @@
       <div class="view-switcher" id="viewSwitcher" role="group" aria-label="View">
         <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
         <button class="view-switcher-option" type="button" data-view="summary" aria-pressed="false">Run summary</button>
+        <button class="view-switcher-option" type="button" data-view="adjudicate" aria-pressed="false">Adjudicate</button>
         <button class="view-switcher-option" type="button" data-view="inspect" aria-pressed="false">Inspect step-by-step</button>
       </div>
       <div class="nav-pills" data-view="inspect" aria-label="Inspect sections">
@@ -190,6 +191,32 @@
       </div>
       <div id="summaryCycleCard" class="experiment-summary"></div>
       <div id="summaryTable"></div>
+    </section>
+    <section id="adjudicate" data-view="adjudicate" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Adjudication queue</p>
+        <h2>Still misaligned after the loop — flagged for a human SME.</h2>
+        <p>The running cross-run list: every train / test / holdout / benchmark image whose latest
+        evaluation still shows a misalignment, with the run number(s) that flagged it. Stack-ranked
+        by LLM consensus (or lack of it), then the judges' confidence and difficulty, averaged across
+        the panel — or by the per-sample gradient |g| = 1&#8722;p, which puts confident-wrong panels first
+        (the strongest hint that the policy, or the golden label itself, needs a human look).
+        Dry runs never queue human work.</p>
+      </div>
+      <div class="run-controls" aria-label="Adjudication controls">
+        <label>Rank by
+          <select id="adjudicateSort">
+            <option value="composite">consensus &#8594; confidence &#8594; difficulty</option>
+            <option value="gradient">gradient |g| — confident-wrong first</option>
+            <option value="loss">loss &#8722;ln p</option>
+            <option value="runs">times flagged</option>
+          </select>
+        </label>
+        <button id="adjudicateRefresh" type="button">Refresh</button>
+        <span id="adjudicateStatusLine" class="status-line" role="status"></span>
+      </div>
+      <div id="adjudicateSummary" class="experiment-summary"></div>
+      <div id="adjudicateTable"></div>
     </section>
     <section data-view="inspect" id="sample" class="section demo-shell">
       <details class="sample-preview-accordion">
@@ -540,19 +567,20 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r32"></script>
-  <script src="app.js?v=demo-mnist-kdd-r32"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r32"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r32"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r32"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r32"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r32"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r32"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r32"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r32"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r33"></script>
+  <script src="app.js?v=demo-mnist-kdd-r33"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r33"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r33"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r33"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r33"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r33"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r33"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r33"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r33"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r33"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r32"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r32"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r32"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r33"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r33"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r33"></script>
 </body>
 </html>

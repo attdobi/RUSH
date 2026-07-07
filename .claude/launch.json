@@ -15,6 +15,21 @@
       ],
       "port": 8790,
       "autoPort": false
+    },
+    {
+      "name": "rush-web-verify",
+      "runtimeExecutable": "/Users/adobi/RUSH/.venv/bin/python",
+      "runtimeArgs": [
+        "scripts/rush_web_server.py",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8791",
+        "--repo-root",
+        "/Users/adobi/RUSH"
+      ],
+      "port": 8791,
+      "autoPort": false
     }
   ]
 }

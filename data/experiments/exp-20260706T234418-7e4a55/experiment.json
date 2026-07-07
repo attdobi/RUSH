@@ -2206,6 +2206,39 @@
  "max_anchors": 8,
  "max_changes": 5,
  "phase": "completed: 0 accepted / 2 cycles, v0.1 -> v0.1",
+ "readjudication": {
+  "final_version": "v0.1",
+  "generated_at": "2026-07-07T05:00:19.849305+00:00",
+  "items": [],
+  "n_flagged": 0,
+  "n_scanned": 0,
+  "sources": [
+   {
+    "k": 1,
+    "kind": "train",
+    "n_flagged": 0,
+    "n_scanned": 0,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260706T234419-9999cfcd"
+   },
+   {
+    "k": 2,
+    "kind": "train",
+    "n_flagged": 0,
+    "n_scanned": 0,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260706T234420-f09a4bce"
+   },
+   {
+    "k": 0,
+    "kind": "test",
+    "n_flagged": 0,
+    "n_scanned": 0,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260706T234419-2fa451b8"
+   }
+  ]
+ },
  "run_number": 1,
  "seed": 42,
  "splits": {
@@ -2241,5 +2274,5 @@
  "store_synced": false,
  "strategy": "random_misalignment",
  "test_n": 20,
- "updated_at": "2026-07-06T23:54:19.776835+00:00"
+ "updated_at": "2026-07-07T05:00:19.849796+00:00"
 }

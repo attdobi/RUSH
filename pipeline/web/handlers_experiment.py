@@ -11,6 +11,7 @@ Endpoints (dispatched from handlers_runs.handle_api):
     GET  /api/experiments/{id}                — full state (the UI poll target)
     POST /api/experiments/start               — spawn run_experiment.py (registry job)
     POST /api/experiments/{id}/review         — {k, verdict, reviewer?, comment?}
+    GET  /api/adjudication[?area=...]         — cross-run SME re-adjudication queue
 """
 from __future__ import annotations
 
@@ -40,6 +41,16 @@ def handle_get_experiment(
             404, "not_found", f"unknown experiment: {experiment_id}"
         ) from excinfo
     return 200, state
+
+
+def handle_adjudication_queue(
+    repo_root: Path | str, query: dict[str, list[str]] | None = None
+) -> tuple[int, dict[str, Any]]:
+    """The running cross-run list of items flagged for SME re-adjudication,
+    aggregated at read time from every experiment.json (dry runs excluded —
+    their deterministic fake votes are not human work)."""
+    area = ((query or {}).get("area") or [""])[0].strip() or None
+    return 200, exp.aggregate_readjudication(repo_root, area=area)
 
 
 def handle_gate_review(

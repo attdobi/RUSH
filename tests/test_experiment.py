@@ -576,3 +576,289 @@ def test_accept_proposal_allow_branch_from_fixed_baseline(tmp_path):
     assert accepted["new_version"] == "v0.3"
     new_root = graph / "v0.3" / "MD.root.md"
     assert new_root.read_text(encoding="utf-8") == "# root improved from v0.1\n"
+
+
+# ---------------------------------------------------------------------------
+# SME re-adjudication queue (wave 5): gradient formalism, panel signal,
+# end-of-run flagging, cross-run aggregation
+
+
+def _mis_record(image_id, truth, votes, mis_type="consensus_wrong",
+                severity="high", split="dev_golden"):
+    return {
+        "image_id": image_id,
+        "repo_rel_path": f"data/{image_id}.png",
+        "sme_truth": truth,
+        "split": split,
+        "misalignment_type": mis_type,
+        "severity": severity,
+        "votes": votes,
+    }
+
+
+def test_vote_gradient_formalism():
+    import math
+
+    # confident-correct: p = c, |g| = 1 - c (ignorable)
+    g = exp.vote_gradient({"label": "7", "confidence": 0.9}, "7")
+    assert g["p_true"] == pytest.approx(0.9)
+    assert g["magnitude"] == pytest.approx(0.1)
+    # confident-wrong: p = 1 - c -> the most informative error
+    g = exp.vote_gradient({"label": "1", "confidence": 0.9}, "7")
+    assert g["p_true"] == pytest.approx(0.1)
+    assert g["magnitude"] == pytest.approx(0.9)
+    assert g["loss"] == pytest.approx(-math.log(0.1))
+    assert g["hessian"] == pytest.approx(0.09)
+    # abstains and missing confidences are excluded (rush.sample_gradient)
+    assert exp.vote_gradient({"label": "abstain", "confidence": 0.9}, "7") is None
+    assert exp.vote_gradient({"label": "7", "confidence": None}, "7") is None
+
+
+def test_panel_signal_consensus_confidence_difficulty():
+    record = _mis_record("img1", "7", [
+        {"label": "1", "confidence": 0.9, "difficulty": "high",
+         "is_boundary": True, "is_boundary_between": ["1", "7"]},
+        {"label": "1", "confidence": 0.7, "difficulty": "medium"},
+        {"label": "7", "confidence": 0.5, "difficulty": "low"},
+        {"label": "abstain", "confidence": 0.1, "difficulty": "high"},
+    ])
+    signal = exp.panel_signal(record)
+    assert signal["n_judges"] == 4
+    assert signal["majority_label"] == "1"
+    assert signal["consensus"]["decisive"] == 3
+    assert signal["consensus"]["majority_count"] == 2
+    assert signal["consensus"]["fraction"] == pytest.approx(2 / 3, abs=1e-6)
+    assert signal["consensus"]["tie"] is False
+    # confidence and difficulty averaged across judges (abstain's difficulty
+    # still counts toward difficulty; its confidence is not decisive)
+    assert signal["avg_confidence"] == pytest.approx((0.9 + 0.7 + 0.5) / 3)
+    assert signal["difficulty_score"] == pytest.approx((1 + 0.5 + 0 + 1) / 4)
+    # gradient over decisive votes: wrong@0.9 -> .9, wrong@0.7 -> .7, right@0.5 -> .5
+    assert signal["gradient"]["n"] == 3
+    assert signal["gradient"]["avg_magnitude"] == pytest.approx((0.9 + 0.7 + 0.5) / 3)
+    assert signal["gradient"]["max_magnitude"] == pytest.approx(0.9)
+    assert signal["any_boundary"] is True
+    assert signal["boundary_pairs"] == ["1↔7"]
+
+
+def test_panel_signal_tie_has_no_majority():
+    record = _mis_record("img2", "3", [
+        {"label": "3", "confidence": 0.6, "difficulty": "low"},
+        {"label": "5", "confidence": 0.6, "difficulty": "low"},
+    ])
+    signal = exp.panel_signal(record)
+    assert signal["majority_label"] is None
+    assert signal["consensus"]["tie"] is True
+
+
+def test_build_readjudication_sources_and_ranking():
+    state = {
+        "area": "MNIST_Digits",
+        "current_version": "v0.2",
+        "holdout": None,
+        "benchmark": {"n": 2, "final": {"run_id": "run-bench", "version": "v0.2"}},
+        "cycles": [
+            {"k": 0, "test_run_id": "run-test0",
+             "generator_before": "MNIST_Digits.v0.1", "status": "baseline"},
+            {"k": 1, "train_run_id": "run-train1",
+             "generator_before": "MNIST_Digits.v0.1", "status": "skipped"},
+            {"k": 2, "train_run_id": "run-train2", "candidate_run_id": "run-cand2",
+             "generator_before": "MNIST_Digits.v0.1",
+             "generator_after": "MNIST_Digits.v0.2", "status": "accepted"},
+        ],
+    }
+    by_run = {
+        "run-train1": [
+            _mis_record("train_a", "7",
+                        [{"label": "1", "confidence": 0.9, "difficulty": "high"}]),
+            _mis_record("train_ok", "3",
+                        [{"label": "3", "confidence": 0.9, "difficulty": "low"}],
+                        mis_type="all_agree", severity="low"),
+        ],
+        "run-train2": [
+            _mis_record("train_b", "8", [
+                {"label": "6", "confidence": 0.4, "difficulty": "medium"},
+                {"label": "8", "confidence": 0.4, "difficulty": "medium"},
+            ], mis_type="model_vs_sme", severity="medium"),
+        ],
+        "run-cand2": [
+            _mis_record("test_c", "4",
+                        [{"label": "9", "confidence": 0.95, "difficulty": "high"}]),
+        ],
+        "run-bench": [
+            _mis_record("bench_d", "2",
+                        [{"label": "abstain", "confidence": None, "difficulty": "high"}],
+                        mis_type="model_vs_sme", severity="medium", split="validation"),
+        ],
+    }
+    block = exp.build_readjudication(
+        state,
+        load_misalignment=lambda run_id: by_run.get(run_id, []),
+        sha_by_image={"train_a": "sha-a"},
+    )
+    assert block["n_flagged"] == 4  # the all_agree row is not queued
+    kinds = {(s["kind"], s["run_id"]) for s in block["sources"]}
+    # test evidence = the ACCEPTED candidate eval, not the stale k=0 baseline
+    assert ("test", "run-cand2") in kinds
+    assert ("test", "run-test0") not in kinds
+    assert ("benchmark", "run-bench") in kinds
+    items = {i["image_id"]: i for i in block["items"]}
+    assert items["train_a"]["sha256"] == "sha-a"
+    assert items["train_a"]["source"]["k"] == 1
+    assert items["test_c"]["source"]["policy"] == "MNIST_Digits.v0.2"
+    assert items["bench_d"]["source"]["policy"] == "MNIST_Digits.v0.2"
+    # default stack rank: no machine signal first (all-abstain), then the
+    # split panel, then unanimous-wrong panels by ascending confidence
+    assert [i["image_id"] for i in block["items"]] == [
+        "bench_d", "train_b", "train_a", "test_c",
+    ]
+
+
+def test_build_readjudication_falls_back_to_baseline_test():
+    state = {
+        "area": "MNIST_Digits", "current_version": "v0.1",
+        "holdout": None, "benchmark": None,
+        "cycles": [{"k": 0, "test_run_id": "run-test0",
+                    "generator_before": "MNIST_Digits.v0.1", "status": "baseline"}],
+    }
+    block = exp.build_readjudication(
+        state,
+        load_misalignment=lambda run_id: [
+            _mis_record("t", "1", [{"label": "2", "confidence": 0.8, "difficulty": "low"}]),
+        ],
+    )
+    assert block["sources"][0]["kind"] == "test"
+    assert block["sources"][0]["run_id"] == "run-test0"
+    assert block["n_flagged"] == 1
+    assert block["items"][0]["sha256"] is None
+
+
+def _write_flagging_state(tmp_path, run_number, *, dry, conf,
+                          image_id="img_x", sha="sha-x", area="MNIST_Digits"):
+    state = {
+        "experiment_id": exp.mint_experiment_id(),
+        "run_number": run_number,
+        "area": area,
+        "seed": run_number,
+        "dry_run": dry,
+        "status": "completed",
+        "started_at": exp.utcnow_iso(),
+        "cycles": [],
+        "readjudication": {"items": [{
+            "image_id": image_id, "sha256": sha, "repo_rel_path": "p.png",
+            "split": "dev_golden", "sme_truth": "7",
+            "misalignment_type": "consensus_wrong", "severity": "high",
+            "source": {"kind": "test", "k": 2, "run_id": f"r{run_number}",
+                       "policy": "MNIST_Digits.v0.2"},
+            "n_judges": 1, "majority_label": "1",
+            "consensus": {"decisive": 1, "majority_count": 1,
+                          "fraction": 1.0, "tie": False},
+            "avg_confidence": conf, "difficulty_score": 0.5,
+            "gradient": {"n": 1, "avg_magnitude": conf, "max_magnitude": conf,
+                         "avg_hessian": 0.2, "avg_loss": 1.0},
+            "any_boundary": False, "boundary_pairs": [], "votes": [],
+        }]},
+    }
+    exp.write_state(tmp_path, state)
+
+
+def test_aggregate_readjudication_dedupes_across_runs_and_skips_dry(tmp_path):
+    _write_flagging_state(tmp_path, 1, dry=False, conf=0.6)
+    _write_flagging_state(tmp_path, 2, dry=False, conf=0.8)
+    _write_flagging_state(tmp_path, 3, dry=True, conf=0.9)  # dry -> excluded
+    _write_flagging_state(tmp_path, 4, dry=False, conf=0.9,
+                          image_id="other", sha="sha-y", area="Generative_AI")
+    queue = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    assert queue["n_items"] == 1
+    item = queue["items"][0]
+    assert item["run_numbers"] == [1, 2]
+    assert item["n_runs"] == 2
+    assert item["agg"]["avg_confidence"] == pytest.approx(0.7)
+    assert item["latest"]["run_number"] == 2
+    with_dry = exp.aggregate_readjudication(
+        tmp_path, area="MNIST_Digits", include_dry=True
+    )
+    assert with_dry["items"][0]["n_runs"] == 3
+    everything = exp.aggregate_readjudication(tmp_path)
+    assert everything["n_items"] == 2
+
+
+def test_mnist_prompts_never_recommend_abstain():
+    # Attila's standing rule: judges must always return a label; confidence
+    # [0,1] + difficulty carry the uncertainty. The schema stays tolerant
+    # (parser falls back to abstain on malformed replies) but the PROMPT
+    # must never suggest it.
+    from pipeline.providers.ontology import (
+        MNIST_SYSTEM_PROMPT, MNIST_USER_INSTRUCTIONS,
+    )
+    lowered = MNIST_SYSTEM_PROMPT.lower()
+    assert "abstain is legitimate" not in lowered
+    assert "never abstain" in lowered
+    assert "always return exactly one digit" in lowered
+    assert "or \"abstain\"" not in MNIST_USER_INSTRUCTIONS.lower()
+
+
+def test_build_readjudication_clears_stale_flag_on_later_all_agree():
+    # sample_train_batch re-uses train ids once the pool runs short: an image
+    # misaligned at k=1 but re-judged all_agree at k=3 must NOT stay queued.
+    state = {
+        "area": "MNIST_Digits", "current_version": "v0.1",
+        "holdout": None, "benchmark": None,
+        "cycles": [
+            {"k": 1, "train_run_id": "run-t1",
+             "generator_before": "MNIST_Digits.v0.1", "status": "skipped"},
+            {"k": 3, "train_run_id": "run-t3",
+             "generator_before": "MNIST_Digits.v0.1", "status": "skipped"},
+        ],
+    }
+    by_run = {
+        "run-t1": [_mis_record("img_reused", "7",
+                               [{"label": "1", "confidence": 0.9, "difficulty": "high"}])],
+        "run-t3": [_mis_record("img_reused", "7",
+                               [{"label": "7", "confidence": 0.9, "difficulty": "low"}],
+                               mis_type="all_agree", severity="low")],
+    }
+    block = exp.build_readjudication(
+        state, load_misalignment=lambda run_id: by_run.get(run_id, []),
+    )
+    assert block["n_flagged"] == 0
+    assert block["items"] == []
+
+
+def test_build_readjudication_holdout_start_leg_fallback():
+    # A run stopped between the paid start leg and the final leg still
+    # surfaces the start leg's misalignments (latest available evidence).
+    state = {
+        "area": "MNIST_Digits", "current_version": "v0.1",
+        "holdout": {"n": 1, "start": {"run_id": "run-hold-start", "version": "v0.1"}},
+        "benchmark": None,
+        "cycles": [],
+    }
+    block = exp.build_readjudication(
+        state,
+        load_misalignment=lambda run_id: [
+            _mis_record("hold_x", "5",
+                        [{"label": "6", "confidence": 0.8, "difficulty": "medium"}],
+                        split="holdout"),
+        ] if run_id == "run-hold-start" else [],
+    )
+    assert [(s["kind"], s["run_id"]) for s in block["sources"]] == [
+        ("holdout", "run-hold-start"),
+    ]
+    assert block["items"][0]["source"]["policy"] == "MNIST_Digits.v0.1"
+
+
+def test_policy_quotes_hard_capped_at_schema_limit():
+    # A model ignoring the soft <=240-char instruction must not produce a
+    # vote that fails llm-output schema validation (maxLength 600).
+    from pipeline.providers.base import coerce_label_fields
+
+    fields = coerce_label_fields({
+        "label": "7", "l2_label": "MD.digit.7",
+        "justification": "long enough to pass the sanity floor",
+        "confidence": 0.9, "difficulty": "low", "is_boundary": False,
+        "policy_citations": ["MD.digit.7"],
+        "policy_quotes": ["q" * 700, "short"],
+    })
+    assert len(fields["policy_quotes"][0]) == 600
+    assert fields["policy_quotes"][1] == "short"

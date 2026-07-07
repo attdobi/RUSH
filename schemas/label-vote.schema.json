@@ -172,6 +172,22 @@
         "null"
       ],
       "minimum": 0
+    },
+    "policy_citations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policy_quotes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 600
+      }
+    },
+    "justification_too_long": {
+      "type": "boolean"
     }
   }
 }

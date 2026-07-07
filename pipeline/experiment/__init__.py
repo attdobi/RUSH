@@ -41,12 +41,13 @@ vote), on both train and test: accuracy, F1, precision, recall, FPR, FNR
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import re
 import secrets
 import tempfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -892,6 +893,307 @@ def build_run_summary(state: dict[str, Any]) -> dict[str, Any]:
             {"start": _system_row(benchmark, "start"), "final": _system_row(benchmark, "final")}
             if benchmark else None
         ),
+    }
+
+
+# ---------------------------------------------------------------------------
+# SME re-adjudication queue (Attila 2026-07-06): "the remaining training and
+# testing (+ validation) images that still have misalignments should be
+# flagged for re-adjudication by a human SME", stack-ranked by consensus /
+# confidence / difficulty averaged across judges — and by the per-sample
+# gradient formalism (rush.sample_gradient: p = c if correct else 1-c,
+# |g| = 1-p, loss = -ln p; confident-wrong panels are the strongest signal
+# that either the policy or the golden label itself needs a human look).
+
+
+DIFFICULTY_SCORE = {"low": 0.0, "medium": 0.5, "high": 1.0}
+
+
+def vote_gradient(vote: dict[str, Any], truth: str) -> dict[str, float] | None:
+    """Per-vote gradient signals; None for abstains / missing confidence
+    (excluded by definition, mirroring the rush.sample_gradient view)."""
+    label = str(vote.get("label") or "")
+    confidence = vote.get("confidence")
+    if not label or label == _common.ABSTAIN or confidence is None:
+        return None
+    c = min(1.0, max(0.0, float(confidence)))
+    p = c if label == str(truth) else 1.0 - c
+    return {
+        "p_true": p,
+        "magnitude": 1.0 - p,
+        "hessian": c * (1.0 - c),
+        "loss": -math.log(max(p, 1e-6)),
+    }
+
+
+def _avg(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 6) if values else None
+
+
+def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
+    """Per-image rollup across the judge panel — the stack-rank substrate.
+
+    Mirrors rush.panel_signal on a misalignment record: consensus count and
+    fraction over decisive votes, confidence and difficulty averaged across
+    judges (low=0, medium=0.5, high=1), and the gradient block.
+    """
+    truth = str(record.get("sme_truth"))
+    votes = record.get("votes") or []
+    decisive = [v for v in votes
+                if v.get("label") and str(v.get("label")) != _common.ABSTAIN]
+    counts = Counter(str(v["label"]) for v in decisive)
+    top = counts.most_common()
+    tie = len(top) > 1 and top[0][1] == top[1][1]
+    majority_count = top[0][1] if top else 0
+    grads = [g for g in (vote_gradient(v, truth) for v in decisive) if g]
+    return {
+        "n_judges": len(votes),
+        "majority_label": top[0][0] if top and not tie else None,
+        "consensus": {
+            "decisive": len(decisive),
+            "majority_count": majority_count,
+            "fraction": (round(majority_count / len(decisive), 6)
+                         if decisive else None),
+            "tie": tie,
+        },
+        "avg_confidence": _avg([float(v["confidence"]) for v in decisive
+                                if v.get("confidence") is not None]),
+        "difficulty_score": _avg([DIFFICULTY_SCORE[v["difficulty"]] for v in votes
+                                  if v.get("difficulty") in DIFFICULTY_SCORE]),
+        "gradient": {
+            "n": len(grads),
+            "avg_magnitude": _avg([g["magnitude"] for g in grads]),
+            "max_magnitude": (round(max(g["magnitude"] for g in grads), 6)
+                              if grads else None),
+            "avg_hessian": _avg([g["hessian"] for g in grads]),
+            "avg_loss": _avg([g["loss"] for g in grads]),
+        },
+        "any_boundary": any(bool(v.get("is_boundary")) for v in votes),
+        "boundary_pairs": sorted({
+            "↔".join(str(d) for d in (v.get("is_boundary_between") or []))
+            for v in votes if v.get("is_boundary") and v.get("is_boundary_between")
+        }),
+    }
+
+
+def readjudication_sort_key(item: dict[str, Any]) -> tuple[float, float, float, str]:
+    """Attila's default stack rank: least consensus first, then least
+    confident, then hardest. Missing signal (all-abstain panels) outranks
+    everything — no machine verdict at all is the loudest call for a human."""
+    fraction = (item.get("consensus") or {}).get("fraction")
+    confidence = item.get("avg_confidence")
+    difficulty = item.get("difficulty_score")
+    return (
+        fraction if fraction is not None else -1.0,
+        confidence if confidence is not None else -1.0,
+        -(difficulty if difficulty is not None else 0.0),
+        str(item.get("image_id") or ""),
+    )
+
+
+def build_readjudication(
+    state: dict[str, Any],
+    *,
+    load_misalignment: Callable[[str], list[dict[str, Any]]],
+    sha_by_image: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Flag every image whose LATEST evaluation in this run is still
+    misaligned (anything but all_agree) for human SME re-adjudication.
+
+    Latest evidence per image: train batches under the policy in force at
+    their cycle k (sample_train_batch may RE-USE a train image once the pool
+    runs short — later cycles overwrite, and an all_agree re-judgment CLEARS
+    a stale flag); the test partition under the final policy (last accepted
+    candidate eval, else the k=0 baseline); holdout and benchmark under
+    their final leg, falling back to the paid start leg when a stop/failure
+    interrupted the run before the final pass.
+    """
+    area = state.get("area") or ""
+    cycles = [c for c in state.get("cycles", []) if isinstance(c.get("k"), int)]
+    sources: list[dict[str, Any]] = []
+    for cycle in cycles:
+        if cycle.get("train_run_id"):
+            sources.append({"kind": "train", "k": cycle["k"],
+                            "run_id": cycle["train_run_id"],
+                            "policy": cycle.get("generator_before")})
+    accepted = [c for c in cycles
+                if c.get("status") == "accepted" and c.get("candidate_run_id")]
+    if accepted:
+        last = accepted[-1]
+        sources.append({"kind": "test", "k": last["k"],
+                        "run_id": last["candidate_run_id"],
+                        "policy": last.get("generator_after")})
+    else:
+        base = next((c for c in cycles if c["k"] == 0 and c.get("test_run_id")), None)
+        if base:
+            sources.append({"kind": "test", "k": 0, "run_id": base["test_run_id"],
+                            "policy": base.get("generator_before")})
+    for kind in ("holdout", "benchmark"):
+        block = state.get(kind) or {}
+        # 'final' is aliased to 'start' on completed runs; a stopped/failed
+        # run may hold only the paid start leg — still its latest evidence.
+        leg = block.get("final") or block.get("start") or {}
+        if leg.get("run_id"):
+            version = leg.get("version")
+            sources.append({"kind": kind, "k": None, "run_id": leg["run_id"],
+                            "policy": f"{area}.{version}" if version else None})
+
+    items_by_image: dict[str, dict[str, Any]] = {}
+    scanned = 0
+    for source in sources:
+        records = load_misalignment(source["run_id"])
+        source["n_scanned"] = len(records)
+        source["n_flagged"] = 0
+        for record in records:
+            scanned += 1
+            mis_type = record.get("misalignment_type")
+            if not mis_type or mis_type == "all_agree":
+                # A later re-judgment that fully agrees CLEARS a stale flag
+                # (train ids can be re-used across cycles once the pool runs
+                # short — only the LATEST evaluation decides).
+                items_by_image.pop(record.get("image_id"), None)
+                continue
+            source["n_flagged"] += 1
+            image_id = record.get("image_id")
+            items_by_image[image_id] = {
+                "image_id": image_id,
+                "sha256": (sha_by_image or {}).get(image_id),
+                "repo_rel_path": record.get("repo_rel_path"),
+                "split": record.get("split"),
+                "sme_truth": record.get("sme_truth"),
+                "misalignment_type": mis_type,
+                "severity": record.get("severity"),
+                "source": {key: source.get(key)
+                           for key in ("kind", "k", "run_id", "policy")},
+                **panel_signal(record),
+                "votes": [{
+                    "model": v.get("model_id") or v.get("labeler_id"),
+                    "label": v.get("label"),
+                    "confidence": v.get("confidence"),
+                    "difficulty": v.get("difficulty"),
+                    "is_boundary": bool(v.get("is_boundary")),
+                } for v in record.get("votes") or []],
+            }
+
+    items = sorted(items_by_image.values(), key=readjudication_sort_key)
+    return {
+        "generated_at": utcnow_iso(),
+        "final_version": state.get("current_version"),
+        "n_scanned": scanned,
+        "n_flagged": len(items),
+        "sources": [{k: s.get(k) for k in
+                     ("kind", "k", "run_id", "policy", "n_scanned", "n_flagged")}
+                    for s in sources],
+        "items": items,
+    }
+
+
+def aggregate_readjudication(
+    repo_root: Path | str,
+    *,
+    area: str | None = None,
+    include_dry: bool = False,
+) -> dict[str, Any]:
+    """The cross-run running list of items awaiting SME re-adjudication.
+
+    Derived at read time from every experiment.json readjudication block
+    (file = truth; no merge state to corrupt). Items are deduped by sha256
+    (the label-store entity identity; sample_id fallback) with the run
+    numbers that flagged them unioned, per-run evidence kept, and the rank
+    signals averaged across runs. Dry runs are excluded by default — their
+    deterministic fake votes would pollute a queue meant for humans.
+    """
+    root = experiments_root(repo_root)
+    grouped: dict[str, dict[str, Any]] = {}
+    if root.is_dir():
+        for entry in sorted(root.iterdir()):
+            if not entry.is_dir() or entry.name.startswith("_"):
+                continue
+            path = entry / "experiment.json"
+            if not path.exists():
+                continue
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if area and state.get("area") != area:
+                continue
+            if state.get("dry_run") and not include_dry:
+                continue
+            block = state.get("readjudication") or {}
+            for item in block.get("items") or []:
+                key = item.get("sha256") or f"{state.get('area')}:{item.get('image_id')}"
+                group = grouped.setdefault(key, {
+                    "key": key,
+                    "image_id": item.get("image_id"),
+                    "sha256": item.get("sha256"),
+                    "repo_rel_path": item.get("repo_rel_path"),
+                    "split": item.get("split"),
+                    "sme_truth": item.get("sme_truth"),
+                    "area": state.get("area"),
+                    "runs": [],
+                })
+                source = item.get("source") or {}
+                group["runs"].append({
+                    "run_number": state.get("run_number"),
+                    "experiment_id": state.get("experiment_id"),
+                    "started_at": state.get("started_at"),
+                    "kind": source.get("kind"),
+                    "k": source.get("k"),
+                    "run_id": source.get("run_id"),
+                    "policy": source.get("policy"),
+                    "misalignment_type": item.get("misalignment_type"),
+                    "severity": item.get("severity"),
+                    "majority_label": item.get("majority_label"),
+                    "n_judges": item.get("n_judges"),
+                    "consensus": item.get("consensus"),
+                    "avg_confidence": item.get("avg_confidence"),
+                    "difficulty_score": item.get("difficulty_score"),
+                    "gradient": item.get("gradient"),
+                    "any_boundary": item.get("any_boundary"),
+                    "boundary_pairs": item.get("boundary_pairs"),
+                    "votes": item.get("votes"),
+                })
+
+    def _mean(runs: list[dict[str, Any]], pick: Callable[[dict], Any]) -> float | None:
+        values = [pick(r) for r in runs]
+        values = [v for v in values
+                  if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        return round(sum(values) / len(values), 6) if values else None
+
+    items: list[dict[str, Any]] = []
+    for group in grouped.values():
+        runs = sorted(group["runs"],
+                      key=lambda r: (r.get("run_number") or 0,
+                                     str(r.get("started_at") or "")))
+        group["runs"] = runs
+        group["n_runs"] = len(runs)
+        group["run_numbers"] = sorted({r.get("run_number") for r in runs
+                                       if r.get("run_number") is not None})
+        group["latest"] = runs[-1]
+        group["agg"] = {
+            "consensus_fraction": _mean(runs, lambda r: (r.get("consensus") or {}).get("fraction")),
+            "avg_confidence": _mean(runs, lambda r: r.get("avg_confidence")),
+            "difficulty_score": _mean(runs, lambda r: r.get("difficulty_score")),
+            "grad_magnitude": _mean(runs, lambda r: (r.get("gradient") or {}).get("avg_magnitude")),
+            "loss": _mean(runs, lambda r: (r.get("gradient") or {}).get("avg_loss")),
+            "any_boundary": any(r.get("any_boundary") for r in runs),
+        }
+        items.append(group)
+
+    # Default order = the same composite the per-run queue uses, computed on
+    # the cross-run averages; the web tab re-sorts client-side.
+    items.sort(key=lambda g: (
+        g["agg"]["consensus_fraction"] if g["agg"]["consensus_fraction"] is not None else -1.0,
+        g["agg"]["avg_confidence"] if g["agg"]["avg_confidence"] is not None else -1.0,
+        -(g["agg"]["difficulty_score"] or 0.0),
+        str(g.get("image_id") or ""),
+    ))
+    return {
+        "generated_at": utcnow_iso(),
+        "area": area,
+        "n_items": len(items),
+        "items": items,
     }
 
 

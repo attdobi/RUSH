@@ -38,6 +38,11 @@ MAX_JUSTIFICATION_CHARS: int = 1500
 # Soft cap on policy_quotes (we want exact citations, not a re-writing of
 # the policy book).
 MAX_POLICY_QUOTES: int = 6
+# Hard per-quote cap enforced at parse time. Matches the persistence schemas
+# (llm-output.schema.json policy_quotes items maxLength: 600): a model that
+# ignores the soft "≤240 chars" prompt instruction must not be able to fail
+# schema validation and take the whole vote record down with it.
+MAX_POLICY_QUOTE_CHARS: int = 600
 
 LABELING_RESPONSE_KEYS: tuple[str, ...] = (
     "label",

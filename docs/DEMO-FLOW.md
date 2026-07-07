@@ -68,6 +68,8 @@ The six sections of the web demo *are* the story. This script walks them top to 
 
 **Cross-run comparability:** per-run gate sets are seeded from dev_golden, so run-vs-run numbers aren't directly comparable. The FIXED 1,000-image `validation` split (canonical MNIST test rows, disjoint from dev_golden + holdout, locked) is scored start + final with the "Benchmark readout" checkbox — those are the numbers that compare run numbers and strategies on identical images.
 
+**Close the loop with the human (Adjudicate tab):** whatever the run could NOT fix, it hands to the expert. Every image still misaligned under its latest evaluation lands in the cross-run adjudication queue, ranked by lack of LLM consensus → confidence → difficulty, or by the gradient formalism (confident-wrong first — the cases where the golden label itself may be wrong). *"The system doesn't just improve the policy; it ends each run by telling the SME exactly where their scarce minutes matter most."*
+
 ---
 
 ## The 3-minute VC version

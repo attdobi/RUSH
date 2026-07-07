@@ -185,25 +185,66 @@
     if (label === 'abstain') cls += ' summary-vote--abstain';
     else cls += String(label) === String(truth) ? ' summary-vote--right' : ' summary-vote--wrong';
     const conf = (vote.confidence === null || vote.confidence === undefined) ? '' : ` · ${Number(vote.confidence).toFixed(2)}`;
-    const title = `${vote.model_id || vote.labeler_id} · confidence ${vote.confidence ?? '—'} · difficulty ${vote.difficulty ?? '—'}`;
-    return `<span class="${cls}" title="${esc(title)}">${esc(model)}: ${esc(label)}${esc(conf)}</span>`;
+    const boundary = vote.is_boundary ? ' ⧉' : '';
+    const pair = (vote.is_boundary_between || []).map(String).join('↔');
+    const title = `${vote.model_id || vote.labeler_id} · confidence ${vote.confidence ?? '—'} · difficulty ${vote.difficulty ?? '—'}`
+      + (vote.is_boundary ? ` · boundary${pair ? ` ${pair}` : ''}` : '');
+    return `<span class="${cls}" title="${esc(title)}">${esc(model)}: ${esc(label)}${esc(conf)}${boundary}</span>`;
+  }
+
+  // Keys the card lays out explicitly. Anything ELSE the parser kept from the
+  // model reply falls through to a trailing "extra fields" strip, so a new
+  // field in the output template shows up here without a UI change.
+  // prepared_image_* is input provenance, not a model output — suppressed.
+  const CARD_KEYS = new Set([
+    'label', 'l2_label', 'confidence', 'difficulty', 'is_boundary',
+    'is_boundary_between', 'justification', 'policy_citations',
+    'policy_quotes', 'justification_too_long', 'input_tokens',
+    'output_tokens', 'cost_usd', 'model_id', 'labeler_id'
+  ]);
+
+  function extraFields(vote) {
+    return Object.entries(vote)
+      .filter(([key, value]) => !CARD_KEYS.has(key) && !key.startsWith('prepared_image_')
+        && value !== null && value !== undefined && value !== ''
+        && !(Array.isArray(value) && !value.length))
+      .map(([key, value]) => {
+        const shown = Array.isArray(value) ? value.join(', ')
+          : (typeof value === 'object' ? JSON.stringify(value) : value);
+        return `<span class="summary-extra-field">${esc(key)}: ${esc(shown)}</span>`;
+      }).join(' ');
   }
 
   function justificationCards(row) {
     const cards = (row.votes || []).map((vote) => {
       const citations = (vote.policy_citations || []).map((c) =>
         `<span class="summary-citation">${esc(c)}</span>`).join('');
+      const quotes = (vote.policy_quotes || []).map((q) =>
+        `<blockquote class="summary-policy-quote">${esc(q)}</blockquote>`).join('');
+      const pair = (vote.is_boundary_between || []).map(String).join(' ↔ ');
+      const boundary = vote.is_boundary
+        ? `<span class="summary-flag summary-flag--boundary">is_boundary ${esc(pair) || 'true'}</span>`
+        : '<span class="summary-flag">is_boundary false</span>';
+      const tokens = (vote.input_tokens || vote.output_tokens)
+        ? `${vote.input_tokens ?? '—'} in / ${vote.output_tokens ?? '—'} out tok` : null;
       const meta = [
         `label <strong>${esc(vote.label ?? '—')}</strong>`,
+        vote.l2_label ? `node ${esc(vote.l2_label)}` : null,
         `confidence ${vote.confidence ?? '—'}`,
         `difficulty ${vote.difficulty ?? '—'}`,
+        boundary,
+        tokens,
         vote.cost_usd ? `$${Number(vote.cost_usd).toFixed(4)}` : null
       ].filter(Boolean).join(' · ');
+      const extras = extraFields(vote);
       return `<div class="summary-justification-card">
         <h5>${esc(vote.model_id || vote.labeler_id || 'model')}</h5>
         <span class="hint">${meta}</span>
         ${citations}
+        ${quotes}
         ${vote.justification ? `<p>${esc(vote.justification)}</p>` : '<p class="hint">no justification returned</p>'}
+        ${vote.justification_too_long ? '<p class="hint">justification_too_long: reply exceeded the ~1500-char budget (shown in full)</p>' : ''}
+        ${extras ? `<div class="summary-extra-fields">${extras}</div>` : ''}
       </div>`;
     }).join('');
     return `<div class="summary-justifications">${cards}</div>`;

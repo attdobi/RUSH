@@ -496,6 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         "cycles": [],
         "holdout": None,
         "benchmark": None,
+        "readjudication": None,
     }
     exp.write_state(ROOT, state)
     print(
@@ -1046,6 +1047,21 @@ def main(argv: list[str] | None = None) -> int:
         f"{max(0, len(state['cycles']) - 1)} cycles, "
         f"{state['base_version']} -> {state['current_version']}"
     )
+    # SME re-adjudication queue: every image whose latest evaluation in this
+    # run is still misaligned (train under the cycle's policy in force,
+    # test/holdout/benchmark under the final policy), with the consensus /
+    # confidence / difficulty / gradient rank signals the queue tab sorts by.
+    try:
+        state["readjudication"] = exp.build_readjudication(
+            state, load_misalignment=_load_misalignment,
+            sha_by_image={r.sample_id: r.sha256 for r in records},
+        )
+        print(f"[experiment] flagged {state['readjudication']['n_flagged']} "
+              "image(s) for SME re-adjudication", flush=True)
+    except Exception as exc:  # noqa: BLE001 - flagging must never mask run status
+        print(f"[experiment] re-adjudication flagging failed: {exc}",
+              file=sys.stderr, flush=True)
+        state["readjudication"] = None
     # End-of-run analysis record: per-scorer baseline/final/delta test metrics
     # + run metadata, for writing cross-run analyses without re-opening cycles.
     state["summary"] = exp.build_run_summary(state)

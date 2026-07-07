@@ -1,0 +1,7124 @@
+{
+ "area": "MNIST_Digits",
+ "base_generator": "MNIST_Digits.v0.1",
+ "base_version": "v0.1",
+ "batch_n": 50,
+ "benchmark": null,
+ "concurrency": 4,
+ "cost_usd_total": 1.434237,
+ "current_version": "v0.1",
+ "cycles": [
+  {
+   "closed_at": "2026-07-07T04:48:54.438497+00:00",
+   "cycle_seed": 199954098978636,
+   "errored_calls": 0,
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 0,
+   "kind": "baseline",
+   "metrics": {
+    "test": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.96,
+      "macro_f1": 0.95934,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004444,
+      "macro_precision": 0.962727,
+      "macro_recall": 0.96,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.979798,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002247,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.979798,
+      "micro_fnr": 0.020202,
+      "micro_fpr": 0.002245,
+      "micro_precision": 0.979798,
+      "micro_recall": 0.979798,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011236,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.957895,
+      "macro_f1": 0.959474,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004679,
+      "macro_precision": 0.961818,
+      "macro_recall": 0.96,
+      "micro_f1": 0.957895,
+      "micro_fnr": 0.042105,
+      "micro_fpr": 0.004678,
+      "micro_precision": 0.957895,
+      "micro_recall": 0.957895,
+      "n": 95,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": 0.9,
+        "fnr": 0.0,
+        "fpr": 0.023256,
+        "precision": 0.818182,
+        "recall": 1.0,
+        "support": 9
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.2,
+        "fpr": 0.023529,
+        "precision": 0.8,
+        "recall": 0.8,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.868687,
+      "macro_f1": 0.868276,
+      "macro_fnr": 0.131111,
+      "macro_fpr": 0.014594,
+      "macro_precision": 0.881965,
+      "macro_recall": 0.868889,
+      "micro_f1": 0.868687,
+      "micro_fnr": 0.131313,
+      "micro_fpr": 0.01459,
+      "micro_precision": 0.868687,
+      "micro_recall": 0.868687,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.888889,
+        "fnr": 0.111111,
+        "fpr": 0.011111,
+        "precision": 0.888889,
+        "recall": 0.888889,
+        "support": 9
+       },
+       "2": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022472,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.782609,
+        "fnr": 0.1,
+        "fpr": 0.044944,
+        "precision": 0.692308,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 0.818182,
+        "fnr": 0.1,
+        "fpr": 0.033708,
+        "precision": 0.75,
+        "recall": 0.9,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.705882,
+        "fnr": 0.4,
+        "fpr": 0.011236,
+        "precision": 0.857143,
+        "recall": 0.6,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.842105,
+        "fnr": 0.2,
+        "fpr": 0.011236,
+        "precision": 0.888889,
+        "recall": 0.8,
+        "support": 10
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.98,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002222,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     }
+    }
+   },
+   "started_at": "2026-07-07T04:42:38.488134+00:00",
+   "status": "baseline",
+   "test_run_id": "20260707T044238-a346eab1"
+  },
+  {
+   "anchor_ids": [
+    "train_00058",
+    "train_00179",
+    "train_00462",
+    "train_00645"
+   ],
+   "anchors": [
+    {
+     "image_id": "train_00058",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f16679.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 1.0,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.87,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00179",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f53173.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 1.0,
+       "label": "0",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.93,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00462",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/2/f22358.png",
+     "severity": "medium",
+     "sme_truth": "2",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.85,
+       "label": "3",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "2",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.86,
+       "label": "2",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00645",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/3/f14333.png",
+     "severity": "medium",
+     "sme_truth": "3",
+     "votes": [
+      {
+       "confidence": 0.85,
+       "label": "7",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.9,
+       "label": "3",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "3",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.99,
+       "label": "3",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    }
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T044238-bf044d.k1",
+   "candidate_run_id": "20260707T045227-1308fa1f",
+   "closed_at": "2026-07-07T04:58:33.819710+00:00",
+   "cost_usd": 0.437714,
+   "cycle_seed": 138500060712029,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "added",
+     "path": "MD.boundary.0_vs_6.md"
+    }
+   ],
+   "gate": {
+    "comparison": {
+     "n_after": 99,
+     "n_before": 100,
+     "n_common": 99,
+     "n_expected": 100,
+     "value_after": 0.969773,
+     "value_before": 0.979975
+    },
+    "cost_usd": 0.004336,
+    "decided_by": "metric_rule",
+    "decision": "skip",
+    "epsilon": 0.0,
+    "error": null,
+    "gate_model": "openai/gpt-5.5",
+    "metric": "test_system_macro_f1",
+    "metric_pass": false,
+    "rationale": "System macro-F1 decreased from 0.979975 to 0.969773, so the hard acceptance rule is not met. A metric-failing candidate can never be accepted regardless of edit quality.",
+    "raw_response": "{\"decision\":\"skip\",\"rationale\":\"System macro-F1 decreased from 0.979975 to 0.969773, so the hard acceptance rule is not met. A metric-failing candidate can never be accepted regardless of edit quality.\",\"risk_flags\":[\"metric_failed\",\"system_macro_f1_regression\",\"reduced_comparison_coverage\"]}",
+    "risk_flags": [
+     "metric_failed",
+     "system_macro_f1_regression",
+     "reduced_comparison_coverage"
+    ],
+    "value_after": 0.969773,
+    "value_before": 0.979975
+   },
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 1,
+   "metrics": {
+    "test": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.96,
+      "macro_f1": 0.95934,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004444,
+      "macro_precision": 0.962727,
+      "macro_recall": 0.96,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.979798,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002247,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.979798,
+      "micro_fnr": 0.020202,
+      "micro_fpr": 0.002245,
+      "micro_precision": 0.979798,
+      "micro_recall": 0.979798,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011236,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.957895,
+      "macro_f1": 0.959474,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004679,
+      "macro_precision": 0.961818,
+      "macro_recall": 0.96,
+      "micro_f1": 0.957895,
+      "micro_fnr": 0.042105,
+      "micro_fpr": 0.004678,
+      "micro_precision": 0.957895,
+      "micro_recall": 0.957895,
+      "n": 95,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": 0.9,
+        "fnr": 0.0,
+        "fpr": 0.023256,
+        "precision": 0.818182,
+        "recall": 1.0,
+        "support": 9
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.2,
+        "fpr": 0.023529,
+        "precision": 0.8,
+        "recall": 0.8,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.868687,
+      "macro_f1": 0.868276,
+      "macro_fnr": 0.131111,
+      "macro_fpr": 0.014594,
+      "macro_precision": 0.881965,
+      "macro_recall": 0.868889,
+      "micro_f1": 0.868687,
+      "micro_fnr": 0.131313,
+      "micro_fpr": 0.01459,
+      "micro_precision": 0.868687,
+      "micro_recall": 0.868687,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.888889,
+        "fnr": 0.111111,
+        "fpr": 0.011111,
+        "precision": 0.888889,
+        "recall": 0.888889,
+        "support": 9
+       },
+       "2": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022472,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.782609,
+        "fnr": 0.1,
+        "fpr": 0.044944,
+        "precision": 0.692308,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 0.818182,
+        "fnr": 0.1,
+        "fpr": 0.033708,
+        "precision": 0.75,
+        "recall": 0.9,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.705882,
+        "fnr": 0.4,
+        "fpr": 0.011236,
+        "precision": 0.857143,
+        "recall": 0.6,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.842105,
+        "fnr": 0.2,
+        "fpr": 0.011236,
+        "precision": 0.888889,
+        "recall": 0.8,
+        "support": 10
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.98,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002222,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     }
+    },
+    "test_candidate": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.94,
+      "macro_f1": 0.939892,
+      "macro_fnr": 0.06,
+      "macro_fpr": 0.006667,
+      "macro_precision": 0.953846,
+      "macro_recall": 0.94,
+      "micro_f1": 0.94,
+      "micro_fnr": 0.06,
+      "micro_fpr": 0.006667,
+      "micro_precision": 0.94,
+      "micro_recall": 0.94,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.869565,
+        "fnr": 0.0,
+        "fpr": 0.033333,
+        "precision": 0.769231,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.869565,
+        "fnr": 0.0,
+        "fpr": 0.033333,
+        "precision": 0.769231,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.823529,
+        "fnr": 0.3,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.7,
+        "support": 10
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.959184,
+      "macro_f1": 0.960249,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004545,
+      "macro_precision": 0.965152,
+      "macro_recall": 0.96,
+      "micro_f1": 0.959184,
+      "micro_fnr": 0.040816,
+      "micro_fpr": 0.004535,
+      "micro_precision": 0.959184,
+      "micro_recall": 0.959184,
+      "n": 98,
+      "n_abstained": 2,
+      "per_class": {
+       "0": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022727,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.857143,
+        "fnr": 0.1,
+        "fpr": 0.022727,
+        "precision": 0.818182,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.968085,
+      "macro_f1": 0.969306,
+      "macro_fnr": 0.031111,
+      "macro_fpr": 0.003557,
+      "macro_precision": 0.971818,
+      "macro_recall": 0.968889,
+      "micro_f1": 0.968085,
+      "micro_fnr": 0.031915,
+      "micro_fpr": 0.003546,
+      "micro_precision": 0.968085,
+      "micro_recall": 0.968085,
+      "n": 94,
+      "n_abstained": 6,
+      "per_class": {
+       "0": {
+        "f1": 0.947368,
+        "fnr": 0.0,
+        "fpr": 0.011765,
+        "precision": 0.9,
+        "recall": 1.0,
+        "support": 9
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "6": {
+        "f1": 0.857143,
+        "fnr": 0.1,
+        "fpr": 0.02381,
+        "precision": 0.818182,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.941176,
+        "fnr": 0.111111,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.888889,
+        "support": 9
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.89,
+      "macro_f1": 0.890423,
+      "macro_fnr": 0.11,
+      "macro_fpr": 0.012222,
+      "macro_precision": 0.926465,
+      "macro_recall": 0.89,
+      "micro_f1": 0.89,
+      "micro_fnr": 0.11,
+      "micro_fpr": 0.012222,
+      "micro_precision": 0.89,
+      "micro_recall": 0.89,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.823529,
+        "fnr": 0.3,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.7,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.714286,
+        "fnr": 0.0,
+        "fpr": 0.088889,
+        "precision": 0.555556,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.969697,
+      "macro_f1": 0.969773,
+      "macro_fnr": 0.03,
+      "macro_fpr": 0.003371,
+      "macro_precision": 0.974242,
+      "macro_recall": 0.97,
+      "micro_f1": 0.969697,
+      "micro_fnr": 0.030303,
+      "micro_fpr": 0.003367,
+      "micro_precision": 0.969697,
+      "micro_recall": 0.969697,
+      "n": 99,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022472,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     }
+    },
+    "train": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.96,
+      "macro_f1": 0.958095,
+      "macro_fnr": 0.05,
+      "macro_fpr": 0.004651,
+      "macro_precision": 0.975,
+      "macro_recall": 0.95,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 8
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "2": {
+        "f1": 0.857143,
+        "fnr": 0.25,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.75,
+        "support": 4
+       },
+       "3": {
+        "f1": 0.857143,
+        "fnr": 0.25,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.75,
+        "support": 4
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "6": {
+        "f1": 0.933333,
+        "fnr": 0.0,
+        "fpr": 0.023256,
+        "precision": 0.875,
+        "recall": 1.0,
+        "support": 7
+       },
+       "7": {
+        "f1": 0.933333,
+        "fnr": 0.0,
+        "fpr": 0.023256,
+        "precision": 0.875,
+        "recall": 1.0,
+        "support": 7
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.98,
+      "macro_f1": 0.974603,
+      "macro_fnr": 0.025,
+      "macro_fpr": 0.002174,
+      "macro_precision": 0.98,
+      "macro_recall": 0.975,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 8
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "2": {
+        "f1": 0.857143,
+        "fnr": 0.25,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.75,
+        "support": 4
+       },
+       "3": {
+        "f1": 0.888889,
+        "fnr": 0.0,
+        "fpr": 0.021739,
+        "precision": 0.8,
+        "recall": 1.0,
+        "support": 4
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 48,
+      "n_abstained": 2,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 8
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.96,
+      "macro_f1": 0.973214,
+      "macro_fnr": 0.025,
+      "macro_fpr": 0.004651,
+      "macro_precision": 0.977778,
+      "macro_recall": 0.975,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.857143,
+        "fnr": 0.25,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.75,
+        "support": 8
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "6": {
+        "f1": 0.875,
+        "fnr": 0.0,
+        "fpr": 0.046512,
+        "precision": 0.777778,
+        "recall": 1.0,
+        "support": 7
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 8
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 4,
+   "proposal_id": "20260707T045227-df3979d4",
+   "started_at": "2026-07-07T04:48:54.460965+00:00",
+   "status": "skipped",
+   "train_ids": [
+    "train_00003",
+    "train_00022",
+    "train_00058",
+    "train_00064",
+    "train_00121",
+    "train_00145",
+    "train_00149",
+    "train_00179",
+    "train_00222",
+    "train_00230",
+    "train_00294",
+    "train_00323",
+    "train_00359",
+    "train_00389",
+    "train_00462",
+    "train_00523",
+    "train_00533",
+    "train_00535",
+    "train_00603",
+    "train_00645",
+    "train_00702",
+    "train_00791",
+    "train_00963",
+    "train_00976",
+    "train_01020",
+    "train_01028",
+    "train_01089",
+    "train_01142",
+    "train_01176",
+    "train_01230",
+    "train_01247",
+    "train_01290",
+    "train_01308",
+    "train_01313",
+    "train_01335",
+    "train_01358",
+    "train_01415",
+    "train_01417",
+    "train_01445",
+    "train_01447",
+    "train_01498",
+    "train_01546",
+    "train_01588",
+    "train_01684",
+    "train_01769",
+    "train_01772",
+    "train_01836",
+    "train_01837",
+    "train_01869",
+    "train_01870"
+   ],
+   "train_run_id": "20260707T044854-6c55cded"
+  },
+  {
+   "anchor_ids": [
+    "train_00094",
+    "train_00166",
+    "train_00194",
+    "train_00374",
+    "train_00543",
+    "train_00823",
+    "train_01021",
+    "train_01656"
+   ],
+   "anchors": [
+    {
+     "image_id": "train_00094",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f29055.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.7,
+       "label": "0",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.84,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00166",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f49244.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.9,
+       "label": "0",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.81,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00194",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f58829.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.85,
+       "label": "0",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.79,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00374",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f53887.png",
+     "severity": "medium",
+     "sme_truth": "1",
+     "votes": [
+      {
+       "confidence": 1.0,
+       "label": "1",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.7,
+       "label": "1",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.95,
+       "label": "1",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00543",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/2/f43391.png",
+     "severity": "medium",
+     "sme_truth": "2",
+     "votes": [
+      {
+       "confidence": 0.85,
+       "label": "2",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.9,
+       "label": "2",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "7",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.66,
+       "label": "2",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00823",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f5891.png",
+     "severity": "medium",
+     "sme_truth": "4",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "4",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.4,
+       "label": "4",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "7",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.52,
+       "label": "4",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01021",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f7988.png",
+     "severity": "medium",
+     "sme_truth": "5",
+     "votes": [
+      {
+       "confidence": 0.85,
+       "label": "5",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.8,
+       "label": "3",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.9,
+       "label": "5",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.95,
+       "label": "5",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01656",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f14640.png",
+     "severity": "medium",
+     "sme_truth": "8",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.95,
+       "label": "8",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "8",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.78,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    }
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T044238-bf044d.k2",
+   "candidate_run_id": "20260707T050213-caf6f421",
+   "closed_at": "2026-07-07T05:08:45.917696+00:00",
+   "cost_usd": 0.480237,
+   "cycle_seed": 129860375124635,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "added",
+     "path": "MD.boundary.0_vs_6.md"
+    }
+   ],
+   "gate": {
+    "comparison": {
+     "n_after": 98,
+     "n_before": 100,
+     "n_common": 98,
+     "n_expected": 100,
+     "value_after": 0.989975,
+     "value_before": 0.979975
+    },
+    "cost_usd": 0.009284,
+    "decided_by": "gate_agent_veto",
+    "decision": "skip",
+    "epsilon": 0.0,
+    "error": null,
+    "gate_model": "openai/gpt-5.5",
+    "metric": "test_system_macro_f1",
+    "metric_pass": true,
+    "rationale": "Although the reported system macro-F1 improved, the candidate system result covers only 98 of 100 expected test items, while the baseline covers 100. The apparent gain may be affected by missing examples rather than a sound policy improvement. The edit itself is coherent and well-scoped, but acceptance should require complete comparable test coverage.",
+    "raw_response": "{\"decision\":\"skip\",\"rationale\":\"Although the reported system macro-F1 improved, the candidate system result covers only 98 of 100 expected test items, while the baseline covers 100. The apparent gain may be affected by missing examples rather than a sound policy improvement. The edit itself is coherent and well-scoped, but acceptance should require complete comparable test coverage.\",\"risk_flags\":[\"incomplete_test_coverage\",\"non_comparable_metric_n\",\"possible_metric_artifact\"]}",
+    "risk_flags": [
+     "incomplete_test_coverage",
+     "non_comparable_metric_n",
+     "possible_metric_artifact"
+    ],
+    "value_after": 0.989975,
+    "value_before": 0.979975
+   },
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 2,
+   "metrics": {
+    "test": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.96,
+      "macro_f1": 0.95934,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004444,
+      "macro_precision": 0.962727,
+      "macro_recall": 0.96,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.979798,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002247,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.979798,
+      "micro_fnr": 0.020202,
+      "micro_fpr": 0.002245,
+      "micro_precision": 0.979798,
+      "micro_recall": 0.979798,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011236,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.957895,
+      "macro_f1": 0.959474,
+      "macro_fnr": 0.04,
+      "macro_fpr": 0.004679,
+      "macro_precision": 0.961818,
+      "macro_recall": 0.96,
+      "micro_f1": 0.957895,
+      "micro_fnr": 0.042105,
+      "micro_fpr": 0.004678,
+      "micro_precision": 0.957895,
+      "micro_recall": 0.957895,
+      "n": 95,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": 0.9,
+        "fnr": 0.0,
+        "fpr": 0.023256,
+        "precision": 0.818182,
+        "recall": 1.0,
+        "support": 9
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 7
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.8,
+        "fnr": 0.2,
+        "fpr": 0.023529,
+        "precision": 0.8,
+        "recall": 0.8,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.868687,
+      "macro_f1": 0.868276,
+      "macro_fnr": 0.131111,
+      "macro_fpr": 0.014594,
+      "macro_precision": 0.881965,
+      "macro_recall": 0.868889,
+      "micro_f1": 0.868687,
+      "micro_fnr": 0.131313,
+      "micro_fpr": 0.01459,
+      "micro_precision": 0.868687,
+      "micro_recall": 0.868687,
+      "n": 99,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.888889,
+        "fnr": 0.111111,
+        "fpr": 0.011111,
+        "precision": 0.888889,
+        "recall": 0.888889,
+        "support": 9
+       },
+       "2": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022472,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011236,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.782609,
+        "fnr": 0.1,
+        "fpr": 0.044944,
+        "precision": 0.692308,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 0.818182,
+        "fnr": 0.1,
+        "fpr": 0.033708,
+        "precision": 0.75,
+        "recall": 0.9,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.705882,
+        "fnr": 0.4,
+        "fpr": 0.011236,
+        "precision": 0.857143,
+        "recall": 0.6,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.842105,
+        "fnr": 0.2,
+        "fpr": 0.011236,
+        "precision": 0.888889,
+        "recall": 0.8,
+        "support": 10
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.98,
+      "macro_f1": 0.979975,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002222,
+      "macro_precision": 0.980909,
+      "macro_recall": 0.98,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     }
+    },
+    "test_candidate": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.94,
+      "macro_f1": 0.939792,
+      "macro_fnr": 0.06,
+      "macro_fpr": 0.006667,
+      "macro_precision": 0.949242,
+      "macro_recall": 0.94,
+      "micro_f1": 0.94,
+      "micro_fnr": 0.06,
+      "micro_fpr": 0.006667,
+      "micro_precision": 0.94,
+      "micro_recall": 0.94,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022222,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "2": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.818182,
+        "fnr": 0.1,
+        "fpr": 0.033333,
+        "precision": 0.75,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.823529,
+        "fnr": 0.3,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.7,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.98,
+      "macro_f1": 0.97995,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002222,
+      "macro_precision": 0.981818,
+      "macro_recall": 0.98,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011111,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.93,
+      "macro_f1": 0.933161,
+      "macro_fnr": 0.07,
+      "macro_fpr": 0.007778,
+      "macro_precision": 0.947619,
+      "macro_recall": 0.93,
+      "micro_f1": 0.93,
+      "micro_fnr": 0.07,
+      "micro_fpr": 0.007778,
+      "micro_precision": 0.93,
+      "micro_recall": 0.93,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022222,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "5": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.75,
+        "fnr": 0.1,
+        "fpr": 0.055556,
+        "precision": 0.642857,
+        "recall": 0.9,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.9,
+      "macro_f1": 0.904588,
+      "macro_fnr": 0.1,
+      "macro_fpr": 0.011111,
+      "macro_precision": 0.932157,
+      "macro_recall": 0.9,
+      "micro_f1": 0.9,
+      "micro_fnr": 0.1,
+      "micro_fpr": 0.011111,
+      "micro_precision": 0.9,
+      "micro_recall": 0.9,
+      "n": 100,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "1": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "2": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022222,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 0.823529,
+        "fnr": 0.3,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.7,
+        "support": 10
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.740741,
+        "fnr": 0.0,
+        "fpr": 0.077778,
+        "precision": 0.588235,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 0.9,
+        "fnr": 0.1,
+        "fpr": 0.011111,
+        "precision": 0.9,
+        "recall": 0.9,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 10
+       },
+       "9": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.989796,
+      "macro_f1": 0.989975,
+      "macro_fnr": 0.01,
+      "macro_fpr": 0.001136,
+      "macro_precision": 0.990909,
+      "macro_recall": 0.99,
+      "micro_f1": 0.989796,
+      "micro_fnr": 0.010204,
+      "micro_fpr": 0.001134,
+      "micro_precision": 0.989796,
+      "micro_recall": 0.989796,
+      "n": 98,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "6": {
+        "f1": 0.952381,
+        "fnr": 0.0,
+        "fpr": 0.011364,
+        "precision": 0.909091,
+        "recall": 1.0,
+        "support": 10
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "8": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       }
+      }
+     }
+    },
+    "train": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.98,
+      "macro_f1": 0.979798,
+      "macro_fnr": 0.016667,
+      "macro_fpr": 0.002174,
+      "macro_precision": 0.98,
+      "macro_recall": 0.983333,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.888889,
+        "fnr": 0.0,
+        "fpr": 0.021739,
+        "precision": 0.8,
+        "recall": 1.0,
+        "support": 4
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 12
+       },
+       "8": {
+        "f1": 0.909091,
+        "fnr": 0.166667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "support": 6
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.98,
+      "macro_f1": 0.957576,
+      "macro_fnr": 0.05,
+      "macro_fpr": 0.002222,
+      "macro_precision": 0.983333,
+      "macro_recall": 0.95,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 0.909091,
+        "fnr": 0.0,
+        "fpr": 0.022222,
+        "precision": 0.833333,
+        "recall": 1.0,
+        "support": 5
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "5": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 12
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.9,
+      "macro_f1": 0.895944,
+      "macro_fnr": 0.116667,
+      "macro_fpr": 0.011785,
+      "macro_precision": 0.942857,
+      "macro_recall": 0.883333,
+      "micro_f1": 0.9,
+      "micro_fnr": 0.1,
+      "micro_fpr": 0.011111,
+      "micro_precision": 0.9,
+      "micro_recall": 0.9,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 6
+       },
+       "1": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "2": {
+        "f1": 0.8,
+        "fnr": 0.333333,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "4": {
+        "f1": 0.909091,
+        "fnr": 0.166667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "support": 6
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.727273,
+        "fnr": 0.0,
+        "fpr": 0.065217,
+        "precision": 0.571429,
+        "recall": 1.0,
+        "support": 4
+       },
+       "7": {
+        "f1": 0.923077,
+        "fnr": 0.0,
+        "fpr": 0.052632,
+        "precision": 0.857143,
+        "recall": 1.0,
+        "support": 12
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.92,
+      "macro_f1": 0.924242,
+      "macro_fnr": 0.066667,
+      "macro_fpr": 0.008696,
+      "macro_precision": 0.95,
+      "macro_recall": 0.933333,
+      "micro_f1": 0.92,
+      "micro_fnr": 0.08,
+      "micro_fpr": 0.008889,
+      "micro_precision": 0.92,
+      "micro_recall": 0.92,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.086957,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 4
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 12
+       },
+       "8": {
+        "f1": 0.909091,
+        "fnr": 0.166667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "support": 6
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 47,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 12
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 8,
+   "proposal_id": "20260707T050213-9a824753",
+   "started_at": "2026-07-07T04:58:33.896985+00:00",
+   "status": "skipped",
+   "train_ids": [
+    "train_00013",
+    "train_00071",
+    "train_00094",
+    "train_00156",
+    "train_00166",
+    "train_00194",
+    "train_00244",
+    "train_00314",
+    "train_00374",
+    "train_00430",
+    "train_00480",
+    "train_00543",
+    "train_00626",
+    "train_00700",
+    "train_00759",
+    "train_00763",
+    "train_00774",
+    "train_00823",
+    "train_00864",
+    "train_00865",
+    "train_00932",
+    "train_00946",
+    "train_00980",
+    "train_01021",
+    "train_01120",
+    "train_01206",
+    "train_01289",
+    "train_01311",
+    "train_01396",
+    "train_01405",
+    "train_01427",
+    "train_01437",
+    "train_01461",
+    "train_01470",
+    "train_01474",
+    "train_01483",
+    "train_01490",
+    "train_01496",
+    "train_01532",
+    "train_01550",
+    "train_01600",
+    "train_01649",
+    "train_01656",
+    "train_01667",
+    "train_01706",
+    "train_01766",
+    "train_01777",
+    "train_01900",
+    "train_01902",
+    "train_01958"
+   ],
+   "train_run_id": "20260707T045833-392868df"
+  },
+  {
+   "anchor_ids": [
+    "train_00061",
+    "train_00345",
+    "train_01585",
+    "train_01740"
+   ],
+   "anchors": [
+    {
+     "image_id": "train_00061",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f17200.png",
+     "severity": "medium",
+     "sme_truth": "0",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.85,
+       "label": "6",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "0",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.83,
+       "label": "0",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00345",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f43406.png",
+     "severity": "medium",
+     "sme_truth": "1",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "1",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.4,
+       "label": "1",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "7",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.79,
+       "label": "1",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01585",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/7/f54218.png",
+     "severity": "medium",
+     "sme_truth": "7",
+     "votes": [
+      {
+       "confidence": 0.5,
+       "label": "7",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.4,
+       "label": "7",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "7",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.63,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01740",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f42130.png",
+     "severity": "medium",
+     "sme_truth": "8",
+     "votes": [
+      {
+       "confidence": 0.95,
+       "label": "6",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.7,
+       "label": "8",
+       "model": "local/gemma-4-26b-a4b-qat"
+      },
+      {
+       "confidence": 0.95,
+       "label": "8",
+       "model": "local/qwen2.5-vl-7b"
+      },
+      {
+       "confidence": 0.79,
+       "label": "6",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    }
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T044238-bf044d.k3",
+   "closed_at": "2026-07-07T05:18:34.334591+00:00",
+   "cycle_seed": 272549404889662,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "modified",
+     "path": "MD.digit.6.md"
+    }
+   ],
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 3,
+   "metrics": {
+    "train": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.98,
+      "macro_f1": 0.980451,
+      "macro_fnr": 0.01,
+      "macro_fpr": 0.002128,
+      "macro_precision": 0.975,
+      "macro_recall": 0.99,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "6": {
+        "f1": 0.857143,
+        "fnr": 0.0,
+        "fpr": 0.021277,
+        "precision": 0.75,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "8": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       }
+      }
+     },
+     "local/gemma-4-26b-a4b-qat": {
+      "accuracy": 0.98,
+      "macro_f1": 0.976623,
+      "macro_fnr": 0.016667,
+      "macro_fpr": 0.002128,
+      "macro_precision": 0.975,
+      "macro_recall": 0.983333,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 0.909091,
+        "fnr": 0.166667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "6": {
+        "f1": 0.857143,
+        "fnr": 0.0,
+        "fpr": 0.021277,
+        "precision": 0.75,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       }
+      }
+     },
+     "local/qwen2.5-vl-7b": {
+      "accuracy": 0.98,
+      "macro_f1": 0.981197,
+      "macro_fnr": 0.02,
+      "macro_fpr": 0.002273,
+      "macro_precision": 0.985714,
+      "macro_recall": 0.98,
+      "micro_f1": 0.98,
+      "micro_fnr": 0.02,
+      "micro_fpr": 0.002222,
+      "micro_precision": 0.98,
+      "micro_recall": 0.98,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 0.888889,
+        "fnr": 0.2,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.8,
+        "support": 5
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": 0.923077,
+        "fnr": 0.0,
+        "fpr": 0.022727,
+        "precision": 0.857143,
+        "recall": 1.0,
+        "support": 6
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.96,
+      "macro_f1": 0.960646,
+      "macro_fnr": 0.026667,
+      "macro_fpr": 0.004255,
+      "macro_precision": 0.96,
+      "macro_recall": 0.973333,
+      "micro_f1": 0.96,
+      "micro_fnr": 0.04,
+      "micro_fpr": 0.004444,
+      "micro_precision": 0.96,
+      "micro_recall": 0.96,
+      "n": 50,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "6": {
+        "f1": 0.75,
+        "fnr": 0.0,
+        "fpr": 0.042553,
+        "precision": 0.6,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": 0.909091,
+        "fnr": 0.166667,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.833333,
+        "support": 6
+       },
+       "8": {
+        "f1": 0.947368,
+        "fnr": 0.1,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.9,
+        "support": 10
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       }
+      }
+     },
+     "system": {
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.0,
+      "macro_fpr": 0.0,
+      "macro_precision": 1.0,
+      "macro_recall": 1.0,
+      "micro_f1": 1.0,
+      "micro_fnr": 0.0,
+      "micro_fpr": 0.0,
+      "micro_precision": 1.0,
+      "micro_recall": 1.0,
+      "n": 49,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "1": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       },
+       "2": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "3": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "4": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 2
+       },
+       "5": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4
+       },
+       "6": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 3
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 6
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 9
+       },
+       "9": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 5
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 4,
+   "proposal_id": "20260707T051246-fac420ab",
+   "started_at": "2026-07-07T05:08:45.989086+00:00",
+   "status": "stopped",
+   "train_ids": [
+    "train_00046",
+    "train_00061",
+    "train_00082",
+    "train_00092",
+    "train_00093",
+    "train_00135",
+    "train_00241",
+    "train_00302",
+    "train_00306",
+    "train_00345",
+    "train_00370",
+    "train_00425",
+    "train_00429",
+    "train_00437",
+    "train_00656",
+    "train_00705",
+    "train_00717",
+    "train_00719",
+    "train_00731",
+    "train_00739",
+    "train_00861",
+    "train_00867",
+    "train_01027",
+    "train_01069",
+    "train_01075",
+    "train_01170",
+    "train_01216",
+    "train_01357",
+    "train_01377",
+    "train_01402",
+    "train_01421",
+    "train_01438",
+    "train_01469",
+    "train_01563",
+    "train_01585",
+    "train_01655",
+    "train_01681",
+    "train_01695",
+    "train_01733",
+    "train_01739",
+    "train_01740",
+    "train_01761",
+    "train_01774",
+    "train_01779",
+    "train_01795",
+    "train_01831",
+    "train_01921",
+    "train_01927",
+    "train_01974",
+    "train_01989"
+   ],
+   "train_run_id": "20260707T050845-3c5996c6"
+  }
+ ],
+ "drafter_model": "openai/gpt-5.5",
+ "dry_run": false,
+ "epsilon": 0.0,
+ "experiment_id": "exp-20260707T044238-bf044d",
+ "finished_at": "2026-07-07T05:18:34.334777+00:00",
+ "gate_mode": "agent",
+ "gate_model": "openai/gpt-5.5",
+ "holdout": null,
+ "judge_models": [
+  "openai/gpt-5.4-mini-low",
+  "google/gemini-3.1-flash-lite",
+  "local/qwen2.5-vl-7b",
+  "local/gemma-4-26b-a4b-qat"
+ ],
+ "k_max": 5,
+ "max_anchors": 8,
+ "max_changes": 1,
+ "notes": "prompt-mixed: wave-5 landed on disk mid-run (children re-import code at spawn). k<=1 judged under the old abstain-allowed MNIST prompt, k>=2 under the new always-commit prompt; k=3 votes additionally carry policy_citations/quotes. Within-run comparisons vs the k=0 baseline are confounded; no edit was accepted (0/3 cycles), so no policy version is affected.",
+ "phase": "stopped: 0 accepted / 3 cycles, v0.1 -> v0.1",
+ "readjudication": {
+  "final_version": "v0.1",
+  "generated_at": "2026-07-07T05:26:40.378232+00:00",
+  "items": [
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.78,
+    "boundary_pairs": [
+     "1\u21947",
+     "4\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.14265,
+     "avg_loss": 1.131359,
+     "avg_magnitude": 0.505,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00949",
+    "majority_label": "4",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f42032.png",
+    "severity": "medium",
+    "sha256": "5cceff4ab31bff27603b05e5d531d720cf21602b62d01e61f0ab05d53dfdd912",
+    "sme_truth": "4",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.6,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "4",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.62,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "1",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.8475,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.117725,
+     "avg_loss": 1.241087,
+     "avg_magnitude": 0.5225,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01740",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f42130.png",
+    "severity": "medium",
+    "sha256": "8e61c7e3a8d117b565a751b6d0aeb55d4628fd20e8eb4fcef1e268028f124251",
+    "sme_truth": "8",
+    "source": {
+     "k": 3,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T050845-3c5996c6"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.7,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.79,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.8575,
+    "boundary_pairs": [
+     "2\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.104525,
+     "avg_loss": 1.03666,
+     "avg_magnitude": 0.4325,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01022",
+    "majority_label": "5",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f8339.png",
+    "severity": "medium",
+    "sha256": "3c55fa68467f9c886f484decd51748f5d02c6d7f47311768590f5159a0026a63",
+    "sme_truth": "5",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.63,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "2",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.86,
+    "boundary_pairs": [
+     "6\u21948",
+     "6\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.10985,
+     "avg_loss": 1.30907,
+     "avg_magnitude": 0.535,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00094",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f29055.png",
+    "severity": "medium",
+    "sha256": "d0acab3de054a2e2835d6aa7ca682b255cdcaeb05f9f79edcae2a81b26bbe80b",
+    "sme_truth": "0",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.7,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.84,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.88,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.09665,
+     "avg_loss": 1.106338,
+     "avg_magnitude": 0.455,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01400",
+    "majority_label": "6",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/6/f59928.png",
+    "severity": "medium",
+    "sha256": "231aedc816f8c70d64b8fb036b9588626eb9a66f50271e78fb4d748cfaefec9b",
+    "sme_truth": "6",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.72,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.8875,
+    "boundary_pairs": [
+     "3\u21948"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.088125,
+     "avg_loss": 1.811683,
+     "avg_magnitude": 0.6625,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01710",
+    "majority_label": "6",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f34787.png",
+    "severity": "medium",
+    "sha256": "b29c9ef23de5686a2091d403ad2818e8e8053167834148fcaf08d569d4c12d01",
+    "sme_truth": "8",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.7,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "3",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9025,
+    "boundary_pairs": [
+     "6\u21940"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": true
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.084725,
+     "avg_loss": 1.203279,
+     "avg_magnitude": 0.4775,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00166",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f49244.png",
+    "severity": "medium",
+    "sha256": "f21de3408250c322d529634eb6b91d3b204720375b0212f4dcb61da57d3718ea",
+    "sme_truth": "0",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.81,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9025,
+    "boundary_pairs": [
+     "2\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.085725,
+     "avg_loss": 1.273742,
+     "avg_magnitude": 0.4975,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00462",
+    "majority_label": "2",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/2/f22358.png",
+    "severity": "medium",
+    "sha256": "6ab30fd759903a8c689dd81283dff053cf966c2eccf806f57cea7735db380af6",
+    "sme_truth": "2",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044854-6c55cded"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.85,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "2",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.86,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "2",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.9075,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": true
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.078525,
+     "avg_loss": 1.153112,
+     "avg_magnitude": 0.4575,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01656",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f14640.png",
+    "severity": "medium",
+    "sha256": "b049cf3ca946097cf2355b23b9d146256183d017252e9588815adddaf52cd7df",
+    "sme_truth": "8",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.78,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.9175,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.074025,
+     "avg_loss": 1.433818,
+     "avg_magnitude": 0.5175,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_01630",
+    "majority_label": "8",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f9611.png",
+    "severity": "medium",
+    "sha256": "2f7a97d4a1b869891e1600ab484fc9f48601baeb25cdb661c84f1bf3cfc074fb",
+    "sme_truth": "8",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.85,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.92,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.94,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.5,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.05585,
+     "avg_loss": 2.142122,
+     "avg_magnitude": 0.715,
+     "max_magnitude": 0.96,
+     "n": 4
+    },
+    "image_id": "train_01823",
+    "majority_label": "8",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/9/f5740.png",
+    "severity": "medium",
+    "sha256": "c91b040b3c469b7a199f2a86369a67f3fc0e9a1258307e14df8d3d174a11b435",
+    "sme_truth": "9",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "9",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.96,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.903333,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 3,
+     "fraction": 0.666667,
+     "majority_count": 2,
+     "tie": false
+    },
+    "difficulty_score": 0.375,
+    "gradient": {
+     "avg_hessian": 0.082967,
+     "avg_loss": 0.587773,
+     "avg_magnitude": 0.303333,
+     "max_magnitude": 0.81,
+     "n": 3
+    },
+    "image_id": "train_00247",
+    "majority_label": "1",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f14859.png",
+    "severity": "medium",
+    "sha256": "575265e81a15ec1dd0bf21f1bc9064e0ab2b9bc9ee2a61b01f341de01fb9db2e",
+    "sme_truth": "1",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.0,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.81,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.62,
+    "boundary_pairs": [
+     "1\u21947",
+     "6\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.75,
+    "gradient": {
+     "avg_hessian": 0.19265,
+     "avg_loss": 0.663746,
+     "avg_magnitude": 0.445,
+     "max_magnitude": 0.63,
+     "n": 4
+    },
+    "image_id": "train_01585",
+    "majority_label": "7",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/7/f54218.png",
+    "severity": "medium",
+    "sha256": "fe59b23683be3b0b843b9489d5164fd99701daf2f5b2a0868e3839709ece274a",
+    "sme_truth": "7",
+    "source": {
+     "k": 3,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T050845-3c5996c6"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.5,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "7",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.4,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "7",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.63,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.705,
+    "boundary_pairs": [
+     "4\u21947",
+     "4\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.5,
+    "gradient": {
+     "avg_hessian": 0.14615,
+     "avg_loss": 1.154311,
+     "avg_magnitude": 0.52,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00823",
+    "majority_label": "4",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f5891.png",
+    "severity": "medium",
+    "sha256": "bde04fc7b93d01a541fb80a32298f6994e40e593e46d970761a64723ae1d222e",
+    "sme_truth": "4",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.4,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "4",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.52,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "4",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.7725,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.375,
+    "gradient": {
+     "avg_hessian": 0.125225,
+     "avg_loss": 1.04976,
+     "avg_magnitude": 0.4525,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00345",
+    "majority_label": "1",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f43406.png",
+    "severity": "medium",
+    "sha256": "1ae6218a7a4a27d56842acb917529ac8dbaa1468c937203a4110f77eb74ed194",
+    "sme_truth": "1",
+    "source": {
+     "k": 3,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T050845-3c5996c6"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.4,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "1",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.79,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "1",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.84,
+    "boundary_pairs": [
+     "2\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.12235,
+     "avg_loss": 0.919782,
+     "avg_magnitude": 0.385,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00543",
+    "majority_label": "2",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/2/f43391.png",
+    "severity": "medium",
+    "sha256": "3d668c4633b8efbb1d9fd1277a7257609d3de1a778a55b37834cf753ce2a41ab",
+    "sme_truth": "2",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.85,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "2",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "2",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.66,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "2",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.84,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.1151,
+     "avg_loss": 0.301679,
+     "avg_magnitude": 0.215,
+     "max_magnitude": 0.61,
+     "n": 4
+    },
+    "image_id": "train_01435",
+    "majority_label": "7",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/7/f9788.png",
+    "severity": "medium",
+    "sha256": "de9a32b49f02ee97fa29a7f4eb0dc2c3194cfc6ed5994c45650802de951fd5da",
+    "sme_truth": "7",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.85,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "7",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.61,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "3",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.8675,
+    "boundary_pairs": [
+     "6\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.085025,
+     "avg_loss": 0.236639,
+     "avg_magnitude": 0.1675,
+     "max_magnitude": 0.57,
+     "n": 4
+    },
+    "image_id": "train_00039",
+    "majority_label": "0",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f8385.png",
+    "severity": "medium",
+    "sha256": "a8a5b9e89740310f4d6126270d4a6f66c40fd2412b69887fda9a175307e6f972",
+    "sme_truth": "0",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.57,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.875,
+    "boundary_pairs": [
+     "5"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.10625,
+     "avg_loss": 0.482153,
+     "avg_magnitude": 0.275,
+     "max_magnitude": 0.8,
+     "n": 4
+    },
+    "image_id": "train_01021",
+    "majority_label": "5",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f7988.png",
+    "severity": "medium",
+    "sha256": "8dd58387b27798760c4d90494451c013f8834d9e0a830fc3f0c2b1c35e73d2c6",
+    "sme_truth": "5",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.85,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "5",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.8,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "3",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.885,
+    "boundary_pairs": [
+     "6\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.0971,
+     "avg_loss": 0.456438,
+     "avg_magnitude": 0.26,
+     "max_magnitude": 0.79,
+     "n": 4
+    },
+    "image_id": "train_00194",
+    "majority_label": "0",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f58829.png",
+    "severity": "medium",
+    "sha256": "2f1f590af248a8894a07a21e8129a839a53136df41ecb6442c9500db0c0ccc98",
+    "sme_truth": "0",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.85,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.79,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.895,
+    "boundary_pairs": [
+     "0"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.0909,
+     "avg_loss": 0.546509,
+     "avg_magnitude": 0.28,
+     "max_magnitude": 0.85,
+     "n": 4
+    },
+    "image_id": "train_00061",
+    "majority_label": "0",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f17200.png",
+    "severity": "medium",
+    "sha256": "59020319ebe6f172ee9dcf16263ac0d44e529ef4dff57d1a5880b11a3abf6628",
+    "sme_truth": "0",
+    "source": {
+     "k": 3,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T050845-3c5996c6"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.85,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "6",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.83,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "0",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.07625,
+     "avg_loss": 0.850925,
+     "avg_magnitude": 0.325,
+     "max_magnitude": 0.95,
+     "n": 4
+    },
+    "image_id": "train_00374",
+    "majority_label": "1",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f53887.png",
+    "severity": "medium",
+    "sha256": "d8e185de3d394aa28b360be113a00fa70f9a590cdedc8366e704df2ee57311bc",
+    "sme_truth": "1",
+    "source": {
+     "k": 2,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T045833-392868df"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.7,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "1",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "1",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9225,
+    "boundary_pairs": [
+     "1\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.068725,
+     "avg_loss": 0.515956,
+     "avg_magnitude": 0.2525,
+     "max_magnitude": 0.85,
+     "n": 4
+    },
+    "image_id": "train_00645",
+    "majority_label": "3",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/3/f14333.png",
+    "severity": "medium",
+    "sha256": "56dc8be2a5812ff10df85a86f611d9ab8ebd5089f3f675db30da7411200418c0",
+    "sme_truth": "3",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044854-6c55cded"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.85,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "7",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.99,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.9425,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.052025,
+     "avg_loss": 0.535702,
+     "avg_magnitude": 0.2425,
+     "max_magnitude": 0.87,
+     "n": 4
+    },
+    "image_id": "train_00058",
+    "majority_label": "0",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f16679.png",
+    "severity": "medium",
+    "sha256": "2778880f842e696f08469bb2d38365dc88dba16d303c33a47e21984e4ba8b7a5",
+    "sme_truth": "0",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044854-6c55cded"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.87,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.9425,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.054025,
+     "avg_loss": 0.669902,
+     "avg_magnitude": 0.2675,
+     "max_magnitude": 0.92,
+     "n": 4
+    },
+    "image_id": "train_01896",
+    "majority_label": "9",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/9/f29180.png",
+    "severity": "medium",
+    "sha256": "c897b630375b0ea4d7b37a16b0454b3765e3448ce9dba6addd3f15ad6b9145cb",
+    "sme_truth": "9",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "9",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "9",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "9",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.92,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9425,
+    "boundary_pairs": [
+     "2\u21947"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.054025,
+     "avg_loss": 0.669902,
+     "avg_magnitude": 0.2675,
+     "max_magnitude": 0.92,
+     "n": 4
+    },
+    "image_id": "train_00909",
+    "majority_label": "4",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f28556.png",
+    "severity": "medium",
+    "sha256": "daeeaba32193b4f497547d52d6ec77e88d6d62ae388f11f7e15cdd8b94257ffe",
+    "sme_truth": "4",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.92,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "2",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.945,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.0519,
+     "avg_loss": 0.703285,
+     "avg_magnitude": 0.27,
+     "max_magnitude": 0.93,
+     "n": 4
+    },
+    "image_id": "train_01754",
+    "majority_label": "8",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f46313.png",
+    "severity": "medium",
+    "sha256": "42056e0868c52065e768b8f387f9d7d68218774c0074b8c8f020bb2fe68b1d53",
+    "sme_truth": "8",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.93,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.95,
+    "boundary_pairs": [
+     "4\u21949"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.125,
+    "gradient": {
+     "avg_hessian": 0.04625,
+     "avg_loss": 0.601293,
+     "avg_magnitude": 0.25,
+     "max_magnitude": 0.9,
+     "n": 4
+    },
+    "image_id": "train_01707",
+    "majority_label": "8",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f33678.png",
+    "severity": "medium",
+    "sha256": "9574b9e06edf5c7700abd370b97ae4366c3a3a0979bbe4be6268f5cb9a92c732",
+    "sme_truth": "8",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.9,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "9",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.9575,
+    "boundary_pairs": [
+     "6\u21940"
+    ],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.040025,
+     "avg_loss": 0.690462,
+     "avg_magnitude": 0.2575,
+     "max_magnitude": 0.93,
+     "n": 4
+    },
+    "image_id": "train_00179",
+    "majority_label": "0",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f53173.png",
+    "severity": "medium",
+    "sha256": "a842ec2753be74fbdd273fa4400d09b03a88f96ef3cde75025daaddca3d821ff",
+    "sme_truth": "0",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044854-6c55cded"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.93,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.96,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.03785,
+     "avg_loss": 3.494993,
+     "avg_magnitude": 0.29,
+     "max_magnitude": 1.0,
+     "n": 4
+    },
+    "image_id": "train_01317",
+    "majority_label": "6",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/6/f35411.png",
+    "severity": "medium",
+    "sha256": "ea2edefce65e92217e9042cbc60af2fa156da683e6934f6f5960d3dc946768c5",
+    "sme_truth": "6",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.94,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.97,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 4,
+     "fraction": 0.75,
+     "majority_count": 3,
+     "tie": false
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.02865,
+     "avg_loss": 3.484575,
+     "avg_magnitude": 0.28,
+     "max_magnitude": 1.0,
+     "n": 4
+    },
+    "image_id": "train_01339",
+    "majority_label": "6",
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 4,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/6/f40616.png",
+    "severity": "medium",
+    "sha256": "8251cc38dafbf3d9b3ac9bc12bf2af122baffb58adc33f6bbda73c6adcae3e54",
+    "sme_truth": "6",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T044238-a346eab1"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.95,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "local/gemma-4-26b-a4b-qat"
+     },
+     {
+      "confidence": 1.0,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "0",
+      "model": "local/qwen2.5-vl-7b"
+     },
+     {
+      "confidence": 0.98,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   }
+  ],
+  "n_flagged": 31,
+  "n_scanned": 250,
+  "sources": [
+   {
+    "k": 1,
+    "kind": "train",
+    "n_flagged": 4,
+    "n_scanned": 50,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T044854-6c55cded"
+   },
+   {
+    "k": 2,
+    "kind": "train",
+    "n_flagged": 8,
+    "n_scanned": 50,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T045833-392868df"
+   },
+   {
+    "k": 3,
+    "kind": "train",
+    "n_flagged": 4,
+    "n_scanned": 50,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T050845-3c5996c6"
+   },
+   {
+    "k": 0,
+    "kind": "test",
+    "n_flagged": 15,
+    "n_scanned": 100,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T044238-a346eab1"
+   }
+  ]
+ },
+ "run_number": 4,
+ "seed": 3358524795,
+ "splits": {
+  "holdout_locked": true,
+  "holdout_n": 500,
+  "pool_split": "dev_golden",
+  "test_ids": [
+   "train_00015",
+   "train_00038",
+   "train_00039",
+   "train_00062",
+   "train_00091",
+   "train_00143",
+   "train_00160",
+   "train_00164",
+   "train_00168",
+   "train_00169",
+   "train_00208",
+   "train_00247",
+   "train_00249",
+   "train_00267",
+   "train_00311",
+   "train_00319",
+   "train_00337",
+   "train_00340",
+   "train_00344",
+   "train_00363",
+   "train_00441",
+   "train_00479",
+   "train_00482",
+   "train_00484",
+   "train_00506",
+   "train_00507",
+   "train_00508",
+   "train_00566",
+   "train_00577",
+   "train_00580",
+   "train_00604",
+   "train_00658",
+   "train_00689",
+   "train_00694",
+   "train_00715",
+   "train_00725",
+   "train_00734",
+   "train_00746",
+   "train_00752",
+   "train_00772",
+   "train_00809",
+   "train_00818",
+   "train_00833",
+   "train_00849",
+   "train_00892",
+   "train_00901",
+   "train_00909",
+   "train_00935",
+   "train_00948",
+   "train_00949",
+   "train_01002",
+   "train_01022",
+   "train_01032",
+   "train_01061",
+   "train_01078",
+   "train_01144",
+   "train_01148",
+   "train_01172",
+   "train_01182",
+   "train_01187",
+   "train_01279",
+   "train_01280",
+   "train_01284",
+   "train_01292",
+   "train_01317",
+   "train_01327",
+   "train_01339",
+   "train_01371",
+   "train_01391",
+   "train_01400",
+   "train_01408",
+   "train_01410",
+   "train_01435",
+   "train_01451",
+   "train_01466",
+   "train_01555",
+   "train_01558",
+   "train_01562",
+   "train_01572",
+   "train_01589",
+   "train_01606",
+   "train_01622",
+   "train_01630",
+   "train_01683",
+   "train_01707",
+   "train_01710",
+   "train_01713",
+   "train_01727",
+   "train_01754",
+   "train_01776",
+   "train_01820",
+   "train_01823",
+   "train_01833",
+   "train_01846",
+   "train_01862",
+   "train_01896",
+   "train_01943",
+   "train_01948",
+   "train_01951",
+   "train_01996"
+  ],
+  "train_pool_n": 1900
+ },
+ "started_at": "2026-07-07T04:42:38.488134+00:00",
+ "status": "stopped",
+ "store_synced": true,
+ "strategy": "random_misalignment",
+ "summary": {
+  "area": "MNIST_Digits",
+  "benchmark_system": null,
+  "config": {
+   "batch_n": 50,
+   "concurrency": 4,
+   "drafter_model": "openai/gpt-5.5",
+   "dry_run": false,
+   "epsilon": 0.0,
+   "gate_mode": "agent",
+   "gate_model": "openai/gpt-5.5",
+   "judge_models": [
+    "openai/gpt-5.4-mini-low",
+    "google/gemini-3.1-flash-lite",
+    "local/qwen2.5-vl-7b",
+    "local/gemma-4-26b-a4b-qat"
+   ],
+   "k_max": 5,
+   "max_anchors": 8,
+   "max_changes": 1,
+   "strategy": "random_misalignment",
+   "test_n": 100
+  },
+  "cost_usd_total": 1.434237,
+  "experiment_id": "exp-20260707T044238-bf044d",
+  "finished_at": "2026-07-07T05:18:34.334777+00:00",
+  "holdout_system": null,
+  "policy": {
+   "accepted_cycles": [],
+   "base_version": "v0.1",
+   "final_version": "v0.1",
+   "n_cycles": 3
+  },
+  "recorded_at": "2026-07-07T05:19:12.407909+00:00",
+  "run_number": 4,
+  "seed": 3358524795,
+  "started_at": "2026-07-07T04:42:38.488134+00:00",
+  "status": "stopped",
+  "test_metrics": {
+   "google/gemini-3.1-flash-lite": {
+    "baseline": {
+     "accuracy": 0.96,
+     "macro_f1": 0.95934,
+     "macro_fnr": 0.04,
+     "macro_fpr": 0.004444,
+     "macro_precision": 0.962727,
+     "macro_recall": 0.96,
+     "micro_f1": 0.96,
+     "n": 100,
+     "n_abstained": 0
+    },
+    "delta": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    },
+    "final": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    }
+   },
+   "local/gemma-4-26b-a4b-qat": {
+    "baseline": {
+     "accuracy": 0.979798,
+     "macro_f1": 0.979975,
+     "macro_fnr": 0.02,
+     "macro_fpr": 0.002247,
+     "macro_precision": 0.980909,
+     "macro_recall": 0.98,
+     "micro_f1": 0.979798,
+     "n": 99,
+     "n_abstained": 1
+    },
+    "delta": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    },
+    "final": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    }
+   },
+   "local/qwen2.5-vl-7b": {
+    "baseline": {
+     "accuracy": 0.957895,
+     "macro_f1": 0.959474,
+     "macro_fnr": 0.04,
+     "macro_fpr": 0.004679,
+     "macro_precision": 0.961818,
+     "macro_recall": 0.96,
+     "micro_f1": 0.957895,
+     "n": 95,
+     "n_abstained": 5
+    },
+    "delta": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    },
+    "final": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    }
+   },
+   "openai/gpt-5.4-mini-low": {
+    "baseline": {
+     "accuracy": 0.868687,
+     "macro_f1": 0.868276,
+     "macro_fnr": 0.131111,
+     "macro_fpr": 0.014594,
+     "macro_precision": 0.881965,
+     "macro_recall": 0.868889,
+     "micro_f1": 0.868687,
+     "n": 99,
+     "n_abstained": 1
+    },
+    "delta": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    },
+    "final": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    }
+   },
+   "system": {
+    "baseline": {
+     "accuracy": 0.98,
+     "macro_f1": 0.979975,
+     "macro_fnr": 0.02,
+     "macro_fpr": 0.002222,
+     "macro_precision": 0.980909,
+     "macro_recall": 0.98,
+     "micro_f1": 0.98,
+     "n": 100,
+     "n_abstained": 0
+    },
+    "delta": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    },
+    "final": {
+     "accuracy": null,
+     "macro_f1": null,
+     "macro_fnr": null,
+     "macro_fpr": null,
+     "macro_precision": null,
+     "macro_recall": null,
+     "micro_f1": null,
+     "n": null,
+     "n_abstained": null
+    }
+   }
+  }
+ },
+ "test_n": 100,
+ "updated_at": "2026-07-07T05:26:40.378579+00:00"
+}

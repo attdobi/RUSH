@@ -51,6 +51,7 @@
     document.body.classList.toggle('view-loop', view === 'loop');
     document.body.classList.toggle('view-inspect', view === 'inspect');
     document.body.classList.toggle('view-summary', view === 'summary');
+    document.body.classList.toggle('view-adjudicate', view === 'adjudicate');
     document.querySelectorAll('#viewSwitcher .view-switcher-option').forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.view === view));
     });
@@ -69,16 +70,18 @@
     const fromHash = location.hash.replace('#', '');
     let view = 'loop';
     try { view = sessionStorage.getItem('rush_view') || 'loop'; } catch (err) { /* ok */ }
-    if (!['loop', 'inspect', 'summary'].includes(view)) view = 'loop';
+    if (!['loop', 'inspect', 'summary', 'adjudicate'].includes(view)) view = 'loop';
     if (inspectAnchors.has(fromHash)) view = 'inspect';
     if (fromHash === 'experiment') view = 'loop';
     if (fromHash === 'summary') view = 'summary';
+    if (fromHash === 'adjudicate') view = 'adjudicate';
     applyView(view);
     window.addEventListener('hashchange', () => {
       const anchor = location.hash.replace('#', '');
       if (inspectAnchors.has(anchor)) applyView('inspect');
       if (anchor === 'experiment' || anchor === 'policyEvolution') applyView('loop');
       if (anchor === 'summary') applyView('summary');
+      if (anchor === 'adjudicate') applyView('adjudicate');
     });
   }
 

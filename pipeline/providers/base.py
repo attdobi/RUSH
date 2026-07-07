@@ -238,13 +238,16 @@ def _coerce_bool(value: Any, *, default: bool = False) -> bool:
     return default
 
 
-def _coerce_str_list(value: Any, *, cap: int | None = None) -> list[str]:
+def _coerce_str_list(
+    value: Any, *, cap: int | None = None, max_chars: int | None = None
+) -> list[str]:
     """Best-effort coerce a value to ``list[str]``.
 
     Accepts a list, a single string (wrapped), or anything stringifiable. Drops
     empties and de-dupes while preserving order. Truncates to ``cap`` entries
-    when supplied. Used for the v2 ``policy_citations`` / ``policy_quotes``
-    fields so partial provider output still round-trips cleanly.
+    and each entry to ``max_chars`` characters when supplied. Used for the v2
+    ``policy_citations`` / ``policy_quotes`` fields so partial provider output
+    still round-trips cleanly.
     """
     items: list[str] = []
     if isinstance(value, str):
@@ -262,6 +265,8 @@ def _coerce_str_list(value: Any, *, cap: int | None = None) -> list[str]:
         text = str(value).strip()
         if text:
             items.append(text)
+    if max_chars is not None and max_chars > 0:
+        items = [text[:max_chars] for text in items]
     if cap is not None and cap >= 0:
         return items[:cap]
     return items
@@ -305,6 +310,7 @@ def coerce_label_fields(
     """
     from pipeline.providers._prompts import (
         MAX_JUSTIFICATION_CHARS,
+        MAX_POLICY_QUOTE_CHARS,
         MAX_POLICY_QUOTES,
     )
 
@@ -340,7 +346,8 @@ def coerce_label_fields(
         )
     policy_citations = _coerce_str_list(parsed.get("policy_citations"))
     policy_quotes = _coerce_str_list(
-        parsed.get("policy_quotes"), cap=MAX_POLICY_QUOTES
+        parsed.get("policy_quotes"), cap=MAX_POLICY_QUOTES,
+        max_chars=MAX_POLICY_QUOTE_CHARS,
     )
     justification_too_long = len(justification) > MAX_JUSTIFICATION_CHARS
     return {

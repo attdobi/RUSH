@@ -246,12 +246,17 @@ CREATE TABLE IF NOT EXISTS rush.experiment (
   config         JSONB NOT NULL DEFAULT '{}'::jsonb,
   summary        JSONB,                        -- end-of-run analysis record: per-scorer
                                                -- baseline/final/delta test metrics + metadata
+  readjudication JSONB,                        -- end-of-run SME queue: images still misaligned
+                                               -- under their latest eval, with consensus /
+                                               -- confidence / difficulty / gradient rank signals
+                                               -- (experiment.json is the truth; this mirrors it)
   status         TEXT NOT NULL DEFAULT 'running'
     CHECK (status IN ('running','completed','failed','stopped')),
   started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at    TIMESTAMPTZ
 );
 ALTER TABLE rush.experiment ADD COLUMN IF NOT EXISTS summary JSONB;
+ALTER TABLE rush.experiment ADD COLUMN IF NOT EXISTS readjudication JSONB;
 
 CREATE TABLE IF NOT EXISTS rush.experiment_cycle (
   experiment_id       TEXT NOT NULL REFERENCES rush.experiment(experiment_id),

@@ -344,3 +344,46 @@ def test_experiment_endpoints_list_detail_and_review(tmp_path: Path, monkeypatch
         handlers_experiment.handle_gate_review(tmp_path, exp_id, {"k": 0, "verdict": "correct"})
     with pytest.raises(APIError):
         handlers_experiment.handle_gate_review(tmp_path, exp_id, {"k": 1, "verdict": "nope"})
+
+
+def test_handle_adjudication_queue_aggregates(tmp_path) -> None:
+    from pipeline import experiment as exp
+    from pipeline.web.handlers_experiment import handle_adjudication_queue
+
+    state = {
+        "experiment_id": exp.mint_experiment_id(),
+        "run_number": 7,
+        "area": "MNIST_Digits",
+        "seed": 7,
+        "dry_run": False,
+        "status": "completed",
+        "started_at": exp.utcnow_iso(),
+        "cycles": [],
+        "readjudication": {"items": [{
+            "image_id": "img_q", "sha256": "sha-q", "repo_rel_path": "p.png",
+            "split": "dev_golden", "sme_truth": "7",
+            "misalignment_type": "consensus_wrong", "severity": "high",
+            "source": {"kind": "test", "k": 1, "run_id": "r7",
+                       "policy": "MNIST_Digits.v0.2"},
+            "n_judges": 2, "majority_label": "1",
+            "consensus": {"decisive": 2, "majority_count": 2,
+                          "fraction": 1.0, "tie": False},
+            "avg_confidence": 0.9, "difficulty_score": 1.0,
+            "gradient": {"n": 2, "avg_magnitude": 0.9, "max_magnitude": 0.9,
+                         "avg_hessian": 0.09, "avg_loss": 2.3},
+            "any_boundary": True, "boundary_pairs": ["1↔7"], "votes": [],
+        }]},
+    }
+    exp.write_state(tmp_path, state)
+
+    status, body = handle_adjudication_queue(tmp_path, {"area": ["MNIST_Digits"]})
+    assert status == 200
+    assert body["n_items"] == 1
+    assert body["items"][0]["run_numbers"] == [7]
+
+    status, body = handle_adjudication_queue(tmp_path, {"area": ["Generative_AI"]})
+    assert status == 200 and body["n_items"] == 0
+
+    # no query -> all areas
+    status, body = handle_adjudication_queue(tmp_path, None)
+    assert status == 200 and body["n_items"] == 1
