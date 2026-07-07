@@ -265,6 +265,16 @@ def test_gate_truth_table():
     assert out["risk_flags"] == ["leak"]
 
 
+def test_gate_off_accepts_regardless_of_metric_and_agent():
+    # --gate-mode off: the metric is recorded but never enforced; even a
+    # metric-failing candidate (and any stray agent verdict) lands.
+    veto = {"decision": "skip", "rationale": "leaky", "risk_flags": ["leak"]}
+    out = exp.resolve_gate_decision(metric_pass=False, agent=None, gate_off=True)
+    assert out["decision"] == "accept" and out["decided_by"] == "gate_off"
+    out = exp.resolve_gate_decision(metric_pass=True, agent=veto, gate_off=True)
+    assert out["decision"] == "accept" and out["decided_by"] == "gate_off"
+
+
 def test_parse_gate_response_tolerant_and_strict():
     parsed = exp.parse_gate_response('{"decision": "Accept", "rationale": "ok"}')
     assert parsed["decision"] == "accept"

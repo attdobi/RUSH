@@ -2765,6 +2765,28 @@ body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-v
 .experiment-risk-flags { color: var(--gold); font-size: 12px; font-weight: 700; }
 #policyEvolution { margin-top: 26px; }
 
+/* ---- Learning-curve controls + legend ---- */
+.experiment-chart-controls { row-gap: 8px; }
+.experiment-chart-controls .legend-note { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.chart-legend-swatch { vertical-align: middle; margin-right: 2px; }
+.legend-sep { color: var(--line); }
+.chart-train-toggle { white-space: nowrap; }
+.experiment-cost-note { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin-left: 4px; }
+
+/* ---- Policy evolution: step the graph through this run's cycles ---- */
+.experiment-kg-cycles { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.experiment-kg-strip-label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.experiment-kg-chip-row { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.experiment-kg-chip { border: 1px solid var(--line); background: rgba(18, 29, 51, .65); color: var(--muted); border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums; }
+.experiment-kg-chip:hover { color: var(--text); border-color: rgba(130, 181, 255, .5); }
+.experiment-kg-chip--accepted { color: var(--green); border-color: rgba(77, 224, 166, .45); }
+.experiment-kg-chip--active { color: #061224; background: var(--blue); border-color: var(--blue); }
+.experiment-kg-chip--active.experiment-kg-chip--accepted { background: var(--green); border-color: var(--green); }
+.experiment-kg-step { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 9px; width: 26px; height: 26px; font-size: 14px; line-height: 1; cursor: pointer; }
+.experiment-kg-step:hover { color: var(--text); border-color: rgba(130, 181, 255, .5); }
+.experiment-kg-note { font-size: 12px; color: var(--muted); }
+.experiment-kg-note strong { color: var(--text); }
+
 /* ---- Degree-of-misalignment badges (stack-ranking signal) ---- */
 .degree-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .02em; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 .degree-badge--critical { color: #1a0710; background: var(--red); border-color: var(--red); }

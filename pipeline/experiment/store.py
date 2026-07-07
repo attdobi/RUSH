@@ -310,8 +310,9 @@ def _sync_cycle(conn, exp_id: str, cycle: dict[str, Any]) -> None:
                 k,
                 cycle.get("generator_before"),
                 candidate or cycle.get("generator_before"),
-                # metric_only gates have no agent; the column is NOT NULL.
-                gate.get("gate_model") or "metric_rule",
+                # metric_only / gate-off runs have no agent; the column is NOT NULL.
+                gate.get("gate_model")
+                or ("gate_off" if gate.get("decided_by") == "gate_off" else "metric_rule"),
                 gate.get("metric", "test_system_macro_f1"),
                 gate.get("value_before"),
                 gate.get("value_after"),

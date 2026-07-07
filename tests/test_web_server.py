@@ -287,10 +287,24 @@ def test_validate_experiment_payload_rejects_bad_fields() -> None:
     with pytest.raises(APIError):
         validate_experiment_payload(_experiment_payload(gate_mode="vibes"))
     with pytest.raises(APIError):
+        # Gate off on a dry run would mint real versions from fake no-op edits.
+        validate_experiment_payload(
+            _experiment_payload(gate_mode="off", live=False, allow_spend=False)
+        )
+    with pytest.raises(APIError):
         validate_experiment_payload(_experiment_payload(policy_version="../etc"))
     with pytest.raises(APIError):
         # Live without allow_spend refuses (402).
         validate_experiment_payload(_experiment_payload(allow_spend=False))
+
+
+def test_validate_experiment_payload_gate_off_live() -> None:
+    from pipeline.web._safety import validate_experiment_payload
+
+    request = validate_experiment_payload(_experiment_payload(gate_mode="off"))
+    assert request["gate_mode"] == "off"
+    # The agent model field stays valid (unused when the gate is off).
+    assert request["gate_model"] == "openai/gpt-5.5"
 
 
 def test_experiment_endpoints_list_detail_and_review(tmp_path: Path, monkeypatch) -> None:

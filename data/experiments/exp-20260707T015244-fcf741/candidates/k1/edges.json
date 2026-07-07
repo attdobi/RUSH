@@ -1,0 +1,82 @@
+[
+  {
+    "source_node_id": "MD.digit.0",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.1",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.2",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.3",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.4",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.5",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.6",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.7",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.8",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  },
+  {
+    "source_node_id": "MD.digit.9",
+    "target_node_id": "MD.root",
+    "edge_type": "subtype_of",
+    "confidence": 1.0,
+    "provenance": "seed_graph",
+    "version": "MNIST_Digits.v0.1"
+  }
+]

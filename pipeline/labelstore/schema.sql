@@ -324,7 +324,7 @@ CREATE TABLE IF NOT EXISTS rush.gate_decision (
   metric_pass      BOOLEAN NOT NULL,
   decision         TEXT NOT NULL CHECK (decision IN ('accept','skip')),
   decided_by       TEXT NOT NULL
-    CHECK (decided_by IN ('metric_rule','gate_agent','gate_agent_veto','human','override_guard')),
+    CHECK (decided_by IN ('metric_rule','gate_agent','gate_agent_veto','human','override_guard','gate_off')),
   rationale        TEXT,
   raw_response     TEXT,
   cost_usd         NUMERIC,
@@ -332,6 +332,12 @@ CREATE TABLE IF NOT EXISTS rush.gate_decision (
   FOREIGN KEY (experiment_id, k)
     REFERENCES rush.experiment_cycle(experiment_id, k)
 );
+-- decided_by vocabulary is re-runnable so it can widen (gate_off = the
+-- acceptance gate disabled for the run; every clipped edit lands, the
+-- metric is recorded but never enforced).
+ALTER TABLE rush.gate_decision DROP CONSTRAINT IF EXISTS gate_decision_decided_by_check;
+ALTER TABLE rush.gate_decision ADD CONSTRAINT gate_decision_decided_by_check
+  CHECK (decided_by IN ('metric_rule','gate_agent','gate_agent_veto','human','override_guard','gate_off'));
 
 -- The human "critic of the critic": SME review of gate decisions, deferred to
 -- the end of the iteration cycle so the loop stays automated. Recorded for

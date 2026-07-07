@@ -49,9 +49,10 @@ import json
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -59,7 +60,11 @@ if str(ROOT) not in sys.path:
 
 from pipeline import experiment as exp  # noqa: E402
 from pipeline.experiment import store as exp_store  # noqa: E402
-from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default  # noqa: E402
+from pipeline.io_paths import (  # noqa: E402
+    MNIST_SAMPLE_MANIFEST,
+    genai_manifest_default,
+    mint_run_id,
+)
 from pipeline.manifest import load_records  # noqa: E402
 from pipeline.policy_diff import (  # noqa: E402
     _call_chat_with_retries,
@@ -141,6 +146,28 @@ class ExperimentStopped(Exception):
         self.run_id = run_id
 
 
+def _count_jsonl_lines(path: Path) -> int:
+    try:
+        with path.open("rb") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
+def _sum_jsonl_cost(path: Path) -> float:
+    total = 0.0
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    total += float(json.loads(line).get("cost_usd") or 0.0)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    continue
+    except OSError:
+        return 0.0
+    return total
+
+
 def _run_child(
     *,
     models: list[str],
@@ -155,8 +182,15 @@ def _run_child(
     policy_label: str | None = None,
     allow_holdout: bool = False,
     label: str,
+    on_progress: Callable[[int, int, float], None] | None = None,
 ) -> dict:
-    """One scoped labeling run (a mini-batch or a test/holdout eval)."""
+    """One scoped labeling run (a mini-batch or a test/holdout eval).
+
+    The child's run id is pre-minted here so its ``label_votes.jsonl`` can be
+    watched WHILE it labels; ``on_progress(done, expected, cost_usd)`` fires
+    whenever the completed-call count moves (the web status line shows it).
+    """
+    child_run_id = mint_run_id()
     argv = [
         _python(), "-u", CHILD,
         "--area", area,
@@ -166,6 +200,7 @@ def _run_child(
         "--sample-ids", ",".join(sample_ids),
         "--concurrency", str(concurrency),
         "--batch-size", str(batch_size),
+        "--run-id", child_run_id,
     ]
     if policy_dir is not None:
         argv += [
@@ -189,10 +224,41 @@ def _run_child(
         argv, cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
     _CURRENT_CHILD = proc
+    # Reader threads keep the pipes drained (a chatty child must never block
+    # on a full pipe buffer) while the main thread polls vote-file growth.
+    captured: dict[str, str] = {"out": "", "err": ""}
+
+    def _drain(stream: Any, key: str) -> None:
+        try:
+            captured[key] = stream.read() or ""
+        except Exception:  # noqa: BLE001 - a broken pipe just ends capture
+            pass
+
+    readers = [
+        threading.Thread(target=_drain, args=(proc.stdout, "out"), daemon=True),
+        threading.Thread(target=_drain, args=(proc.stderr, "err"), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    expected_calls = len(sample_ids) * len(models)
+    votes_path = _run_dir(child_run_id) / "label_votes.jsonl"
+    last_done = -1
     try:
-        stdout, stderr = proc.communicate()
+        while proc.poll() is None:
+            time.sleep(2.0)
+            if on_progress is not None:
+                done = _count_jsonl_lines(votes_path)
+                if done != last_done:
+                    last_done = done
+                    try:
+                        on_progress(done, expected_calls, _sum_jsonl_cost(votes_path))
+                    except Exception:  # noqa: BLE001 - progress is cosmetic
+                        pass
+        for reader in readers:
+            reader.join(timeout=10)
     finally:
         _CURRENT_CHILD = None
+    stdout, stderr = captured["out"], captured["err"]
     if _STOP_REQUESTED:
         # Surface the terminated child's run id so its partial spend still
         # lands in the experiment's cost total.
@@ -299,7 +365,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "run number starts from the same baseline; accepted versions "
                          "branch from it (lineage recorded per run).")
     ap.add_argument("--gate-model", default=exp.DEFAULT_GATE_MODEL)
-    ap.add_argument("--gate-mode", choices=["agent", "metric_only"], default="agent")
+    ap.add_argument("--gate-mode", choices=["agent", "metric_only", "off"], default="agent",
+                    help="agent: metric rule + gpt-5.5 veto | metric_only: rule alone | "
+                         "off: accept EVERY clipped edit (metric recorded, never enforced "
+                         "— shows unfiltered policy drift; requires --live).")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
     ap.add_argument("--strategy", choices=[exp.DEFAULT_STRATEGY], default=exp.DEFAULT_STRATEGY)
     ap.add_argument("--concurrency", type=int, default=4)
@@ -321,6 +390,11 @@ def main(argv: list[str] | None = None) -> int:
     live = bool(args.live and args.allow_spend)
     if args.live and not args.allow_spend:
         print("[experiment] refusing --live without --allow-spend", file=sys.stderr)
+        return 2
+    if args.gate_mode == "off" and not live:
+        # A dry run with the gate off would mint REAL policy-graph versions
+        # out of fake-label no-op edits every single cycle.
+        print("[experiment] --gate-mode off requires --live --allow-spend", file=sys.stderr)
         return 2
     if not 1 <= args.max_changes <= exp.MAX_CHANGES_HARD_CAP:
         print(f"[experiment] --max-changes must be 1..{exp.MAX_CHANGES_HARD_CAP}", file=sys.stderr)
@@ -421,6 +495,15 @@ def main(argv: list[str] | None = None) -> int:
     def _add_cost(amount: float) -> None:
         state["cost_usd_total"] = round(state["cost_usd_total"] + (amount or 0.0), 6)
 
+    def _progress_phase(base: str) -> Callable[[int, int, float], None]:
+        # Live sub-phase while a child labels: "<base> · 137/500 calls · $0.42".
+        def _cb(done: int, total: int, cost: float) -> None:
+            note = f"{base} · {done}/{total} calls"
+            if live and cost > 0:
+                note += f" · ${cost:.2f}"
+            _phase(note)
+        return _cb
+
     def _sync() -> None:
         # Dry runs never touch the store: fake verdicts and placeholder
         # experiments would pollute the real cross-run analysis layer.
@@ -477,6 +560,9 @@ def main(argv: list[str] | None = None) -> int:
             models=models, area=area, sample_ids=test_ids, manifest=manifest,
             concurrency=args.concurrency, batch_size=args.batch_size, live=live,
             policy_version=base_version, label="baseline test eval",
+            on_progress=_progress_phase(
+                f"cycle 0/{args.k_max}: baseline eval of {base_version} on test"
+            ),
         )
         last_run_id = baseline["run_id"]
         _add_cost(_run_cost(baseline["run_id"]))
@@ -529,6 +615,10 @@ def main(argv: list[str] | None = None) -> int:
                 models=models, area=area, sample_ids=train_ids, manifest=manifest,
                 concurrency=args.concurrency, batch_size=args.batch_size, live=live,
                 policy_version=state["current_version"], label=f"k{k} train batch",
+                on_progress=_progress_phase(
+                    f"cycle {k}/{args.k_max}: labeling train batch "
+                    f"under {state['current_version']}"
+                ),
             )
             last_run_id = cycle["train_run_id"] = train_run["run_id"]
             _add_cost(_run_cost(train_run["run_id"]))
@@ -686,6 +776,9 @@ def main(argv: list[str] | None = None) -> int:
                     policy_version=state["current_version"],
                     policy_dir=candidate_dir, policy_label=candidate_gen,
                     label=f"k{k} candidate test eval",
+                    on_progress=_progress_phase(
+                        f"cycle {k}/{args.k_max}: evaluating candidate on test"
+                    ),
                 )
                 last_run_id = cycle["candidate_run_id"] = cand_run["run_id"]
                 _add_cost(_run_cost(cand_run["run_id"]))
@@ -761,7 +854,22 @@ def main(argv: list[str] | None = None) -> int:
                         model_id=args.gate_model, usage_rows=usage_gate[n_gate_calls:],
                     )
 
-            outcome = exp.resolve_gate_decision(metric_pass=metric_pass, agent=agent_verdict)
+            if args.gate_mode == "off" and value_after is None:
+                # Even with the gate off, an edit whose candidate eval produced
+                # no decided system verdicts is unmeasurable — never applied.
+                outcome = {
+                    "decision": "skip",
+                    "decided_by": "metric_rule",
+                    "rationale": "gate off, but the candidate produced no decided "
+                                 "system verdicts on test — an unmeasurable edit "
+                                 "is never applied",
+                    "risk_flags": [],
+                }
+            else:
+                outcome = exp.resolve_gate_decision(
+                    metric_pass=metric_pass, agent=agent_verdict,
+                    gate_off=args.gate_mode == "off",
+                )
             cycle["gate"] = {
                 "metric": exp.GATE_METRIC,
                 "value_before": value_before,
@@ -834,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
                     concurrency=args.concurrency, batch_size=args.batch_size, live=live,
                     policy_version=version, allow_holdout=True,
                     label=f"holdout eval {version}",
+                    on_progress=_progress_phase(f"holdout readout: {version}"),
                 )
                 last_run_id = run["run_id"]
                 _add_cost(_run_cost(run["run_id"]))
@@ -884,7 +993,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # Human-readable summary
     print(f"\n=== RUSH experiment {experiment_id} (run #{state['run_number']}, seed {seed}) ===")
-    print(f"panel: {', '.join(models)} | gate: {args.gate_model} ({args.gate_mode})")
+    gate_desc = "OFF (accept all clipped edits)" if args.gate_mode == "off" \
+        else f"{args.gate_model} ({args.gate_mode})"
+    print(f"panel: {', '.join(models)} | gate: {gate_desc}")
     print(f"policy: {state['base_version']} -> {state['current_version']} "
           f"({len(accepted_cycles)} accepted, "
           f"{sum(1 for c in state['cycles'] if c.get('status') == 'skipped')} skipped)")

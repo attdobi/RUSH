@@ -518,7 +518,8 @@ GATE_SYSTEM_PROMPT = (
     "(value_after > value_before + epsilon). You may SKIP a metric-passing "
     "candidate when the edit itself is unsound — e.g. it leaks ground-truth "
     "answers, overfits to named examples instead of stating a general "
-    "guideline, targets one judge model's quirks, or is incoherent with the "
+    "guideline, targets one judge model's quirks, tells judges to abstain or "
+    "defer instead of committing to a label, or is incoherent with the "
     "policy's structure. You can NEVER accept a metric-failing candidate. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
@@ -611,16 +612,29 @@ def parse_gate_response(raw: str) -> dict[str, Any]:
 
 
 def resolve_gate_decision(
-    *, metric_pass: bool, agent: dict[str, Any] | None
+    *, metric_pass: bool, agent: dict[str, Any] | None, gate_off: bool = False
 ) -> dict[str, Any]:
     """Compose the final gate outcome from the rule and the agent's review.
 
     Truth table (the rule is the hard wall, the agent is a one-way valve):
+      gate_off                   -> accept (gate_off; --gate-mode off — the metric
+                                   is recorded for the curve, never enforced)
       rule fail + any agent      -> skip  (override_guard if agent said accept)
       rule pass + no agent       -> accept (metric_rule; --gate-mode metric_only)
       rule pass + agent accept   -> accept (gate_agent)
       rule pass + agent skip     -> skip  (gate_agent_veto)
     """
+    if gate_off:
+        return {
+            "decision": "accept",
+            "decided_by": "gate_off",
+            "rationale": (
+                "gate disabled for this run: every clipped edit is applied so the "
+                "learning curve shows unfiltered policy drift (metric recorded, "
+                "not enforced)"
+            ),
+            "risk_flags": [],
+        }
     if not metric_pass:
         decided_by = (
             "override_guard" if agent and agent.get("decision") == "accept" else "metric_rule"
@@ -666,7 +680,11 @@ DRAFTER_SYSTEM_PROMPT = (
     "fewer is better — one focused, human-reviewable change is ideal. State "
     "general, model-agnostic guidance (clear definitions, boundary rules, "
     "canonical examples); NEVER encode per-image answers or ground-truth "
-    "labels. Keep each file's YAML frontmatter (id, version, title, area, "
+    "labels. The policy must always demand a decisive label: NEVER add "
+    "guidance telling judges to abstain, defer, or decline — uncertainty "
+    "belongs in the confidence score [0,1] and the difficulty rating, not in "
+    "refusing to answer. "
+    "Keep each file's YAML frontmatter (id, version, title, area, "
     "node_type, polarity, parent, status, edges) intact and consistent. "
     "Return JSON only: {{\"files\":[{{\"path\":\"name.md\",\"change\":"
     "\"modified|added|removed\",\"content\":\"full markdown for "

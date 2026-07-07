@@ -526,10 +526,18 @@
         ? 'estimate unavailable'
         : `$${estimate.toFixed(2)} / 1k labels${tier === 'none' ? '' : ` (${tier} reasoning)`}`;
     }
-    // Measured speed from this machine's recent runs (seconds/image), when we have it.
+    // Measured throughput from this machine's recent runs, when we have it:
+    // seconds/image (call latency) and output tokens/second.
     const speed = MODEL_SECONDS_PER_IMAGE[model];
-    const speedText = (speed && speed.seconds)
-      ? `<em class="model-speed" title="median seconds/image over ${speed.samples} recent run(s) on this machine">~${speed.seconds < 10 ? speed.seconds.toFixed(1) : Math.round(speed.seconds)}s/img</em>`
+    const speedBits = [];
+    if (speed && speed.seconds) {
+      speedBits.push(`~${speed.seconds < 10 ? speed.seconds.toFixed(1) : Math.round(speed.seconds)}s/img`);
+    }
+    if (speed && speed.toks) {
+      speedBits.push(`${speed.toks >= 100 ? Math.round(speed.toks) : speed.toks.toFixed(1)} tok/s`);
+    }
+    const speedText = speedBits.length
+      ? `<em class="model-speed" title="median over ${speed.samples} recent run(s) on this machine: seconds/image · tokens/second">${speedBits.join(' · ')}</em>`
       : '';
     const localClass = isLocal ? ' model-pick--local' : '';
     const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}" title="Relative COST tier from the estimated $/1k labels${isLocal ? ' (local GPU: free)' : ''}">${esc(badgeTier)}</span>`;
@@ -545,8 +553,9 @@
       </div>`;
   }
 
-  // model_id -> { seconds: median seconds/image, samples: n runs } aggregated
-  // from this machine's recent runs' per-model timing (server-recorded).
+  // model_id -> { seconds: median s/image, toks: median output tokens/s,
+  // samples: n runs } aggregated from this machine's recent runs' per-model
+  // timing (server-recorded).
   let MODEL_SECONDS_PER_IMAGE = {};
 
   async function refreshModelSpeedEstimates() {
@@ -563,16 +572,27 @@
             ? run.model_speed_summary.models : [];
           for (const m of rows) {
             const s = Number(m.avg_s_per_call);
+            const t = Number(m.tokens_per_sec);
             if (m.model_id && Number.isFinite(s) && s > 0) {
-              (perModel[m.model_id] = perModel[m.model_id] || []).push(s);
+              (perModel[m.model_id] = perModel[m.model_id] || []).push({
+                s, t: Number.isFinite(t) && t > 0 ? t : null
+              });
             }
           }
         }
       }
+      const median = (values) => {
+        if (!values.length) return null;
+        const sorted = [...values].sort((a, b) => a - b);
+        return sorted[Math.floor(sorted.length / 2)];
+      };
       const next = {};
       for (const [id, arr] of Object.entries(perModel)) {
-        arr.sort((a, b) => a - b);
-        next[id] = { seconds: arr[Math.floor(arr.length / 2)], samples: arr.length };
+        next[id] = {
+          seconds: median(arr.map(r => r.s)),
+          toks: median(arr.map(r => r.t).filter(v => v !== null)),
+          samples: arr.length
+        };
       }
       MODEL_SECONDS_PER_IMAGE = next;
       populateModels();  // re-render rows with the measured speed

@@ -30,8 +30,10 @@ best match the visible glyph.
 Prefer the class whose defining features (loops, strokes, crossbars, and their
 arrangement) are most fully satisfied. When two classes are plausible, use the
 distinguishing feature that separates them (see each digit node's boundary
-notes) rather than overall visual similarity. If the glyph is too degraded to
-support any single class more than another, abstain rather than guess.
+notes) rather than overall visual similarity. Always commit to exactly one
+digit — never abstain or refuse. When the glyph is degraded or ambiguous,
+still return the single most defensible digit and carry the doubt in a lower
+confidence score in [0,1] and a higher difficulty rating.
 
 ## Label hierarchy
 - `digit`

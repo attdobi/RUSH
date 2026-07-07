@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r30" />
-  <script src="demos.js?v=demo-mnist-kdd-r30"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r31" />
+  <script src="demos.js?v=demo-mnist-kdd-r31"></script>
 </head>
 <body>
   <header class="hero">
@@ -69,7 +69,8 @@
         <p>Every run is numbered and seeded, and starts from the same fixed generator (k=0 = policy v0.1).
         Each cycle: a seeded train mini-batch → the most instructive misalignments become anchors → one
         policy edit (≤5 changes, human-reviewable) → scored on the run's fixed test partition → the gate
-        accepts only if the system-of-judges macro-F1 improves (a gate agent can veto, never force).
+        accepts only if the system-of-judges macro-F1 improves (a gate agent can veto, never force —
+        or switch the gate off to watch unfiltered drift).
         Accepted edits become new policy-graph nodes below. You audit the gate afterward — every verdict
         is training data for the critic.</p>
       </div>
@@ -91,6 +92,7 @@
               <option value="openai/gpt-5.5-low">gpt-5.5-low</option>
               <option value="anthropic/claude-opus-4-7">opus-4-7</option>
               <option value="metric_only">Metric rule only (no agent)</option>
+              <option value="off">Gate OFF — accept every edit</option>
             </select>
           </label>
           <label class="checkbox-label experiment-spend-label"><input id="experimentAllowSpend" type="checkbox" checked /> Allow spend</label>
@@ -110,11 +112,18 @@
       <div id="experimentSummary" class="experiment-summary"></div>
 
       <h3 class="experiment-block-title">Learning curve <span class="muted">— decision quality per cycle</span></h3>
-      <div class="run-controls experiment-chart-controls" aria-label="Trajectory metric">
+      <div class="run-controls experiment-chart-controls" aria-label="Trajectory controls">
         <label>Metric
           <select id="experimentMetric"></select>
         </label>
-        <span class="legend-note">solid = test (gate set) · dashed = train batch · ▲ accepted · ○ skipped · per judge + <strong>system</strong></span>
+        <label>X axis
+          <select id="experimentXAxis">
+            <option value="steps" selected>Accepted steps — learning only</option>
+            <option value="cycles">Every cycle k</option>
+          </select>
+        </label>
+        <label class="checkbox-label chart-train-toggle"><input id="experimentShowTrain" type="checkbox" /> train batches</label>
+        <span class="legend-note" id="experimentChartLegend"></span>
       </div>
       <div id="experimentChart" class="api-panel experiment-chart"></div>
 
@@ -127,6 +136,7 @@
 
       <div id="policyEvolution">
         <h3 class="experiment-block-title">Policy evolution <span class="muted">— the knowledge graph the judges run on</span></h3>
+        <div id="experimentKgCycles" class="experiment-kg-cycles" aria-label="Step the graph through this run's cycles"></div>
 <div class="policy-graph-block policy-graph-spotlight">
         <div class="policy-graph-copy">
           <div>
@@ -499,18 +509,18 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r30"></script>
-  <script src="app.js?v=demo-mnist-kdd-r30"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r30"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r30"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r30"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r30"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r30"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r30"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r30"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r31"></script>
+  <script src="app.js?v=demo-mnist-kdd-r31"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r31"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r31"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r31"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r31"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r31"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r31"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r31"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r30"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r30"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r30"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r31"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r31"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r31"></script>
 </body>
 </html>

@@ -74,6 +74,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sample-ids", default=None,
                         help="Comma-separated sample_ids (overrides --split/--limit filtering).")
     parser.add_argument("--runs-root", type=Path, default=DEFAULT_RUNS_ROOT)
+    parser.add_argument("--run-id", default=None,
+                        help="Pre-minted run id (names data/runs/<id>). Lets a parent "
+                             "process — e.g. the experiment driver — watch progress "
+                             "live instead of waiting for the exit trailer.")
     parser.add_argument("--prompt-version", default=DEFAULT_PROMPT_VERSION)
     parser.add_argument(
         "--policy-version",
@@ -242,6 +246,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[X2] --batch-size must be >= 1 (got {args.batch_size})", file=sys.stderr)
         return 2
 
+    if args.run_id is not None:
+        # It names a directory under runs-root: keep it filesystem-safe.
+        rid = args.run_id.strip()
+        if not rid or len(rid) > 80 or not all(c.isalnum() or c in "._-" for c in rid):
+            print(f"[X2] --run-id must be 1-80 chars of [A-Za-z0-9._-] (got {args.run_id!r})",
+                  file=sys.stderr)
+            return 2
+        args.run_id = rid
+
     # If X1's registry is importable, enrich each ModelSpec with phase + params
     # so they show up in run_manifest.json. Stays optional for dry-run/CI.
     requested_ids = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -333,6 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
         sample_ids=sample_ids,
         runs_root=args.runs_root,
+        run_id=args.run_id,
         policy_graph_dir=policy_graph_dir,
         policy_graph_version=policy_graph_version,
         policy_version=args.policy_version,

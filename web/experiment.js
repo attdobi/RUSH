@@ -33,9 +33,12 @@
     current: null,
     pollTimer: null,
     expandedCycles: new Set(),
-    detailCache: {},      // proposal_id -> diffs payload
-    anchorCache: {},      // train_run_id -> misalignment records
-    followedVersion: null // KG auto-follow bookkeeping
+    detailCache: {},       // proposal_id -> diffs payload
+    anchorCache: {},       // train_run_id -> misalignment records
+    followedVersion: null, // KG auto-follow bookkeeping
+    kgCycleK: null,        // KG cycle stepper: which k the graph is showing
+    kgManual: false,       // true once the SME steps the graph by hand
+    pendingRunNumber: null // run just started — auto-select it when it appears
   };
 
   // ---- view switcher (loop | inspect) --------------------------------------
@@ -149,6 +152,8 @@
     }
     const seedRaw = ($('#experimentSeed')?.value || '').trim();
     const gateChoice = $('#experimentGateModel')?.value || 'openai/gpt-5.5';
+    const gateMode = gateChoice === 'metric_only' ? 'metric_only'
+      : (gateChoice === 'off' ? 'off' : 'agent');
     const payload = {
       demo: activeDemoId(),
       area: activeArea(),
@@ -158,20 +163,23 @@
       batch_n: Number($('#experimentBatchN')?.value || 20),
       test_n: Number($('#experimentTestN')?.value || 100),
       max_changes: Number($('#experimentMaxChanges')?.value || 5),
-      gate_mode: gateChoice === 'metric_only' ? 'metric_only' : 'agent',
-      gate_model: gateChoice === 'metric_only' ? 'openai/gpt-5.5' : gateChoice,
+      gate_mode: gateMode,
+      gate_model: gateMode === 'agent' ? gateChoice : 'openai/gpt-5.5',
       // k=0 is FIXED: every run starts from the same baseline generator.
       policy_version: null,
       live: true,
       allow_spend: true
     };
     button.disabled = true;
-    statusEl.textContent = `Starting run #${nextRunNumber()}…`;
+    const runNumber = nextRunNumber();
+    statusEl.textContent = `Starting run #${runNumber}…`;
     try {
       await window.rushApiPostJson('/api/experiments/start', payload);
-      statusEl.textContent = 'Run started — cycle 0 (baseline) appears below shortly.';
+      state.pendingRunNumber = runNumber;
+      statusEl.textContent = `Run #${runNumber} starting — it is auto-selected below as soon as the driver checks in.`;
       window.setTimeout(() => loadList(false), 1800);
       window.setTimeout(() => loadList(false), 6000);
+      window.setTimeout(() => loadList(false), 12000);
     } catch (err) {
       statusEl.textContent = `Start failed: ${err?.message || err}`;
     } finally {
@@ -202,6 +210,20 @@
       : '<option value="">No runs yet — start run #1 above</option>';
     if (previous && state.list.some((e) => e.experiment_id === previous)) {
       select.value = previous;
+    }
+    // A run the SME just started wins the selection the moment it appears.
+    if (state.pendingRunNumber !== null) {
+      const started = state.list.find((e) => e.run_number === state.pendingRunNumber);
+      if (started) {
+        select.value = started.experiment_id;
+        state.pendingRunNumber = null;
+        state.kgManual = false;
+        state.kgCycleK = null;
+        state.followedVersion = null;
+        state.expandedCycles.clear();
+        const startStatus = $('#experimentStartStatus');
+        if (startStatus) startStatus.textContent = `Run #${started.run_number} is live below.`;
+      }
     }
     renderPanelSummary();
     if (select.value) {
@@ -256,14 +278,71 @@
 
   function autoFollowPolicy() {
     // While a run is live, the KG below tracks its newest accepted version —
-    // "watch the policy evolve" without clicking anything.
+    // "watch the policy evolve" without clicking anything. Stepping the graph
+    // by hand (the cycle chips) pauses the auto-follow for that run.
     const exp = state.current;
-    if (!exp || exp.status !== 'running') return;
+    if (!exp || exp.status !== 'running' || state.kgManual) return;
     const version = exp.current_version;
     if (version && version !== state.followedVersion) {
       state.followedVersion = version;
       kgShowVersion(version, false);
     }
+  }
+
+  // ---- policy evolution ↔ cycles: step the graph through k ------------------
+
+  function versionInForceAfter(cycles, k) {
+    let version = state.current?.base_version || 'v0.1';
+    cycles.forEach((c) => {
+      if (c.k <= k && c.status === 'accepted' && c.new_version) version = c.new_version;
+    });
+    return version;
+  }
+
+  function renderKgCycles() {
+    const host = $('#experimentKgCycles');
+    if (!host) return;
+    const exp = state.current;
+    const cycles = (exp?.cycles || []).filter((c) => typeof c.k === 'number' && c.status !== 'open');
+    if (!exp || !cycles.length) { host.innerHTML = ''; return; }
+    const ks = cycles.map((c) => c.k);
+    if (!state.kgManual || state.kgCycleK === null || !ks.includes(state.kgCycleK)) {
+      state.kgCycleK = ks[ks.length - 1];
+    }
+    const chips = cycles.map((c) => {
+      const accepted = c.status === 'accepted';
+      const active = c.k === state.kgCycleK;
+      const text = c.k === 0
+        ? `k=0 ${esc(exp.base_version)}`
+        : (accepted ? `k=${c.k} → ${esc(c.new_version)}` : `k=${c.k}`);
+      const title = c.k === 0
+        ? 'baseline generator (fixed for every run)'
+        : (accepted ? `accepted — policy became ${c.new_version}` : `${c.status} — policy unchanged`);
+      return `<button type="button" class="experiment-kg-chip${active ? ' experiment-kg-chip--active' : ''}${accepted ? ' experiment-kg-chip--accepted' : ''}" data-kg-k="${c.k}" title="${esc(title)}">${text}</button>`;
+    }).join('');
+    const version = versionInForceAfter(cycles, state.kgCycleK);
+    host.innerHTML = `
+      <span class="experiment-kg-strip-label">Graph by cycle</span>
+      <button type="button" class="experiment-kg-step" data-kg-step="-1" aria-label="Previous cycle">‹</button>
+      <div class="experiment-kg-chip-row">${chips}</div>
+      <button type="button" class="experiment-kg-step" data-kg-step="1" aria-label="Next cycle">›</button>
+      <span class="experiment-kg-note">after k=${state.kgCycleK}: <strong>${esc(version)}</strong> in force</span>`;
+    const applyK = (k) => {
+      state.kgCycleK = k;
+      state.kgManual = true;
+      kgShowVersion(versionInForceAfter(cycles, k), false);
+      renderKgCycles();
+    };
+    host.querySelectorAll('.experiment-kg-chip').forEach((chip) => {
+      chip.addEventListener('click', () => applyK(Number(chip.dataset.kgK)));
+    });
+    host.querySelectorAll('.experiment-kg-step').forEach((button) => {
+      button.addEventListener('click', () => {
+        const idx = ks.indexOf(state.kgCycleK);
+        const next = ks[Math.min(ks.length - 1, Math.max(0, idx + Number(button.dataset.kgStep)))];
+        applyK(next);
+      });
+    });
   }
 
   // ---- rendering ------------------------------------------------------------
@@ -279,10 +358,18 @@
       $('#experimentJudgeTable').innerHTML = '';
       $('#experimentLedger').innerHTML = '';
       $('#experimentHoldout').innerHTML = '';
+      const kgCyclesHost = $('#experimentKgCycles');
+      if (kgCyclesHost) kgCyclesHost.innerHTML = '';
       statusLine.textContent = '';
       return;
     }
-    statusLine.textContent = exp.status === 'running' ? (exp.phase || 'running…') : (exp.phase || exp.status);
+    // Live runs stream their phase (incl. "137/500 calls · $0.42" while a
+    // child labels); the spinner marks the run as in flight at a glance.
+    if (exp.status === 'running') {
+      statusLine.innerHTML = `<span class="spinner" aria-hidden="true"></span> ${esc(exp.phase || 'running…')}`;
+    } else {
+      statusLine.textContent = exp.phase || exp.status;
+    }
 
     const cycles = exp.cycles || [];
     const accepted = cycles.filter((c) => c.status === 'accepted');
@@ -297,34 +384,34 @@
         <div><span>Accepted / cycles</span><strong>${accepted.length} / ${Math.max(0, cycles.length - 1)} of ${esc(exp.k_max)}</strong></div>
         <div><span>Test system F1</span><strong>${fmtPct(f1Start)} → ${fmtPct(f1Now)}</strong></div>
         <div><span>Splits</span><strong>test ${esc(exp.test_n)} · batch ${esc(exp.batch_n)}/cycle · holdout locked</strong></div>
-        <div><span>Gate</span><strong>${esc(exp.gate_model || 'metric rule')} (${esc(exp.gate_mode)})</strong></div>
-        <div><span>Cost</span><strong>${fmtUsd(exp.cost_usd_total)}</strong></div>
+        <div><span>Gate</span><strong>${exp.gate_mode === 'off'
+          ? 'OFF — accepts every edit'
+          : `${esc(exp.gate_model || 'metric rule')} (${esc(exp.gate_mode)})`}</strong></div>
+        <div><span>Cost</span><strong>${fmtUsd(exp.cost_usd_total)}${exp.status === 'completed'
+          ? ' <span class="experiment-cost-note">final</span>'
+          : (exp.status === 'running' ? ' <span class="experiment-cost-note">so far</span>' : '')}</strong></div>
       </div>`;
 
     renderChart();
     renderJudgeTable();
     renderLedger();
     renderHoldout();
+    renderKgCycles();
     autoFollowPolicy();
   }
 
-  function collectSeries(metricKey) {
-    const exp = state.current;
-    const cycles = (exp?.cycles || []).filter((c) => typeof c.k === 'number');
-    const scorers = new Set();
-    cycles.forEach((c) => {
-      Object.keys(c.metrics?.test || {}).forEach((s) => scorers.add(s));
-      Object.keys(c.metrics?.train || {}).forEach((s) => scorers.add(s));
-    });
-    const ordered = Array.from(scorers).sort((a, b) => (
-      (a === 'system') - (b === 'system') || a.localeCompare(b)
-    ));
-    return ordered.map((scorer, idx) => ({
-      scorer,
-      color: scorer === 'system' ? SYSTEM_COLOR : SERIES_COLORS[idx % SERIES_COLORS.length],
-      test: cycles.map((c) => ({ k: c.k, v: c.metrics?.test?.[scorer]?.[metricKey] ?? null, status: c.status })),
-      train: cycles.map((c) => ({ k: c.k, v: c.metrics?.train?.[scorer]?.[metricKey] ?? null }))
-    }));
+  function renderChartLegend(xMode, showTrain) {
+    const el = $('#experimentChartLegend');
+    if (!el) return;
+    const swatch = (dash) => `<svg class="chart-legend-swatch" width="18" height="6" aria-hidden="true">`
+      + `<line x1="1" y1="3" x2="17" y2="3" stroke="${SYSTEM_COLOR}" stroke-width="2"${dash ? ' stroke-dasharray="4 3" opacity="0.7"' : ''}/></svg>`;
+    const bits = [`${swatch(false)} test — the run's fixed gate partition`];
+    if (showTrain) bits.push(`${swatch(true)} train mini-batch — a fresh sample each k`);
+    bits.push('▲ accepted → new policy version');
+    bits.push(xMode === 'steps'
+      ? '○ skipped candidate — sampling noise, no new tick (nothing was learned)'
+      : '○ skipped candidate’s score — the solid line holds the incumbent');
+    el.innerHTML = bits.join(' <span class="legend-sep">·</span> ');
   }
 
   function niceDomain(values) {
@@ -348,29 +435,115 @@
     const host = $('#experimentChart');
     const exp = state.current;
     const metricKey = $('#experimentMetric')?.value || 'macro_f1';
-    const cycles = (exp?.cycles || []);
+    const xMode = $('#experimentXAxis')?.value || 'steps';
+    const showTrain = $('#experimentShowTrain')?.checked === true;
+    renderChartLegend(xMode, showTrain);
+    const cycles = (exp?.cycles || []).filter((c) => typeof c.k === 'number');
     if (!exp || cycles.length === 0) { host.innerHTML = ''; return; }
-    const series = collectSeries(metricKey);
-    const allValues = series.flatMap((s) => [...s.test, ...s.train].map((p) => p.v));
-    const [lo, hi] = niceDomain(allValues);
+
+    // -- x layout ------------------------------------------------------------
+    // steps mode (default): a tick exists ONLY for k=0 and accepted cycles.
+    // If nothing was accepted, nothing was learned — the axis says so instead
+    // of stretching flat inherited values across k. Skipped candidates render
+    // as hollow ghosts parked after the step they failed to beat.
+    const steps = [];
+    const baselineCycle = cycles.find((c) => c.k === 0);
+    if (baselineCycle) {
+      steps.push({ x: 0, k: 0, label: exp.base_version || 'v0.1', cycle: baselineCycle });
+    }
+    cycles.filter((c) => c.k >= 1 && c.status === 'accepted').forEach((c) => {
+      steps.push({ x: steps.length, k: c.k, label: c.new_version || `k=${c.k}`, cycle: c });
+    });
+    const ghostCycles = cycles.filter((c) => c.k >= 1 && c.status !== 'accepted' && c.status !== 'open');
+    const ghostX = new Map();
+    let trailingGhosts = false;
+    if (xMode === 'steps' && steps.length) {
+      steps.forEach((left, i) => {
+        const right = steps[i + 1] || null;
+        const inGap = ghostCycles.filter((c) => c.k > left.k && (!right || c.k < right.k));
+        inGap.forEach((c, idx) => {
+          ghostX.set(c.k, left.x + (idx + 1) / (inGap.length + 1));
+        });
+        if (!right && inGap.length) trailingGhosts = true;
+      });
+    }
     const kMax = Math.max(1, ...cycles.map((c) => c.k));
-    const W = 760; const H = 280; const padL = 52; const padR = 128; const padT = 14; const padB = 34;
-    const x = (k) => padL + (k / kMax) * (W - padL - padR);
+    const xMax = xMode === 'steps'
+      ? Math.max(1, (steps.length - 1) + (trailingGhosts ? 1 : 0))
+      : kMax;
+    const xOf = (k) => {
+      if (xMode !== 'steps') return k;
+      const step = steps.find((s) => s.k === k);
+      if (step) return step.x;
+      if (ghostX.has(k)) return ghostX.get(k);
+      return steps.length ? steps[steps.length - 1].x : 0;
+    };
+
+    // -- series ---------------------------------------------------------------
+    const scorers = new Set();
+    cycles.forEach((c) => {
+      Object.keys(c.metrics?.test || {}).forEach((s) => scorers.add(s));
+      Object.keys(c.metrics?.train || {}).forEach((s) => scorers.add(s));
+    });
+    const ordered = Array.from(scorers).sort((a, b) => (
+      (a === 'system') - (b === 'system') || a.localeCompare(b)
+    ));
+    const lineCycles = xMode === 'steps' ? steps.map((s) => s.cycle) : cycles;
+    const series = ordered.map((scorer, idx) => ({
+      scorer,
+      color: scorer === 'system' ? SYSTEM_COLOR : SERIES_COLORS[idx % SERIES_COLORS.length],
+      test: lineCycles.map((c) => ({
+        k: c.k, v: c.metrics?.test?.[scorer]?.[metricKey] ?? null, status: c.status
+      })),
+      train: cycles.filter((c) => c.k >= 1).map((c) => ({
+        k: c.k, v: c.metrics?.train?.[scorer]?.[metricKey] ?? null
+      }))
+    }));
+    // Rejected candidates' SYSTEM score — the noise the trust region filtered.
+    const ghostPoints = ghostCycles.map((c) => ({
+      k: c.k,
+      status: c.status,
+      v: c.metrics?.test_candidate?.system?.[metricKey] ?? null
+    })).filter((p) => p.v !== null && p.v !== undefined);
+
+    const allValues = series.flatMap((s) => [
+      ...s.test.map((p) => p.v),
+      ...(showTrain ? s.train.map((p) => p.v) : [])
+    ]).concat(ghostPoints.map((p) => p.v));
+    const [lo, hi] = niceDomain(allValues);
+    const W = 760; const H = 280; const padL = 52; const padR = 128; const padT = 14; const padB = 40;
+    const x = (k) => padL + (xOf(k) / xMax) * (W - padL - padR);
     const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Decision quality by cycle">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Decision quality per ${xMode === 'steps' ? 'accepted policy step' : 'cycle'}">`;
     for (let grid = 0; grid <= 4; grid += 1) {
       const value = lo + (grid / 4) * (hi - lo);
       const digits = (hi - lo) < 0.05 ? 1 : 0;
       svg += `<line x1="${padL}" y1="${y(value)}" x2="${W - padR}" y2="${y(value)}" stroke="${GRID_COLOR}" stroke-width="1"/>`
         + `<text x="${padL - 8}" y="${y(value) + 4}" text-anchor="end" font-size="10" fill="${AXIS_TEXT}">${(value * 100).toFixed(digits)}%</text>`;
     }
-    for (let k = 0; k <= kMax; k += 1) {
-      svg += `<text x="${x(k)}" y="${H - padB + 16}" text-anchor="middle" font-size="10" fill="${AXIS_TEXT}">k=${k}</text>`;
+
+    // -- x axis ---------------------------------------------------------------
+    if (xMode === 'steps') {
+      steps.forEach((s) => {
+        svg += `<text x="${x(s.k)}" y="${H - padB + 16}" text-anchor="middle" font-size="10" fill="${s.k === 0 ? AXIS_TEXT : '#4de0a6'}">${esc(s.label)}</text>`
+          + `<text x="${x(s.k)}" y="${H - padB + 28}" text-anchor="middle" font-size="9" fill="${AXIS_TEXT}">k=${s.k}</text>`;
+      });
+      if (trailingGhosts) {
+        const cx = padL + ((steps[steps.length - 1].x + 0.5) / xMax) * (W - padL - padR);
+        svg += `<text x="${cx}" y="${H - padB + 16}" text-anchor="middle" font-size="9" fill="${AXIS_TEXT}" opacity="0.7">skipped ○</text>`;
+      }
+      if (steps.length === 1 && !ghostPoints.length && exp.status === 'running') {
+        svg += `<text x="${(padL + W - padR) / 2}" y="${padT + 18}" text-anchor="middle" font-size="10" fill="${AXIS_TEXT}">waiting for the first gate decision — a new tick appears only when an edit is accepted</text>`;
+      }
+    } else {
+      for (let k = 0; k <= kMax; k += 1) {
+        svg += `<text x="${x(k)}" y="${H - padB + 16}" text-anchor="middle" font-size="10" fill="${AXIS_TEXT}">k=${k}</text>`;
+      }
+      cycles.filter((c) => c.status === 'accepted' && c.new_version).forEach((c) => {
+        svg += `<text x="${x(c.k)}" y="${H - padB + 28}" text-anchor="middle" font-size="9" fill="#4de0a6">${esc(c.new_version)}</text>`;
+      });
     }
-    cycles.filter((c) => c.status === 'accepted' && c.new_version).forEach((c) => {
-      svg += `<text x="${x(c.k)}" y="${H - padB + 28}" text-anchor="middle" font-size="9" fill="#4de0a6">${esc(c.new_version)}</text>`;
-    });
 
     const path = (points) => {
       let d = ''; let pen = false;
@@ -382,10 +555,11 @@
       return d;
     };
 
+    const labels = [];
     series.forEach((s) => {
       const width = s.scorer === 'system' ? 2.5 : 1.5;
-      if (path(s.train)) {
-        svg += `<path d="${path(s.train)}" fill="none" stroke="${s.color}" stroke-width="${width}" stroke-dasharray="4 4" opacity="0.55"/>`;
+      if (showTrain && path(s.train)) {
+        svg += `<path d="${path(s.train)}" fill="none" stroke="${s.color}" stroke-width="${width}" stroke-dasharray="4 4" opacity="0.5"/>`;
       }
       if (path(s.test)) {
         svg += `<path d="${path(s.test)}" fill="none" stroke="${s.color}" stroke-width="${width}"/>`;
@@ -393,8 +567,8 @@
       s.test.forEach((p) => {
         if (p.v === null || p.v === undefined) return;
         if (p.status === 'accepted') {
-          svg += `<path d="M${x(p.k)},${y(p.v) - 5} l5,8 h-10 z" fill="${s.color}"/>`;
-        } else if (p.status === 'skipped' || p.status === 'no_misalignments') {
+          svg += `<path d="M${x(p.k)},${y(p.v) - 5} l5,8 h-10 z" fill="${s.color}"><title>k=${p.k} accepted — ${(p.v * 100).toFixed(1)}%</title></path>`;
+        } else if (p.status === 'skipped' || p.status === 'no_misalignments' || p.status === 'failed') {
           svg += `<circle cx="${x(p.k)}" cy="${y(p.v)}" r="2.6" fill="#0a1020" stroke="${s.color}" stroke-width="1.5"/>`;
         } else {
           svg += `<circle cx="${x(p.k)}" cy="${y(p.v)}" r="2.6" fill="${s.color}"/>`;
@@ -402,9 +576,36 @@
       });
       const lastPoint = [...s.test].reverse().find((p) => p.v !== null && p.v !== undefined);
       if (lastPoint) {
-        const label = s.scorer === 'system' ? 'system (majority)' : s.scorer.split('/').pop();
-        svg += `<text x="${W - padR + 6}" y="${y(lastPoint.v) + 3}" font-size="10" fill="${s.color}">${esc(label)}</text>`;
+        labels.push({
+          text: s.scorer === 'system' ? 'system (majority)' : s.scorer.split('/').pop(),
+          color: s.color,
+          anchorY: y(lastPoint.v) + 3
+        });
       }
+    });
+
+    // Rejected-candidate ghosts (dashed hollow circles, system score).
+    ghostPoints.forEach((p) => {
+      svg += `<circle cx="${x(p.k)}" cy="${y(p.v)}" r="3.2" fill="none" stroke="${SYSTEM_COLOR}" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.65">`
+        + `<title>k=${p.k} candidate ${esc(p.status)} — system ${(p.v * 100).toFixed(1)}%</title></circle>`;
+    });
+
+    // Right-edge series labels: greedy de-overlap (sort by y, enforce a
+    // minimum gap, clamp to the plot, leader lines when displaced).
+    labels.sort((a, b) => a.anchorY - b.anchorY);
+    const gap = 12;
+    let prevY = padT - gap;
+    labels.forEach((l) => { l.y = Math.max(l.anchorY, prevY + gap); prevY = l.y; });
+    let limit = H - padB - 2;
+    for (let i = labels.length - 1; i >= 0; i -= 1) {
+      if (labels[i].y > limit) labels[i].y = limit;
+      limit = labels[i].y - gap;
+    }
+    labels.forEach((l) => {
+      if (Math.abs(l.y - l.anchorY) > 5) {
+        svg += `<line x1="${W - padR + 1}" y1="${l.anchorY - 3}" x2="${W - padR + 6}" y2="${l.y - 3}" stroke="${l.color}" stroke-width="0.8" opacity="0.55"/>`;
+      }
+      svg += `<text x="${W - padR + 8}" y="${l.y}" font-size="10" fill="${l.color}">${esc(l.text)}</text>`;
     });
     svg += '</svg>';
     host.innerHTML = svg;
@@ -592,11 +793,12 @@
         <td title="misaligned in batch / anchors sampled">${c.n_misaligned ?? '—'} / ${(c.anchor_ids || []).length}</td>
         <td>${edits}${clipNote}</td>
         <td>${delta}${rationale}</td>
+        <td title="train batch + candidate eval + gate agent for this cycle">${fmtUsd(c.cost_usd)}</td>
         <td>${kgLink}</td>
         <td>${review}</td>
       </tr>
       <tr class="experiment-detail-row" data-detail-k="${c.k}" ${expanded ? '' : 'hidden'}>
-        <td colspan="7"><div class="experiment-detail-host" data-detail-host="${c.k}"></div></td>
+        <td colspan="8"><div class="experiment-detail-host" data-detail-host="${c.k}"></div></td>
       </tr>`;
     }).join('');
     host.innerHTML = `
@@ -604,7 +806,9 @@
         <thead><tr>
           <th>Cycle</th><th>Gate</th><th title="Misaligned in batch / anchors sampled (random misalignment anchors)">Misaligned / anchors</th>
           <th>Edit (≤${esc(exp.max_changes)} changes)</th>
-          <th>Test system F1</th><th>Policy</th>
+          <th>Test system F1</th>
+          <th title="What this cycle spent: train batch + candidate eval + gate agent">Cost (k)</th>
+          <th>Policy</th>
           <th title="Was the gate's decision correct? Your verdicts are recorded as training data for the critic agent.">SME review</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -716,8 +920,13 @@
     const metricSelect = $('#experimentMetric');
     metricSelect.innerHTML = METRICS.map(([key, label]) => `<option value="${key}">${esc(label)}</option>`).join('');
     metricSelect.addEventListener('change', renderChart);
+    $('#experimentXAxis')?.addEventListener('change', renderChart);
+    $('#experimentShowTrain')?.addEventListener('change', renderChart);
     $('#experimentSelect').addEventListener('change', (event) => {
       state.expandedCycles.clear();
+      state.kgManual = false;
+      state.kgCycleK = null;
+      state.followedVersion = null;
       loadDetail(event.target.value);
     });
     $('#experimentRefresh').addEventListener('click', () => loadList());
