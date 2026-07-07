@@ -387,3 +387,21 @@ def test_handle_adjudication_queue_aggregates(tmp_path) -> None:
     # no query -> all areas
     status, body = handle_adjudication_queue(tmp_path, None)
     assert status == 200 and body["n_items"] == 1
+
+
+def test_validate_experiment_payload_strategy_and_drafter() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    request = validate_experiment_payload(_experiment_payload())
+    assert request["strategy"] == "random_misalignment"
+    assert request["max_anchors"] == 10
+
+    request = validate_experiment_payload(
+        _experiment_payload(strategy="top_gradient",
+                            drafter_model="openai/gpt-5.4-mini-low")
+    )
+    assert request["strategy"] == "top_gradient"
+    assert request["drafter_model"] == "openai/gpt-5.4-mini-low"
+
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(strategy="s9_hunches"))

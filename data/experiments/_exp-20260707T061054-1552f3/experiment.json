@@ -1,0 +1,2361 @@
+{
+ "area": "MNIST_Digits",
+ "base_generator": "MNIST_Digits.v0.1",
+ "base_version": "v0.1",
+ "batch_n": 4,
+ "benchmark": null,
+ "concurrency": 4,
+ "cost_usd_total": 0.0,
+ "current_version": "v0.1",
+ "cycles": [
+  {
+   "closed_at": "2026-07-07T06:10:56.489279+00:00",
+   "cycle_seed": 174405297847012,
+   "errored_calls": 0,
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 0,
+   "kind": "baseline",
+   "metrics": {
+    "test": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.142857,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.857143,
+      "macro_fpr": 0.095238,
+      "macro_precision": 0.166667,
+      "macro_recall": 0.142857,
+      "micro_f1": 0.142857,
+      "micro_fnr": 0.857143,
+      "micro_fpr": 0.095238,
+      "micro_precision": 0.142857,
+      "micro_recall": 0.142857,
+      "n": 7,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.285714,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "4": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "8": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.25,
+      "macro_f1": 0.722222,
+      "macro_fnr": 0.7,
+      "macro_fpr": 0.082727,
+      "macro_precision": 0.261905,
+      "macro_recall": 0.3,
+      "micro_f1": 0.25,
+      "micro_fnr": 0.75,
+      "micro_fpr": 0.083333,
+      "micro_precision": 0.25,
+      "micro_recall": 0.25,
+      "n": 12,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 2
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": 0.5,
+        "fnr": 0.0,
+        "fpr": 0.181818,
+        "precision": 0.333333,
+        "recall": 1.0,
+        "support": 1
+       },
+       "4": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.090909,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.0,
+      "macro_f1": null,
+      "macro_fnr": 1.0,
+      "macro_fpr": 0.113333,
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "micro_f1": null,
+      "micro_fnr": 1.0,
+      "micro_fpr": 0.111111,
+      "micro_precision": 0.0,
+      "micro_recall": 0.0,
+      "n": 5,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.333333,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.4,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    }
+   },
+   "started_at": "2026-07-07T06:10:54.439702+00:00",
+   "status": "baseline",
+   "test_run_id": "20260707T061054-1a424766"
+  },
+  {
+   "anchor_ids": [
+    "train_00742",
+    "train_01042",
+    "train_01008",
+    "train_00994"
+   ],
+   "anchors": [
+    {
+     "image_id": "train_00742",
+     "misalignment_type": "consensus_wrong",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/3/f40404.png",
+     "severity": "high",
+     "sme_truth": "3",
+     "votes": [
+      {
+       "confidence": 0.905,
+       "label": "abstain",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.857,
+       "label": "2",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01042",
+     "misalignment_type": "consensus_wrong",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f14672.png",
+     "severity": "high",
+     "sme_truth": "5",
+     "votes": [
+      {
+       "confidence": 0.645,
+       "label": "2",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.831,
+       "label": "1",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_01008",
+     "misalignment_type": "model_vs_sme",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f2744.png",
+     "severity": "medium",
+     "sme_truth": "5",
+     "votes": [
+      {
+       "confidence": 0.13,
+       "label": "5",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.294,
+       "label": "7",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    },
+    {
+     "image_id": "train_00994",
+     "misalignment_type": "consensus_wrong",
+     "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f57035.png",
+     "severity": "high",
+     "sme_truth": "4",
+     "votes": [
+      {
+       "confidence": 0.407,
+       "label": "2",
+       "model": "google/gemini-3.1-flash-lite"
+      },
+      {
+       "confidence": 0.392,
+       "label": "9",
+       "model": "openai/gpt-5.4-mini-low"
+      }
+     ]
+    }
+   ],
+   "candidate_generator": "MNIST_Digits.exp-20260707T061054-1552f3.k1",
+   "candidate_run_id": "20260707T061058-bff1a61a",
+   "closed_at": "2026-07-07T06:11:00.608560+00:00",
+   "cost_usd": 0.0,
+   "cycle_seed": 187070564098727,
+   "edit_clipped": false,
+   "edit_summary": [
+    {
+     "change": "modified",
+     "path": "MD.digit.0.md"
+    }
+   ],
+   "gate": {
+    "comparison": {
+     "n_after": 5,
+     "n_before": 5,
+     "n_common": 5,
+     "n_expected": 12,
+     "value_after": null,
+     "value_before": null
+    },
+    "cost_usd": 0.0,
+    "decided_by": "metric_rule",
+    "decision": "skip",
+    "epsilon": 0.0,
+    "error": null,
+    "gate_model": "openai/gpt-5.5",
+    "metric": "test_system_macro_f1",
+    "metric_pass": false,
+    "rationale": "dry-run gate: deferring to the metric rule",
+    "raw_response": "{\"decision\": \"skip\", \"rationale\": \"dry-run gate: deferring to the metric rule\", \"risk_flags\": []}",
+    "risk_flags": [],
+    "value_after": null,
+    "value_before": null
+   },
+   "generator_after": "MNIST_Digits.v0.1",
+   "generator_before": "MNIST_Digits.v0.1",
+   "k": 1,
+   "metrics": {
+    "test": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.142857,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.857143,
+      "macro_fpr": 0.095238,
+      "macro_precision": 0.166667,
+      "macro_recall": 0.142857,
+      "micro_f1": 0.142857,
+      "micro_fnr": 0.857143,
+      "micro_fpr": 0.095238,
+      "micro_precision": 0.142857,
+      "micro_recall": 0.142857,
+      "n": 7,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.285714,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "4": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "8": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.25,
+      "macro_f1": 0.722222,
+      "macro_fnr": 0.7,
+      "macro_fpr": 0.082727,
+      "macro_precision": 0.261905,
+      "macro_recall": 0.3,
+      "micro_f1": 0.25,
+      "micro_fnr": 0.75,
+      "micro_fpr": 0.083333,
+      "micro_precision": 0.25,
+      "micro_recall": 0.25,
+      "n": 12,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 2
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": 0.5,
+        "fnr": 0.0,
+        "fpr": 0.181818,
+        "precision": 0.333333,
+        "recall": 1.0,
+        "support": 1
+       },
+       "4": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.090909,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.0,
+      "macro_f1": null,
+      "macro_fnr": 1.0,
+      "macro_fpr": 0.113333,
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "micro_f1": null,
+      "micro_fnr": 1.0,
+      "micro_fpr": 0.111111,
+      "micro_precision": 0.0,
+      "micro_recall": 0.0,
+      "n": 5,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.333333,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.4,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    },
+    "test_candidate": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.142857,
+      "macro_f1": 1.0,
+      "macro_fnr": 0.857143,
+      "macro_fpr": 0.095238,
+      "macro_precision": 0.166667,
+      "macro_recall": 0.142857,
+      "micro_f1": 0.142857,
+      "micro_fnr": 0.857143,
+      "micro_fpr": 0.095238,
+      "micro_precision": 0.142857,
+      "micro_recall": 0.142857,
+      "n": 7,
+      "n_abstained": 5,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.285714,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "4": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "8": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.166667,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.25,
+      "macro_f1": 0.722222,
+      "macro_fnr": 0.7,
+      "macro_fpr": 0.082727,
+      "macro_precision": 0.261905,
+      "macro_recall": 0.3,
+      "micro_f1": 0.25,
+      "micro_fnr": 0.75,
+      "micro_fpr": 0.083333,
+      "micro_precision": 0.25,
+      "micro_recall": 0.25,
+      "n": 12,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.1,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 2
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": 0.5,
+        "fnr": 0.0,
+        "fpr": 0.181818,
+        "precision": 0.333333,
+        "recall": 1.0,
+        "support": 1
+       },
+       "4": {
+        "f1": 0.666667,
+        "fnr": 0.0,
+        "fpr": 0.090909,
+        "precision": 0.5,
+        "recall": 1.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.090909,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "7": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.181818,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1
+       },
+       "8": {
+        "f1": 1.0,
+        "fnr": 0.0,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 1
+       },
+       "9": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.0,
+      "macro_f1": null,
+      "macro_fnr": 1.0,
+      "macro_fpr": 0.113333,
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "micro_f1": null,
+      "micro_fnr": 1.0,
+      "micro_fpr": 0.111111,
+      "micro_precision": 0.0,
+      "micro_recall": 0.0,
+      "n": 5,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.333333,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2
+       },
+       "1": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "2": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.4,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.2,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    },
+    "train": {
+     "google/gemini-3.1-flash-lite": {
+      "accuracy": 0.333333,
+      "macro_f1": 0.666667,
+      "macro_fnr": 0.75,
+      "macro_fpr": 0.066667,
+      "macro_precision": 0.5,
+      "macro_recall": 0.25,
+      "micro_f1": 0.333333,
+      "micro_fnr": 0.666667,
+      "micro_fpr": 0.074074,
+      "micro_precision": 0.333333,
+      "micro_recall": 0.333333,
+      "n": 3,
+      "n_abstained": 1,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.666667,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "4": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "5": {
+        "f1": 0.666667,
+        "fnr": 0.5,
+        "fpr": 0.0,
+        "precision": 1.0,
+        "recall": 0.5,
+        "support": 2
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "openai/gpt-5.4-mini-low": {
+      "accuracy": 0.0,
+      "macro_f1": null,
+      "macro_fnr": 1.0,
+      "macro_fpr": 0.1,
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "micro_f1": null,
+      "micro_fnr": 1.0,
+      "micro_fpr": 0.111111,
+      "micro_precision": 0.0,
+      "micro_recall": 0.0,
+      "n": 4,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.25,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.25,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "4": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "5": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "support": 2
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.25,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.25,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       }
+      }
+     },
+     "system": {
+      "accuracy": 0.0,
+      "macro_f1": null,
+      "macro_fnr": 1.0,
+      "macro_fpr": 0.111111,
+      "macro_precision": 0.0,
+      "macro_recall": 0.0,
+      "micro_f1": null,
+      "micro_fnr": 1.0,
+      "micro_fpr": 0.111111,
+      "micro_precision": 0.0,
+      "micro_recall": 0.0,
+      "n": 1,
+      "n_abstained": 0,
+      "per_class": {
+       "0": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "1": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "2": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 1.0,
+        "precision": 0.0,
+        "recall": null,
+        "support": 0
+       },
+       "3": {
+        "f1": null,
+        "fnr": 1.0,
+        "fpr": null,
+        "precision": null,
+        "recall": 0.0,
+        "support": 1
+       },
+       "4": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "5": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "6": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "7": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "8": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       },
+       "9": {
+        "f1": null,
+        "fnr": null,
+        "fpr": 0.0,
+        "precision": null,
+        "recall": null,
+        "support": 0
+       }
+      }
+     }
+    }
+   },
+   "n_changes_applied": 1,
+   "n_changes_proposed": 1,
+   "n_misaligned": 4,
+   "proposal_id": "20260707T061058-377adfdc",
+   "started_at": "2026-07-07T06:10:56.490551+00:00",
+   "status": "skipped",
+   "train_ids": [
+    "train_00742",
+    "train_00994",
+    "train_01008",
+    "train_01042"
+   ],
+   "train_run_id": "20260707T061056-7ff7463f"
+  }
+ ],
+ "drafter_model": "openai/gpt-5.5",
+ "dry_run": true,
+ "epsilon": 0.0,
+ "experiment_id": "exp-20260707T061054-1552f3",
+ "finished_at": "2026-07-07T06:11:00.610457+00:00",
+ "gate_mode": "agent",
+ "gate_model": "openai/gpt-5.5",
+ "holdout": null,
+ "judge_models": [
+  "openai/gpt-5.4-mini-low",
+  "google/gemini-3.1-flash-lite"
+ ],
+ "k_max": 1,
+ "max_anchors": 10,
+ "max_changes": 5,
+ "phase": "completed: 0 accepted / 1 cycles, v0.1 -> v0.1",
+ "readjudication": {
+  "final_version": "v0.1",
+  "generated_at": "2026-07-07T06:11:00.611812+00:00",
+  "items": [
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.204,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.5,
+    "gradient": {
+     "avg_hessian": 0.162359,
+     "avg_loss": 0.924454,
+     "avg_magnitude": 0.505,
+     "max_magnitude": 0.801,
+     "n": 2
+    },
+    "image_id": "train_00712",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/3/f32653.png",
+    "severity": "medium",
+    "sha256": "208fda4b8aa859cc797c7c320ea0600886ef036b1c395a97d4093adeb83e7608",
+    "sme_truth": "3",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.209,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "2",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.199,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.212,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.160332,
+     "avg_loss": 1.19418,
+     "avg_magnitude": 0.582,
+     "max_magnitude": 0.87,
+     "n": 2
+    },
+    "image_id": "train_01008",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f2744.png",
+    "severity": "medium",
+    "sha256": "12f8c904c2ded5c0a5004682658811157e450b808385280d30c00a8be757b4e3",
+    "sme_truth": "5",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061056-7ff7463f"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.13,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.294,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.2505,
+    "boundary_pairs": [
+     "3\u21944"
+    ],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.5,
+    "gradient": {
+     "avg_hessian": 0.166579,
+     "avg_loss": 0.307556,
+     "avg_magnitude": 0.2505,
+     "max_magnitude": 0.396,
+     "n": 2
+    },
+    "image_id": "train_01359",
+    "majority_label": null,
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/6/f48740.png",
+    "severity": "high",
+    "sha256": "3b1eaa3b08539730e38adbe8af5c184aa15425eaa7bd78ba61713d2d97c7cfc4",
+    "sme_truth": "6",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.396,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "3",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.105,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.365,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.0,
+    "gradient": {
+     "avg_hessian": 0.163654,
+     "avg_loss": 0.546657,
+     "avg_magnitude": 0.365,
+     "max_magnitude": 0.626,
+     "n": 2
+    },
+    "image_id": "train_01889",
+    "majority_label": null,
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/9/f26254.png",
+    "severity": "high",
+    "sha256": "3ec87059c9fd2cb69aee6581d22e2d123abfb0bb4832f6c844860276e5654993",
+    "sme_truth": "9",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.104,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "8",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.626,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.3995,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.239843,
+     "avg_loss": 0.510071,
+     "avg_magnitude": 0.3995,
+     "max_magnitude": 0.407,
+     "n": 2
+    },
+    "image_id": "train_00994",
+    "majority_label": null,
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f57035.png",
+    "severity": "high",
+    "sha256": "529d816765590fe41db379f555ced81b325e0ec19a2ffab0996df87b460323b2",
+    "sme_truth": "4",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061056-7ff7463f"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.407,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "2",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.392,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "9",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.5215,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.5,
+    "gradient": {
+     "avg_hessian": 0.174187,
+     "avg_loss": 1.494001,
+     "avg_magnitude": 0.7745,
+     "max_magnitude": 0.796,
+     "n": 2
+    },
+    "image_id": "train_00884",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/4/f22547.png",
+    "severity": "medium",
+    "sha256": "9bcaeed74475a263aee6ff62a7333d4004f0e611ebe15235d4990913866a9f32",
+    "sme_truth": "4",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.796,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "2",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.247,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "4",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.704,
+    "boundary_pairs": [
+     "4\u21945"
+    ],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.174895,
+     "avg_loss": 1.458211,
+     "avg_magnitude": 0.704,
+     "max_magnitude": 0.887,
+     "n": 2
+    },
+    "image_id": "train_00207",
+    "majority_label": null,
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f2853.png",
+    "severity": "high",
+    "sha256": "1603e234c224b377e4d231e50e475b63564ad40630d4f916df4f1061ec30be1f",
+    "sme_truth": "1",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.521,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "4",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.887,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "5",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.717,
+    "boundary_pairs": [
+     "4\u21945"
+    ],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.201542,
+     "avg_loss": 0.894043,
+     "avg_magnitude": 0.537,
+     "max_magnitude": 0.754,
+     "n": 2
+    },
+    "image_id": "train_01494",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/7/f24434.png",
+    "severity": "medium",
+    "sha256": "f80a471f2565a97ebbc0e04064fbe605ff0e61b8a3ba76698c2c972b6456b8a2",
+    "sme_truth": "7",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.68,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "7",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.754,
+      "difficulty": "medium",
+      "is_boundary": true,
+      "label": "4",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.7315,
+    "boundary_pairs": [
+     "8\u21949"
+    ],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 1.0,
+    "gradient": {
+     "avg_hessian": 0.179895,
+     "avg_loss": 0.537321,
+     "avg_magnitude": 0.3715,
+     "max_magnitude": 0.603,
+     "n": 2
+    },
+    "image_id": "train_01619",
+    "majority_label": null,
+    "misalignment_type": "model_vs_sme",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/8/f7797.png",
+    "severity": "medium",
+    "sha256": "f6554db09df708e8cd07d3c2089f99bdc92eb2f0b30195e58008e73ed53c5d17",
+    "sme_truth": "8",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.603,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "9",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.86,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "8",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.738,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 2,
+     "fraction": 0.5,
+     "majority_count": 1,
+     "tie": true
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.184707,
+     "avg_loss": 1.406747,
+     "avg_magnitude": 0.738,
+     "max_magnitude": 0.831,
+     "n": 2
+    },
+    "image_id": "train_01042",
+    "majority_label": null,
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f14672.png",
+    "severity": "high",
+    "sha256": "c7eda34a6c45125ae1a2751d3216bae44c58dd5156fae3c6d7b5e98af5e7f1a4",
+    "sme_truth": "5",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061056-7ff7463f"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.645,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "2",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.831,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "1",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.009,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 1.0,
+    "gradient": {
+     "avg_hessian": 0.008919,
+     "avg_loss": 0.009041,
+     "avg_magnitude": 0.009,
+     "max_magnitude": 0.009,
+     "n": 1
+    },
+    "image_id": "train_01149",
+    "majority_label": "0",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/5/f46522.png",
+    "severity": "high",
+    "sha256": "d7271ec6f1a4b22b59ddde689d51e8b96574d25a22082ddf5d5b0e3a2a1310a9",
+    "sme_truth": "5",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.375,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.009,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "0",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.279,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 0.75,
+    "gradient": {
+     "avg_hessian": 0.201159,
+     "avg_loss": 0.327116,
+     "avg_magnitude": 0.279,
+     "max_magnitude": 0.279,
+     "n": 1
+    },
+    "image_id": "train_00114",
+    "majority_label": "6",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f35217.png",
+    "severity": "high",
+    "sha256": "43981019a05d801a30d809537e0ae5e5d519817578322382a41de92759bf571e",
+    "sme_truth": "0",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.185,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.279,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "6",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.68,
+    "boundary_pairs": [
+     "7\u21948"
+    ],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 0.5,
+    "gradient": {
+     "avg_hessian": 0.2176,
+     "avg_loss": 1.139434,
+     "avg_magnitude": 0.68,
+     "max_magnitude": 0.68,
+     "n": 1
+    },
+    "image_id": "train_00532",
+    "majority_label": "7",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/2/f42219.png",
+    "severity": "high",
+    "sha256": "0724c5484aefcf33fd62e653e43d7e8d0bd729d0d4ec5ae82cdaf04242fe3dac",
+    "sme_truth": "2",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.333,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.68,
+      "difficulty": "high",
+      "is_boundary": true,
+      "label": "7",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.857,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 0.75,
+    "gradient": {
+     "avg_hessian": 0.122551,
+     "avg_loss": 1.944911,
+     "avg_magnitude": 0.857,
+     "max_magnitude": 0.857,
+     "n": 1
+    },
+    "image_id": "train_00742",
+    "majority_label": "2",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/3/f40404.png",
+    "severity": "high",
+    "sha256": "e6d8d750dc257be6908b225e922545ef579cd5e87d92d4d86b15a8be3c56d861",
+    "sme_truth": "3",
+    "source": {
+     "k": 1,
+     "kind": "train",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061056-7ff7463f"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.905,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.857,
+      "difficulty": "high",
+      "is_boundary": false,
+      "label": "2",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": true,
+    "avg_confidence": 0.919,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.074439,
+     "avg_loss": 2.513306,
+     "avg_magnitude": 0.919,
+     "max_magnitude": 0.919,
+     "n": 1
+    },
+    "image_id": "train_00185",
+    "majority_label": "3",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/0/f55765.png",
+    "severity": "high",
+    "sha256": "dd804e2a98f2766f0a4ee25f1521e6b68577c05a0fbb5009265db22265192379",
+    "sme_truth": "0",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.53,
+      "difficulty": "low",
+      "is_boundary": true,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.919,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "3",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   },
+   {
+    "any_boundary": false,
+    "avg_confidence": 0.98,
+    "boundary_pairs": [],
+    "consensus": {
+     "decisive": 1,
+     "fraction": 1.0,
+     "majority_count": 1,
+     "tie": false
+    },
+    "difficulty_score": 0.25,
+    "gradient": {
+     "avg_hessian": 0.0196,
+     "avg_loss": 3.912023,
+     "avg_magnitude": 0.98,
+     "max_magnitude": 0.98,
+     "n": 1
+    },
+    "image_id": "train_00242",
+    "majority_label": "3",
+    "misalignment_type": "consensus_wrong",
+    "n_judges": 2,
+    "repo_rel_path": "data/images/mnist-classification/source-datasets/mnist/1/f13372.png",
+    "severity": "high",
+    "sha256": "2483f3001ca6a2f5e615aba1c3def25a6cfb9007dbb3a9485f3cdc2b522f95f3",
+    "sme_truth": "1",
+    "source": {
+     "k": 0,
+     "kind": "test",
+     "policy": "MNIST_Digits.v0.1",
+     "run_id": "20260707T061054-1a424766"
+    },
+    "split": "dev_golden",
+    "votes": [
+     {
+      "confidence": 0.371,
+      "difficulty": "medium",
+      "is_boundary": false,
+      "label": "abstain",
+      "model": "google/gemini-3.1-flash-lite"
+     },
+     {
+      "confidence": 0.98,
+      "difficulty": "low",
+      "is_boundary": false,
+      "label": "3",
+      "model": "openai/gpt-5.4-mini-low"
+     }
+    ]
+   }
+  ],
+  "n_flagged": 16,
+  "n_scanned": 16,
+  "sources": [
+   {
+    "k": 1,
+    "kind": "train",
+    "n_flagged": 4,
+    "n_scanned": 4,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T061056-7ff7463f"
+   },
+   {
+    "k": 0,
+    "kind": "test",
+    "n_flagged": 12,
+    "n_scanned": 12,
+    "policy": "MNIST_Digits.v0.1",
+    "run_id": "20260707T061054-1a424766"
+   }
+  ]
+ },
+ "run_number": 5,
+ "seed": 660001,
+ "splits": {
+  "holdout_locked": true,
+  "holdout_n": 500,
+  "pool_split": "dev_golden",
+  "test_ids": [
+   "train_00114",
+   "train_00185",
+   "train_00207",
+   "train_00242",
+   "train_00532",
+   "train_00712",
+   "train_00884",
+   "train_01149",
+   "train_01359",
+   "train_01494",
+   "train_01619",
+   "train_01889"
+  ],
+  "train_pool_n": 1988
+ },
+ "started_at": "2026-07-07T06:10:54.439702+00:00",
+ "status": "completed",
+ "store_synced": false,
+ "strategy": "top_gradient",
+ "summary": {
+  "area": "MNIST_Digits",
+  "benchmark_system": null,
+  "config": {
+   "batch_n": 4,
+   "concurrency": 4,
+   "drafter_model": "openai/gpt-5.5",
+   "dry_run": true,
+   "epsilon": 0.0,
+   "gate_mode": "agent",
+   "gate_model": "openai/gpt-5.5",
+   "judge_models": [
+    "openai/gpt-5.4-mini-low",
+    "google/gemini-3.1-flash-lite"
+   ],
+   "k_max": 1,
+   "max_anchors": 10,
+   "max_changes": 5,
+   "strategy": "top_gradient",
+   "test_n": 12
+  },
+  "cost_usd_total": 0.0,
+  "experiment_id": "exp-20260707T061054-1552f3",
+  "finished_at": "2026-07-07T06:11:00.610457+00:00",
+  "holdout_system": null,
+  "policy": {
+   "accepted_cycles": [],
+   "base_version": "v0.1",
+   "final_version": "v0.1",
+   "n_cycles": 1
+  },
+  "recorded_at": "2026-07-07T06:11:00.611909+00:00",
+  "run_number": 5,
+  "seed": 660001,
+  "started_at": "2026-07-07T06:10:54.439702+00:00",
+  "status": "completed",
+  "test_metrics": {
+   "google/gemini-3.1-flash-lite": {
+    "baseline": {
+     "accuracy": 0.142857,
+     "macro_f1": 1.0,
+     "macro_fnr": 0.857143,
+     "macro_fpr": 0.095238,
+     "macro_precision": 0.166667,
+     "macro_recall": 0.142857,
+     "micro_f1": 0.142857,
+     "n": 7,
+     "n_abstained": 5
+    },
+    "delta": {
+     "accuracy": 0.0,
+     "macro_f1": 0.0,
+     "macro_fnr": 0.0,
+     "macro_fpr": 0.0,
+     "macro_precision": 0.0,
+     "macro_recall": 0.0,
+     "micro_f1": 0.0,
+     "n": 0,
+     "n_abstained": 0
+    },
+    "final": {
+     "accuracy": 0.142857,
+     "macro_f1": 1.0,
+     "macro_fnr": 0.857143,
+     "macro_fpr": 0.095238,
+     "macro_precision": 0.166667,
+     "macro_recall": 0.142857,
+     "micro_f1": 0.142857,
+     "n": 7,
+     "n_abstained": 5
+    }
+   },
+   "openai/gpt-5.4-mini-low": {
+    "baseline": {
+     "accuracy": 0.25,
+     "macro_f1": 0.722222,
+     "macro_fnr": 0.7,
+     "macro_fpr": 0.082727,
+     "macro_precision": 0.261905,
+     "macro_recall": 0.3,
+     "micro_f1": 0.25,
+     "n": 12,
+     "n_abstained": 0
+    },
+    "delta": {
+     "accuracy": 0.0,
+     "macro_f1": 0.0,
+     "macro_fnr": 0.0,
+     "macro_fpr": 0.0,
+     "macro_precision": 0.0,
+     "macro_recall": 0.0,
+     "micro_f1": 0.0,
+     "n": 0,
+     "n_abstained": 0
+    },
+    "final": {
+     "accuracy": 0.25,
+     "macro_f1": 0.722222,
+     "macro_fnr": 0.7,
+     "macro_fpr": 0.082727,
+     "macro_precision": 0.261905,
+     "macro_recall": 0.3,
+     "micro_f1": 0.25,
+     "n": 12,
+     "n_abstained": 0
+    }
+   },
+   "system": {
+    "baseline": {
+     "accuracy": 0.0,
+     "macro_f1": null,
+     "macro_fnr": 1.0,
+     "macro_fpr": 0.113333,
+     "macro_precision": 0.0,
+     "macro_recall": 0.0,
+     "micro_f1": null,
+     "n": 5,
+     "n_abstained": 0
+    },
+    "delta": {
+     "accuracy": 0.0,
+     "macro_f1": null,
+     "macro_fnr": 0.0,
+     "macro_fpr": 0.0,
+     "macro_precision": 0.0,
+     "macro_recall": 0.0,
+     "micro_f1": null,
+     "n": 0,
+     "n_abstained": 0
+    },
+    "final": {
+     "accuracy": 0.0,
+     "macro_f1": null,
+     "macro_fnr": 1.0,
+     "macro_fpr": 0.113333,
+     "macro_precision": 0.0,
+     "macro_recall": 0.0,
+     "micro_f1": null,
+     "n": 5,
+     "n_abstained": 0
+    }
+   }
+  }
+ },
+ "test_n": 12,
+ "updated_at": "2026-07-07T06:11:00.612292+00:00"
+}

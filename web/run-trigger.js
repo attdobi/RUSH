@@ -32,7 +32,9 @@
     // mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
     { id: 'google/gemini-3.1-flash', checked: false },
     { id: 'google/gemini-3-flash-preview', checked: false },
-    { id: 'anthropic/claude-haiku-4-5-low', checked: true },
+    // Attila 2026-07-07: haiku out of the defaults (too expensive per
+    // unit of quality on this task) — still selectable.
+    { id: 'anthropic/claude-haiku-4-5-low', checked: false },
     { id: 'anthropic/claude-haiku-4-5-medium', checked: false },
     { id: 'google/gemini-3.1-flash-lite', checked: true },
     { id: 'local/qwen3.6-27b', checked: false },

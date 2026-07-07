@@ -65,6 +65,7 @@ from pipeline.io_paths import (  # noqa: E402
     genai_manifest_default,
     mint_run_id,
 )
+from pipeline.labeling.image_prep import prepare_image  # noqa: E402
 from pipeline.manifest import load_records  # noqa: E402
 from pipeline.policy_diff import (  # noqa: E402
     _call_chat_with_retries,
@@ -354,8 +355,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--batch-n", type=int, default=20, help="Train images per cycle.")
     ap.add_argument("--test-n", type=int, default=100,
                     help="Fixed seeded test partition size (the gate set).")
-    ap.add_argument("--max-anchors", type=int, default=8,
-                    help="S1: max random misalignment anchors per edit.")
+    ap.add_argument("--max-anchors", type=int, default=10,
+                    help="Max misalignment anchors per edit.")
     ap.add_argument("--max-changes", type=int, default=exp.DEFAULT_MAX_CHANGES,
                     help="Clip: max node-file changes per policy update (1-5).")
     ap.add_argument("--epsilon", type=float, default=0.0,
@@ -370,7 +371,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "off: accept EVERY clipped edit (metric recorded, never enforced "
                          "— shows unfiltered policy drift; requires --live).")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
-    ap.add_argument("--strategy", choices=[exp.DEFAULT_STRATEGY], default=exp.DEFAULT_STRATEGY)
+    ap.add_argument("--strategy", choices=list(exp.STRATEGIES), default=exp.DEFAULT_STRATEGY,
+                    help="Anchor selection: random_misalignment (S1, unbiased) or "
+                         "top_gradient (most-important-first: panel avg |g| desc).")
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=10,
                     help="Images per provider batch inside child runs.")
@@ -668,7 +671,7 @@ def main(argv: list[str] | None = None) -> int:
             mis_records = _load_misalignment(train_run["run_id"])
             anchors = exp.select_anchors(
                 mis_records, seed=seed, k=k, max_anchors=args.max_anchors,
-                train_ids=train_ids,
+                train_ids=train_ids, strategy=args.strategy,
             )
             eligible = [
                 r for r in mis_records
@@ -711,6 +714,29 @@ def main(argv: list[str] | None = None) -> int:
                    f"(max {args.max_changes} changes)")
             from pipeline.policy_iterator import load_policy_markdown
 
+            # Attach the anchor images themselves (downsampled like judge
+            # calls) so the drafter sees what the panel misread. A missing or
+            # unreadable file drops that image, never the draft. Only prepared
+            # for live runs — dry runs send no images (fake drafter, no spend),
+            # so we don't pay the LANCZOS/JPEG/base64 cost for nothing.
+            anchor_images = []
+            if live:
+                for a in anchors:
+                    rel = a.get("repo_rel_path")
+                    if not rel:
+                        continue
+                    try:
+                        prepared = prepare_image(ROOT / rel)
+                    except Exception as prep_exc:  # noqa: BLE001 - image is optional evidence
+                        print(f"[experiment] k{k}: anchor image skipped "
+                              f"({a.get('image_id')}): {prep_exc}", file=sys.stderr)
+                        continue
+                    anchor_images.append({
+                        "image_id": a.get("image_id"),
+                        "sme_truth": a.get("sme_truth"),
+                        "mime_type": prepared.mime_type,
+                        "b64": prepared.to_base64(),
+                    })
             messages = exp.build_drafter_messages(
                 policy_markdown=load_policy_markdown(base_dir),
                 base_version=state["current_version"],
@@ -718,6 +744,9 @@ def main(argv: list[str] | None = None) -> int:
                 anchors=anchors,
                 max_changes=args.max_changes,
                 k=k,
+                anchor_images=anchor_images or None,
+                provider="anthropic" if args.drafter_model.startswith("anthropic/")
+                else "openai",
             )
             chat = drafter_chat or exp.fake_drafter_callable(base_dir)
             n_drafter_calls = len(usage_drafter)
@@ -921,6 +950,10 @@ def main(argv: list[str] | None = None) -> int:
                     # stale-base guard would otherwise abort run #2's first
                     # accept once run #1 minted a newer version.
                     allow_branch=True,
+                    # v<run>.<k>: the version name says which run accepted it
+                    # and at which cycle (Attila 2026-07-07). Falls back to
+                    # the global mint on a name collision.
+                    new_version=f"v{state['run_number']}.{k}",
                 )
                 state["current_version"] = accepted["new_version"]
                 cycle["new_version"] = accepted["new_version"]

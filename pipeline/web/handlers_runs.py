@@ -120,6 +120,12 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             send_json(handler, status, body)
             return
 
+        if method == "GET" and path == "/api/jobs":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            running_only = (query.get("running") or [""])[0] in ("1", "true")
+            send_json(handler, 200, {"jobs": registry.list_jobs(running_only=running_only)})
+            return
+
         if method == "GET" and path == "/api/thumbnail":
             handle_thumbnail(handler)
             return

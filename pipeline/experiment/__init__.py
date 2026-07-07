@@ -65,7 +65,10 @@ DEFAULT_GATE_MODEL = "openai/gpt-5.5"
 DEFAULT_DRAFTER_MODEL = "openai/gpt-5.5"
 DEFAULT_MAX_CHANGES = 5
 MAX_CHANGES_HARD_CAP = 5  # Attila: "limit to 1, max 5 changes at a time"
-DEFAULT_STRATEGY = "random_misalignment"  # S1; S2-S5 are the next experiments
+DEFAULT_STRATEGY = "random_misalignment"  # S1; S2-S4 are the next experiments
+# Anchor-selection strategies the driver accepts. top_gradient is the
+# S5-flavored "most important misalignments" ranking (avg |g| descending).
+STRATEGIES = ("random_misalignment", "top_gradient")
 GATE_METRIC = "test_system_macro_f1"
 
 _EXPERIMENT_ID_RE = re.compile(r"^exp-[0-9]{8}T[0-9]{6}-[a-f0-9]{6}$")
@@ -186,15 +189,24 @@ def select_anchors(
     k: int,
     max_anchors: int,
     train_ids: Iterable[str] | None = None,
+    strategy: str = "random_misalignment",
 ) -> list[dict[str, Any]]:
-    """S1 — random misalignment anchors (the SVM-flavored baseline).
+    """Pick the misalignments that drive this cycle's policy edit.
 
     Eligible rows: this cycle's train images whose panel verdict misaligned
-    with the golden label (``misalignment_type != 'all_agree'``). A uniform
-    seeded sample of up to ``max_anchors`` of them drives the policy edit —
-    unbiased coverage of the error surface, no ranking heuristics (those are
-    strategies S2-S5, tested separately).
+    with the golden label (``misalignment_type != 'all_agree'``).
+
+    Strategies:
+      * ``random_misalignment`` (S1) — uniform seeded sample of up to
+        ``max_anchors``: unbiased coverage of the error surface.
+      * ``top_gradient`` (S5-flavored, Attila 2026-07-07: "the most important
+        misalignments for the gradient descent") — deterministic top
+        ``max_anchors`` by panel avg gradient magnitude |g| = 1-p
+        (confident-wrong panels first; no-signal panels rank above
+        confident-correct-adjacent noise via the None-first tie).
     """
+    if strategy not in STRATEGIES:
+        raise ValueError(f"unknown anchor strategy: {strategy!r}")
     allowed = set(train_ids) if train_ids is not None else None
     eligible = [
         r
@@ -203,11 +215,62 @@ def select_anchors(
         and (allowed is None or str(r.get("image_id")) in allowed)
     ]
     eligible.sort(key=lambda r: str(r.get("image_id")))
+    if strategy == "top_gradient":
+        def _grad_key(record: dict[str, Any]) -> tuple[float, str]:
+            magnitude = (panel_signal(record).get("gradient") or {}).get("avg_magnitude")
+            # No decisive/confident votes = no machine signal at all — rank
+            # those first (they need the policy's attention most), then by
+            # descending |g|.
+            return (-(magnitude if magnitude is not None else 2.0),
+                    str(record.get("image_id")))
+        return sorted(eligible, key=_grad_key)[:max_anchors]
     rng = random.Random(f"{seed}:anchors:{k}")
     if len(eligible) <= max_anchors:
         return eligible
     return sorted(
         rng.sample(eligible, max_anchors), key=lambda r: str(r.get("image_id"))
+    )
+
+
+def select_aligned_anchors(
+    misalignment_records: list[dict[str, Any]],
+    *,
+    seed: int,
+    k: int,
+    max_aligned: int,
+    train_ids: Iterable[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Pick correctly-classified anchors to accompany the misaligned ones.
+
+    Attila 2026-07-07: "not only do an SVM [the misaligned/boundary errors]
+    but the system is also learning from correct classifications." Where
+    :func:`select_anchors` returns the panel's *errors*, this returns a
+    seeded sample of up to ``max_aligned`` of its *successes* — this cycle's
+    train images the whole panel labeled in agreement with the golden label
+    (``misalignment_type == 'all_agree'``). Feeding both lets the drafter
+    sharpen the boundary without regressing what the policy already gets
+    right. ``max_aligned == 0`` disables aligned anchors (empty list).
+
+    Unbiased seeded sample (not ranked): correct classifications are the
+    positive reference class, so representative coverage beats picking the
+    "most confident" easy wins. A ranked/near-boundary variant can be added
+    later the way ``top_gradient`` was added for the misaligned side.
+    """
+    if max_aligned <= 0:
+        return []
+    allowed = set(train_ids) if train_ids is not None else None
+    eligible = [
+        r
+        for r in misalignment_records
+        if r.get("misalignment_type") == "all_agree"
+        and (allowed is None or str(r.get("image_id")) in allowed)
+    ]
+    eligible.sort(key=lambda r: str(r.get("image_id")))
+    if len(eligible) <= max_aligned:
+        return eligible
+    rng = random.Random(f"{seed}:aligned:{k}")
+    return sorted(
+        rng.sample(eligible, max_aligned), key=lambda r: str(r.get("image_id"))
     )
 
 
@@ -677,8 +740,15 @@ def resolve_gate_decision(
 
 DRAFTER_SYSTEM_PROMPT = (
     "You are RUSH's policy diff writer inside a PPO-style iteration loop. "
-    "From the misaligned samples, draft the SINGLE most impactful policy "
-    "improvement as minimal full-file markdown changes. HARD BUDGET: at most "
+    "You are given two sets of anchors from this cycle's train batch, with "
+    "their images: MISALIGNED anchors (the panel disagreed with the SME "
+    "ground truth — the errors to fix) and ALIGNED anchors (the panel "
+    "classified these CORRECTLY — the successes to protect). Draft the "
+    "SINGLE most impactful policy improvement that would fix the misaligned "
+    "cases WITHOUT regressing the aligned ones — use the aligned anchors as "
+    "positive references for what the current policy already gets right, so "
+    "your edit sharpens the boundary instead of over-correcting past it. "
+    "Write minimal full-file markdown changes. HARD BUDGET: at most "
     "{max_changes} file changes total (modified + added + removed combined); "
     "fewer is better — one focused, human-reviewable change is ideal. "
     "TARGET THE MOST SPECIFIC NODE THAT OWNS THE ERROR: class-specific "
@@ -716,8 +786,20 @@ def build_drafter_messages(
     anchors: list[dict[str, Any]],
     max_changes: int,
     k: int,
-) -> list[dict[str, str]]:
-    """Assemble the drafter packet: current bundle + S1 anchors + the budget."""
+    anchor_images: list[dict[str, Any]] | None = None,
+    provider: str = "openai",
+) -> list[dict[str, Any]]:
+    """Assemble the drafter packet: current bundle + anchors + the budget.
+
+    ``anchor_images`` (Attila 2026-07-07: "feed the misaligned images back")
+    attaches the actual anchor images so the drafter SEES what the judges
+    misread instead of reasoning from justifications alone. Each entry:
+    ``{"image_id", "sme_truth", "mime_type", "b64"}``. When provided, the
+    user message content becomes a provider-shaped parts array (OpenAI
+    ``image_url`` data URLs / Anthropic base64 ``image`` blocks — both chat
+    transports forward user content verbatim). Without it the message stays
+    a plain string (dry runs, old tests).
+    """
     payload = {
         "task": (
             "Improve the policy so ALL judges (and human raters) decide these "
@@ -749,13 +831,34 @@ def build_drafter_messages(
             for a in anchors
         ],
     }
-    return [
-        {
-            "role": "system",
-            "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
-        },
-        {"role": "user", "content": json.dumps(payload, indent=2)},
+    system = {
+        "role": "system",
+        "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
+    }
+    if not anchor_images:
+        return [system, {"role": "user", "content": json.dumps(payload, indent=2)}]
+
+    parts: list[dict[str, Any]] = [
+        {"type": "text", "text": json.dumps(payload, indent=2)},
+        {"type": "text", "text": (
+            "The misaligned anchor images follow, in order. Look at each one: "
+            "the visual evidence outranks any judge's justification."
+        )},
     ]
+    for image in anchor_images:
+        parts.append({"type": "text", "text": (
+            f"anchor {image.get('image_id')} — SME truth: {image.get('sme_truth')}"
+        )})
+        mime = image.get("mime_type") or "image/jpeg"
+        if provider == "anthropic":
+            parts.append({"type": "image", "source": {
+                "type": "base64", "media_type": mime, "data": image["b64"],
+            }})
+        else:
+            parts.append({"type": "image_url", "image_url": {
+                "url": f"data:{mime};base64,{image['b64']}",
+            }})
+    return [system, {"role": "user", "content": parts}]
 
 
 # ---------------------------------------------------------------------------

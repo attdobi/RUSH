@@ -39,6 +39,9 @@ ALLOWED_POLICY_MODELS = {
     "openai/gpt-5.5-high",
     "openai/gpt-5.5-medium",
     "openai/gpt-5.5-low",
+    # Cheap drafter lane (Attila 2026-07-07): with the anchor IMAGES now in
+    # the drafter packet, a low-cost model is a legitimate optimizer choice.
+    "openai/gpt-5.4-mini-low",
 }
 _VERSION_RE = re.compile(r"^v(\d+)\.(\d+)$")
 
@@ -1231,17 +1234,22 @@ def get_proposal(*, repo_root: Path | str, proposal_id: str) -> dict[str, Any]:
 
 
 def accept_proposal(
-    *, repo_root: Path | str, proposal_id: str, allow_branch: bool = False
+    *, repo_root: Path | str, proposal_id: str, allow_branch: bool = False,
+    new_version: str | None = None,
 ) -> dict[str, Any]:
     """Accept a pending proposal and create the next policy version.
 
     ``allow_branch=True`` (the experiment crank) skips the stale-base guard:
     every crank run starts from the SAME fixed baseline generator (k=0 is
     constant across run numbers), so accepted versions legitimately BRANCH
-    from a non-latest base — v0.4 can have parent v0.1. Lineage is recorded
-    per proposal/experiment; version numbers stay globally unique. The manual
-    web flow keeps the guard: there, building from a stale base is always a
-    silent revert.
+    from a non-latest base. Lineage is recorded per proposal/experiment;
+    version names stay globally unique. The manual web flow keeps the guard:
+    there, building from a stale base is always a silent revert.
+
+    ``new_version`` names the minted version explicitly (the crank uses
+    ``v<run_number>.<k>`` so a version reads as "run R accepted at cycle k").
+    Must match ``vMAJOR.MINOR``; if the name is already taken the global
+    ``_next_version`` fallback applies instead of failing the accept.
     """
     root = _repo_root(repo_root)
     prop_dir = _proposal_dir(root, proposal_id)
@@ -1254,7 +1262,15 @@ def accept_proposal(
 
     base_version = meta.get("base_version")
     domain = meta.get("domain") or DOMAIN
-    new_version = _next_version(root, domain)
+    if new_version is not None:
+        if not _VERSION_RE.match(new_version):
+            raise ValueError(f"new_version must match vMAJOR.MINOR: {new_version!r}")
+        if (_policy_domain_dir(root, domain) / new_version).exists():
+            # Name taken (e.g. a re-run of the same run number): fall back to
+            # the global mint rather than failing a paid accept.
+            new_version = _next_version(root, domain)
+    else:
+        new_version = _next_version(root, domain)
     new_dir = _policy_domain_dir(root, domain) / new_version
     if new_dir.exists():
         raise FileExistsError(f"policy version already exists: {new_version}")

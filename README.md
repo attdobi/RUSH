@@ -57,7 +57,7 @@ RUSH is built for the people who own the *policy*, not the people who own the GP
 - **Nodes** are policy concepts: one project root plus one node per class/subcategory, each a Markdown file with frontmatter and policy text — definitions, criteria, hard negatives, examples, source anchors.
 - **Edges** are typed relationships; `confused_with` edges capture observed class confusions and feed audit priority and prompt context packs.
 - **Ambiguity is a first-class citizen**: `is_boundary` marks gray-zone concepts and `is_boundary_between` links the classes involved — the same structure supports binary decisions, multiclass, and graded relevance scales with boundaries between adjacent grades.
-- **Every change is a reviewable diff.** §2 of the demo proposes SME-reviewable policy diffs mined from misalignments; accepting one materializes version v_{n+1}. The edit history is the institutional memory of *why* every rule exists, with citations back to the cases that taught it.
+- **Every change is a reviewable diff.** The loop proposes SME-reviewable policy diffs mined from misalignments; accepting one materializes the next version. The edit history is the institutional memory of *why* every rule exists, with citations back to the cases that taught it.
 
 Because the graph is Obsidian-compatible Markdown, a policy manager can read it with backlinks and graph view, a lawyer can redline a node, and an SME can approve a diff — while the exact same files compile deterministically into the generator prompt the models judge with. **There is no translation layer to drift. When we say the prompt is the policy, it is literal: same bytes.**
 
@@ -67,7 +67,7 @@ For a policy or legal team this inverts the usual dynamic: instead of a policy d
 
 ## How the cascade works
 
-`scripts/run_cascade.py` (driven from the UI by the §3 **Run cascade** button / `POST /api/runs/start-cascade`) runs the ladder end to end:
+`scripts/run_cascade.py` (`POST /api/runs/start-cascade`) runs the ladder end to end:
 
 1. **Tier 1 — cheap consensus (measure).** The low-cost panel labels every image. The consensus layer computes per-image majority, `is_consensus` / `is_split` / tie, majority fraction, and boundary-voter count. Majority vote *is* the production label: 97.7% accuracy on the 400-image run (396 of 400 had a decisive majority; 387/396 correct), 97.7% macro recall, 0.25% macro & micro FPR across 10 classes. This tier is cheap enough to become the always-on production metric — daily prevalence with confidence intervals is the roadmap build-out on top of it.
 2. **Escalate on measured ambiguity.** `select_escalation_ids` — a unit-tested, panel-size-aware trigger — promotes an image only on split/tie/abstain or ≥2 hedging voters. Measured result: everything it *didn't* promote was correct in this run (all 258 cheap-resolved images; caveat in the measured box above). That is the load-bearing property: escalation cost is bounded and the cheap tier's kept decisions are trustworthy.
@@ -76,7 +76,7 @@ For a policy or legal team this inverts the usual dynamic: instead of a policy d
 
 **Two loops turn at different speeds.** A **fast measurement loop** (tier 1, continuous, production scale) produces the metric. A **slow learning loop** (tiers 2–3 on a small, boundary-enriched sample) grows the golden set and tunes the prompt-as-policy under the acceptance gate. The fast loop's cost is what the cascade minimizes; the slow loop's SME minutes are what the priority queue rations.
 
-Cost is the measuring stick throughout: every run records per-image and per-batch cost (`run_manifest.json`, usage tokens × `pipeline/providers/pricing.py`; local models $0.00), and the §3 model picker shows measured $/1k-labels and seconds/image from real recorded runs (local gemma ~3.2s/img and qwen2.5-vl ~4s/img, free; hosted cheap tier at fractions of a cent per image). You can watch cost per decision fall as consensus absorbs the easy cases.
+Cost is the measuring stick throughout: every run records per-image and per-batch cost (`run_manifest.json`, usage tokens × `pipeline/providers/pricing.py`; local models $0.00), and the judge picker shows measured $/1k-labels and seconds/image from real recorded runs (local gemma ~3.2s/img and qwen2.5-vl ~4s/img, free; hosted cheap tier at fractions of a cent per image). You can watch cost per decision fall as consensus absorbs the easy cases.
 
 ---
 
@@ -86,11 +86,11 @@ RUSH makes three claims. Each has a specific measurement that would refute it.
 
 1. **Cost.** A cascade of cheap models + selective escalation labels a stream at a small fraction of expert-panel cost, *without* letting cheap-tier errors leak into the metric. Refuted if the cheap-resolved set shows material error. Measured status: none of the 258 cheap-resolved items on the k=200 MNIST run was wrong (caveats in the measured box above).
 2. **Quality.** Model consensus governed by a certified golden set matches or beats redundant non-expert human labeling. Measured status: 97.7% ensemble accuracy at 0.25% FPR in-repo; the Pinterest-scale comparison (85.7% consensus accuracy — an internal pilot figure against an internal 3× BPO baseline) is exec-brief context, not reproduced here.
-3. **Convergence.** The design target: decision quality on a locked holdout is non-decreasing over *accepted* policy edits, and human labeling demand decays to a maintenance trickle. The automated gate is now shipped as the §6 experiment crank: a candidate edit is accepted only if system macro-F1 on the experiment's fixed test partition strictly improves (a gate agent can veto a metric-passing edit, never force a failing one); §2 manual SME review remains for hand-driven iteration. Refuted if held-out DQ regresses across accepted versions, or the SME queue does not shrink. Monitored via the §5/§6 DQ-by-version trends and the overturn rate.
+3. **Convergence.** The design target: decision quality on a locked holdout is non-decreasing over *accepted* policy edits, and human labeling demand decays to a maintenance trickle. The automated gate is shipped as the experiment crank: a candidate edit is accepted only if system macro-F1 on the experiment's fixed test partition strictly improves (a gate agent can veto a metric-passing edit, never force a failing one); Manual SME review of proposals remains via the policy API. Refuted if held-out DQ regresses across accepted versions, or the SME queue does not shrink. Monitored via the DQ-by-version trends and the overturn rate.
 
 "Converge" means two things in RUSH, and both are instrumented:
 
-**The policy converges upward — gated by measurement, reviewed by humans.** An edit ships only through a gate. Two paths exist: §2 manual (an SME approves every diff) and the §6 experiment crank, where the gate is automated — commit an edit only when its realized advantage on the experiment's fixed test partition is positive — and the human "critic" reviews the gate's decisions *after* the iteration cycle (each verdict is recorded as future RLHF data for the critic agent). Under the automated gate, decision quality over *accepted* policy versions is non-decreasing on the gate set by construction: DQ(v₀) ≤ DQ(v₁) ≤ …. The raw per-iteration curve is allowed to be non-monotonic — the discipline is early stopping and a best-so-far checkpoint (*the best-so-far guideline, not the last one, is what ships*). The §5 accuracy-by-policy-version trend chart is this claim made visible: watch DQ(v_n) grow as the graph iterates n → n+1.
+**The policy converges upward — gated by measurement, reviewed by humans.** An edit ships only through a gate. Two paths exist: manual (an SME approves every diff via the policy API) and the experiment crank, where the gate is automated — commit an edit only when its realized advantage on the experiment's fixed test partition is positive — and the human "critic" reviews the gate's decisions *after* the iteration cycle (each verdict is recorded as future RLHF data for the critic agent). Under the automated gate, decision quality over *accepted* policy versions is non-decreasing on the gate set by construction: DQ(v₀) ≤ DQ(v₁) ≤ …. The raw per-iteration curve is allowed to be non-monotonic — the discipline is early stopping and a best-so-far checkpoint (*the best-so-far guideline, not the last one, is what ships*). The learning curve over accepted policy steps is this claim made visible: watch DQ(v_n) grow as the graph iterates n → n+1.
 
 **The judge converges to maximum decision quality per dollar.** The system objective is DQ maximization subject to budget — prompt-length budget on the policy, token/dollar budget on the cascade, SME-minute budget on adjudication. The convergence signatures are all measurable and all trend downward as the system matures: escalation rate (fewer items defeat cheap consensus), overturn rate (fewer golden labels get flipped on re-adjudication — a falling overturn rate is the signature of a golden set that is converging), and flip rate across policy versions (the decision function stops moving). Steady state is a maintenance trickle: human attention flows only where the world, the policy, or the model actually moved.
 
@@ -115,7 +115,7 @@ The naive cascade ("escalate disagreements, trust the human, keep the biggest wi
 
 ### Metric definitions, exactly as the board reports them
 
-With golden label y and judge decision ŷ over N items and C classes (one-vs-rest counts per class), the §5 quality board reports: **accuracy**; per-class and **macro recall**; per-class, **macro, and micro FPR** (macro weights every class equally so a rare class's FPR counts as much as a common one's; micro pools counts — on the measured run both land at 0.25%, i.e. errors are not concentrated in one class); **precision and F1** per labeler and for the majority-vote ensemble row; **cost per 1,000 labels**; and **accuracy by policy version**.
+With golden label y and judge decision ŷ over N items and C classes (one-vs-rest counts per class), the decision-quality report (scoring outputs + the judges table) covers: **accuracy**; per-class and **macro recall**; per-class, **macro, and micro FPR** (macro weights every class equally so a rare class's FPR counts as much as a common one's; micro pools counts — on the measured run both land at 0.25%, i.e. errors are not concentrated in one class); **precision and F1** per labeler and for the majority-vote ensemble row; **cost per 1,000 labels**; and **accuracy by policy version**.
 
 **Why FPR gets first-class billing** (and not just precision): downstream prevalence measurement consumes the judge's operating point as (recall r, FPR f) — the forward model is θ_observed = r·θ + f·(1−θ) — and at trust-and-safety base rates, where true violations are a tiny fraction of impressions, even a small f dominates the bias. A judge board that omits FPR cannot be plugged into a corrected metric; RUSH's can.
 
@@ -135,7 +135,7 @@ RUSH's tuning loop is PPO transplanted to a text policy: there are no weights to
 | Reward | Decision-quality delta (accuracy/F1/recall/FPR) on **held-out** data vs the SME key |
 | Critic | An analyst model that reads misalignments and says, in words, where return is being lost |
 | Actor | An editor model that emits **exactly one** trackable, reversible edit |
-| Trust region / PPO clip | The gate: accept an edit only if test-partition system macro-F1 strictly improves **and** the edit stays inside the change budget — shipped in the §6 crank as a hard clip of **1–5 policy-node changes per version** (small enough that a human can review every accepted step), with a gate agent that can veto but never force. Shrink-and-retry for oversized wins remains spec |
+| Trust region / PPO clip | The gate: accept an edit only if test-partition system macro-F1 strictly improves **and** the edit stays inside the change budget — shipped in the crank as a hard clip of **1–5 policy-node changes per version** (small enough that a human can review every accepted step), with a gate agent that can veto but never force. Shrink-and-retry for oversized wins remains spec |
 | KL / entropy regularizer | Brevity penalty — added policy length must pay for itself in held-out decision quality |
 | Reward model | The golden set — **maintained and certified**, not frozen: an SME overturn in adjudication *is* an update to the reward model |
 
@@ -143,7 +143,7 @@ RUSH's tuning loop is PPO transplanted to a text policy: there are no weights to
 
 Why the clip matters here, specifically: with frontier-model editors the binding risk is no longer competence but **strategic overfitting** — clever, hyper-specific patches that fix the sampled batch and degrade the guideline ("an edit that names an item is a memorized point in disguise"). The clip is precisely the control designed to contain that.
 
-**Where the code is today.** Shipped: §2 proposals are single trackable diffs accepted via SME review, with stale-base and cold-start-over-existing guards; accepting materializes v_{n+1}; held-out DQ per policy version is charted in §5. Also shipped: the **§6 experiment crank** (`scripts/run_experiment.py`) — the fully automated advantage/edit-size gate running k seeded cycles end to end: train mini-batch → S1 random misalignment anchors → one 1–5-change clipped edit → candidate eval on a fixed seeded test partition → auto-accept iff system macro-F1 improves (gate agent veto allowed), with every cycle's per-judge accuracy/F1/precision/recall/FPR/FNR, every gate decision, and every post-hoc SME review of the gate recorded (portable JSON + Postgres `rush` schema). Shrink-and-retry on oversized edits remains spec.
+**Where the code is today.** Shipped: proposals are single trackable diffs accepted via SME review, with stale-base and cold-start-over-existing guards; accepting materializes v_{n+1}; held-out DQ per policy version is charted on the learning curve. Also shipped: the **experiment crank** (`scripts/run_experiment.py`) — the fully automated advantage/edit-size gate running k seeded cycles end to end: train mini-batch → S1 random misalignment anchors → one 1–5-change clipped edit → candidate eval on a fixed seeded test partition → auto-accept iff system macro-F1 improves (gate agent veto allowed), with every cycle's per-judge accuracy/F1/precision/recall/FPR/FNR, every gate decision, and every post-hoc SME review of the gate recorded (portable JSON + Postgres `rush` schema). Shrink-and-retry on oversized edits remains spec.
 
 The tokenomics run through the learning loop too: SME labels are expensive, so the loop routes them by expected learning value — boundary cases, judge disagreements, contested items — instead of asking humans to re-label the easy majority. That is RLHF with minimal human intervention: the human signal is concentrated where one label teaches a durable rule.
 
@@ -151,18 +151,29 @@ The tokenomics run through the learning loop too: SME labels are expensive, so t
 
 ## See it live
 
-The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) walks the full loop in six sections:
+The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is three views around one loop:
 
-1. **§1 Sample** — draw dev-golden / locked-holdout splits.
-2. **§2 Grow** — the policy graph and SME-reviewable diff proposals; accepting materializes v_{n+1}.
-3. **§3 Label** — pick the panel and k per split; **Run panel** or **Run cascade** (tier-1 → tier-2 escalation live).
-4. **§4 Score** — consensus, confusion matrix, per-digit F1/recall/FPR, reported test-split tiles, escalation-cascade lanes.
-5. **§5 Quality** — the decision-quality table (accuracy/F1/precision/recall/FPR/FNR per labeler + ensemble), cost per 1k labels, and the accuracy-by-policy-version trend chart — the convergence claim on screen.
-6. **§6 Optimize** — the experiment crank: start a seeded, numbered run (k cycles, batch N, test T, ≤5 changes/edit), watch the learning curve per judge + system (the default x-axis advances only on *accepted* policy steps — skipped candidates render as hollow noise ghosts; switch to every-cycle-k or overlay train mini-batches on demand), audit the gate ledger (per-cycle cost included), step the policy graph through k with per-node diffs vs k=0 + the anchor images that taught each node, read the final 10×10 confusion grid, and record SME verdicts on each gate decision — the critic-of-the-critic data for future RLHF. Gate modes: `agent` (metric rule + gpt-5.5 veto), `metric_only`, or `off` — accept every clipped edit to watch unfiltered policy drift (the metric is recorded, never enforced; live runs only). Every run finalizes a `summary` block (per-scorer baseline/final/delta test metrics + config metadata, mirrored to `rush.experiment.summary`) for cross-run analysis.
+1. **Run the loop** — the experiment crank IS the page. The config panel is grouped by role:
+   * **Judges** — your 2–5 cheap panel models. They label every image and score every metric;
+     all decision-quality numbers (F1 before/after, the learning curve, the gate metric) come from
+     THIS panel. No expensive model ever scores quality.
+   * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low; it drafts, it never
+     judges) writes ONE ≤5-file policy edit per cycle from the misaligned anchors — **the anchor
+     images themselves are attached to its prompt**. "Anchors" picks the selection strategy:
+     `random_misalignment` (S1, unbiased) or `top_gradient` (most-informative-first: panel avg
+     |g| = 1−p descending, confident-wrong panels lead).
+   * **Gate** — deterministic metric rule by default (accept iff panel test macro-F1 strictly
+     improves). Optionally add an expensive gate agent that can VETO a suspicious win — never
+     force one — with every rationale reported in the gate ledger. Or `off` to watch unfiltered drift.
+   * While a run executes: a **live labeling card** (per-model calls, s/call, tok/s, cost) with a
+     **Cancel run** button, live phase text, and the learning curve / ledger / policy graph filling
+     in per cycle. Accepted versions are named **v\<run\>.\<k\>** — run 5 accepting at cycle 3 mints v5.3.
+   Every run finalizes a `summary` block (per-scorer baseline/final/delta test metrics + config
+   metadata, mirrored to `rush.experiment.summary`) for cross-run analysis.
 
-The **Run summary** view (topbar) drills into any run → cycle k → evaluation: every image with each judge's **complete** response — label, policy node, confidence [0,1], difficulty, `is_boundary` + the confusion pair, justification, policy citations and verbatim quotes, tokens and per-call cost — ranked misaligned-first. (Any field a future output template adds falls through to the cards automatically.)
+2. **Run summary** — drills into any run → cycle k → evaluation: every image with each judge's **complete** response — label, policy node, confidence [0,1], difficulty, `is_boundary` + the confusion pair, justification, policy citations and verbatim quotes, tokens and per-call cost — ranked misaligned-first. (Any field a future output template adds falls through to the cards automatically.)
 
-The **Adjudicate** view (topbar) is the running cross-run SME queue: at the end of every run the driver flags each train / test / holdout / benchmark image whose latest evaluation is still misaligned (`readjudication` block in experiment.json, mirrored to `rush.experiment.readjudication`; served by `GET /api/adjudication`). Items are deduped by image sha256 with the flagging run number(s) shown, and stack-ranked by LLM consensus (or lack of it) → avg confidence → avg difficulty across the panel, or by the per-sample gradient formalism (|g| = 1−p, p = confidence if correct else 1−confidence): confident-wrong panels first — the strongest hint that either the policy or the golden label itself needs a human look. Dry runs never queue human work.
+3. **Adjudicate** — the running cross-run SME queue: at the end of every run the driver flags each train / test / holdout / benchmark image whose latest evaluation is still misaligned (`readjudication` block in experiment.json, mirrored to `rush.experiment.readjudication`; served by `GET /api/adjudication`). Items are deduped by image sha256 with the flagging run number(s) shown, and stack-ranked by LLM consensus (or lack of it) → avg confidence → avg difficulty across the panel, or by the per-sample gradient formalism (|g| = 1−p, p = confidence if correct else 1−confidence): confident-wrong panels first — the strongest hint that either the policy or the golden label itself needs a human look. Dry runs never queue human work.
 
 **Cross-run benchmark**: `scripts/build_mnist_validation_split.py` mints a FIXED 1,000-image `validation` split (100/digit from the canonical MNIST test rows, disjoint from dev_golden + holdout, locked like the holdout). `--validation-final` (or the "Benchmark readout" checkbox) scores start + final policy on it — the numbers that compare run numbers and strategies on identical images.
 

@@ -1953,7 +1953,8 @@ function init() {
   initScoreTabs();
   initActiveNav();
   initApi();
-  runSamplerDemo();
+  // Sampler demo retired with the Inspect view (its #sample section is gone).
+  if (document.querySelector('#samplerStatus')) runSamplerDemo();
   refreshRuns(true);
 }
 

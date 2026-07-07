@@ -42,14 +42,27 @@
     bundleCache: {},       // `${area}/${version}` -> { ids, texts } node markdown
     runSummaryCache: {},   // child run_id -> web/summary.json payload (successes only)
     policyChangesToken: 0, // guards overlapping async node-diff renders
-    confusionToken: 0      // guards overlapping async confusion-grid renders
+    confusionToken: 0,     // guards overlapping async confusion-grid renders
+    renderSigs: {},        // panel -> JSON signature of its inputs (skip
+                           // unchanged re-renders so polling never yanks the
+                           // scroll out from under an expanded evidence row)
+    jobToken: null,        // registry job id of the in-flight run (live card)
+    liveTimer: null,
+    listRetryTimer: null   // keeps polling the list while pendingRunNumber set
   };
 
-  // ---- view switcher (loop | inspect) --------------------------------------
+  // Re-render a panel only when its input signature changed.
+  function sigChanged(key, value) {
+    const sig = JSON.stringify(value);
+    if (state.renderSigs[key] === sig) return false;
+    state.renderSigs[key] = sig;
+    return true;
+  }
+
+  // ---- view switcher (loop | summary | adjudicate) --------------------------
 
   function applyView(view) {
     document.body.classList.toggle('view-loop', view === 'loop');
-    document.body.classList.toggle('view-inspect', view === 'inspect');
     document.body.classList.toggle('view-summary', view === 'summary');
     document.body.classList.toggle('view-adjudicate', view === 'adjudicate');
     document.querySelectorAll('#viewSwitcher .view-switcher-option').forEach((button) => {
@@ -65,20 +78,16 @@
     switcher.querySelectorAll('.view-switcher-option').forEach((button) => {
       button.addEventListener('click', () => applyView(button.dataset.view));
     });
-    // Deep links into inspect sections flip the view so the target is visible.
-    const inspectAnchors = new Set(['sample', 'grow', 'label', 'score', 'quality', 'about', 'provenance']);
     const fromHash = location.hash.replace('#', '');
     let view = 'loop';
     try { view = sessionStorage.getItem('rush_view') || 'loop'; } catch (err) { /* ok */ }
-    if (!['loop', 'inspect', 'summary', 'adjudicate'].includes(view)) view = 'loop';
-    if (inspectAnchors.has(fromHash)) view = 'inspect';
+    if (!['loop', 'summary', 'adjudicate'].includes(view)) view = 'loop';
     if (fromHash === 'experiment') view = 'loop';
     if (fromHash === 'summary') view = 'summary';
     if (fromHash === 'adjudicate') view = 'adjudicate';
     applyView(view);
     window.addEventListener('hashchange', () => {
       const anchor = location.hash.replace('#', '');
-      if (inspectAnchors.has(anchor)) applyView('inspect');
       if (anchor === 'experiment' || anchor === 'policyEvolution') applyView('loop');
       if (anchor === 'summary') applyView('summary');
       if (anchor === 'adjudicate') applyView('adjudicate');
@@ -163,7 +172,7 @@
       return;
     }
     const seedRaw = ($('#experimentSeed')?.value || '').trim();
-    const gateChoice = $('#experimentGateModel')?.value || 'openai/gpt-5.5';
+    const gateChoice = $('#experimentGateModel')?.value || 'metric_only';
     const gateMode = gateChoice === 'metric_only' ? 'metric_only'
       : (gateChoice === 'off' ? 'off' : 'agent');
     const payload = {
@@ -177,6 +186,8 @@
       max_changes: Number($('#experimentMaxChanges')?.value || 5),
       gate_mode: gateMode,
       gate_model: gateMode === 'agent' ? gateChoice : 'openai/gpt-5.5',
+      drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
+      strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,
       // k=0 is FIXED: every run starts from the same baseline generator.
@@ -188,12 +199,24 @@
     const runNumber = nextRunNumber();
     statusEl.textContent = `Starting run #${runNumber}…`;
     try {
-      await window.rushApiPostJson('/api/experiments/start', payload);
+      const started = await window.rushApiPostJson('/api/experiments/start', payload);
       state.pendingRunNumber = runNumber;
+      state.jobToken = started?.job_id || started?.run_id || null;
       statusEl.textContent = `Run #${runNumber} starting — it is auto-selected below as soon as the driver checks in.`;
-      window.setTimeout(() => loadList(false), 1800);
-      window.setTimeout(() => loadList(false), 6000);
-      window.setTimeout(() => loadList(false), 12000);
+      // Keep polling the list until the driver's state file shows up (a slow
+      // first cycle used to strand the panel on the PREVIOUS run forever).
+      if (state.listRetryTimer) window.clearInterval(state.listRetryTimer);
+      let attempts = 0;
+      state.listRetryTimer = window.setInterval(() => {
+        attempts += 1;
+        if (state.pendingRunNumber === null || attempts > 40) {
+          window.clearInterval(state.listRetryTimer);
+          state.listRetryTimer = null;
+          return;
+        }
+        loadList(false);
+      }, 3000);
+      window.setTimeout(() => loadList(false), 1500);
     } catch (err) {
       statusEl.textContent = `Start failed: ${err?.message || err}`;
     } finally {
@@ -235,6 +258,7 @@
         state.kgCycleK = null;
         state.followedVersion = null;
         state.expandedCycles.clear();
+        state.renderSigs = {};
         const startStatus = $('#experimentStartStatus');
         if (startStatus) startStatus.textContent = `Run #${started.run_number} is live below.`;
       }
@@ -290,13 +314,18 @@
     }
   }
 
-  function autoFollowPolicy() {
-    // While a run is live, the KG below tracks its newest accepted version —
-    // "watch the policy evolve" without clicking anything. Stepping the graph
-    // by hand (the cycle chips) pauses the auto-follow for that run.
+  function syncPolicyGraphVersion() {
+    // Keep the KG panel on the version the SELECTED run implies: the version
+    // in force at the stepper's k, the base version for a fresh run with no
+    // closed cycles yet (a restarted run must snap back to k=0), the newest
+    // accepted version while a run is live. Manual chip-stepping pauses this
+    // for the run.
     const exp = state.current;
-    if (!exp || exp.status !== 'running' || state.kgManual) return;
-    const version = exp.current_version;
+    if (!exp || state.kgManual) return;
+    const cycles = (exp.cycles || []).filter((c) => typeof c.k === 'number' && c.status !== 'open');
+    const version = cycles.length
+      ? versionInForceAfter(cycles, state.kgCycleK ?? cycles[cycles.length - 1].k)
+      : (exp.base_version || 'v0.1');
     if (version && version !== state.followedVersion) {
       state.followedVersion = version;
       kgShowVersion(version, false);
@@ -381,6 +410,10 @@
       // hosts we just cleared.
       state.policyChangesToken += 1;
       state.confusionToken += 1;
+      state.renderSigs = {};
+      state.jobToken = null;
+      const liveCard = $('#experimentLiveCard');
+      if (liveCard) { liveCard.hidden = true; liveCard.innerHTML = ''; }
       statusLine.textContent = '';
       return;
     }
@@ -413,14 +446,102 @@
           : (exp.status === 'running' ? ' <span class="experiment-cost-note">so far</span>' : '')}</strong></div>
       </div>`;
 
-    renderChart();
-    renderJudgeTable();
-    renderLedger();
-    renderHoldout();
-    renderKgCycles();
-    autoFollowPolicy();
-    renderConfusion();      // async; caches per child run
-    renderPolicyChanges();  // async; token-guarded
+    // Heavy panels re-render ONLY when their inputs changed — the 2.5s poll
+    // must never rebuild the DOM under an expanded evidence row (scroll
+    // jumps). Control listeners call the renderers directly, bypassing sigs.
+    // status is part of every signature: when a run flips running→completed
+    // the cycle array may be unchanged, but the empty-state text and the
+    // "in progress" chart hint must repaint once (and only once).
+    const id = exp.experiment_id;
+    const st = exp.status;
+    if (sigChanged('chart', [id, st, cycles])) renderChart();
+    if (sigChanged('judges', [id, st, cycles])) renderJudgeTable();
+    if (sigChanged('ledger', [id, st, cycles])) renderLedger();
+    if (sigChanged('holdout', [id, st, exp.holdout, exp.benchmark])) renderHoldout();
+    if (sigChanged('kg', [id, st, cycles])) renderKgCycles();
+    syncPolicyGraphVersion();
+    if (sigChanged('confusion', [id, st, cycles])) renderConfusion();      // async; caches per child run
+    if (sigChanged('policyChanges', [id, st, cycles, state.kgCycleK])) renderPolicyChanges(); // async; token-guarded
+    renderLiveCard();       // async; own host, cheap
+  }
+
+  // ---- live labeling card (per-model progress + cancel) ---------------------
+
+  async function discoverJobToken() {
+    // Page reloaded while a run is in flight: find the running experiment job
+    // in the registry so the live card + cancel button work again.
+    try {
+      const payload = await window.rushApiGetJson('/api/jobs?running=1');
+      const jobs = payload?.jobs || [];
+      const experimentId = state.current?.experiment_id;
+      const running = jobs.find((j) => j?.kind === 'experiment'
+        && (!j.experiment_id || !experimentId || j.experiment_id === experimentId));
+      if (running) state.jobToken = running.job_id || null;
+    } catch (err) { /* registry unavailable — the card stays hidden */ }
+  }
+
+  async function renderLiveCard() {
+    const host = $('#experimentLiveCard');
+    if (!host) return;
+    const exp = state.current;
+    if (!exp || exp.status !== 'running') {
+      host.hidden = true;
+      if (host.innerHTML) host.innerHTML = '';
+      return;
+    }
+    if (!state.jobToken) await discoverJobToken();
+    if (!state.jobToken) { host.hidden = true; return; }
+    let payload;
+    try {
+      payload = await window.rushApiGetJson(`/api/runs/${encodeURIComponent(state.jobToken)}/status`);
+    } catch (err) { host.hidden = true; return; }
+    if (state.current?.status !== 'running') { host.hidden = true; return; }
+    const completed = payload?.completed_calls ?? 0;
+    const expected = payload?.expected_calls ?? 0;
+    const cost = payload?.recorded_cost_usd ?? payload?.running_cost_usd_estimate;
+    const pct = expected ? Math.min(100, Math.round((completed / expected) * 100)) : 0;
+    const fmtNum = (v, d = 1) => (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(d) : '—';
+    const rows = (payload?.per_model || []).map((m) => {
+      const name = String(m.model || m.model_id || '');
+      const done = m.calls_done ?? m.n_calls ?? 0;
+      const total = m.calls_total ?? '—';
+      const toks = (m.total_input_tokens || 0) + (m.total_output_tokens || 0);
+      const modelCost = m.total_cost_usd ?? m.total_cost;
+      return `<tr class="${m.done ? 'experiment-live-row--done' : ''}">
+        <td>${esc(name)}<span class="hint"> ${esc(done)}/${esc(total)} call(s)${m.done ? ' · done' : ''}</span></td>
+        <td>${fmtNum(m.avg_s_per_call, 2)}</td>
+        <td>${fmtNum(m.tokens_per_sec)}</td>
+        <td>${fmtNum(m.images_per_min ?? m.throughput_imgs_per_min)}</td>
+        <td>${toks ? toks.toLocaleString() : '—'}</td>
+        <td>${typeof modelCost === 'number' ? `$${modelCost.toFixed(4)}` : '—'}</td>
+      </tr>`;
+    }).join('');
+    host.hidden = false;
+    host.innerHTML = `
+      <div class="experiment-live-head">
+        <strong>Labeling now</strong>
+        <span class="hint">${esc(payload?.run_id || '')}</span>
+        <span class="experiment-live-progress">${esc(completed)} / ${esc(expected)} calls${typeof cost === 'number' ? ` · $${cost.toFixed(4)}` : ''}</span>
+        <button type="button" class="experiment-live-cancel" data-cancel-run>Cancel run</button>
+      </div>
+      <div class="experiment-live-bar"><div style="width:${pct}%"></div></div>
+      ${rows ? `<table class="experiment-live-table">
+        <thead><tr><th>Model</th><th>Avg s/call</th><th>Tokens/sec</th><th>Images/min</th><th>Total tokens</th><th>Cost</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>` : ''}`;
+  }
+
+  async function cancelCurrentRun() {
+    if (!state.jobToken) return;
+    if (!window.confirm('Cancel the in-flight run? The driver finalizes what it already paid for.')) return;
+    try {
+      await window.rushApiPostJson(`/api/runs/${encodeURIComponent(state.jobToken)}/cancel`, {});
+      const statusLine = $('#experimentStatusLine');
+      if (statusLine) statusLine.textContent = 'Cancel requested — the run finalizes as stopped.';
+    } catch (err) {
+      const statusLine = $('#experimentStatusLine');
+      if (statusLine) statusLine.textContent = `Cancel failed: ${err?.message || err}`;
+    }
   }
 
   function renderChartLegend(xMode, showTrain) {
@@ -1250,10 +1371,19 @@
       state.kgManual = false;
       state.kgCycleK = null;
       state.followedVersion = null;
+      state.renderSigs = {};
+      state.jobToken = null;  // the live card re-discovers the job for the newly selected run
       loadDetail(event.target.value);
     });
-    $('#experimentRefresh').addEventListener('click', () => loadList());
+    $('#experimentRefresh').addEventListener('click', () => {
+      state.renderSigs = {};
+      loadList();
+    });
     $('#experimentStart').addEventListener('click', startExperiment);
+    // Delegated: the live card rebuilds every poll, the listener must not.
+    $('#experimentLiveCard')?.addEventListener('click', (event) => {
+      if (event.target?.closest?.('[data-cancel-run]')) cancelCurrentRun();
+    });
     document.addEventListener('change', (event) => {
       if (event.target?.classList?.contains('model-select-input')) renderPanelSummary();
     });

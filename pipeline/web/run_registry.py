@@ -590,6 +590,8 @@ class RunRegistry:
             request["gate_mode"],
             "--drafter-model",
             request["drafter_model"],
+            "--strategy",
+            request.get("strategy") or "random_misalignment",
             "--concurrency",
             str(request["concurrency"]),
         ]
@@ -1044,6 +1046,41 @@ class RunRegistry:
                 }
             )
         return sorted(runs, key=lambda row: row.get("started_at") or "", reverse=True)
+
+    def list_jobs(self, *, running_only: bool = False) -> list[dict[str, Any]]:
+        """Job-level view (experiments included) — lifecycle state per job.
+
+        The loop view uses this after a page reload to re-attach its live
+        labeling card + Cancel button to an in-flight experiment: run dirs
+        alone can't say which JOB owns the currently-labeling child.
+        """
+        out: list[dict[str, Any]] = []
+        if not self.jobs_root.exists():
+            return out
+        for path in sorted(self.jobs_root.glob("job-*.json")):
+            job_id = str(_read_json(path).get("job_id") or path.stem)
+            # is_job_running may finalize a dead job (rewrites the file); read
+            # the state AFTER so status/finished_at reflect that reconciliation.
+            running = self.is_job_running(job_id)
+            if running_only and not running:
+                continue
+            state = _read_json(path)
+            out.append(
+                {
+                    "job_id": job_id,
+                    "kind": state.get("kind") or "run",
+                    "run_id": state.get("run_id"),
+                    "experiment_id": state.get("experiment_id"),
+                    "area": state.get("area"),
+                    "models": state.get("models") or [],
+                    "status": state.get("status"),
+                    "running": running,
+                    "started_at": state.get("started_at"),
+                    "finished_at": state.get("finished_at"),
+                }
+            )
+        out.sort(key=lambda row: str(row.get("started_at") or ""), reverse=True)
+        return out
 
     def status(self, token: str) -> dict[str, Any]:
         state = self.find_job(token)

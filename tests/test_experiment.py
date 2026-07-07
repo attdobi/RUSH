@@ -862,3 +862,99 @@ def test_policy_quotes_hard_capped_at_schema_limit():
     })
     assert len(fields["policy_quotes"][0]) == 600
     assert fields["policy_quotes"][1] == "short"
+
+
+# ---------------------------------------------------------------------------
+# Wave 6: named versions (vRUN.k), top-gradient anchors, multimodal drafter
+
+
+def test_accept_proposal_explicit_version_name(tmp_path):
+    from pipeline.policy_diff import accept_proposal, propose_diff
+
+    graph = tmp_path / "policy-graph" / "MNIST_Digits"
+    (graph / "v0.1").mkdir(parents=True)
+    (graph / "v0.1" / "MD.root.md").write_text("# root v0.1\n", encoding="utf-8")
+
+    proposal = propose_diff(
+        repo_root=tmp_path, run_id="r1", base_version="v0.1", domain="MNIST_Digits",
+        proposed_files={"MD.root.md": "# improved\n"},
+    )
+    accepted = accept_proposal(
+        repo_root=tmp_path, proposal_id=proposal["proposal_id"],
+        allow_branch=True, new_version="v5.3",
+    )
+    assert accepted["new_version"] == "v5.3"
+    assert (graph / "v5.3" / "MD.root.md").exists()
+
+    # Name collision falls back to the global mint instead of failing the
+    # paid accept; bad formats are rejected outright.
+    proposal2 = propose_diff(
+        repo_root=tmp_path, run_id="r2", base_version="v0.1", domain="MNIST_Digits",
+        proposed_files={"MD.root.md": "# improved again\n"},
+    )
+    with pytest.raises(ValueError, match="vMAJOR.MINOR"):
+        accept_proposal(repo_root=tmp_path, proposal_id=proposal2["proposal_id"],
+                        allow_branch=True, new_version="run5-k3")
+    accepted2 = accept_proposal(
+        repo_root=tmp_path, proposal_id=proposal2["proposal_id"],
+        allow_branch=True, new_version="v5.3",
+    )
+    assert accepted2["new_version"] == "v5.4"  # max(v0.1, v5.3) minor + 1
+
+
+def test_select_anchors_top_gradient_ranks_confident_wrong_first():
+    records = [
+        # right at 0.9 -> |g| = 0.1
+        _mis_record("img_low", "7",
+                    [{"label": "7", "confidence": 0.9, "difficulty": "low"}],
+                    mis_type="model_vs_sme", severity="medium"),
+        # wrong at 0.95 -> |g| = 0.95
+        _mis_record("img_high", "7",
+                    [{"label": "1", "confidence": 0.95, "difficulty": "high"}]),
+        # wrong at 0.6 -> |g| = 0.6
+        _mis_record("img_mid", "7",
+                    [{"label": "1", "confidence": 0.6, "difficulty": "medium"}]),
+        # all-abstain -> no gradient signal at all -> ranked first
+        _mis_record("img_nosignal", "7",
+                    [{"label": "abstain", "confidence": None, "difficulty": "high"}],
+                    mis_type="model_vs_sme", severity="medium"),
+        _mis_record("img_agree", "7",
+                    [{"label": "7", "confidence": 0.9, "difficulty": "low"}],
+                    mis_type="all_agree", severity="low"),
+    ]
+    anchors = exp.select_anchors(records, seed=1, k=1, max_anchors=3,
+                                 strategy="top_gradient")
+    assert [a["image_id"] for a in anchors] == ["img_nosignal", "img_high", "img_mid"]
+    with pytest.raises(ValueError, match="unknown anchor strategy"):
+        exp.select_anchors(records, seed=1, k=1, max_anchors=3, strategy="s9")
+
+
+def test_build_drafter_messages_attaches_images_per_provider():
+    anchors = [{"image_id": "img1", "sme_truth": "7", "misalignment_type": "consensus_wrong",
+                "severity": "high", "votes": []}]
+    images = [{"image_id": "img1", "sme_truth": "7",
+               "mime_type": "image/jpeg", "b64": "QUJD"}]
+    base = dict(policy_markdown="# policy", base_version="v0.1",
+                area="MNIST_Digits", anchors=anchors, max_changes=1, k=2)
+
+    plain = exp.build_drafter_messages(**base)
+    assert isinstance(plain[1]["content"], str)
+
+    openai_msgs = exp.build_drafter_messages(**base, anchor_images=images,
+                                             provider="openai")
+    parts = openai_msgs[1]["content"]
+    assert isinstance(parts, list)
+    image_parts = [p for p in parts if p.get("type") == "image_url"]
+    assert image_parts[0]["image_url"]["url"] == "data:image/jpeg;base64,QUJD"
+    assert any(p.get("type") == "text" and "img1" in p.get("text", "")
+               for p in parts)
+
+    anthropic_msgs = exp.build_drafter_messages(**base, anchor_images=images,
+                                                provider="anthropic")
+    blocks = anthropic_msgs[1]["content"]
+    image_blocks = [p for p in blocks if p.get("type") == "image"]
+    assert image_blocks[0]["source"] == {
+        "type": "base64", "media_type": "image/jpeg", "data": "QUJD",
+    }
+    # System stays a plain string either way (anthropic flattens it to text).
+    assert isinstance(openai_msgs[0]["content"], str)

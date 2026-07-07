@@ -1,104 +1,84 @@
 # RUSH demo flow — presenter script
 
-The six sections of the web demo *are* the story. This script walks them top to bottom in ten minutes for a VP/VC audience, with a 3-minute short version and a data-science verification appendix at the end.
+The demo is three tabs around one loop: **Run the loop** (the crank — config, live progress, learning curve, gate ledger, policy graph, confusion grid), **Run summary** (every judgment, per image), and **Adjudicate** (the cross-run SME queue). This script walks them in ten minutes for a VP/VC audience, with a 3-minute short version and a data-science verification appendix.
 
-**Setup (before anyone is in the room):** start the server (`.venv/bin/python scripts/rush_web_server.py --host 127.0.0.1 --port 8766 --repo-root "$PWD"`, or use `rush.attiladobi.com`), open the UI, pick the **MNIST_Digits** demo, and confirm a scored cascade run is loaded so §4 and §5 have data. Keep the **Generative_AI** demo one click away for the "real policy" beat.
+**Setup (before anyone is in the room):** start the server (`.venv/bin/python scripts/rush_web_server.py --host 127.0.0.1 --port 8766 --repo-root "$PWD"`, or use `rush.attiladobi.com`), open the UI, pick the **MNIST_Digits** demo, and confirm a completed run with accepted cycles is selected so the learning curve and ledger have data. Keep the **Generative_AI** demo one click away for the "real policy" beat.
 
-**The three money moments**, in order: the **cascade lanes** (§4), the **confusion matrix** (§4), and the **DQ-per-policy-version convergence chart** (§5). Everything else is connective tissue.
+**The three money moments**, in order: the **learning curve over accepted policy steps**, the **gate ledger with anchor-image evidence**, and the **adjudication queue** (the system telling the expert where their minutes matter). Everything else is connective tissue.
 
-**One framing sentence to open:** *"Your policy team writes the guideline. RUSH turns it into a production judge — cheap models handle the easy majority, a high-reasoning model handles genuine ambiguity, and humans only ever see the cases where they change the answer."*
+**One framing sentence to open:** *"Your policy team writes the guideline. RUSH turns it into a production judge — cheap models handle the easy majority, genuine ambiguity escalates, and humans only ever see the cases where they change the answer."*
 
 ---
 
-## The 10-minute walk (§1 → §6)
+## The 10-minute walk
 
-### §1 Sample — "every honest metric starts with an honest sample" (~1 min)
+### 1. The config panel — three roles, priced honestly (~2 min)
 
-**Click:** Sample the golden set — N images per class into **dev golden** (train) and **locked holdout** (test).
+**Click:** expand "How this works" at the top of the loop view, then point at the three config groups.
 
-**Say:** Two splits with one job each. Train drives policy updates; test is the reported number. The exporter *refuses* to blend them — if a metric tile says "reported," it is test-split only, by construction.
+**Say:** Three roles, three price points. The **judges** are your cheap panel — they label every image and they score every metric; every decision-quality number on this page comes from them, never from an expensive model. The **drafter** is the optimizer: once per cycle it reads the most instructive misaligned images — the actual pixels are attached to its prompt — and writes ONE policy edit of at most five files. It drafts, it never judges, so a cheap drafter is a legitimate choice. The **gate** is a deterministic rule — accept the edit only if the panel's test macro-F1 strictly improves — with an *optional* expensive agent that can veto a suspicious win but can never force one, and every rationale it writes lands in the ledger.
 
-**Notice (for the DS in the room):** if test ever comes out above train, we treat it as a leakage hunt, not good news.
+**Notice:** the judge picker shows measured $/1k-labels and seconds/image from real recorded runs (local gemma and qwen are free); the anchor selector offers unbiased random (S1) or top-gradient — confident-wrong panels first, |g| = 1−p.
 
-### §2 Grow — "the policy graph is the product" (~2 min)
+### 2. Start a run — live, cancellable, seeded (~1 min)
 
-**Click:** Open the policy graph. Show a node's Markdown. Show the version badge (v0.0 → v0.1 → …). If a proposal is pending, open it.
+**Click:** Start run. The live card appears: per-model calls, seconds/call, tokens/sec, cost so far, a progress bar, and a **Cancel run** button.
 
-**Say:** This document is what the policy team owns and what the models judge with — **same bytes**. There is no translation layer to drift. When the loop finds misalignments, it drafts a *policy diff* — one trackable edit with the evidence attached — and queues it here for SME review. Accepting it materializes the next version.
+**Say:** Every run is numbered and seeded — fully reproducible — and starts from the same fixed baseline policy, so run numbers are comparable experiments, not vibes. Watch the phase line: it streams which cycle is labeling, how many calls are done, and what it has cost so far.
 
-**Notice:** a non-engineer can read every rule and every proposed change. The SME's job shifts from labeling thousands of images to approving a handful of well-argued edits. AI surfaces, SME approves.
+### 3. The learning curve + judges table — money moment #1 (~2 min)
 
-### §3 Label — the cascade runs (~2 min)
+**Say:** One line per judge plus the white system line. The x-axis only advances on *accepted* policy steps — a skipped candidate is sampling noise, shown as a hollow ghost, not learning. Accepted versions are named **v‹run›.‹k›** — v5.3 means run 5 accepted an edit at cycle 3. The judges table shows every metric with its delta against k=0 — per judge and for the system.
 
-**Click:** Show the model picker with live per-model cost and speed from real recorded runs (local gemma ~3.2 s/img and qwen2.5-vl ~4 s/img, free; hosted cheap-tier models at fractions of a cent per image). Hit **Run cascade**.
+**Honesty beat, if a DS asks:** the gate set is formally a validation set (the loop adapts to it); that's exactly why the locked 500-image holdout and the fixed 1,000-image cross-run benchmark exist — tick "Benchmark readout" and run-vs-run numbers land on identical images.
 
-**Say:** Five cheap models label everything — tier 1, and it costs almost nothing: in the measured run, **2,000 calls attempted, 1,920 completed for $4.28 of hosted spend** (80 errored; the run finalized completed-with-errors — the honesty semantics working as designed), about **$2.23 per thousand completed labels**. Where they agree confidently, we're done. Where they hedge or split, the image escalates to a single high-reasoning judge — tier 2. Whatever tier 2 can't resolve falls through, honestly, to the human SME queue — tier 3. Even errored calls fall through; nothing vanishes.
+### 4. The gate ledger — money moment #2 (~2 min)
 
-**Notice:** the escalation trigger is panel-size-aware and tuned on measurement, not intuition — single-hedger flags were measured to be pure noise (98 of 98 had correct majorities), so they don't escalate.
+**Click:** expand a cycle's evidence row: the anchor images that drove the edit, each judge's vote against SME truth, and the proposed diff.
 
-### §4 Score — money moments #1 and #2 (~3 min)
+**Say:** Every accepted step is small enough for a human to read — never more than five node files — and every gate decision carries its metric evidence, the diff, and (when the agent gate is on) the agent's rationale. The SME reviews the gate's decisions *after* the loop — correct, incorrect, unsure — and every verdict is recorded as training data for the critic itself. The expert isn't removed; they're repositioned.
 
-**Click:** Open the scored run: the **escalation-cascade lanes** first, then the **confusion matrix** and per-digit F1/recall/FPR.
+**Notice:** the policy graph below steps through k with per-node diffs vs k=0 and the anchor images that taught each node; the 10×10 confusion grid at the bottom shows where the remaining difficulty lives under the final policy.
 
-**Say (lanes):** 35.5% of images escalated. The 258 that didn't were **100.0% correct** — and say the caveat out loud: on a saturated toy task, n=258, treat it as a trigger-validation result, ~98.6% lower bound, not a guarantee. Every single error in this run lives in the escalated lane — the expensive model and the human only ever see cases where they can change the answer. This is the tokenomics thesis as a picture: cost concentrates exactly where difficulty concentrates.
+### 5. Run summary — every judgment, inspectable (~1 min)
 
-**Say (confusion matrix):** and here is *where* the remaining difficulty lives — which classes get confused with which. Those confusions feed straight back into the policy graph as `confused_with` edges and become the evidence for the next proposed edit. Measurement and policy improvement are the same pipeline.
+**Click:** the Run summary tab; pick the run and a cycle; expand a misaligned row.
 
-**Notice:** the train/test lanes — only train-split misalignments become policy-update candidates; test stays a pure ruler.
+**Say:** Nothing here is a black box. Every image, every judge, the full response — label, confidence, difficulty, boundary flag, the policy nodes it cited, verbatim quotes from the policy, tokens, cost. Ranked misaligned-first so the interesting rows are on top.
 
-### §5 Quality — money moment #3: the convergence chart (~2 min)
+### 6. Adjudicate — money moment #3: the SME queue (~2 min)
 
-**Click:** The decision-quality table (accuracy/F1/precision/recall/FPR per labeler *and* the majority-vote ensemble, with cost per 1k labels), then the **accuracy-by-policy-version trend chart**.
+**Click:** the Adjudicate tab. Sort by the default composite, then flip to gradient.
 
-**Say:** Two things converge here. First, the ensemble row: cheap consensus at **97.7% accuracy and 0.25% false-positive rate** at ~$2.23 per 1,000 completed labels — that is the production metric. Second, the trend: decision quality per policy version. The design target is a non-decreasing accepted-version curve, and this chart is where that discipline shows up. And the two convergences are coupled: as the policy improves, fewer items hedge, escalation falls, and the same decision quality costs less each iteration.
-
-**Notice:** the reported tiles are test-split only, and the x-axis is policy versions, not the calendar — the chart plots the policy team's work.
-
-**Close:** *"Measured here: ~$2.23 per thousand completed labels with zero errors leaking past the trigger in this run. The at-scale comparison — $710K of 3× human review per million images versus under $71K, with prompt caching pushing toward 1/50th — is the exec-brief target this mechanism exists to hit, illustrative rather than measured."*
-
-### §6 Optimize — the crank: the loop runs itself (~2 min)
-
-**Click:** §6, pick the latest experiment (or start one: judges come from the §3 panel; k cycles × batch N, test T, ≤5 changes per edit, a seed). Watch the trajectory chart and the gate ledger fill per cycle.
-
-**Say:** Everything you just saw by hand, this section runs as a numbered, seeded experiment — the demo becomes an instrument. Each cycle: a fresh seeded train mini-batch, random misalignment anchors, ONE clipped policy edit — never more than five node changes, so a human can review every accepted step — evaluated on a fixed test partition, then the PPO-style gate: auto-accept only if the system-of-judges macro-F1 improves; a gpt-5.5 gate agent can veto a suspicious win but can never force a losing edit through. Accepted edits become real policy versions — click "View in KG" and §2 shows the new node. The human expert isn't removed, they're **repositioned**: instead of approving every diff in the loop, they audit the gate's decisions afterward — and every verdict is recorded as training data for the critic itself.
-
-**Notice:** solid lines are the test partition, dashed are the train batches, one line per judge plus the white system line; ▲ marks accepted cycles with their version. The locked holdout is never touched by the loop — it's scored only at the start and final versions for the untouched before/after readout.
-
-**Honesty beat, if a DS asks:** the gate set is formally a validation set (the loop adapts to it); that's exactly why the locked holdout exists. And a flat line at 100% is the trust region working — on a saturated test partition there is no measurable advantage, so nothing ships.
-
-**Cross-run comparability:** per-run gate sets are seeded from dev_golden, so run-vs-run numbers aren't directly comparable. The FIXED 1,000-image `validation` split (canonical MNIST test rows, disjoint from dev_golden + holdout, locked) is scored start + final with the "Benchmark readout" checkbox — those are the numbers that compare run numbers and strategies on identical images.
-
-**Close the loop with the human (Adjudicate tab):** whatever the run could NOT fix, it hands to the expert. Every image still misaligned under its latest evaluation lands in the cross-run adjudication queue, ranked by lack of LLM consensus → confidence → difficulty, or by the gradient formalism (confident-wrong first — the cases where the golden label itself may be wrong). *"The system doesn't just improve the policy; it ends each run by telling the SME exactly where their scarce minutes matter most."*
+**Say:** Whatever the loop could NOT fix, it hands to the expert — deduped across runs, with the run numbers that flagged it. Two rankings, two questions: the consensus→confidence→difficulty composite surfaces *panel-confused* items — the policy is unclear. The gradient ranking (|g| = 1−p, confident-wrong first) surfaces panels that are unanimously, confidently wrong — the strongest hint that the *golden label itself* may be wrong. That's the overturn workflow: the system doesn't just improve the policy; it ends each run by telling the SME exactly where their scarce minutes matter most.
 
 ---
 
 ## The 3-minute VC version
 
-Skip §1 and §2. Three stops:
+Three stops:
 
-1. **§3, Run cascade (30 s).** *"Five cheap models label everything for about $2.23 per thousand completed labels. Only genuine disagreement escalates."* Point at the live cost badge.
-2. **§4, cascade lanes (90 s).** *"35.5% escalated. The 64.5% the cheap tier kept had zero errors in this run — every error lives in the escalated lane. Expensive judgment is spent only where it changes the answer. That is the entire cost thesis, measured — with the toy-task caveat in the appendix."*
-3. **§6, the crank (60 s).** *"And it improves itself: one click runs k cycles of label → propose → gate. Every accepted edit had to beat the current policy on a held-out test partition, every edit is small enough for a human to read, and the expert audits the gate instead of sitting inside the loop. The design target is a curve that only goes up while cost per decision goes down. Illustrative at platform scale: $710K of human review per million images → under $71K, with orders-of-magnitude faster turnaround (~24h vs multi-week BPO cycles)."*
+1. **The loop config (30 s).** *"Cheap models judge and score everything — about $2 per thousand labels measured. The expensive model only ever drafts policy edits or vetoes a suspicious win. Nobody expensive is in the scoring path."*
+2. **The learning curve + ledger (90 s).** *"One click runs k cycles of label → draft → gate. Every accepted edit had to beat the current policy on a fixed test partition, every edit is five files or fewer so a human can read it, and the expert audits the gate instead of sitting inside the loop. The design target is a curve that only goes up while cost per decision goes down. Illustrative at platform scale: $710K of human review per million images → under $71K, with orders-of-magnitude faster turnaround."*
+3. **Adjudicate (60 s).** *"And the residue is not a backlog, it's a ranked queue: lack of consensus means the policy is unclear; confident-wrong means the golden label might be. Human attention flows only where it changes a rule."*
 
-If they ask "what's the moat?": open a §2 policy node. *"The moat is this document — the policy, its edge cases, and the reasons, versioned and tested against production. Same bytes the judge runs on. Swap any model out; the asset stays."*
+If they ask "what's the moat?": open a policy node in the graph. *"The moat is this document — the policy, its edge cases, and the reasons, versioned and tested against production. Same bytes the judge runs on. Swap any model out; the asset stays."*
 
 ---
 
-## DS appendix — claim → where to verify it in the UI
+## DS appendix — claim → where to verify it
 
 | Claim | Number | Verify in |
 |---|---|---|
-| Cheap-tier ensemble decision quality | 97.7% accuracy on the 400-image run (396 of 400 had a decisive majority; 387/396 correct), 97.7% macro recall | §5 quality table, ensemble row (test-split tiles in §4) |
-| False-positive rate, macro and micro | 0.25% / 0.25% | §5 quality table + §4 per-digit FPR |
-| Cheap-tier cost | $4.28 for 1,920 of 2,000 calls completed (80 errored; run finalized completed-with-errors) ≈ $2.23 per 1k completed labels | §3 live cost badge; `run_manifest.json` per-run ledger |
-| Escalation rate | 142/400 = 35.5% | §4 escalation-cascade lanes |
-| Cheap-resolved correctness | 258/258 correct in this run (trigger-validation result, ~98.6% lower bound — saturated toy task) | §4 cheap-resolved lane vs golden labels |
-| Single-hedger flags are noise | 98/98 correct majorities | §4 consensus/audit view (boundary-voter counts) |
-| Split discipline | train updates / test reports, never blended | §1 split badges; §4 reported tiles are test-only |
-| Policy versioning + gated edits | v_n → v_{n+1} only via SME-accepted diff | §2 version badge + proposal review flow |
-| Convergence over accepted versions | The §6 gate accepts an edit only on strict test-partition system macro-F1 improvement (≤5 changes/edit; gate agent can veto, never force), so DQ over accepted versions is non-decreasing on the gate set by construction; locked holdout scored at start/final only | §6 trajectory chart + gate ledger; §5 accuracy-by-policy-version chart |
-| Gate auditability (RLHF of the critic) | every gate decision carries the metric evidence, diff, rationale, and a post-hoc SME verdict (correct/incorrect/unsure) stored in `rush.gate_review` | §6 gate ledger review buttons; `data/experiments/<id>/agents/` |
-| Error honesty | errored tier-2 calls join the SME queue | §4 SME-queue lane; completed-with-errors run badge |
-| Per-model speed/cost provenance | gemma ~3.2 s/img, qwen ~4 s/img, $0 | §3 model picker (from recorded runs) |
+| Cheap-panel ensemble decision quality | 97.7% accuracy on the 400-image cascade run (396/400 decisive; 387/396 correct), 97.7% macro recall, 0.25% FPR | Judges table on any scored run; `data/runs/<id>/scoring/` |
+| Cheap-tier cost | $4.28 for 1,920/2,000 completed calls ≈ $2.23 per 1k completed labels | judge-picker cost badges; `run_manifest.json` per-run ledger |
+| Escalation cascade (tier-1 → tier-2 → SME) | 142/400 = 35.5% escalated; 258 cheap-resolved, all correct in that run | `scripts/run_cascade.py` / `POST /api/runs/start-cascade` artifacts (CLI/API; the §-based cascade UI was retired with the Inspect tab) |
+| Split discipline | train updates / test reports / holdout + benchmark locked | experiment.json `splits`; manifest `split` fields; `HOLDOUT_SPLITS` in `pipeline/manifest.py` |
+| Gate semantics | accept iff test system macro-F1 strictly improves; ≤5 changes/edit; agent can veto, never force | gate ledger rows + `rush.gate_decision`; `resolve_gate_decision` truth table tests |
+| Version naming | v‹run›.‹k› = run R accepted at cycle k, branching from the fixed v0.1 baseline | policy-graph dir + KG version picker + `rush.generator_version.parent_id` |
+| Gate auditability (RLHF of the critic) | every decision carries metric evidence, diff, rationale, post-hoc SME verdict | ledger review buttons; `rush.gate_review`; `data/experiments/<id>/agents/` |
+| Cross-run benchmark | fixed 1,000 images (100/digit, canonical MNIST test rows), scored start + final | "Benchmark readout" checkbox; `summary.benchmark_system` |
+| SME queue ranking | consensus → confidence → difficulty composite, or gradient \|g\| = 1−p | Adjudicate tab sort modes; `rush.sample_gradient` view |
+| Error honesty | errored calls fall through, runs finalize completed-with-errors | run badges; `completed_with_errors` in status payloads |
 
-Ground rules when challenged: every measured number above traces to recorded run `20260706T042415-1b258772` in `data/runs/` (gitignored — run artifacts live on the demo machine; the repo carries the code paths that regenerate them) or a unit-tested code path (458 tests pass; 461 collected, 3 skipped). Tier-2 accuracy on the escalated set is **deliberately not quoted** — mechanics are shipped, numbers land with the next scored run. All Pinterest-scale figures ($710K → <$71K, orders-of-magnitude faster turnaround, 85.7% internal-pilot consensus accuracy) are exec-brief targets and internal pilot figures, labeled illustrative, and should be presented as such.
+Ground rules when challenged: every measured number traces to a recorded run under `data/runs/` or a unit-tested code path (521 tests pass). Tier-2 accuracy on the escalated set is **deliberately not quoted** — mechanics are shipped, numbers land with the next scored run. All Pinterest-scale figures ($710K → <$71K, ~24h vs multi-week BPO cycles, 85.7% internal-pilot consensus accuracy) are exec-brief targets and internal pilot figures, labeled illustrative, and should be presented as such.

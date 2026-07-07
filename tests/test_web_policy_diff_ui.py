@@ -26,8 +26,10 @@ def test_policy_diff_version_chips_have_single_current_placeholder() -> None:
 
     assert "Policy ${currentVersion} · current" in source
     assert "payload.build_version || (payload.base_version ? `${payload.base_version}+`" in source
-    assert "proposalVersionArrow" in html
-    assert "proposalBuildVersionLabel" in html
-    # Cache-buster: any versioned query string on policy-diff.js is fine.
-    import re as _re
-    assert _re.search(r"policy-diff\.js\?v=[^\"']+", html)
+    # The proposal UI was unmounted with the Inspect tab (2026-07-07); the
+    # module and its markup contract survive for a future re-mount, but
+    # index.html no longer carries the host elements.
+    assert "proposalVersionArrow" not in html
+    assert "proposalBuildVersionLabel" not in html
+    # The module is no longer loaded by the page at all.
+    assert "policy-diff.js" not in html

@@ -463,6 +463,18 @@ def validate_cascade_payload(payload: dict[str, Any]) -> dict[str, Any]:
     return request
 
 
+def _experiment_strategy(value: object) -> str:
+    strategy = str(value or "random_misalignment")
+    allowed = {"random_misalignment", "top_gradient"}
+    if strategy not in allowed:
+        raise APIError(
+            400, "validation_error",
+            "strategy must be one of: " + ", ".join(sorted(allowed)),
+            details={"field": "strategy"},
+        )
+    return strategy
+
+
 def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate ``POST /api/experiments/start`` JSON (the crank launcher).
 
@@ -586,7 +598,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "batch_n": _int_field("batch_n", 20, 2, 200),
         "test_n": _int_field("test_n", 100, 10, 1000),
         "max_changes": _int_field("max_changes", 5, 1, 5),
-        "max_anchors": _int_field("max_anchors", 8, 1, 20),
+        "max_anchors": _int_field("max_anchors", 10, 1, 20),
         "concurrency": _int_field("concurrency", 4, 1, 4),
         "epsilon": float(epsilon),
         "gate_mode": gate_mode,
@@ -594,6 +606,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "drafter_model": _agent_model(
             "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
         ),
+        "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),
         "validation_final": bool(payload.get("validation_final")),
