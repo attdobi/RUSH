@@ -519,7 +519,9 @@ GATE_SYSTEM_PROMPT = (
     "candidate when the edit itself is unsound — e.g. it leaks ground-truth "
     "answers, overfits to named examples instead of stating a general "
     "guideline, targets one judge model's quirks, tells judges to abstain or "
-    "defer instead of committing to a label, or is incoherent with the "
+    "defer instead of committing to a label, piles class- or pair-specific "
+    "rules into the root file instead of the owning class/boundary node, or "
+    "is incoherent with the "
     "policy's structure. You can NEVER accept a metric-failing candidate. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
@@ -677,7 +679,20 @@ DRAFTER_SYSTEM_PROMPT = (
     "From the misaligned samples, draft the SINGLE most impactful policy "
     "improvement as minimal full-file markdown changes. HARD BUDGET: at most "
     "{max_changes} file changes total (modified + added + removed combined); "
-    "fewer is better — one focused, human-reviewable change is ideal. State "
+    "fewer is better — one focused, human-reviewable change is ideal. "
+    "TARGET THE MOST SPECIFIC NODE THAT OWNS THE ERROR: class-specific "
+    "guidance belongs in that class's own node file (e.g. MD.digit.4.md), "
+    "and guidance about ONE confusion pair belongs in a dedicated boundary "
+    "node. The root file is the decision procedure — treat it as effectively "
+    "frozen and touch it only when no more specific node can carry the rule; "
+    "piling rules into the root is a defect, not an improvement. When "
+    "several anchors share one confusion pair (truth A misread as B), PREFER "
+    "ADDING a new boundary node — a file named like MD.boundary.4_vs_9.md "
+    "whose frontmatter mirrors a sibling node's shape with node_type "
+    "'boundary', parent set to the true class's node id, polarity 'mixed', "
+    "status 'draft', and frontmatter edges of type 'confused_with' pointing "
+    "at BOTH class nodes — so the graph grows a visible boundary case "
+    "instead of a longer root. State "
     "general, model-agnostic guidance (clear definitions, boundary rules, "
     "canonical examples); NEVER encode per-image answers or ground-truth "
     "labels. The policy must always demand a decisive label: NEVER add "
@@ -793,6 +808,91 @@ def fake_gate_callable() -> Callable[..., str]:
 
 def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+SUMMARY_METRIC_KEYS = (
+    "accuracy", "macro_f1", "macro_precision", "macro_recall",
+    "macro_fpr", "macro_fnr", "micro_f1", "n", "n_abstained",
+)
+
+
+def build_run_summary(state: dict[str, Any]) -> dict[str, Any]:
+    """End-of-run analysis record (Attila 2026-07-06).
+
+    Per-scorer test metrics at k=0 and at the final cycle plus their deltas,
+    with the run metadata needed to write a cross-run analysis later without
+    re-opening cycle records. Written into experiment.json and mirrored to
+    ``rush.experiment.summary``.
+    """
+    cycles = [c for c in state.get("cycles", []) if isinstance(c.get("k"), int)]
+    base_cycle = next((c for c in cycles if c["k"] == 0), None)
+    final_cycle = cycles[-1] if cycles else None
+    base_metrics = ((base_cycle or {}).get("metrics") or {}).get("test") or {}
+    final_metrics = ((final_cycle or {}).get("metrics") or {}).get("test") or {}
+
+    def _row(metrics: dict[str, Any], scorer: str) -> dict[str, Any]:
+        m = metrics.get(scorer) or {}
+        return {key: m.get(key) for key in SUMMARY_METRIC_KEYS}
+
+    per_scorer: dict[str, Any] = {}
+    for scorer in sorted(set(base_metrics) | set(final_metrics)):
+        baseline = _row(base_metrics, scorer)
+        final = _row(final_metrics, scorer)
+        delta: dict[str, Any] = {}
+        for key in SUMMARY_METRIC_KEYS:
+            b, f = baseline.get(key), final.get(key)
+            numeric = (
+                isinstance(b, (int, float)) and not isinstance(b, bool)
+                and isinstance(f, (int, float)) and not isinstance(f, bool)
+            )
+            delta[key] = round(f - b, 6) if numeric else None
+        per_scorer[scorer] = {"baseline": baseline, "final": final, "delta": delta}
+
+    holdout = state.get("holdout") or {}
+    benchmark = state.get("benchmark") or {}
+
+    def _system_row(block: dict[str, Any], tag: str) -> dict[str, Any] | None:
+        metrics = ((block.get(tag) or {}).get("metrics") or {}).get(SYSTEM_SCORER)
+        if not metrics:
+            return None
+        return {key: metrics.get(key) for key in SUMMARY_METRIC_KEYS}
+
+    return {
+        "recorded_at": utcnow_iso(),
+        "experiment_id": state.get("experiment_id"),
+        "run_number": state.get("run_number"),
+        "status": state.get("status"),
+        "area": state.get("area"),
+        "seed": state.get("seed"),
+        "config": {
+            key: state.get(key)
+            for key in (
+                "k_max", "batch_n", "test_n", "max_changes", "max_anchors",
+                "epsilon", "strategy", "gate_mode", "gate_model",
+                "drafter_model", "judge_models", "concurrency", "dry_run",
+            )
+        },
+        "policy": {
+            "base_version": state.get("base_version"),
+            "final_version": state.get("current_version"),
+            "accepted_cycles": [c["k"] for c in cycles if c.get("status") == "accepted"],
+            "n_cycles": max(0, len(cycles) - 1),
+        },
+        "cost_usd_total": state.get("cost_usd_total"),
+        "started_at": state.get("started_at"),
+        "finished_at": state.get("finished_at"),
+        "test_metrics": per_scorer,
+        "holdout_system": (
+            {"start": _system_row(holdout, "start"), "final": _system_row(holdout, "final")}
+            if holdout else None
+        ),
+        # The fixed cross-run validation split — the benchmark numbers that
+        # compare run numbers / strategies on identical images.
+        "benchmark_system": (
+            {"start": _system_row(benchmark, "start"), "final": _system_row(benchmark, "final")}
+            if benchmark else None
+        ),
+    }
 
 
 def write_state(repo_root: Path | str, state: dict[str, Any]) -> Path:

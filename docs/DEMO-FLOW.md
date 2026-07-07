@@ -66,6 +66,8 @@ The six sections of the web demo *are* the story. This script walks them top to 
 
 **Honesty beat, if a DS asks:** the gate set is formally a validation set (the loop adapts to it); that's exactly why the locked holdout exists. And a flat line at 100% is the trust region working — on a saturated test partition there is no measurable advantage, so nothing ships.
 
+**Cross-run comparability:** per-run gate sets are seeded from dev_golden, so run-vs-run numbers aren't directly comparable. The FIXED 1,000-image `validation` split (canonical MNIST test rows, disjoint from dev_golden + holdout, locked) is scored start + final with the "Benchmark readout" checkbox — those are the numbers that compare run numbers and strategies on identical images.
+
 ---
 
 ## The 3-minute VC version

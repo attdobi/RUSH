@@ -596,6 +596,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),
+        "validation_final": bool(payload.get("validation_final")),
         "live": live,
         "allow_spend": bool(payload.get("allow_spend")),
     }

@@ -244,11 +244,14 @@ CREATE TABLE IF NOT EXISTS rush.experiment (
   epsilon        NUMERIC NOT NULL DEFAULT 0,   -- accept iff f1_after > f1_before + epsilon
   base_generator TEXT,                         -- policy version at k=0 (e.g. 'MNIST_Digits.v0.1')
   config         JSONB NOT NULL DEFAULT '{}'::jsonb,
+  summary        JSONB,                        -- end-of-run analysis record: per-scorer
+                                               -- baseline/final/delta test metrics + metadata
   status         TEXT NOT NULL DEFAULT 'running'
     CHECK (status IN ('running','completed','failed','stopped')),
   started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at    TIMESTAMPTZ
 );
+ALTER TABLE rush.experiment ADD COLUMN IF NOT EXISTS summary JSONB;
 
 CREATE TABLE IF NOT EXISTS rush.experiment_cycle (
   experiment_id       TEXT NOT NULL REFERENCES rush.experiment(experiment_id),

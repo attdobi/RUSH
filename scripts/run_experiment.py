@@ -378,6 +378,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--allow-spend", action="store_true")
     ap.add_argument("--holdout-final", action="store_true",
                     help="Score the LOCKED holdout under start + final versions at the end.")
+    ap.add_argument("--validation-final", action="store_true",
+                    help="Score the FIXED cross-run validation split (split='validation', "
+                         "same images every run) under start + final versions — the "
+                         "benchmark numbers for comparing run numbers/strategies.")
     ap.add_argument("--manifest", type=Path, default=None)
     return ap.parse_args(argv)
 
@@ -438,6 +442,23 @@ def main(argv: list[str] | None = None) -> int:
         records, seed=seed, test_n=args.test_n
     )
     holdout_ids = sorted(r.sample_id for r in records if r.split == "holdout")
+    validation_records = [r for r in records if r.split == "validation"]
+    validation_ids = sorted(r.sample_id for r in validation_records)
+    if args.validation_final:
+        if not validation_ids:
+            print("[experiment] --validation-final: manifest has no validation split; "
+                  "mint it once with scripts/build_mnist_validation_split.py", file=sys.stderr)
+            return 2
+        # Fail fast BEFORE any spend if the benchmark images aren't on disk
+        # (e.g. a clone whose manifest was committed without the payloads).
+        missing = [r.sample_id for r in validation_records
+                   if not (ROOT / r.repo_rel_path).exists()]
+        if missing:
+            print(f"[experiment] --validation-final: {len(missing)} validation images "
+                  f"missing on disk (first: {missing[0]}); re-run "
+                  "scripts/build_mnist_validation_split.py or unpack_mnist.py",
+                  file=sys.stderr)
+            return 2
 
     state: dict[str, Any] = {
         "experiment_id": experiment_id,
@@ -474,6 +495,7 @@ def main(argv: list[str] | None = None) -> int:
         "cost_usd_total": 0.0,
         "cycles": [],
         "holdout": None,
+        "benchmark": None,
     }
     exp.write_state(ROOT, state)
     print(
@@ -932,6 +954,9 @@ def main(argv: list[str] | None = None) -> int:
         # ---- optional locked-holdout before/after readout
         if args.holdout_final and holdout_ids:
             holdout: dict[str, Any] = {"n": len(holdout_ids)}
+            # Bind into state BEFORE the legs run: a stop/failure between the
+            # 'start' and 'final' passes must not discard the paid readout.
+            state["holdout"] = holdout
             plan = [("start", base_version)]
             if state["current_version"] != base_version:
                 plan.append(("final", state["current_version"]))
@@ -958,7 +983,39 @@ def main(argv: list[str] | None = None) -> int:
             if "final" not in holdout:
                 # No accepted edits: final == start, no second spend needed.
                 holdout["final"] = holdout["start"]
-            state["holdout"] = holdout
+
+        # ---- optional FIXED cross-run benchmark readout (same images every
+        # run; the numbers that compare run numbers / strategies fairly).
+        if args.validation_final and validation_ids:
+            benchmark: dict[str, Any] = {"n": len(validation_ids), "split": "validation"}
+            # Same partial-persistence contract as the holdout block above.
+            state["benchmark"] = benchmark
+            plan = [("start", base_version)]
+            if state["current_version"] != base_version:
+                plan.append(("final", state["current_version"]))
+            for tag, version in plan:
+                _phase(f"benchmark readout: {version} on fixed validation "
+                       f"({len(validation_ids)})")
+                run = _run_child(
+                    models=models, area=area, sample_ids=validation_ids, manifest=manifest,
+                    concurrency=args.concurrency, batch_size=args.batch_size, live=live,
+                    policy_version=version, allow_holdout=True,
+                    label=f"benchmark eval {version}",
+                    on_progress=_progress_phase(f"benchmark readout: {version}"),
+                )
+                last_run_id = run["run_id"]
+                _add_cost(_run_cost(run["run_id"]))
+                _ingest(run["run_id"])
+                benchmark[tag] = {
+                    "version": version,
+                    "run_id": run["run_id"],
+                    "metrics": exp.load_run_panel_metrics(
+                        _run_dir(run["run_id"]), manifest, task=task,
+                        restrict_ids=validation_ids,
+                    ),
+                }
+            if "final" not in benchmark:
+                benchmark["final"] = benchmark["start"]
 
         state["status"] = "completed"
     except ExperimentStopped as stop_exc:
@@ -989,6 +1046,9 @@ def main(argv: list[str] | None = None) -> int:
         f"{max(0, len(state['cycles']) - 1)} cycles, "
         f"{state['base_version']} -> {state['current_version']}"
     )
+    # End-of-run analysis record: per-scorer baseline/final/delta test metrics
+    # + run metadata, for writing cross-run analyses without re-opening cycles.
+    state["summary"] = exp.build_run_summary(state)
     _sync()
 
     # Human-readable summary

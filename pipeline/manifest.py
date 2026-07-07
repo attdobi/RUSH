@@ -24,10 +24,17 @@ SME_LABEL_MAP: dict[str, str] = {
     **{str(d): str(d) for d in range(10)},
 }
 
-VALID_SPLITS: frozenset[str] = frozenset({"dev_golden", "holdout"})
+VALID_SPLITS: frozenset[str] = frozenset({"dev_golden", "holdout", "validation"})
 
 # Splits that must never auto-run in a bulk pass without an explicit safety flag.
-HOLDOUT_SPLITS: frozenset[str] = frozenset({"holdout"})
+# 'validation' is the FIXED cross-run benchmark split (Attila 2026-07-06): the
+# same images for every run number, scored only at run start/final — locked
+# exactly like the holdout.
+HOLDOUT_SPLITS: frozenset[str] = frozenset({"holdout", "validation"})
+
+# What ``--split all`` means: the demo's train+test pass. The benchmark
+# validation split is never swept up implicitly.
+ALL_SPLITS: tuple[str, ...] = ("dev_golden", "holdout")
 
 
 @dataclass(frozen=True)
@@ -180,6 +187,10 @@ def select_samples(
             if rec.sample_id in explicit_ids:
                 keep.append(rec)
             continue
+        if split == "all" and rec.split not in ALL_SPLITS:
+            # "all" = the demo's train+test pass; the fixed cross-run
+            # validation split is benchmark-only and never auto-included.
+            continue
         if split and split != "all" and rec.split != split:
             continue
         keep.append(rec)
@@ -202,7 +213,7 @@ def select_samples(
             # With the bundled manifest this means N dev_golden + N holdout,
             # each portion independently class-balanced.
             per_split: list[SampleRecord] = []
-            for split_name in sorted(VALID_SPLITS):
+            for split_name in ALL_SPLITS:
                 rows = [rec for rec in keep if rec.split == split_name]
                 per_split.extend(_pick(rows))
             keep = sorted(per_split, key=lambda r: r.sample_id)

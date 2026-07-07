@@ -2723,8 +2723,12 @@ main { padding-bottom: 82px; }
 .view-switcher-option:hover { color: var(--text); }
 .view-switcher-option[aria-pressed="true"]:hover { color: #06101f; }
 /* Tabs: sections opt into a view via data-view. Default (no JS) shows all. */
-body.view-loop section[data-view="inspect"], body.view-loop .nav-pills[data-view="inspect"] { display: none !important; }
-body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-view="loop"] { display: none !important; }
+body.view-loop section[data-view="inspect"], body.view-loop .nav-pills[data-view="inspect"],
+body.view-loop section[data-view="summary"] { display: none !important; }
+body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-view="loop"],
+body.view-inspect section[data-view="summary"] { display: none !important; }
+body.view-summary section[data-view="loop"], body.view-summary section[data-view="inspect"],
+body.view-summary .nav-pills[data-view="inspect"] { display: none !important; }
 
 .experiment-config { padding: 16px 18px; margin-bottom: 16px; display: grid; gap: 12px; }
 .experiment-config .compact-model-picker { margin: 0; }
@@ -2786,6 +2790,35 @@ body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-v
 .experiment-kg-step:hover { color: var(--text); border-color: rgba(130, 181, 255, .5); }
 .experiment-kg-note { font-size: 12px; color: var(--muted); }
 .experiment-kg-note strong { color: var(--text); }
+
+/* ---- Node changes vs k=0 (per-node diff + image evidence) ---- */
+.experiment-node-stats { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.experiment-node-stat { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.experiment-node-stat strong { color: var(--text); }
+.experiment-node-card { border: 1px solid var(--line); border-radius: 13px; margin-bottom: 14px; overflow: hidden; }
+.experiment-node-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; background: rgba(18, 29, 51, .8); border-bottom: 1px solid var(--line); }
+.experiment-node-card-head code { color: var(--text); font-weight: 800; }
+.experiment-node-card-body { padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; }
+.experiment-node-card-body .experiment-diff-block { margin-bottom: 0; }
+.experiment-node-cycle-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 900px) { .experiment-node-card-body { grid-template-columns: 1fr; } }
+
+/* ---- Run summary view (per-image LLM responses) ---- */
+.summary-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.summary-table th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.summary-table td { padding: 8px 10px; border-bottom: 1px solid rgba(44, 62, 104, .4); vertical-align: top; }
+.summary-table img { width: 56px; height: 56px; image-rendering: pixelated; background: #fff; border-radius: 8px; display: block; }
+.summary-row--majority-wrong td { background: rgba(255, 111, 145, .06); }
+.summary-vote { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; margin: 1px 2px 1px 0; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.summary-vote--wrong { color: var(--red); border-color: rgba(255, 111, 145, .5); }
+.summary-vote--right { color: var(--green); border-color: rgba(77, 224, 166, .4); }
+.summary-vote--abstain { opacity: .65; font-style: italic; }
+.summary-justifications { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; padding: 4px 0 8px; }
+.summary-justification-card { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; background: rgba(8, 16, 31, .5); font-size: 12px; }
+.summary-justification-card h5 { margin: 0 0 6px; font-size: 12px; color: var(--text); }
+.summary-justification-card .hint { display: block; margin-bottom: 6px; }
+.summary-justification-card p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; }
+.summary-citation { display: inline-block; border: 1px solid rgba(130, 181, 255, .4); color: var(--blue); border-radius: 999px; padding: 1px 8px; margin: 1px 3px 1px 0; font-size: 10.5px; }
 
 /* ---- Degree-of-misalignment badges (stack-ranking signal) ---- */
 .degree-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .02em; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }

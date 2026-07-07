@@ -265,6 +265,57 @@ def test_gate_truth_table():
     assert out["risk_flags"] == ["leak"]
 
 
+def test_build_run_summary_deltas_and_metadata():
+    state = {
+        "experiment_id": "exp-x", "run_number": 7, "status": "completed",
+        "area": "MNIST_Digits", "seed": 42, "k_max": 2, "batch_n": 10,
+        "test_n": 50, "max_changes": 2, "max_anchors": 8, "epsilon": 0.0,
+        "strategy": "random_misalignment", "gate_mode": "agent",
+        "gate_model": "openai/gpt-5.5", "drafter_model": "openai/gpt-5.5",
+        "judge_models": ["m/a", "m/b"], "concurrency": 4, "dry_run": False,
+        "base_version": "v0.1", "current_version": "v0.2",
+        "cost_usd_total": 1.5, "started_at": "t0", "finished_at": "t1",
+        "cycles": [
+            {"k": 0, "status": "baseline", "metrics": {"test": {
+                "m/a": {"accuracy": 0.90, "macro_f1": 0.88, "n": 50},
+                "system": {"accuracy": 0.95, "macro_f1": 0.94, "n": 50},
+            }}},
+            {"k": 1, "status": "accepted", "new_version": "v0.2", "metrics": {"test": {
+                "m/a": {"accuracy": 0.92, "macro_f1": 0.91, "n": 50},
+                "system": {"accuracy": 0.97, "macro_f1": None, "n": 50},
+            }}},
+        ],
+        "benchmark": {"n": 10, "start": {"metrics": {"system": {"macro_f1": 0.9}}},
+                      "final": {"metrics": {"system": {"macro_f1": 0.93}}}},
+    }
+    summary = exp.build_run_summary(state)
+    assert summary["run_number"] == 7
+    assert summary["policy"] == {
+        "base_version": "v0.1", "final_version": "v0.2",
+        "accepted_cycles": [1], "n_cycles": 1,
+    }
+    delta_a = summary["test_metrics"]["m/a"]["delta"]
+    assert delta_a["accuracy"] == 0.02 and delta_a["macro_f1"] == 0.03
+    # None on either side -> delta None, never a crash.
+    assert summary["test_metrics"]["system"]["delta"]["macro_f1"] is None
+    assert summary["config"]["gate_mode"] == "agent"
+    assert summary["benchmark_system"]["final"]["macro_f1"] == 0.93
+    # No benchmark block -> key present but None (holdout likewise).
+    state.pop("benchmark")
+    assert exp.build_run_summary(state)["benchmark_system"] is None
+
+
+def test_drafter_prompt_formats_and_targets_subnodes():
+    # The {max_changes} placeholder must survive the JSON braces, and the
+    # node-targeting directives (Attila 2026-07-06) must be present.
+    rendered = exp.DRAFTER_SYSTEM_PROMPT.format(max_changes=3)
+    assert "at most 3 file changes" in rendered
+    assert "MOST SPECIFIC NODE" in rendered
+    assert "boundary node" in rendered
+    assert "frozen" in rendered  # the root is not a dumping ground
+    assert "abstain" in rendered  # decisive-label rule retained
+
+
 def test_gate_off_accepts_regardless_of_metric_and_agent():
     # --gate-mode off: the metric is recorded but never enforced; even a
     # metric-failing candidate (and any stray agent verdict) lands.

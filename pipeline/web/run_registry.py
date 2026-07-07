@@ -599,6 +599,8 @@ class RunRegistry:
             argv.extend(["--policy-version", request["policy_version"]])
         if request.get("holdout_final"):
             argv.append("--holdout-final")
+        if request.get("validation_final"):
+            argv.append("--validation-final")
         if request.get("live", True):
             argv.extend(["--live", "--allow-spend"])
 
@@ -623,7 +625,7 @@ class RunRegistry:
             "policy_graph_version": "",
             "sample_manifest_path": "",
             "allow_spend": bool(request.get("allow_spend")),
-            "allow_holdout": bool(request.get("holdout_final")),
+            "allow_holdout": bool(request.get("holdout_final")) or bool(request.get("validation_final")),
             "limit": None,
             "sample_ids": None,
             "batch_size": None,

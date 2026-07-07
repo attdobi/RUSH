@@ -69,7 +69,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             f"tree is absent, otherwise {DEFAULT_SAMPLE_MANIFEST}."
         ),
     )
-    parser.add_argument("--split", choices=["dev_golden", "holdout", "all"], default="dev_golden")
+    parser.add_argument("--split", choices=["dev_golden", "holdout", "validation", "all"],
+                        default="dev_golden")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--sample-ids", default=None,
                         help="Comma-separated sample_ids (overrides --split/--limit filtering).")

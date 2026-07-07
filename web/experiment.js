@@ -38,7 +38,11 @@
     followedVersion: null, // KG auto-follow bookkeeping
     kgCycleK: null,        // KG cycle stepper: which k the graph is showing
     kgManual: false,       // true once the SME steps the graph by hand
-    pendingRunNumber: null // run just started — auto-select it when it appears
+    pendingRunNumber: null, // run just started — auto-select it when it appears
+    bundleCache: {},       // `${area}/${version}` -> { ids, texts } node markdown
+    runSummaryCache: {},   // child run_id -> web/summary.json payload (successes only)
+    policyChangesToken: 0, // guards overlapping async node-diff renders
+    confusionToken: 0      // guards overlapping async confusion-grid renders
   };
 
   // ---- view switcher (loop | inspect) --------------------------------------
@@ -46,10 +50,12 @@
   function applyView(view) {
     document.body.classList.toggle('view-loop', view === 'loop');
     document.body.classList.toggle('view-inspect', view === 'inspect');
+    document.body.classList.toggle('view-summary', view === 'summary');
     document.querySelectorAll('#viewSwitcher .view-switcher-option').forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.view === view));
     });
     try { sessionStorage.setItem('rush_view', view); } catch (err) { /* private mode */ }
+    window.dispatchEvent(new CustomEvent('rush-view-changed', { detail: { view } }));
   }
 
   function initViewSwitcher() {
@@ -63,13 +69,16 @@
     const fromHash = location.hash.replace('#', '');
     let view = 'loop';
     try { view = sessionStorage.getItem('rush_view') || 'loop'; } catch (err) { /* ok */ }
+    if (!['loop', 'inspect', 'summary'].includes(view)) view = 'loop';
     if (inspectAnchors.has(fromHash)) view = 'inspect';
     if (fromHash === 'experiment') view = 'loop';
+    if (fromHash === 'summary') view = 'summary';
     applyView(view);
     window.addEventListener('hashchange', () => {
       const anchor = location.hash.replace('#', '');
       if (inspectAnchors.has(anchor)) applyView('inspect');
       if (anchor === 'experiment' || anchor === 'policyEvolution') applyView('loop');
+      if (anchor === 'summary') applyView('summary');
     });
   }
 
@@ -165,6 +174,8 @@
       max_changes: Number($('#experimentMaxChanges')?.value || 5),
       gate_mode: gateMode,
       gate_model: gateMode === 'agent' ? gateChoice : 'openai/gpt-5.5',
+      // Fixed cross-run benchmark readout (validation split, start + final).
+      validation_final: $('#experimentValidationFinal')?.checked === true,
       // k=0 is FIXED: every run starts from the same baseline generator.
       policy_version: null,
       live: true,
@@ -332,6 +343,7 @@
       state.kgManual = true;
       kgShowVersion(versionInForceAfter(cycles, k), false);
       renderKgCycles();
+      renderPolicyChanges();
     };
     host.querySelectorAll('.experiment-kg-chip').forEach((chip) => {
       chip.addEventListener('click', () => applyK(Number(chip.dataset.kgK)));
@@ -358,8 +370,14 @@
       $('#experimentJudgeTable').innerHTML = '';
       $('#experimentLedger').innerHTML = '';
       $('#experimentHoldout').innerHTML = '';
-      const kgCyclesHost = $('#experimentKgCycles');
-      if (kgCyclesHost) kgCyclesHost.innerHTML = '';
+      ['#experimentKgCycles', '#experimentPolicyChanges', '#experimentConfusion'].forEach((sel) => {
+        const el = $(sel);
+        if (el) el.innerHTML = '';
+      });
+      // Invalidate any in-flight async renders so they can't repaint the
+      // hosts we just cleared.
+      state.policyChangesToken += 1;
+      state.confusionToken += 1;
       statusLine.textContent = '';
       return;
     }
@@ -398,6 +416,8 @@
     renderHoldout();
     renderKgCycles();
     autoFollowPolicy();
+    renderConfusion();      // async; caches per child run
+    renderPolicyChanges();  // async; token-guarded
   }
 
   function renderChartLegend(xMode, showTrain) {
@@ -622,13 +642,16 @@
       .sort((a, b) => ((a === 'system') - (b === 'system')) || a.localeCompare(b));
     if (!scorers.length) { host.innerHTML = ''; return; }
 
-    const delta = (scorer) => {
-      const before = baseline[scorer]?.macro_f1;
-      const after = finalMetrics[scorer]?.macro_f1;
+    // Δ vs k=0 on every key metric; FPR/FNR are lower-is-better so the
+    // green/red coloring inverts for them.
+    const delta = (scorer, key, lowerBetter = false) => {
+      const before = baseline[scorer]?.[key];
+      const after = finalMetrics[scorer]?.[key];
       if (before === null || before === undefined || after === null || after === undefined) return '';
       const diff = after - before;
       if (Math.abs(diff) < 0.0005) return '<span class="experiment-delta experiment-delta--flat">—</span>';
-      const cls = diff > 0 ? 'experiment-delta--up' : 'experiment-delta--down';
+      const good = lowerBetter ? diff < 0 : diff > 0;
+      const cls = good ? 'experiment-delta--up' : 'experiment-delta--down';
       return `<span class="experiment-delta ${cls}">${diff > 0 ? '+' : ''}${(diff * 100).toFixed(1)}</span>`;
     };
 
@@ -638,23 +661,25 @@
       const name = isSystem ? 'system (majority vote)' : scorer;
       return `<tr class="${isSystem ? 'experiment-judge-system' : ''}">
         <td>${esc(name)}</td>
-        <td>${fmtPct(m.accuracy)}</td>
-        <td>${fmtPct(m.macro_f1)} ${delta(scorer)}</td>
-        <td>${fmtPct(m.macro_precision)}</td>
-        <td>${fmtPct(m.macro_recall)}</td>
-        <td>${fmtPct(m.macro_fpr, 2)}</td>
-        <td>${fmtPct(m.macro_fnr, 2)}</td>
+        <td>${fmtPct(m.accuracy)} ${delta(scorer, 'accuracy')}</td>
+        <td>${fmtPct(m.macro_f1)} ${delta(scorer, 'macro_f1')}</td>
+        <td>${fmtPct(m.macro_precision)} ${delta(scorer, 'macro_precision')}</td>
+        <td>${fmtPct(m.macro_recall)} ${delta(scorer, 'macro_recall')}</td>
+        <td>${fmtPct(m.macro_fpr, 2)} ${delta(scorer, 'macro_fpr', true)}</td>
+        <td>${fmtPct(m.macro_fnr, 2)} ${delta(scorer, 'macro_fnr', true)}</td>
         <td>${m.n ?? '—'}${m.n_abstained ? ` <span class="hint">(+${m.n_abstained} abstain)</span>` : ''}</td>
       </tr>`;
     }).join('');
     host.innerHTML = `
       <table class="experiment-ledger-table experiment-judge-table">
         <thead><tr>
-          <th>Judge</th><th>Accuracy</th><th>Macro F1 <span class="hint">(Δ vs k=0)</span></th>
+          <th>Judge</th><th>Accuracy</th><th>Macro F1</th>
           <th>Precision</th><th>Recall</th><th>FPR</th><th>FNR</th><th>n</th>
         </tr></thead>
         <tbody>${rows}</tbody>
-      </table>`;
+      </table>
+      <p class="legend-note">Δ chips = final vs k=0 on this run's fixed test partition; green is better
+      (FPR/FNR improve downward). Recorded to the run's summary block at completion.</p>`;
   }
 
   // ---- gate ledger with expandable evidence ---------------------------------
@@ -900,17 +925,312 @@
 
   function renderHoldout() {
     const host = $('#experimentHoldout');
-    const holdout = state.current?.holdout;
-    if (!holdout || !holdout.start) { host.innerHTML = ''; return; }
-    const start = holdout.start.metrics?.system || {};
-    const final = holdout.final?.metrics?.system || {};
-    host.innerHTML = `
+    const blocks = [];
+    const readout = (block, title) => {
+      if (!block || !block.start) return '';
+      const start = block.start.metrics?.system || {};
+      const final = block.final?.metrics?.system || {};
+      return `
       <div class="experiment-holdout">
-        <strong>Locked holdout (${esc(holdout.n)} images, untouched by the loop):</strong>
-        system macro-F1 ${fmtPct(start.macro_f1)} (${esc(holdout.start.version)})
-        → ${fmtPct(final.macro_f1)} (${esc(holdout.final?.version)})
+        <strong>${title} (${esc(block.n)} images):</strong>
+        system macro-F1 ${fmtPct(start.macro_f1)} (${esc(block.start.version)})
+        → ${fmtPct(final.macro_f1)} (${esc(block.final?.version)})
         · accuracy ${fmtPct(start.accuracy)} → ${fmtPct(final.accuracy)}
       </div>`;
+    };
+    blocks.push(readout(state.current?.holdout, 'Locked holdout — untouched by the loop'));
+    blocks.push(readout(state.current?.benchmark,
+      'Fixed validation benchmark — the same images every run (cross-run comparable)'));
+    host.innerHTML = blocks.filter(Boolean).join('');
+  }
+
+  // ---- confusion grid: final policy on this run's test partition ------------
+
+  async function fetchRunWebSummary(runId) {
+    if (!runId) return null;
+    if (runId in state.runSummaryCache) return state.runSummaryCache[runId];
+    try {
+      const url = `/data/runs/${encodeURIComponent(runId)}/web/summary.json`;
+      const response = await fetch(window.cacheBust ? window.cacheBust(url) : url);
+      if (!response.ok) return null; // transient/absent: retry next poll, never cache
+      const payload = await response.json();
+      state.runSummaryCache[runId] = payload; // cache successes only
+      return payload;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function isEnsembleLabeler(labeler) {
+    if (typeof window.rushIsEnsembleRow === 'function' && window.rushIsEnsembleRow(labeler)) return true;
+    return String(labeler?.labeler_id || '').toLowerCase() === 'majority_vote';
+  }
+
+  async function renderConfusion() {
+    const host = $('#experimentConfusion');
+    if (!host) return;
+    // Token first: every invocation (including early-return clears)
+    // invalidates in-flight renders so a slow fetch can't repaint the host.
+    const token = ++state.confusionToken;
+    const exp = state.current;
+    const cycles = (exp?.cycles || []);
+    if (!exp || !cycles.length) { host.innerHTML = ''; return; }
+    // The final measured test eval: the last accepted candidate's run (its
+    // metrics ARE the final policy's), else the k=0 baseline eval.
+    const lastAccepted = [...cycles].reverse().find((c) => c.status === 'accepted' && c.candidate_run_id);
+    const runId = lastAccepted?.candidate_run_id || cycles.find((c) => c.k === 0)?.test_run_id;
+    if (!runId) { host.innerHTML = ''; return; }
+    const summary = await fetchRunWebSummary(runId);
+    if (token !== state.confusionToken) return; // superseded by a newer render
+    const labelers = Array.isArray(summary?.labelers) ? summary.labelers : [];
+    const withCM = labelers.filter((l) => l?.metrics?.confusion_matrix);
+    const labeler = withCM.find(isEnsembleLabeler) || withCM[0];
+    if (!labeler) {
+      host.innerHTML = '<p class="hint">No multiclass confusion artifact for this run yet'
+        + ' (the grid appears once the final test eval is scored).</p>';
+      return;
+    }
+    const m = labeler.metrics;
+    const cm = m.confusion_matrix;
+    const perClass = m.per_class || {};
+    const classes = Object.keys(cm).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+    let maxOff = 0; let totalOff = 0; let total = 0;
+    classes.forEach((t) => classes.forEach((p) => {
+      const v = cm[t]?.[p] || 0;
+      total += v;
+      if (t !== p) { maxOff = Math.max(maxOff, v); totalOff += v; }
+    }));
+    const cellHtml = (t, p) => {
+      const v = cm[t]?.[p] || 0;
+      let cls = 'cm-cell';
+      let style = '';
+      if (v > 0 && t === p) cls += ' cm-correct';
+      else if (v > 0) {
+        cls += ' cm-confusion';
+        const intensity = maxOff ? (0.18 + 0.62 * (v / maxOff)) : 0.4;
+        style = `background:rgba(255,111,145,${intensity.toFixed(2)});`;
+      }
+      return `<td class="${cls}" style="${style}" title="${esc(`truth ${t} → predicted ${p}: ${v}`)}">${v || ''}</td>`;
+    };
+    const perClassCell = (c, field, digits = 2) => {
+      const v = perClass[c]?.[field];
+      return `<td class="cm-f1" title="${esc(`class ${c} ${field}`)}">${(v === null || v === undefined) ? '—' : Number(v).toFixed(digits)}</td>`;
+    };
+    const headCols = classes.map((c) => `<th class="cm-head" scope="col">${esc(c)}</th>`).join('');
+    const rows = classes.map((t) => `
+      <tr>
+        <th class="cm-head cm-row-head" scope="row">${esc(t)}</th>
+        ${classes.map((p) => cellHtml(t, p)).join('')}
+        ${perClassCell(t, 'f1')}${perClassCell(t, 'recall')}${perClassCell(t, 'fpr', 3)}
+      </tr>`).join('');
+    const overall = [
+      ['accuracy', m.accuracy], ['macro F1', m.macro_f1],
+      ['precision', m.macro_precision], ['recall', m.macro_recall],
+      ['FPR', m.macro_fpr], ['FNR', m.macro_fnr]
+    ].map(([k, v]) => `${k} <strong>${fmtPct(v, k === 'FPR' || k === 'FNR' ? 2 : 1)}</strong>`).join(' · ');
+    host.innerHTML = `
+      <div class="cm-header">
+        <h3>${esc(isEnsembleLabeler(labeler) ? 'System (majority vote)' : labeler.labeler_id)} under ${esc(exp.current_version)} — ${esc(String(totalOff))}/${esc(String(total))} confusions</h3>
+        <p class="cm-sub">${overall} · from ${lastAccepted ? `the accepted k=${lastAccepted.k} candidate eval` : 'the k=0 baseline eval'}
+        <code>${esc(runId)}</code>. Rows = SME truth, columns = predicted.</p>
+      </div>
+      <div class="cm-scroll">
+        <table class="cm-table">
+          <thead><tr><th class="cm-corner"><span>truth ＼ pred</span></th>${headCols}<th class="cm-head cm-f1-head">F1</th><th class="cm-head cm-f1-head">Recall</th><th class="cm-head cm-f1-head">FPR</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ---- node changes vs k=0: per-node diff + image evidence ------------------
+
+  function lineDiff(beforeText, afterText) {
+    // LCS line diff — policy nodes are ~60 lines, O(n·m) is nothing.
+    const a = String(beforeText ?? '').split('\n');
+    const b = String(afterText ?? '').split('\n');
+    const n = a.length; const m = b.length;
+    const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = n - 1; i >= 0; i -= 1) {
+      for (let j = m - 1; j >= 0; j -= 1) {
+        dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const ops = [];
+    let i = 0; let j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { ops.push([' ', a[i]]); i += 1; j += 1; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push(['-', a[i]]); i += 1; }
+      else { ops.push(['+', b[j]]); j += 1; }
+    }
+    while (i < n) { ops.push(['-', a[i]]); i += 1; }
+    while (j < m) { ops.push(['+', b[j]]); j += 1; }
+    return ops;
+  }
+
+  function renderCompactDiff(ops, context = 2) {
+    const keep = new Array(ops.length).fill(false);
+    ops.forEach((op, idx) => {
+      if (op[0] === ' ') return;
+      for (let d = -context; d <= context; d += 1) {
+        const t = idx + d;
+        if (t >= 0 && t < ops.length) keep[t] = true;
+      }
+    });
+    const out = [];
+    let skipping = false;
+    ops.forEach((op, idx) => {
+      if (!keep[idx]) {
+        if (!skipping) { out.push(['~', '⋯ unchanged ⋯']); skipping = true; }
+        return;
+      }
+      skipping = false;
+      out.push(op);
+    });
+    return out.map(([tag, line]) => {
+      const cls = tag === '+' ? 'diff-add' : (tag === '-' ? 'diff-del' : (tag === '~' ? 'diff-hunk' : ''));
+      const prefix = tag === '~' ? '' : `${tag === ' ' ? ' ' : tag} `;
+      return `<span class="${cls}">${esc(prefix + line)}</span>`;
+    }).join('\n');
+  }
+
+  async function fetchVersionBundle(version) {
+    const area = activeArea();
+    const key = `${area}/${version}`;
+    if (state.bundleCache[key]) return state.bundleCache[key];
+    // Cache SUCCESSES only: a transient failure must not pin an empty/bogus
+    // bundle (and thus a wrong diff) for the rest of the session.
+    try {
+      const graph = await window.rushApiGetJson(
+        `/api/policy/graph?area=${encodeURIComponent(area)}&version=${encodeURIComponent(version)}`
+      );
+      const ids = (graph?.nodes || []).map((node) => node.id).filter(Boolean);
+      const texts = {};
+      let failed = false;
+      await Promise.all(ids.map(async (id) => {
+        try {
+          const url = `/policy-graph/${encodeURIComponent(area)}/${encodeURIComponent(version)}/${encodeURIComponent(id)}.md`;
+          const response = await fetch(window.cacheBust ? window.cacheBust(url) : url);
+          if (response.ok) texts[id] = await response.text();
+          else if (response.status === 404) texts[id] = null; // genuinely absent
+          else failed = true;
+        } catch (err) {
+          failed = true;
+        }
+      }));
+      const bundle = { ids, texts };
+      if (!failed) state.bundleCache[key] = bundle;
+      return bundle;
+    } catch (err) {
+      return { ids: [], texts: {} };
+    }
+  }
+
+  function anchorStatsByTruth(cycles) {
+    // Evidence pressure per class node across this run's anchors: how many
+    // anchors carried each SME truth, and what it was most misread as.
+    const stats = {};
+    cycles.forEach((c) => (c.anchors || []).forEach((anchor) => {
+      const truth = String(anchor.sme_truth ?? '');
+      if (!truth) return;
+      const entry = stats[truth] = stats[truth] || { count: 0, confusion: {} };
+      entry.count += 1;
+      (anchor.votes || []).forEach((vote) => {
+        const label = String(vote.label ?? '');
+        if (label && label !== truth && label !== 'abstain') {
+          entry.confusion[label] = (entry.confusion[label] || 0) + 1;
+        }
+      });
+    }));
+    return stats;
+  }
+
+  function topConfusion(confusion) {
+    const entries = Object.entries(confusion || {}).sort((a, b) => b[1] - a[1]);
+    return entries.length ? entries[0] : null;
+  }
+
+  async function renderPolicyChanges() {
+    const host = $('#experimentPolicyChanges');
+    if (!host) return;
+    // Token first: even early-return clears must invalidate an in-flight
+    // render, or a slow diff for the previous run repaints the cleared host.
+    const token = ++state.policyChangesToken;
+    const exp = state.current;
+    const cycles = (exp?.cycles || []).filter((c) => typeof c.k === 'number');
+    if (!exp || !cycles.length) { host.innerHTML = ''; return; }
+    const shownVersion = versionInForceAfter(cycles, state.kgCycleK ?? cycles[cycles.length - 1].k);
+    const baseVersion = exp.base_version || 'v0.1';
+
+    const stats = anchorStatsByTruth(cycles);
+    const statChips = Object.entries(stats)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([truth, s]) => {
+        const top = topConfusion(s.confusion);
+        return `<span class="experiment-node-stat" title="anchors with SME truth ${esc(truth)} across this run's cycles">
+          truth <strong>${esc(truth)}</strong> · ${s.count} anchor${s.count === 1 ? '' : 's'}${top ? ` · misread as <strong>${esc(top[0])}</strong> ×${top[1]}` : ''}</span>`;
+      }).join('');
+    const statsBlock = statChips
+      ? `<div class="experiment-node-stats" aria-label="Anchor evidence by class">${statChips}</div>`
+      : '';
+
+    if (shownVersion === baseVersion) {
+      host.innerHTML = `${statsBlock}<p class="hint">Showing ${esc(baseVersion)} (k=0 baseline) — no accepted changes yet.
+        Step the cycle chips above to an accepted version to see per-node diffs.</p>`;
+      return;
+    }
+    host.innerHTML = `${statsBlock}<p class="hint">Computing node diffs ${esc(baseVersion)} → ${esc(shownVersion)}…</p>`;
+    const [baseBundle, currentBundle] = await Promise.all([
+      fetchVersionBundle(baseVersion), fetchVersionBundle(shownVersion)
+    ]);
+    if (token !== state.policyChangesToken) return; // superseded by a newer render
+
+    const allIds = Array.from(new Set([...(baseBundle.ids || []), ...(currentBundle.ids || [])])).sort();
+    const versionK = new Map();
+    cycles.forEach((c) => { if (c.status === 'accepted' && c.new_version) versionK.set(c.new_version, c.k); });
+    const shownK = versionK.get(shownVersion) ?? Infinity;
+
+    const cards = [];
+    allIds.forEach((id) => {
+      const before = baseBundle.texts?.[id];
+      const after = currentBundle.texts?.[id];
+      if (before === after) return;
+      const change = before === null || before === undefined
+        ? 'added' : (after === null || after === undefined ? 'removed' : 'modified');
+      // Which cycles touched this node file, up to the shown version.
+      const touched = cycles.filter((c) => c.k >= 1 && c.k <= shownK
+        && (c.edit_summary || []).some((e) => e.path === `${id}.md`));
+      const acceptedTouches = touched.filter((c) => c.status === 'accepted');
+      const cycleChips = touched.map((c) => {
+        const accepted = c.status === 'accepted';
+        return `<span class="experiment-chip ${accepted ? 'experiment-chip--accepted' : 'experiment-chip--neutral'}"
+          title="${esc(accepted ? `accepted → ${c.new_version}` : `${c.status}`)}">k=${c.k}${accepted ? ` → ${esc(c.new_version)}` : ` · ${esc(c.status)}`}</span>`;
+      }).join(' ');
+      const evidence = acceptedTouches.flatMap((c) => c.anchors || []).slice(0, 6);
+      const diffHtml = change === 'modified'
+        ? renderCompactDiff(lineDiff(before, after))
+        : renderCompactDiff(lineDiff(change === 'added' ? '' : before, change === 'added' ? after : ''));
+      cards.push(`
+        <div class="experiment-node-card">
+          <div class="experiment-node-card-head">
+            <code>${esc(id)}</code>
+            <span class="experiment-chip ${change === 'added' ? 'experiment-chip--accepted' : 'experiment-chip--neutral'}">${esc(change)}</span>
+            <span class="experiment-node-cycle-chips">${cycleChips || '<span class="hint">changed outside this run</span>'}</span>
+          </div>
+          <div class="experiment-node-card-body">
+            <div class="experiment-diff-block">
+              <div class="experiment-diff-head">${esc(baseVersion)} → ${esc(shownVersion)} <code>${esc(id)}.md</code></div>
+              <pre class="experiment-diff-pre">${diffHtml}</pre>
+            </div>
+            <div>
+              <h4>Image evidence <span class="hint">— anchors behind the accepting cycle(s)</span></h4>
+              ${renderAnchorCards(evidence)}
+            </div>
+          </div>
+        </div>`);
+    });
+    host.innerHTML = statsBlock + (cards.length
+      ? cards.join('')
+      : `<p class="hint">${esc(baseVersion)} → ${esc(shownVersion)}: no node-level differences found.</p>`);
   }
 
   // ---- init -----------------------------------------------------------------

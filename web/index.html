@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r31" />
-  <script src="demos.js?v=demo-mnist-kdd-r31"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r32" />
+  <script src="demos.js?v=demo-mnist-kdd-r32"></script>
 </head>
 <body>
   <header class="hero">
@@ -24,6 +24,7 @@
       </div>
       <div class="view-switcher" id="viewSwitcher" role="group" aria-label="View">
         <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
+        <button class="view-switcher-option" type="button" data-view="summary" aria-pressed="false">Run summary</button>
         <button class="view-switcher-option" type="button" data-view="inspect" aria-pressed="false">Inspect step-by-step</button>
       </div>
       <div class="nav-pills" data-view="inspect" aria-label="Inspect sections">
@@ -95,6 +96,7 @@
               <option value="off">Gate OFF — accept every edit</option>
             </select>
           </label>
+          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same 1000 images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" /> Benchmark readout</label>
           <label class="checkbox-label experiment-spend-label"><input id="experimentAllowSpend" type="checkbox" checked /> Allow spend</label>
           <button id="experimentStart" class="primary-action" type="button">Start run</button>
           <span id="experimentStartStatus" class="status-line" role="status"></span>
@@ -158,7 +160,36 @@
         <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
         <p class="fineprint">Policy truth lives in Markdown nodes and <code>edges.json</code>.</p>
       </div>
+        <h3 class="experiment-block-title">Node changes vs k=0 <span class="muted">— what each node learned, and the images that taught it</span></h3>
+        <div id="experimentPolicyChanges"></div>
       </div>
+
+      <h3 class="experiment-block-title">Confusion — final policy on this run's test partition <span class="muted">— the 10×10 grid + per-class quality</span></h3>
+      <div id="experimentConfusion"></div>
+    </section>
+    <section id="summary" data-view="summary" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Run summary</p>
+        <h2>Every judgment, per image — run by run, cycle by cycle.</h2>
+        <p>Pick a run and a mini-batch k: every image the panel labeled in that evaluation, with each judge's
+        full response — label, confidence, difficulty, justification, policy citations — ranked misaligned-first.</p>
+      </div>
+      <div class="run-controls" aria-label="Summary picker">
+        <label>Run
+          <select id="summaryRunSelect"></select>
+        </label>
+        <label>Cycle
+          <select id="summaryCycleSelect"></select>
+        </label>
+        <label>Evaluation
+          <select id="summaryEvalSelect"></select>
+        </label>
+        <label class="checkbox-label"><input id="summaryOnlyMisaligned" type="checkbox" /> misaligned only</label>
+        <button id="summaryRefresh" type="button">Refresh</button>
+        <span id="summaryStatusLine" class="status-line" role="status"></span>
+      </div>
+      <div id="summaryCycleCard" class="experiment-summary"></div>
+      <div id="summaryTable"></div>
     </section>
     <section data-view="inspect" id="sample" class="section demo-shell">
       <details class="sample-preview-accordion">
@@ -509,18 +540,19 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r31"></script>
-  <script src="app.js?v=demo-mnist-kdd-r31"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r31"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r31"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r31"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r31"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r31"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r31"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r31"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r32"></script>
+  <script src="app.js?v=demo-mnist-kdd-r32"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r32"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r32"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r32"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r32"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r32"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r32"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r32"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r32"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r31"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r31"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r31"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r32"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r32"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r32"></script>
 </body>
 </html>

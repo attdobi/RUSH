@@ -62,12 +62,13 @@ def sync_experiment_state(conn, state: dict[str, Any]) -> None:
         INSERT INTO rush.experiment (
           experiment_id, run_number, area, seed, k_max, batch_n, test_n,
           judge_models, gate_model, drafter_model, strategy, max_changes,
-          epsilon, base_generator, config, status, started_at, finished_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+          epsilon, base_generator, config, summary, status, started_at, finished_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (experiment_id) DO UPDATE SET
           status = EXCLUDED.status,
           finished_at = EXCLUDED.finished_at,
-          config = EXCLUDED.config
+          config = EXCLUDED.config,
+          summary = EXCLUDED.summary
         """,
         (
             exp_id,
@@ -94,6 +95,7 @@ def sync_experiment_state(conn, state: dict[str, Any]) -> None:
                     "current_version": state.get("current_version"),
                 }
             ),
+            _jsonb(state["summary"]) if state.get("summary") else None,
             state.get("status", "running"),
             state.get("started_at"),
             state.get("finished_at"),
