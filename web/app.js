@@ -969,6 +969,38 @@ function majorityPill(row) {
   return `<span class="badge ${labelBadgeClass(t.label)}">${esc(t.label)}</span>`;
 }
 
+// Degree of misalignment: x of y decisive (non-abstain) model votes disagree
+// with SME truth, plus whether the MAJORITY itself misses — the top signal
+// for stack-ranking adjudication and update candidates (mirrors the store's
+// panel_signal.n_wrong / n_judges used by the gradient-descent strategies).
+function misalignmentDegree(row) {
+  const sme = String(row.sme_truth || row.truth || '');
+  let wrong = 0;
+  let decisive = 0;
+  for (const vote of (Array.isArray(row.votes) ? row.votes : [])) {
+    if (window.rushIsEnsembleRow(vote)) continue;
+    const label = vote?.label;
+    if (!label || label === 'abstain') continue;
+    decisive += 1;
+    if (sme && String(label) !== sme) wrong += 1;
+  }
+  const t = tallyVotes(row);
+  const majorityLabel = (t.isTie || !t.label || t.label === 'abstain') ? null : String(t.label);
+  const majorityWrong = majorityLabel !== null && Boolean(sme) && majorityLabel !== sme;
+  return { wrong, decisive, majorityWrong, isTie: t.isTie };
+}
+window.rushMisalignmentDegree = misalignmentDegree;
+
+function degreeBadge(deg) {
+  if (!deg.decisive) return '<span class="muted">—</span>';
+  const cls = deg.majorityWrong
+    ? 'degree-badge--critical'
+    : (deg.wrong * 2 >= deg.decisive ? 'degree-badge--high' : 'degree-badge--low');
+  const suffix = deg.majorityWrong ? ' · majority ≠ SME' : (deg.isTie ? ' · tie' : '');
+  const tip = 'decisive (non-abstain) model votes disagreeing with SME truth';
+  return `<span class="degree-badge ${cls}" title="${attr(tip)}">${deg.wrong} / ${deg.decisive}${esc(suffix)}</span>`;
+}
+
 const TRAIN_SPLIT_ALIASES = new Set(['dev_golden', 'train', 'training', 'development']);
 const TEST_SPLIT_ALIASES = new Set(['holdout', 'val', 'validation', 'test', 'testing', 'locked_holdout', 'locked_holdout_decision_quality']);
 
@@ -1450,9 +1482,29 @@ function renderMisalignment() {
     return Number.isFinite(value) ? `$${value.toFixed(4)}` : String(cost);
   };
   const headerCells = ['<th></th>', '<th>image</th>', '<th>SME truth</th>', '<th>majority</th>',
+    '<th title="decisive (non-abstain) model votes disagreeing with SME truth — the stack-ranking signal for adjudication and policy updates">misaligned</th>',
     ...modelRows.map(model => `<th>${esc(modelId(model))}${ensembleSuffix(model)}</th>`),
     '<th>agreement</th>', '<th>reason</th>', '<th>patch</th>'].join('');
-  const rows = sourceRows.slice(0, 100).map(row => {
+  // Stack-rank for review: majority-miss first (the SME adjudication queue),
+  // then by degree of misalignment (x/y decisive votes wrong), ties last.
+  const ranked = sourceRows
+    .map(row => ({ row, deg: misalignmentDegree(row) }))
+    .sort((a, b) =>
+      (b.deg.majorityWrong - a.deg.majorityWrong)
+      || ((b.deg.decisive ? b.deg.wrong / b.deg.decisive : 0) - (a.deg.decisive ? a.deg.wrong / a.deg.decisive : 0))
+      || (b.deg.wrong - a.deg.wrong)
+      || String(a.row.image_id || '').localeCompare(String(b.row.image_id || ''))
+    );
+  const agreementLabel = (row, deg) => {
+    if (deg.majorityWrong) return 'majority ≠ SME';
+    const type = row.misalignment_type || row.agreement || '';
+    if (type === 'consensus_wrong') return 'majority ≠ SME';
+    if (type === 'model_vs_sme') return 'models ≠ SME';
+    if (type === 'model_vs_model') return 'LLM split';
+    if (type === 'all_agree') return 'aligned';
+    return row.agreement || (row.unanimous ? 'unanimous' : (type || 'LLM split'));
+  };
+  const rows = ranked.slice(0, 100).map(({ row, deg }) => {
     const id = row.image_id || row.sample_id || '';
     const repoRelPath = row.repo_rel_path || '';
     const thumbSrc = thumbnailSrcForPath(repoRelPath);
@@ -1469,13 +1521,13 @@ function renderMisalignment() {
       const title = cost ? ` title="${attr(cost)}"` : '';
       return `<td${title}><span class="badge ${cls}">${esc(vote)}</span>${boundaryPairChip(voteRow)}</td>`;
     }).join('');
-    const agreement = row.agreement || (row.unanimous ? 'unanimous' : (row.misalignment_type || 'split'));
     const reason = row.disagreement_reason || row.reason || '';
     const patch = row.policy_patch_id
       ? `<a href="${attr(row.policy_patch_url || '#')}">${esc(row.policy_patch_id)}</a>`
       : '<span class="muted">—</span>';
-    const primary = `<tr data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td><td>${majorityPill(row)}</td>${perModel}<td>${esc(agreement)}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
-    return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 7);
+    const rowClass = deg.majorityWrong ? ' class="misalignment-row--majority-wrong"' : '';
+    const primary = `<tr${rowClass} data-image-id="${attr(id)}"><td>${expandButton('misalignment', id)}</td><td><div class="thumb-wrap">${thumb}<div><button type="button" class="image-id-button" data-open-justifications="${attr(id)}"><strong>${esc(id)}</strong></button>${preparedMetaLine(row.prepared_image)}</div></div></td><td><span class="badge ${labelBadgeClass(sme)}">${esc(sme)}</span></td><td>${majorityPill(row)}</td><td>${degreeBadge(deg)}</td>${perModel}<td>${esc(agreementLabel(row, deg))}</td><td>${esc(reason)}</td><td>${patch}</td></tr>`;
+    return primary + renderInlineJustificationsRow('misalignment', row, modelRows.length + 8);
   }).join('');
   target.innerHTML = `<table class="misalignment"><thead><tr>${headerCells}</tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -1499,7 +1551,7 @@ function renderConsensus() {
     const cards = [
       ['Images', s.n_images_total ?? data.records.length, ''],
       ['Unanimous', s.n_images_unanimous ?? '—', ''],
-      ['Split', s.n_images_split ?? '—', ''],
+      ['LLM split', s.n_images_split ?? '—', ''],
       ['Ties', s.n_images_with_tie ?? '—', ''],
       ['Boundary-flagged', s.n_images_with_boundary_flag ?? '—', ''],
       ['Majority vs SME', isNumber(s.majority_vs_sme_accuracy) ? `${(s.majority_vs_sme_accuracy * 100).toFixed(1)}%` : '—',

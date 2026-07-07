@@ -2764,3 +2764,10 @@ body.view-inspect section[data-view="loop"], body.view-inspect .nav-pills[data-v
 .experiment-diff-pre .diff-hunk { color: var(--blue); }
 .experiment-risk-flags { color: var(--gold); font-size: 12px; font-weight: 700; }
 #policyEvolution { margin-top: 26px; }
+
+/* ---- Degree-of-misalignment badges (stack-ranking signal) ---- */
+.degree-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800; letter-spacing: .02em; border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.degree-badge--critical { color: #1a0710; background: var(--red); border-color: var(--red); }
+.degree-badge--high { color: var(--gold); border-color: rgba(255, 209, 102, .55); }
+.degree-badge--low { color: var(--muted); }
+.misalignment-row--majority-wrong td { background: rgba(255, 111, 145, .06); }

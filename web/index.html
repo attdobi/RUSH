@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r29" />
-  <script src="demos.js?v=demo-mnist-kdd-r29"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r30" />
+  <script src="demos.js?v=demo-mnist-kdd-r30"></script>
 </head>
 <body>
   <header class="hero">
@@ -357,10 +357,10 @@
       <div class="score-tabs" role="tablist" aria-label="Per-image audit views">
         <button type="button" role="tab" aria-selected="true" data-score-tab="consensus" data-score-panel-target="consensus" data-consensus-filter="all" id="scoreTabConsensus">Consensus</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-unanimous" data-score-panel-target="consensus" data-consensus-filter="unanimous" id="scoreTabConsensusUnanimous">Unanimous</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-split" data-score-panel-target="consensus" data-consensus-filter="split" id="scoreTabConsensusSplit">Split</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment">Misalignment</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="consensus-split" data-score-panel-target="consensus" data-consensus-filter="split" id="scoreTabConsensusSplit" title="The LLM panel disagrees with itself — the precision-style signal">LLM split</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="misalignment" id="scoreTabMisalignment" title="Model votes vs SME truth — the accuracy-style signal">SME misalignment</button>
+        <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments" title="The panel majority itself missed SME truth — the top SME adjudication queue">Majority ≠ SME</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="borderline" id="scoreTabBorderline">Borderline</button>
-        <button type="button" role="tab" aria-selected="false" data-score-tab="sme-misalignments" id="scoreTabSmeMisalignments" hidden>SME review-first</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="model-disagreement" id="scoreTabModelDisagreement" hidden>Model disagreement</button>
         <button type="button" role="tab" aria-selected="false" data-score-tab="boundary-concentration" id="scoreTabBoundaryConcentration" hidden>Boundary pairs</button>
       </div>
@@ -377,7 +377,7 @@
       </div>
       <div class="score-tab-panel" data-score-panel="misalignment" role="tabpanel" aria-labelledby="scoreTabMisalignment" hidden>
         <h3 id="misalignmentH3">Model vs SME disagreement, ranked for review.</h3>
-        <p class="body-copy" id="misalignmentSub">Per-image SME truth vs model labels. Disagreement reasons link to any proposed policy patch.</p>
+        <p class="body-copy" id="misalignmentSub">Per-image SME truth vs model labels, stack-ranked for review: majority-miss cases first, then by degree of misalignment (x / y = decisive model votes disagreeing with SME truth). The same signal prioritizes SME adjudication and update-candidate selection.</p>
 <div id="misalignmentEmpty" class="empty-state">No misalignment data yet for this run. <button type="button" data-compute-target="misalignment" data-run-id="">Compute now</button></div>
       <div id="misalignmentTable" class="misalignment-table"></div>
       </div>
@@ -389,7 +389,7 @@
       </div>
       <div class="score-tab-panel" data-score-panel="sme-misalignments" role="tabpanel" aria-labelledby="scoreTabSmeMisalignments" hidden>
         <h3>Where the panel majority missed SME truth.</h3>
-        <p class="body-copy">Majority-wrong cases are the highest-priority review queue for label cleanup and policy work.</p>
+        <p class="body-copy">The panel's majority vote disagreed with SME truth — the highest-priority adjudication queue: either the golden label is wrong (re-adjudicate) or the policy is (edit candidate).</p>
         <div id="scoreInsightSme" class="score-insight-grid"></div>
       </div>
       <div class="score-tab-panel" data-score-panel="model-disagreement" role="tabpanel" aria-labelledby="scoreTabModelDisagreement" hidden>
@@ -499,18 +499,18 @@
     </details>
   </main>
 
-  <script src="genai-sampler.js?v=demo-mnist-kdd-r29"></script>
-  <script src="app.js?v=demo-mnist-kdd-r29"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r29"></script>
-  <script src="decision-quality.js?v=demo-mnist-kdd-r29"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r29"></script>
-  <script src="insights.js?v=demo-mnist-kdd-r29"></script>
-  <script src="policy-diff.js?v=demo-mnist-kdd-r29"></script>
-  <script src="policy-grow.js?v=demo-mnist-kdd-r29"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r29"></script>
+  <script src="genai-sampler.js?v=demo-mnist-kdd-r30"></script>
+  <script src="app.js?v=demo-mnist-kdd-r30"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r30"></script>
+  <script src="decision-quality.js?v=demo-mnist-kdd-r30"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r30"></script>
+  <script src="insights.js?v=demo-mnist-kdd-r30"></script>
+  <script src="policy-diff.js?v=demo-mnist-kdd-r30"></script>
+  <script src="policy-grow.js?v=demo-mnist-kdd-r30"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r30"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r29"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r29"></script>
-  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r29"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r30"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r30"></script>
+  <script src="policy-mode-labels.js?v=demo-mnist-kdd-r30"></script>
 </body>
 </html>
