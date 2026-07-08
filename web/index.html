@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r39" />
-  <script src="demos.js?v=demo-mnist-kdd-r39"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r40" />
+  <script src="demos.js?v=demo-mnist-kdd-r40"></script>
 </head>
 <body>
   <header class="hero">
@@ -31,7 +31,6 @@
       <div class="topbar-actions" aria-label="Repository actions">
         <div class="topbar-action-links">
           <a class="nav-pill" href="https://github.com/attdobi/RUSH" target="_blank" rel="noopener">GitHub ↗</a>
-          <a id="downloadRepoBtn" class="nav-pill" href="/download/rush.zip" rel="nofollow">Download repo</a>
         </div>
       </div>
     </nav>
@@ -70,7 +69,8 @@
             instructive misaligned images (the actual pixels are attached to its prompt) and writes ONE
             policy edit of at most 5 node files. A cheaper drafter is a legitimate choice — it drafts,
             it never judges. "Anchors" picks how the misalignments are chosen: an unbiased random sample,
-            or top-gradient (confident-wrong panels first, |g| = 1−p).</p>
+            top-gradient (confident-wrong panels first, |g| = 1−p), or top-importance (the four-tier
+            misalignment × consensus rank — see the About tab).</p>
             <p><strong>Gate — a deterministic rule.</strong> An edit is accepted only if the panel's
             test-partition macro-F1 strictly improves. Optionally an expensive gate agent double-checks
             and can VETO a suspicious win — it can never force one — and every rationale it produces is
@@ -262,14 +262,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r39"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r39"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r39"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r39"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r39"></script>
-  <script src="about.js?v=demo-mnist-kdd-r39"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r39"></script>
+  <script src="app.js?v=demo-mnist-kdd-r40"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r40"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r40"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r40"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r40"></script>
+  <script src="about.js?v=demo-mnist-kdd-r40"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r40"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r39"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r40"></script>
 </body>
 </html>

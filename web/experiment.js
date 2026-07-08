@@ -500,6 +500,10 @@
     const expected = payload?.expected_calls ?? 0;
     const cost = payload?.recorded_cost_usd ?? payload?.running_cost_usd_estimate;
     const pct = expected ? Math.min(100, Math.round((completed / expected) * 100)) : 0;
+    // The registry tracks the CURRENT labeling child; when that child has
+    // finalized but the job is still alive, the driver is between passes
+    // (drafting / gating / scoring) — say so instead of showing a stuck bar.
+    const betweenPasses = Boolean(payload?.finished_at);
     const fmtNum = (v, d = 1) => (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(d) : '—';
     const rows = (payload?.per_model || []).map((m) => {
       const name = String(m.model || m.model_id || '');
@@ -519,12 +523,12 @@
     host.hidden = false;
     host.innerHTML = `
       <div class="experiment-live-head">
-        <strong>Labeling now</strong>
-        <span class="hint">${esc(payload?.run_id || '')}</span>
-        <span class="experiment-live-progress">${esc(completed)} / ${esc(expected)} calls${typeof cost === 'number' ? ` · $${cost.toFixed(4)}` : ''}</span>
+        <strong>${betweenPasses ? 'Optimizing (between labeling passes)' : 'Labeling now'}</strong>
+        <span class="hint experiment-live-phase">${esc(exp.phase || payload?.run_id || '')}</span>
+        <span class="experiment-live-progress">${esc(completed)} / ${esc(expected)} calls${typeof cost === 'number' ? ` · $${cost.toFixed(4)}` : ''}${betweenPasses ? ' · last pass' : ''}</span>
         <button type="button" class="experiment-live-cancel" data-cancel-run>Cancel run</button>
       </div>
-      <div class="experiment-live-bar"><div style="width:${pct}%"></div></div>
+      <div class="experiment-live-bar${betweenPasses ? ' experiment-live-bar--idle' : ''}"><div style="width:${pct}%"></div></div>
       ${rows ? `<table class="experiment-live-table">
         <thead><tr><th>Model</th><th>Avg s/call</th><th>Tokens/sec</th><th>Images/min</th><th>Total tokens</th><th>Cost</th></tr></thead>
         <tbody>${rows}</tbody>

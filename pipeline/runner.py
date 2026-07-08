@@ -13,12 +13,15 @@ Design choices
 * **Determinism first.** Sample IDs and (image, model) pairs are sorted before
   dispatch (§5.6). Tests run with ``concurrency=1`` to keep ordering exact.
 * **Concurrency.** One dedicated ``ThreadPoolExecutor`` per lane — a lane is
-  a hosted provider bucket (sized ``concurrency``) or a distinct local model
-  (sized ``LOCAL_MODEL_MAX_CONCURRENCY``, one GPU card). Lanes run fully in
-  parallel; a batch only ever occupies a worker in its own lane, so a slow
-  local lane can never starve a hosted lane (no head-of-line blocking). At
-  ``concurrency=1`` dispatch stays sequential and sample-major for exact
-  deterministic ordering.
+  a hosted provider bucket (sized ``concurrency`` × the number of models it
+  carries, so every judge keeps ``concurrency`` calls in flight) or a distinct
+  local model (sized ``LOCAL_MODEL_MAX_CONCURRENCY``, one GPU card). Batches
+  inside a lane are interleaved round-robin across models so two judges from
+  the same provider run side by side rather than head-to-tail. Lanes run
+  fully in parallel; a batch only ever occupies a worker in its own lane, so
+  a slow local lane can never starve a hosted lane (no head-of-line
+  blocking). At ``concurrency=1`` dispatch stays sequential and sample-major
+  for exact deterministic ordering.
 * **No tight loops.** Retries are X1's responsibility inside the client.
 * **Dry runs.** A built-in ``DeterministicFakeClient`` (used by tests + the
   CLI when ``--dry-run`` is set) produces stable, no-network responses with
@@ -30,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor, Future
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
+from itertools import zip_longest
 import threading
 from pathlib import Path
 from typing import Callable, Iterable
@@ -81,7 +85,7 @@ DEFAULT_PROMPT_VERSION = "v0.1"
 # card is near capacity, so each local model serializes its own calls
 # (LOCAL_MODEL_MAX_CONCURRENCY, default 1 — tunable if a card handles more).
 # Hosted providers are keyed by PROVIDER (shared API rate limit) at size
-# `concurrency`.
+# `concurrency` per model sharing the lane (interleaved round-robin).
 LOCAL_PROVIDER_TAG = "local"
 LOCAL_MODEL_MAX_CONCURRENCY = 1
 
@@ -96,7 +100,9 @@ def _sem_key_and_size(
       distinct semaphores → they run in parallel across cards; each serializes
       its own calls.
     - Hosted providers: key on ``provider`` (shared API rate limit), size
-      ``concurrency``.
+      ``concurrency`` *per model* — the dispatch loop scales the lane executor
+      by the number of distinct models sharing the lane, so a second judge
+      from the same provider never halves (or waits on) the first.
 
     Keyed on the provider tag so any future local model is covered without
     hardcoding model ids.
@@ -533,6 +539,30 @@ def _build_work_batches(
     return batches
 
 
+def _interleave_lane_batches(
+    entries: list[tuple[int, list[tuple[SampleRecord, ModelSpec]]]],
+) -> list[tuple[int, list[tuple[SampleRecord, ModelSpec]]]]:
+    """Round-robin a lane's batches across its models (fair scheduling).
+
+    ``_build_work_batches`` emits batches model-major (all of model A, then
+    all of model B). Submitted as-is to a shared hosted-provider lane, model
+    B's first call would not start until model A's queue drained — two OpenAI
+    judges ran head-to-tail in production (the second judge's first call
+    started the second the first judge's last call finished). Interleaving
+    A0, B0, A1, B1, … keeps every model in flight from the first wave.
+    Per-model batch order and batch indices (the cost-ledger key) are
+    preserved; model order is sorted for determinism.
+    """
+    by_model: dict[str, list[tuple[int, list[tuple[SampleRecord, ModelSpec]]]]] = {}
+    for entry in entries:
+        by_model.setdefault(entry[1][0][1].model_id, []).append(entry)
+    queues = [by_model[model_id] for model_id in sorted(by_model)]
+    interleaved: list[tuple[int, list[tuple[SampleRecord, ModelSpec]]]] = []
+    for wave in zip_longest(*queues):
+        interleaved.extend(entry for entry in wave if entry is not None)
+    return interleaved
+
+
 def _fatal_error_reason(summary: RunSummary) -> str | None:
     """Return a run-level failure reason for completed runs without usable coverage."""
     if summary.expected_calls > 0 and summary.completed_calls == 0:
@@ -904,8 +934,16 @@ def run_labeling(
         futures: list[Future] = []
         try:
             for key, lane_batches in lanes.items():
+                # Fair scheduling within the lane: interleave across models so
+                # a second judge from the same provider starts immediately,
+                # and size the pool per model so it does not halve the first
+                # judge's in-flight calls. Local lanes are keyed per model
+                # (n_models == 1), so both are no-ops there. Rate-limit
+                # pushback stays handled by the clients' 429 retry/backoff.
+                lane_batches = _interleave_lane_batches(lane_batches)
+                n_lane_models = len({b[0][1].model_id for _, b in lane_batches})
                 pool = ThreadPoolExecutor(
-                    max_workers=max(1, lane_size[key]),
+                    max_workers=max(1, lane_size[key] * max(1, n_lane_models)),
                     thread_name_prefix=f"lane-{key}",
                 )
                 executors.append(pool)

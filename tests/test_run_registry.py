@@ -907,3 +907,84 @@ def test_start_cascade_job_builds_cascade_argv(monkeypatch, tmp_path: Path) -> N
     assert state["kind"] == "cascade"
     assert state["models"] == ["local/gemma-4-26b-a4b-qat", "local/qwen2.5-vl-7b"]
     assert state["escalate_models"] == ["anthropic/claude-sonnet-5-medium"]
+
+
+def test_experiment_status_tracks_newest_child(tmp_path: Path) -> None:
+    """The live card must follow the pass labeling NOW, not the cycle-0 child.
+
+    Regression: _infer_run_id_for_job pinned the experiment job's run_id to
+    the FIRST child discovered, so after the baseline eval finished the bar
+    sat at 100% for the rest of the run. While the driver is alive, status()
+    must re-resolve to the newest matching child on every call.
+    """
+    import os
+
+    runs_root = tmp_path / "data" / "runs"
+    panel = [
+        {"model_id": "google/gemini-3.1-flash-lite"},
+        {"model_id": "openai/gpt-5.4-mini-low"},
+    ]
+    first = "20260708T150000-aaaaaaaa"  # cycle-0 baseline eval — finished
+    second = "20260708T151500-bbbbbbbb"  # cycle-1 train batch — labeling now
+    _write_json(
+        runs_root / first / "run_manifest.json",
+        {
+            "run_id": first,
+            "started_at": "2026-07-08T15:00:00Z",
+            "finished_at": "2026-07-08T15:10:00Z",
+            "status": "completed",
+            "split": "dev_golden",
+            "area": "MNIST_Digits",
+            "models": panel,
+            "totals": {"expected_calls": 200, "completed_calls": 200, "errored_calls": 0},
+        },
+    )
+    _write_json(
+        runs_root / second / "run_manifest.json",
+        {
+            "run_id": second,
+            "started_at": "2026-07-08T15:15:00Z",
+            "split": "dev_golden",
+            "area": "MNIST_Digits",
+            "models": panel,
+            "totals": {"expected_calls": 40, "completed_calls": 0, "errored_calls": 0},
+        },
+    )
+    (runs_root / second / "label_votes.jsonl").write_text(
+        '{"model_id": "openai/gpt-5.4-mini-low"}\n' * 7, encoding="utf-8"
+    )
+    # Make mtime ordering explicit: the first child's manifest is older.
+    old = time.time() - 600
+    os.utime(runs_root / first / "run_manifest.json", (old, old))
+
+    job_id = "job-20260708T145900-abcd1234"
+    job_state = {
+        "job_id": job_id,
+        "kind": "experiment",
+        "run_id": first,  # the stale pin the bug left behind
+        "pid": os.getpid(),  # alive -> the job counts as running
+        "argv": [],
+        "started_at": "2026-07-08T14:59:00Z",
+        "finished_at": None,
+        "returncode": None,
+        "models": ["google/gemini-3.1-flash-lite", "openai/gpt-5.4-mini-low"],
+        "area": "MNIST_Digits",
+        "split": "dev_golden",
+    }
+    _write_json(runs_root / "_jobs" / f"{job_id}.json", job_state)
+
+    registry = RunRegistry(tmp_path)
+    status = registry.status(job_id)
+
+    assert status["run_id"] == second
+    assert status["expected_calls"] == 40
+    assert status["completed_calls"] == 7
+    assert status["running"] is True
+
+    # Once the job has finished, the override stops and the pinned run_id
+    # (whatever the finalize trailer recorded) is authoritative again.
+    job_state["finished_at"] = "2026-07-08T15:40:00Z"
+    job_state["returncode"] = 0
+    _write_json(runs_root / "_jobs" / f"{job_id}.json", job_state)
+    done = RunRegistry(tmp_path).status(job_id)
+    assert done["run_id"] == first

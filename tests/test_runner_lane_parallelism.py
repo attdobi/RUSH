@@ -211,3 +211,66 @@ def test_two_distinct_local_models_dispatch_concurrently(tmp_path) -> None:
     # And each local model still serialized its own calls (max 1 per card).
     assert state["max_inflight"].get("local/gemma-4-26b", 0) == 1
     assert state["max_inflight"].get("local/qwen3.6-27b", 0) == 1
+
+
+def test_interleave_lane_batches_round_robins_models() -> None:
+    """Model-major input comes out A0,B0,A1,B1,… with per-model order kept."""
+    from pipeline.runner import _build_work_batches, _interleave_lane_batches
+
+    specs = [ModelSpec("openai/gpt-5.5"), ModelSpec("openai/gpt-5.5-low")]
+    batches = _build_work_batches(_samples(4), specs, batch_size=2)
+    entries = list(enumerate(batches))
+
+    ordered = _interleave_lane_batches(entries)
+
+    models = [batch[0][1].model_id for _, batch in ordered]
+    assert models == [
+        "openai/gpt-5.5",
+        "openai/gpt-5.5-low",
+        "openai/gpt-5.5",
+        "openai/gpt-5.5-low",
+    ]
+    # Batch indices (the cost-ledger key) survive, ascending per model.
+    for model_id in {"openai/gpt-5.5", "openai/gpt-5.5-low"}:
+        idx = [i for i, batch in ordered if batch[0][1].model_id == model_id]
+        assert idx == sorted(idx)
+    assert sorted(i for i, _ in ordered) == list(range(len(batches)))
+
+
+def test_two_hosted_models_same_provider_overlap(tmp_path) -> None:
+    """Two judges of ONE hosted provider must run side by side.
+
+    Regression (exp-20260708T150915): batches queued model-major into the
+    shared openai lane made the second judge's first call start the instant
+    the first judge's last call finished — head-to-tail, not parallel. With
+    round-robin interleave + per-model lane sizing they must be observed in
+    flight together.
+    """
+    state = {"inflight": {}, "max_inflight": {}, "co_active": []}
+    lock = threading.Lock()
+    release = threading.Event()
+    release.set()  # nobody blocks; we only need overlap observation
+
+    models = ["openai/gpt-5.5", "openai/gpt-5.5-low"]
+    samples = _samples(12)
+
+    summary = run_labeling(
+        models=models,
+        samples=samples,
+        client_factory=_make_factory(state, lock, set(), release),
+        concurrency=2,
+        batch_size=2,
+        dry_run=False,
+        runs_root=tmp_path,
+        allow_holdout=True,
+    )
+
+    both_together = any(
+        {"openai/gpt-5.5", "openai/gpt-5.5-low"} <= set(active)
+        for active in state["co_active"]
+    )
+    assert both_together, (
+        "the two openai judges never overlapped -> the shared provider lane "
+        "is serializing models again (model-major starvation regression)"
+    )
+    assert summary.completed_calls == len(samples) * len(models)

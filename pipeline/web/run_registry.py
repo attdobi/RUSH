@@ -791,6 +791,45 @@ class RunRegistry:
                 states.append(state)
         return states
 
+    def _latest_experiment_child(self, state: dict[str, Any]) -> str | None:
+        """Newest child labeling run of a live experiment job. Never persisted.
+
+        An experiment spawns many children over its life (baseline test,
+        per-cycle train + candidate test, holdout, benchmark), so unlike
+        ``_infer_run_id_for_job`` this re-scans on every call and skips the
+        split filter (holdout/benchmark children run on other splits). The
+        newest manifest mtime is the pass currently labeling — or the pass
+        that just finished while the driver drafts/gates in between.
+        """
+        if not self.runs_root.exists():
+            return None
+        requested_models = sorted(state.get("models") or [])
+        requested_area = state.get("area")
+        job_started = state.get("started_at") or ""
+        candidates: list[tuple[float, str]] = []
+        for run_dir in self.runs_root.iterdir():
+            if not run_dir.is_dir() or run_dir.name.startswith(_ARCHIVE_PREFIX):
+                continue
+            manifest_path = run_dir / "run_manifest.json"
+            if not manifest_path.exists():
+                continue
+            manifest = _read_json(manifest_path)
+            run_id = manifest.get("run_id") or run_dir.name
+            if not isinstance(run_id, str) or not RUN_ID_PATTERN.match(run_id):
+                continue
+            if requested_models and sorted(_manifest_models(manifest)) != requested_models:
+                continue
+            if requested_area and manifest.get("area") != requested_area:
+                continue
+            started_at = manifest.get("started_at") or ""
+            if job_started and started_at and started_at < job_started:
+                continue
+            candidates.append((manifest_path.stat().st_mtime, run_id))
+        if not candidates:
+            return None
+        candidates.sort(reverse=True)
+        return candidates[0][1]
+
     def _infer_run_id_for_job(self, state: dict[str, Any]) -> str | None:
         """Best-effort early run_id discovery while the runner is still live."""
         existing = state.get("run_id")
@@ -1088,6 +1127,19 @@ class RunRegistry:
     def status(self, token: str) -> dict[str, Any]:
         state = self.find_job(token)
         run_id = self.resolve_run_id(token)
+        # An experiment job spans many child labeling runs; the pinned run_id
+        # is only the FIRST child discovered, so a live status would keep
+        # reporting a pass that finished minutes ago (the bar fills at cycle 0
+        # and never moves again). While the driver is alive, re-resolve to the
+        # newest child so the card tracks the pass that is labeling right now.
+        if (
+            state is not None
+            and str(state.get("kind") or "") == "experiment"
+            and self.is_job_running(str(state.get("job_id") or token))
+        ):
+            live_child = self._latest_experiment_child(state)
+            if live_child:
+                run_id = live_child
         manifest: dict[str, Any] = {}
         run_dir: Path | None = None
         if run_id:

@@ -1,18 +1,25 @@
-// About this demo — the metric formalism, project-agnostic. Explains the
-// per-judge gradient (p, |g|), the two multi-LLM alignment signals (SME
-// agreement vs LLM consensus), the four-tier importance that ranks the
-// adjudication queue and the policy-learning anchors, and how the human-label
-// confidence fades re-adjudication. Kept in sync with pipeline/experiment
-// panel_signal / importance_scores. Sections are wrapped in .about-section
-// so they flow into balanced columns without a definition splitting mid-way.
+// About this demo — the metric formalism, project-agnostic. Explains every
+// config knob on the Run tab, what one optimization cycle actually does (what
+// the drafter sees, what the gate computes), the per-judge gradient (p, |g|),
+// the two multi-LLM alignment signals (SME agreement vs LLM consensus), the
+// four-tier importance that ranks the adjudication queue and the
+// policy-learning anchors, and how human-label confidence fades
+// re-adjudication. Kept in sync with pipeline/experiment panel_signal /
+// importance_scores and scripts/run_experiment.py. Sections are wrapped in
+// .about-section so they flow into balanced columns without a definition
+// splitting mid-way; formulas use the .about-eq display-math grid.
 (() => {
   const $ = (sel) => document.querySelector(sel);
+
+  // eq(rows, footnote): one display-math block. Each row is [lhs, op, rhs, note].
+  const eq = (rows, span) => `<div class="about-eq">${rows.map(([l, o, r, n]) =>
+    `<span class="eq-l">${l}</span><span class="eq-op">${o}</span><span class="eq-r">${r}</span><span class="eq-note">${n || ''}</span>`).join('')}${span ? `<span class="about-eq-span">${span}</span>` : ''}</div>`;
 
   const HTML = `
   <div class="about-doc">
     <div class="section-head compact about-intro">
       <p class="eyebrow">About this demo</p>
-      <h2>How RUSH scores, ranks, and learns — the metrics behind every number.</h2>
+      <h2>How RUSH scores, ranks, and learns — every knob and every number.</h2>
       <p>This applies to every project (MNIST digits, GenAI images, or a real policy). A panel of
       cheap LLM judges labels each item against a versioned policy graph; a human SME owns the golden
       label. The numbers on the other tabs all come from the definitions below.</p>
@@ -34,17 +41,69 @@
     </section>
 
     <section class="about-section">
-      <h2>Per-judge gradient: p and |g|</h2>
-      <p>Each judge <em>j</em> returns a label <code>ŷ</code> and a self-reported confidence
-      <code>c ∈ [0,1]</code> in <em>its own</em> label. Against the SME truth <code>y</code> we map
-      that to a probability on the true class (a binary approximation), and to a gradient magnitude —
-      how much this judgment could teach:</p>
-      <span class="about-formula">p   = c        if ŷ = y   (correct)
-p   = 1 − c    if ŷ ≠ y   (wrong)
+      <h2>Every knob on the Run tab</h2>
+      <p>The full hyperparameter surface of one run. Negatives/positives = the misaligned/aligned
+      anchor images the drafter studies.</p>
+      <table class="about-knob-table">
+        <thead><tr><th>Knob</th><th>Default</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Judges</td><td>2–5 models</td><td>The panel. Labels everything, scores everything; each judge also returns confidence, difficulty, is_boundary and a policy-cited justification.</td></tr>
+          <tr><td>Cycles <var>k</var></td><td>5</td><td>Optimization steps per run — each cycle proposes at most one policy edit. Accepted edits mint version <code>v&lt;run&gt;.&lt;k&gt;</code>.</td></tr>
+          <tr><td>Train batch <var>N</var></td><td>20</td><td>Fresh seeded mini-batch labeled every cycle. Its misalignments are the raw gradient signal.</td></tr>
+          <tr><td>Test size <var>T</var></td><td>100</td><td>The run's fixed test partition, drawn once at k=0 and reused all run — the gate's yardstick.</td></tr>
+          <tr><td>Seed</td><td>random</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
+          <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config.</td></tr>
+          <tr><td>Anchors (method)</td><td>random (S1)</td><td>How misalignments are picked for the drafter: <code>random</code> = the null hypothesis every gradient must beat; <code>top |g|</code> = confident-wrong first; <code>top importance</code> = the four-tier rank below.</td></tr>
+          <tr><td>Misaligned</td><td>10</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
+          <tr><td>Aligned</td><td>10</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
+          <tr><td>Max changes</td><td>5</td><td>The edit clip: at most 5 node files touched per proposal — the trust region that keeps every step human-reviewable.</td></tr>
+          <tr><td>Gate mode</td><td>metric rule</td><td>Accept only on strict panel macro-F1 improvement on test; optionally a gate agent can veto (never force); OFF accepts every edit — the unfiltered-drift demo.</td></tr>
+          <tr><td><var>ε</var> (epsilon)</td><td>0</td><td>Extra margin the candidate must clear. ε&gt;0 is the first winner's-curse mitigation on the research list.</td></tr>
+          <tr><td>Benchmark readout</td><td>off</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
+          <tr><td>Parallelism</td><td>4</td><td>Concurrent labeling calls per judge; hosted judges of one provider run side by side in a shared, per-model-sized pool.</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-|g| = 1 − p                 gradient magnitude — how informative the error is
-h   = c·(1 − c)             curvature / uncertainty (max at c = 0.5, blind to correctness)
-loss= −ln p                 per-sample cross-entropy</span>
+    <section class="about-section">
+      <h2>One cycle, end to end</h2>
+      <p>What actually happens each cycle <var>k</var> — including exactly what information the
+      optimizer is given:</p>
+      <ol class="about-flow">
+        <li><strong>Label.</strong> The panel labels a fresh <var>N</var>-image train batch under the
+        current policy <var>G<sub>k</sub></var>. Every judge returns label <var>ŷ</var>, confidence
+        <var>c</var>, difficulty, is_boundary (+ the confusion pair), and a justification citing
+        policy nodes.</li>
+        <li><strong>Select anchors.</strong> Misaligned images are ranked by the chosen method
+        (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤10 misaligned + ≤10 aligned
+        become the anchor set.</li>
+        <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
+        <em>generator</em> — the exact prompt the judges run), and per anchor the image pixels, the
+        SME golden label, and each judge's label + confidence + justification. It returns
+        <em>one</em> edit touching ≤5 nodes.</li>
+        <li><strong>Score.</strong> The panel relabels the fixed test partition under the candidate
+        policy <var>G<sub>k</sub></var> ⊕ <var>e</var>.</li>
+        <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive
+        model never computes decision quality:</li>
+      </ol>
+      ${eq([
+        ['accept(<var>e</var>)', '⇔', 'F1<sub>test</sub>(<var>G</var> ⊕ <var>e</var>) &gt; F1<sub>test</sub>(<var>G</var>) + <var>ε</var>', 'and no gate-agent veto'],
+      ], 'F1 = the judge panel’s macro-F1 on the run’s fixed test partition. Accepted ⇒ the policy becomes v&lt;run&gt;.&lt;k&gt;; skipped ⇒ the incumbent stays.')}
+    </section>
+
+    <section class="about-section">
+      <h2>Per-judge gradient: p and |g|</h2>
+      <p>Each judge <em>j</em> returns a label <var>ŷ</var> and a self-reported confidence
+      <var>c</var> ∈ [0,1] in <em>its own</em> label. Against the SME truth <var>y</var> we map that
+      to a probability on the true class (a binary approximation), and to a gradient magnitude — how
+      much this judgment could teach:</p>
+      ${eq([
+        ['<var>p</var>', '=', '<var>c</var>', 'judge correct (<var>ŷ</var> = <var>y</var>)'],
+        ['<var>p</var>', '=', '1 − <var>c</var>', 'judge wrong (<var>ŷ</var> ≠ <var>y</var>)'],
+        ['|<var>g</var>|', '=', '1 − <var>p</var>', 'gradient magnitude — how informative'],
+        ['<var>h</var>', '=', '<var>c</var>·(1 − <var>c</var>)', 'curvature — peaks at <var>c</var> = 0.5, blind to correctness'],
+        ['loss', '=', '−ln <var>p</var>', 'per-sample cross-entropy'],
+      ])}
       <p>So the four corners the panel can be in:</p>
       <ul>
         <li><strong>Confident &amp; right</strong> (c high, ŷ=y): p≈1, <code>|g|≈0</code> — nothing to learn.</li>
@@ -53,24 +112,23 @@ loss= −ln p                 per-sample cross-entropy</span>
         <li><strong>Unsure</strong> (c≈0.5, either way): p≈0.5, <code>|g|≈0.5</code> — a moderate signal,
         the item is genuinely ambiguous.</li>
       </ul>
-      <p>Uncertainty lives in <code>c</code> and the difficulty rating — the judges are instructed to
+      <p>Uncertainty lives in <var>c</var> and the difficulty rating — the judges are instructed to
       always return a label, never abstain.</p>
     </section>
 
     <section class="about-section">
       <h2>Two alignment signals — do not conflate them</h2>
       <p>A multi-LLM panel gives two <em>different</em> agreement numbers, and RUSH keeps them separate:</p>
-      <ul>
-        <li><strong>SME agreement</strong> <code>a = (# judges whose ŷ = y) / N</code> — LLM↔human.
-        This is graded (e.g. 3/4, 2/4, 1/4). Misalignment is <code>m = 1 − a</code>.</li>
-        <li><strong>LLM consensus</strong> <code>κ = (# judges on the modal label) / N</code> — LLM↔LLM,
-        computed <em>without</em> looking at the SME label. High κ means the judges agree <em>with each
-        other</em>, whether or not they're right.</li>
-      </ul>
+      ${eq([
+        ['<var>a</var>', '=', '(# judges with <var>ŷ</var> = <var>y</var>) / <var>N</var>', '<strong>SME agreement</strong> — LLM↔human, graded (3/4, 2/4, …)'],
+        ['<var>m</var>', '=', '1 − <var>a</var>', 'misalignment'],
+        ['<var>κ</var>', '=', '(# judges on the modal label) / <var>N</var>', '<strong>LLM consensus</strong> — LLM↔LLM, computed SME-blind'],
+        ['<var>b</var>', '=', '(# judges flagging boundary) / <var>N</var>', 'boundary rate'],
+      ])}
       <p>The two come apart exactly where it matters: the panel can be <em>unanimous</em> (κ = 1) and
       <em>entirely wrong</em> (a = 0). For accounting we collapse the panel to its <strong>majority
       vote</strong> and compare that to the SME — but to stack-rank items we use the full graded
-      signals, plus the boundary rate <code>b = (# judges flagging is_boundary) / N</code>.</p>
+      signals.</p>
     </section>
 
     <section class="about-section">
@@ -88,28 +146,29 @@ loss= −ln p                 per-sample cross-entropy</span>
         </tbody>
       </table>
       <p>A single continuous score reproduces that ordering and interpolates the graded signals:</p>
-      <span class="about-formula">I_base = ( m + κ·(2m − 1) + 1 ) / 3          ∈ [0, 1]
-
-   misaligned (m→1):  I_base rises with κ   (consensus makes it worse)
-   aligned    (m→0):  I_base falls with κ   (consensus makes it better)</span>
+      ${eq([
+        ['<var>I</var><sub>base</sub>', '=', '( <var>m</var> + <var>κ</var>·(2<var>m</var> − 1) + 1 ) / 3', '∈ [0, 1]'],
+      ], 'misaligned (m→1): rises with κ — consensus makes it worse · aligned (m→0): falls with κ — consensus makes it better')}
     </section>
 
     <section class="about-section">
       <h2>Two derived scores: anchor value and re-adjudication priority</h2>
-      <p>The base score is amplified by the panel's confidence (mean <code>|g|</code>) and its boundary
+      <p>The base score is amplified by the panel's confidence (mean <var>|g|</var>) and its boundary
       rate, because a confident, boundary-flagged error teaches more:</p>
-      <span class="about-formula">amp            = (1 + mean|g|) · (1 + 0.5·b)
-
-anchor value   = I_base · amp                      → ranks policy-learning anchors
-re-adjudication= I_base · amp · (1 − p_human)       → ranks the human queue</span>
+      ${eq([
+        ['amp', '=', '(1 + mean|<var>g</var>|) · (1 + ½·<var>b</var>)', ''],
+        ['anchor value', '=', '<var>I</var><sub>base</sub> · amp', 'ranks policy-learning anchors'],
+        ['re-adjudication', '=', '<var>I</var><sub>base</sub> · amp · (1 − <var>p</var><sub>human</sub>)', 'ranks the human queue'],
+      ])}
       <p><strong>Anchor value</strong> drives the <code>top_importance</code> selection strategy —
       which misalignments the drafter studies. <strong>Re-adjudication priority</strong> is the same
       score, but faded by how confident we already are in the golden label:</p>
       <h3>Human-label confidence</h3>
       <p>The golden label carries its own confidence, growing with the number of SME confirmations
-      <code>m<sub>SME</sub></code>:</p>
-      <span class="about-formula">p_human = 1 − 1 / (m_SME + 0.2)
-          m=1 → 0.167 (default)   m=2 → 0.545   m=3 → 0.688</span>
+      <var>m</var><sub>SME</sub>:</p>
+      ${eq([
+        ['<var>p</var><sub>human</sub>', '=', '1 − 1 / (<var>m</var><sub>SME</sub> + 0.2)', 'm=1 → 0.17 (default) · m=2 → 0.55 · m=3 → 0.69'],
+      ])}
       <p>Re-adjudication priority is multiplied by <code>(1 − p_human)</code>, so once two or three SMEs
       have re-confirmed a label, its weight for going back to a human vanishes — the human queue keeps
       flowing toward genuinely unresolved cases. (Policy anchor value is <em>not</em> faded: the policy
