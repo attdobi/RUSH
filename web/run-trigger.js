@@ -801,6 +801,14 @@
     };
   }
 
+  function addLaunchPin(payload) {
+    const pin = window.prompt('start run #');
+    if (pin === null) throw new Error('Run launch canceled.');
+    const normalized = String(pin).trim();
+    if (!normalized) throw new Error('Enter start run # to launch a labeling run.');
+    return { ...payload, launch_pin: normalized };
+  }
+
   function stopPolling() {
     if (state.pollTimer) window.clearTimeout(state.pollTimer);
     state.pollTimer = null;
@@ -953,7 +961,7 @@
 
   async function startRun() {
     try {
-      const payload = buildStartPayload();
+      const payload = addLaunchPin(buildStartPayload());
       status('Starting labeling run…');
       const btn = $('#startCascadeRun');
       if (btn) btn.disabled = true;
@@ -1012,7 +1020,7 @@
 
   async function startCascade() {
     try {
-      const payload = buildStartPayload();
+      const payload = addLaunchPin(buildStartPayload());
       // Cascade takes a split+limit slice; explicit sample IDs stay a
       // plain-run feature.
       payload.sample_ids = null;

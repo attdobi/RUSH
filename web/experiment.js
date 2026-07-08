@@ -201,6 +201,17 @@
       live: true,
       allow_spend: true
     };
+    const pin = window.prompt('start run #');
+    if (pin === null) {
+      statusEl.textContent = 'Run launch canceled.';
+      return;
+    }
+    const launchPin = String(pin).trim();
+    if (!launchPin) {
+      statusEl.textContent = 'Enter start run # to launch a live run.';
+      return;
+    }
+    payload.launch_pin = launchPin;
     button.disabled = true;
     const runNumber = nextRunNumber();
     statusEl.textContent = `Starting run #${runNumber}…`;

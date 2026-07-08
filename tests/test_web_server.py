@@ -23,6 +23,7 @@ _VALID = {
     "policy_version": "v0.1",
     "mode": "cold_start",
     "allow_spend": True,
+    "launch_pin": "4850",
     "concurrency": 1,
 }
 
@@ -34,6 +35,7 @@ _VALID_CASCADE = {
     "policy_version": "v0.1",
     "mode": "cold_start",
     "allow_spend": True,
+    "launch_pin": "4850",
     "concurrency": 2,
 }
 
@@ -47,6 +49,32 @@ def test_validate_cascade_payload_accepts_two_tier_request() -> None:
     ]
     assert normalized["escalate_models"] == ["anthropic/claude-sonnet-5-medium"]
     assert normalized["limit"] == 20
+
+
+@pytest.mark.parametrize(
+    ("mutate", "code"),
+    [
+        (lambda p: p.pop("launch_pin"), "launch_pin_required"),
+        (lambda p: p.update({"launch_pin": "1234"}), "launch_pin_invalid"),
+        (lambda p: p.update({"launch_pin": 4850}), "launch_pin_invalid"),
+    ],
+)
+def test_validate_start_payload_requires_launch_pin(mutate, code: str) -> None:
+    payload = dict(_VALID)
+    mutate(payload)
+
+    with pytest.raises(APIError) as excinfo:
+        validate_start_payload(payload)
+
+    assert excinfo.value.status == 403
+    assert excinfo.value.code == code
+    assert excinfo.value.details == {"field": "launch_pin"}
+
+
+def test_validate_start_payload_does_not_persist_launch_pin() -> None:
+    normalized = validate_start_payload(dict(_VALID))
+
+    assert "launch_pin" not in normalized
 
 
 def test_validate_cascade_payload_requires_escalate_models() -> None:
@@ -135,6 +163,16 @@ def test_post_start_rejects_invalid_payloads(web_server, mutate, code: str) -> N
     status, data = _post_json(web_server, "/api/runs/start", payload)
     assert status == 400
     assert data["error"]["code"] == code
+
+
+def test_post_start_rejects_missing_launch_pin(web_server) -> None:
+    payload = dict(_VALID)
+    payload.pop("launch_pin")
+
+    status, data = _post_json(web_server, "/api/runs/start", payload)
+
+    assert status == 403
+    assert data["error"]["code"] == "launch_pin_required"
 
 
 def test_validate_start_payload_allows_missing_reasoning_effort_with_variants() -> None:
@@ -243,6 +281,7 @@ def _experiment_payload(**overrides):
         "area": "MNIST_Digits",
         "models": ["openai/gpt-5.4-mini-low", "google/gemini-3.1-flash-lite"],
         "allow_spend": True,
+        "launch_pin": "4850",
         "live": True,
     }
     payload.update(overrides)
@@ -263,6 +302,20 @@ def test_validate_experiment_payload_defaults() -> None:
     assert request["gate_mode"] == "agent"
     assert request["seed"] is None
     assert request["epsilon"] == 0.0
+    assert "launch_pin" not in request
+
+
+def test_validate_experiment_payload_live_requires_launch_pin() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    payload = _experiment_payload()
+    payload.pop("launch_pin")
+
+    with pytest.raises(APIError) as excinfo:
+        validate_experiment_payload(payload)
+
+    assert excinfo.value.status == 403
+    assert excinfo.value.code == "launch_pin_required"
 
 
 def test_validate_experiment_payload_aligned_anchor_split() -> None:

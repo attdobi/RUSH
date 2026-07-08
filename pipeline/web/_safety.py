@@ -16,6 +16,7 @@ _ALLOWED_MODES = {"cold_start", "warm_start"}
 _ALLOWED_REASONING_EFFORTS = {"high", "xhigh"}
 _POLICY_VERSION_RE = re.compile(r"^v\d+(\.\d+)?$")
 DEFAULT_BATCH_SIZE = 20
+START_RUN_PIN = "4850"
 
 _STATIC_PREFIXES: tuple[tuple[str, str], ...] = (
     # /api/thumbnail 302-redirects into one of these two directories depending on
@@ -223,8 +224,28 @@ def _validate_local_reasoning(payload: dict[str, Any]) -> dict[str, bool]:
     return out
 
 
+def _require_start_run_pin(payload: dict[str, Any]) -> None:
+    raw_pin = payload.get("launch_pin")
+    if raw_pin is None:
+        raise APIError(
+            403,
+            "launch_pin_required",
+            'Enter start run # before launching a labeling run',
+            details={"field": "launch_pin"},
+        )
+    if not isinstance(raw_pin, str) or raw_pin.strip() != START_RUN_PIN:
+        raise APIError(
+            403,
+            "launch_pin_invalid",
+            'Invalid start run #',
+            details={"field": "launch_pin"},
+        )
+
+
 def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize ``POST /api/runs/start`` JSON."""
+    _require_start_run_pin(payload)
+
     raw_demo = payload.get("demo")
     if raw_demo is not None and not isinstance(raw_demo, str):
         raise APIError(
@@ -585,6 +606,8 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(live, bool):
         raise APIError(400, "validation_error", "live must be a boolean",
                        details={"field": "live"})
+    if live:
+        _require_start_run_pin(payload)
     if live and payload.get("allow_spend") is not True:
         raise APIError(
             402, "spend_not_allowed",
