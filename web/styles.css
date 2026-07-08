@@ -2769,8 +2769,16 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .inline-link { color: var(--blue, #82b5ff); text-decoration: underline; }
 
 /* About this demo — the metric formalism writeup */
-.about-doc { max-width: 68ch; }
-.about-doc h2 { margin: 26px 0 8px; font-size: 20px; }
+/* Reference layout: full-width intro, then sections flow into balanced
+   columns (each section kept intact so a definition never splits mid-way).
+   Columns appear once there's room for two ~33rem tracks; one column below. */
+.about-doc { max-width: 1280px; margin: 0 auto; }
+.about-intro { max-width: 70ch; margin-bottom: 10px; }
+.about-columns { column-width: 33rem; column-gap: 52px; }
+.about-section { break-inside: avoid; display: block; }
+.about-section:not(:first-child) { margin-top: 22px; }
+.about-columns > .about-section:first-child h2 { margin-top: 4px; }
+.about-doc h2 { margin: 4px 0 8px; font-size: 20px; text-wrap: balance; }
 .about-doc h3 { margin: 22px 0 6px; font-size: 15px; color: var(--text); }
 .about-doc p { margin: 8px 0; color: var(--muted); line-height: 1.6; }
 .about-doc ul { margin: 8px 0; padding-left: 20px; color: var(--muted); line-height: 1.6; }
@@ -2778,6 +2786,8 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .about-doc code, .about-doc .about-formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .about-doc code { background: rgba(130, 181, 255, .12); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; color: var(--text); }
 .about-formula { display: block; margin: 10px 0; padding: 10px 14px; border-left: 3px solid var(--blue, #82b5ff); background: rgba(8, 16, 31, .55); color: var(--text); font-size: 13px; white-space: pre-wrap; }
+/* never split a formula/table/list across a column break */
+.about-formula, .about-tier-table, .about-doc ul { break-inside: avoid; }
 .about-doc strong { color: var(--text); }
 .about-tier-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
 .about-tier-table th, .about-tier-table td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
