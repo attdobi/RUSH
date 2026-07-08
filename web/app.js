@@ -1998,6 +1998,7 @@ function rushApiApplyAvailability(available) {
   if (!available) {
     document.querySelectorAll('.api-section').forEach(section => {
       if (section.id === 'label') section.hidden = true;
+      else if (section.id === 'about') return; // fully static — renders fine without the API
       else rushApiUnavailable(section);
     });
   } else {

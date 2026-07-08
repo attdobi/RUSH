@@ -642,7 +642,9 @@ table.misalignment .muted { color: var(--muted); }
   .proposal-actions { align-items: stretch; }
   .proposal-actions button, #scoreRunNow { width: 100%; }
 }
-body.rush-api-unavailable .api-section > :not(.api-placeholder) { display: none; }
+/* Offline (static hosting / no local API): API-backed sections collapse to
+   their placeholder — except About, which is fully static content. */
+body.rush-api-unavailable .api-section:not(#about) > :not(.api-placeholder) { display: none; }
 
 
 /* X4 hero/nav/run-trigger polish */

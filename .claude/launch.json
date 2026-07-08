@@ -32,6 +32,13 @@
       "autoPort": false
     },
     {
+      "name": "rush-web-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8793", "-d", "/Users/adobi/RUSH/web"],
+      "port": 8793,
+      "autoPort": false
+    },
+    {
       "name": "rush-web-verify2",
       "runtimeExecutable": "/Users/adobi/RUSH/.venv/bin/python",
       "runtimeArgs": [

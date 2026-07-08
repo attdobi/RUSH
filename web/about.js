@@ -35,8 +35,14 @@
         instructive anchors (the misaligned images themselves, plus a sample of correctly-classified
         ones) and writes a single policy edit of ≤5 node files. It drafts; it never judges.</li>
         <li><strong>Gate</strong> — a deterministic rule: accept the edit only if the panel's
-        test-partition macro-F1 strictly improves. An optional agent may <em>veto</em> a suspicious
-        win, never force one.</li>
+        test-partition macro-F1 strictly improves. An optional <strong>gate agent</strong> is a
+        <em>subtractive</em> soundness check on top of that rule: it can veto a metric-passing edit
+        it judges unsound — one that <strong>overfits to named examples instead of stating a general
+        rule</strong>, leaks the golden answer, games one judge's quirks, tells judges to abstain, or
+        dumps pair-specific rules into the root instead of the owning node. It never forces or accepts;
+        the metric stays the hard gate. That over-specificity veto is the crank's fourth overfitting
+        guard, alongside the ≤5-change trust region, the no-per-image-answers drafter rule, and the
+        aligned anchors.</li>
       </ul>
     </section>
 
