@@ -2731,6 +2731,10 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 
 /* Adjudication queue: tier badges, sortable headers, alignment cells */
 .adjudicate-table-scroll { overflow-x: auto; }
+/* Floating metric tooltip (adjudicate.js) — escapes the scroll container */
+.rush-tip { position: fixed; z-index: 9999; display: none; max-width: 300px; padding: 8px 11px; border-radius: 9px; background: #0b1526; border: 1px solid var(--line); color: var(--text); font-size: 12px; line-height: 1.5; box-shadow: 0 8px 28px rgba(0, 0, 0, .55); pointer-events: none; }
+.adjudicate-tier[data-tip] { cursor: help; }
+.adjudicate-sortable[data-tip]:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .adjudicate-table { min-width: 940px; }
 .adjudicate-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .adjudicate-sortable:hover { color: var(--text); }

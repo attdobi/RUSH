@@ -13,6 +13,38 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[ch]);
 
+  // Floating metric tooltip: a fixed-position bubble on any [data-tip] element.
+  // Fixed positioning escapes the table's horizontal-scroll container, which
+  // (per the overflow spec) would clip a CSS ::after tooltip on both axes.
+  (function initTips() {
+    let tip = null;
+    const show = (el) => {
+      const text = el.getAttribute('data-tip');
+      if (!text) return;
+      if (!tip) { tip = document.createElement('div'); tip.className = 'rush-tip'; document.body.appendChild(tip); }
+      tip.textContent = text;
+      tip.style.display = 'block';
+      const r = el.getBoundingClientRect();
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      // Clamp fully on-screen (max after min, so a narrow viewport can't push it negative).
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+      let top = r.bottom + 6;
+      if (top + h > window.innerHeight - 8) top = r.top - h - 6; // flip above near the bottom edge
+      top = Math.max(8, top);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const hide = () => { if (tip) tip.style.display = 'none'; };
+    document.addEventListener('mouseover', (e) => {
+      const el = e.target.closest && e.target.closest('[data-tip]');
+      if (el) show(el);
+    });
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest && e.target.closest('[data-tip]')) hide();
+    });
+    document.addEventListener('click', hide, true); // dismiss on any click (e.g. sorting)
+  })();
+
   const state = {
     items: null,
     loaded: false,
@@ -55,7 +87,7 @@
 
   function tierBadge(tier) {
     if (!tier) return '—';
-    return `<span class="adjudicate-tier adjudicate-tier--${tier}" title="${esc(TIER_LABEL[tier] || '')}">T${tier}</span>`;
+    return `<span class="adjudicate-tier adjudicate-tier--${tier}" data-tip="${esc(TIER_LABEL[tier] || '')}">T${tier}</span>`;
   }
 
   const RESOLUTION_LABEL = {
@@ -327,7 +359,8 @@
       if (c.get === undefined) return `<th>${esc(c.label)}</th>`;
       const active = state.sortKey === c.key;
       const arrow = active ? (state.sortDir === -1 ? ' ▾' : ' ▴') : '';
-      return `<th class="adjudicate-sortable${active ? ' adjudicate-sorted' : ''}" data-sort="${c.key}" title="${esc(c.title || '')}">${esc(c.label)}${arrow}</th>`;
+      const tip = c.title ? ` data-tip="${esc(c.title)}"` : '';
+      return `<th class="adjudicate-sortable${active ? ' adjudicate-sorted' : ''}" data-sort="${c.key}"${tip}>${esc(c.label)}${arrow}</th>`;
     }).join('');
     host.innerHTML = `<div class="adjudicate-table-scroll"><table class="summary-table adjudicate-table">
       <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;

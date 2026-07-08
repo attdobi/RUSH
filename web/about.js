@@ -105,15 +105,34 @@ re-adjudication= I_base · amp · (1 − p_human)       → ranks the human queu
     flowing toward genuinely unresolved cases. (Policy anchor value is <em>not</em> faded: the policy
     still has to learn even a certain label.)</p>
 
-    <h2>Where these show up</h2>
+    <h2>The Adjudicate columns</h2>
+    <p>Each row is one image; every column is click-sortable, and hovering a header shows the same
+    short definition. <strong>Importance is the default sort — it is the re-adjudication priority
+    score above (<code>anchor value × (1 − p_human)</code>), recomputed after any SME action.</strong>
+    A high Importance means "a human should look here first."</p>
+    <table class="about-tier-table">
+      <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Tier</strong></td><td>The four-tier bucket (T1 worst → T4 ideal). After an overturn, re-scored against the new label.</td></tr>
+        <tr><td><strong>SME truth</strong></td><td>The human (golden) label.</td></tr>
+        <tr><td><strong>SME agree</strong></td><td>LLM↔human: fraction of judges matching the SME label (<code>a = m/N</code>). Low = misaligned.</td></tr>
+        <tr><td><strong>LLM consensus</strong></td><td>LLM↔LLM, SME-blind: fraction on the modal label (<code>κ</code>). High + misaligned = systematic.</td></tr>
+        <tr><td><strong>Avg conf</strong></td><td>Mean self-reported judge confidence <code>c</code>.</td></tr>
+        <tr><td><strong>Difficulty</strong></td><td>low=0, medium=0.5, high=1, averaged across judges.</td></tr>
+        <tr><td><strong>Boundary</strong></td><td>Fraction of judges flagging a documented confusion boundary (<code>b</code>).</td></tr>
+        <tr><td><strong>|g|</strong></td><td>Gradient magnitude <code>1 − p</code>; confident-wrong ≈ 1, confident-right ≈ 0.</td></tr>
+        <tr><td><strong>Importance</strong></td><td><strong>The default rank.</strong> Re-adjudication priority = <code>I_base(misalignment×consensus) × (1+|g|) × (1+½·boundary) × (1 − p_human)</code>. Fades as SMEs confirm.</td></tr>
+        <tr><td><strong>Status</strong></td><td>SME verdict: open · confirmed ×N · overturned X→Y · uncertain. Resolved = two or more SMEs agree.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Where else these show up</h2>
     <ul>
       <li><strong>Run summary</strong> — every judge's full response per image: label, <code>c</code>,
       difficulty, is_boundary + the confusion pair, citations, quotes, tokens, cost.</li>
-      <li><strong>Adjudicate</strong> — the cross-run queue, one row per image, every column
-      click-sortable: Tier, SME agree (a), LLM consensus (κ), Avg conf, Difficulty, Boundary rate (b),
-      <code>|g|</code>, and the composite Importance (the default sort).</li>
       <li><strong>Run the loop</strong> — the anchor selection strategy (<code>random</code>,
-      <code>top_gradient</code>, or <code>top_importance</code>) decides which of these the drafter sees.</li>
+      <code>top_gradient</code>, or <code>top_importance</code>) decides which of these the drafter sees.
+      <code>top_importance</code> ranks by the same score as the Adjudicate Importance column.</li>
     </ul>
     <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
     (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror
