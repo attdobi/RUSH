@@ -553,6 +553,21 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise APIError(400, "validation_error", "seed must be an integer",
                        details={"field": "seed"})
 
+    # The test partition is carved from the area's dev_golden pool; a test_n
+    # at or above the pool size would kill the driver at startup with no
+    # experiment record (the GenAI pool is 40, far below MNIST's) — reject it
+    # HERE so the UI shows a real error instead of silence.
+    test_n = _int_field("test_n", 100, 10, 1000)
+    pool_n = _dev_golden_pool_n(area)
+    if pool_n is not None and test_n >= pool_n:
+        raise APIError(
+            400, "validation_error",
+            f"test_n must be at most {pool_n - 1} for {area}: its dev_golden "
+            f"pool has only {pool_n} images and the remainder becomes the "
+            "train pool",
+            details={"field": "test_n", "dev_golden_pool": pool_n},
+        )
+
     import math
 
     epsilon = payload.get("epsilon", 0)
@@ -622,7 +637,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "seed": seed,
         "k_max": _int_field("k_max", 5, 1, 50),
         "batch_n": _int_field("batch_n", 20, 2, 200),
-        "test_n": _int_field("test_n", 100, 10, 1000),
+        "test_n": test_n,
         # Defaults mirror the run form (Attila 2026-07-09): 15 misaligned +
         # 5 aligned anchors, max 3 changes per edit.
         "max_changes": _int_field("max_changes", 3, 1, 5),
@@ -632,6 +647,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "epsilon": float(epsilon),
         "gate_mode": gate_mode,
         "gate_model": _agent_model("gate_model", "openai/gpt-5.5"),
+        "gate_persona": _gate_persona(payload.get("gate_persona")),
         "drafter_model": _agent_model(
             "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
         ),
@@ -643,6 +659,45 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "live": live,
         "allow_spend": bool(payload.get("allow_spend")),
     }
+
+
+def _gate_persona(raw: Any) -> str:
+    """Gate-agent stance; the allow-set derives from the prompt registry."""
+    from pipeline.experiment import DEFAULT_GATE_PERSONA, GATE_PERSONAS
+
+    if raw in (None, ""):
+        return DEFAULT_GATE_PERSONA
+    if raw not in GATE_PERSONAS:
+        raise APIError(400, "validation_error",
+                       f"gate_persona must be one of {sorted(GATE_PERSONAS)}",
+                       details={"field": "gate_persona"})
+    return str(raw)
+
+
+# dev_golden pool sizes per area, cached for the process lifetime (the
+# manifests only change on re-mint, which ships with a server restart).
+_DEV_GOLDEN_POOL_CACHE: dict[str, int] = {}
+
+
+def _dev_golden_pool_n(area: str) -> int | None:
+    """Size of the area's dev_golden pool, or None when unknowable.
+
+    Soft-fails on any manifest problem: this check exists to give launches a
+    clear early error, never to block them on a filesystem hiccup.
+    """
+    cached = _DEV_GOLDEN_POOL_CACHE.get(area)
+    if cached is not None:
+        return cached
+    try:
+        from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default
+        from pipeline.manifest import load_records
+
+        path = MNIST_SAMPLE_MANIFEST if area == "MNIST_Digits" else genai_manifest_default()
+        pool_n = sum(1 for r in load_records(path) if r.split == "dev_golden")
+    except Exception:  # noqa: BLE001 - advisory check only
+        return None
+    _DEV_GOLDEN_POOL_CACHE[area] = pool_n
+    return pool_n
 
 
 def _drafter_context(raw: Any) -> str:

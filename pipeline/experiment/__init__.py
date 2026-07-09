@@ -618,12 +618,40 @@ GATE_AGENT_ONLY_SYSTEM_PROMPT = (
     "stating a general guideline, targets one judge model's quirks, tells "
     "judges to abstain or defer instead of committing to a label, piles "
     "class- or pair-specific rules into the root file instead of the owning "
-    "class/boundary node, is incoherent with the policy's structure, or "
-    "regresses the metric without compensating structural value. Be "
-    "conservative: an accepted edit ships as the next policy version. "
+    "class/boundary node, or is incoherent with the policy's structure. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
 )
+
+# Gate-agent persona: how strict the critic is about shipping (Attila
+# 2026-07-09: the default gate read as too strict — skipping metric-flat
+# edits with sound structure). The stance paragraph is appended to whichever
+# gate system prompt is in force. In `agent` (veto) mode it shifts how
+# eagerly the agent vetoes a metric-passing edit; in `agent_only` mode it
+# shifts the accept/skip threshold itself.
+DEFAULT_GATE_PERSONA = "lenient"
+GATE_PERSONAS: dict[str, str] = {
+    "lenient": (
+        "STANCE — LENIENT: favor progress. A flat or mildly negative metric "
+        "on a small test partition is sampling noise, not a defect — do not "
+        "treat it alone as a reason to skip. Skip ONLY on a clear defect "
+        "(ground-truth leakage, per-image answers, abstain guidance, "
+        "root-dumping, incoherent structure) or a large unambiguous "
+        "regression across multiple judges. A well-formed node addition with "
+        "plausible generalization value gets the benefit of the doubt."
+    ),
+    "moderate": (
+        "STANCE — MODERATE: balance progress against risk. Weigh measured "
+        "movement and structural value together: accept sound edits whose "
+        "overall evidence leans positive; skip when regressions or risky "
+        "over-broad wording outweigh the structural gain."
+    ),
+    "strict": (
+        "STANCE — STRICT: be conservative — an accepted edit ships as the "
+        "next policy version. Any measured regression, over-broad wording, "
+        "or claimed-but-unmeasured value is sufficient reason to skip."
+    ),
+}
 
 
 def build_gate_messages(
@@ -640,12 +668,18 @@ def build_gate_messages(
     k: int,
     comparison: dict[str, Any] | None = None,
     agent_is_sole_gate: bool = False,
+    persona: str = DEFAULT_GATE_PERSONA,
 ) -> list[dict[str, str]]:
     """Assemble the gate agent's review packet (metric table + diff + anchors).
 
     ``agent_is_sole_gate`` selects the agent_only system prompt: the critic
-    decides, the metric is advisory (--gate-mode agent_only).
+    decides, the metric is advisory (--gate-mode agent_only). ``persona``
+    appends a leniency stance (lenient/moderate/strict) to the system prompt.
     """
+    if persona not in GATE_PERSONAS:
+        raise ValueError(
+            f"unknown gate persona: {persona!r} (choose from {sorted(GATE_PERSONAS)})"
+        )
 
     def _summary(metrics: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -695,12 +729,11 @@ def build_gate_messages(
             for a in anchors
         ],
     }
+    base_prompt = GATE_AGENT_ONLY_SYSTEM_PROMPT if agent_is_sole_gate else GATE_SYSTEM_PROMPT
     return [
         {
             "role": "system",
-            "content": (
-                GATE_AGENT_ONLY_SYSTEM_PROMPT if agent_is_sole_gate else GATE_SYSTEM_PROMPT
-            ),
+            "content": f"{base_prompt}\n\n{GATE_PERSONAS[persona]}",
         },
         {"role": "user", "content": json.dumps(payload, indent=2)},
     ]
@@ -821,19 +854,7 @@ DRAFTER_SYSTEM_PROMPT = (
     "Write minimal full-file markdown changes. HARD BUDGET: at most "
     "{max_changes} file changes total (modified + added + removed combined); "
     "fewer is better — one focused, human-reviewable change is ideal. "
-    "TARGET THE MOST SPECIFIC NODE THAT OWNS THE ERROR: class-specific "
-    "guidance belongs in that class's own node file (e.g. MD.digit.4.md), "
-    "and guidance about ONE confusion pair belongs in a dedicated boundary "
-    "node. The root file is the decision procedure — treat it as effectively "
-    "frozen and touch it only when no more specific node can carry the rule; "
-    "piling rules into the root is a defect, not an improvement. When "
-    "several anchors share one confusion pair (truth A misread as B), PREFER "
-    "ADDING a new boundary node — a file named like MD.boundary.4_vs_9.md "
-    "whose frontmatter mirrors a sibling node's shape with node_type "
-    "'boundary', parent set to the true class's node id, polarity 'mixed', "
-    "status 'draft', and frontmatter edges of type 'confused_with' pointing "
-    "at BOTH class nodes — so the graph grows a visible boundary case "
-    "instead of a longer root. State "
+    "{area_guidance} State "
     "general, model-agnostic guidance (clear definitions, boundary rules, "
     "canonical examples); NEVER encode per-image answers or ground-truth "
     "labels. The policy must always demand a decisive label: NEVER add "
@@ -846,6 +867,55 @@ DRAFTER_SYSTEM_PROMPT = (
     "\"modified|added|removed\",\"content\":\"full markdown for "
     "added/modified files\"}}]}}. Never return unified diffs."
 )
+
+# Node-targeting guidance is area-specific: MNIST grows per-digit and
+# confusion-pair boundary nodes; the binary GenAI area grows a knowledge
+# graph of evidence sub-categories (cue nodes) under their parent category.
+MNIST_DRAFTER_GUIDANCE = (
+    "TARGET THE MOST SPECIFIC NODE THAT OWNS THE ERROR: class-specific "
+    "guidance belongs in that class's own node file (e.g. MD.digit.4.md), "
+    "and guidance about ONE confusion pair belongs in a dedicated boundary "
+    "node. The root file is the decision procedure — treat it as effectively "
+    "frozen and touch it only when no more specific node can carry the rule; "
+    "piling rules into the root is a defect, not an improvement. When "
+    "several anchors share one confusion pair (truth A misread as B), PREFER "
+    "ADDING a new boundary node — a file named like MD.boundary.4_vs_9.md "
+    "whose frontmatter mirrors a sibling node's shape with node_type "
+    "'boundary', parent set to the true class's node id, polarity 'mixed', "
+    "status 'draft', and frontmatter edges of type 'confused_with' pointing "
+    "at BOTH class nodes — so the graph grows a visible boundary case "
+    "instead of a longer root."
+)
+GENAI_DRAFTER_GUIDANCE = (
+    "TARGET THE MOST SPECIFIC NODE THAT OWNS THE ERROR: cue-specific "
+    "guidance belongs in that cue's own node file (e.g. "
+    "GA.visual_artifacts.anatomy.hands.md), and guidance about one recurring "
+    "evidence pattern belongs in a dedicated sub-category node under its "
+    "parent category. The root file is the decision procedure — treat it as "
+    "effectively frozen and touch it only when no more specific node can "
+    "carry the rule; piling rules into the root is a defect, not an "
+    "improvement. When several anchors share one recurring cue (a texture "
+    "signature, an anatomy artifact, a lighting/geometry inconsistency, a "
+    "provenance tell, or an authentic-photo pattern the panel misreads as "
+    "generated), PREFER ADDING a new sub-category node — a file named like "
+    "GA.<category>.<specific_cue>.md whose frontmatter mirrors a sibling "
+    "node's shape with node_type 'category', parent set to the owning "
+    "category node id (or GA.root only for a genuinely new category), "
+    "polarity 'positive' for generated-image cues or 'negative' for "
+    "authenticity cues, status 'draft', and a frontmatter edge of type "
+    "'subtype_of' pointing at the parent — so the knowledge graph grows "
+    "deeper, reviewable sub-categories instead of a longer root."
+)
+
+
+def drafter_system_prompt(*, area: str, max_changes: int) -> str:
+    """Render the drafter system prompt with area-appropriate node guidance."""
+    guidance = (
+        MNIST_DRAFTER_GUIDANCE if area == "MNIST_Digits" else GENAI_DRAFTER_GUIDANCE
+    )
+    return DRAFTER_SYSTEM_PROMPT.format(
+        max_changes=max_changes, area_guidance=guidance
+    )
 
 
 def _anchor_sample_block(anchor: dict[str, Any]) -> dict[str, Any]:
@@ -946,7 +1016,7 @@ def build_drafter_messages(
     }
     system = {
         "role": "system",
-        "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
+        "content": drafter_system_prompt(area=area, max_changes=max_changes),
     }
     if not anchor_images and not aligned_images:
         # Single JSON string (dry runs, old tests): key order is

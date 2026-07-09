@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r43" />
-  <script src="demos.js?v=demo-mnist-kdd-r43"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r44" />
+  <script src="demos.js?v=demo-mnist-kdd-r44"></script>
 </head>
 <body>
   <header class="hero">
@@ -137,6 +137,13 @@
                 <option value="agent_only:anthropic/claude-opus-4-7">opus-4-7 critic gate — no metric rule</option>
               </optgroup>
               <option value="off">Gate OFF — accept every edit</option>
+            </select>
+          </label>
+          <label title="How strict the gate agent is. Lenient: a flat metric on a small test set is sampling noise — skip only clear defects or large regressions. Strict: any regression or unmeasured value skips. Applies to both agent modes; ignored by metric-only/OFF.">Persona
+            <select id="experimentGatePersona">
+              <option value="lenient" selected>lenient (default)</option>
+              <option value="moderate">moderate</option>
+              <option value="strict">strict</option>
             </select>
           </label>
           <label class="checkbox-label" title="Score the FIXED cross-run validation split (same 1000 images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
@@ -281,14 +288,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r43"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r43"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r43"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r43"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r43"></script>
-  <script src="about.js?v=demo-mnist-kdd-r43"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r43"></script>
+  <script src="app.js?v=demo-mnist-kdd-r44"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r44"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r44"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r44"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r44"></script>
+  <script src="about.js?v=demo-mnist-kdd-r44"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r44"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r43"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r44"></script>
 </body>
 </html>

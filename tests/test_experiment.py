@@ -292,9 +292,34 @@ def test_gate_agent_only_prompt_selection():
     )
     default_messages = exp.build_gate_messages(**kwargs)
     critic_messages = exp.build_gate_messages(**kwargs, agent_is_sole_gate=True)
-    assert default_messages[0]["content"] == exp.GATE_SYSTEM_PROMPT
-    assert critic_messages[0]["content"] == exp.GATE_AGENT_ONLY_SYSTEM_PROMPT
+    assert default_messages[0]["content"].startswith(exp.GATE_SYSTEM_PROMPT)
+    assert critic_messages[0]["content"].startswith(exp.GATE_AGENT_ONLY_SYSTEM_PROMPT)
     assert "verdict alone decides" in critic_messages[0]["content"]
+
+
+def test_gate_persona_stance_appended_and_validated():
+    kwargs = dict(
+        metric=exp.GATE_METRIC, value_before=0.9, value_after=0.9, epsilon=0.0,
+        metric_pass=False, metrics_before={}, metrics_after={}, diffs=[],
+        anchors=[], k=1,
+    )
+    # Default = lenient (Attila 2026-07-09: the old implicit stance read as
+    # too strict — metric-flat-but-sound edits were skipped).
+    assert exp.DEFAULT_GATE_PERSONA == "lenient"
+    default = exp.build_gate_messages(**kwargs)[0]["content"]
+    assert "STANCE — LENIENT" in default
+    for persona, marker in (
+        ("lenient", "STANCE — LENIENT"),
+        ("moderate", "STANCE — MODERATE"),
+        ("strict", "STANCE — STRICT"),
+    ):
+        for sole in (False, True):
+            content = exp.build_gate_messages(
+                **kwargs, agent_is_sole_gate=sole, persona=persona
+            )[0]["content"]
+            assert marker in content
+    with pytest.raises(ValueError):
+        exp.build_gate_messages(**kwargs, persona="ruthless")
 
 
 def test_build_run_summary_deltas_and_metadata():
@@ -340,7 +365,7 @@ def test_build_run_summary_deltas_and_metadata():
 def test_drafter_prompt_formats_and_targets_subnodes():
     # The {max_changes} placeholder must survive the JSON braces, and the
     # node-targeting directives (Attila 2026-07-06) must be present.
-    rendered = exp.DRAFTER_SYSTEM_PROMPT.format(max_changes=3)
+    rendered = exp.drafter_system_prompt(area="MNIST_Digits", max_changes=3)
     assert "at most 3 file changes" in rendered
     assert "MOST SPECIFIC NODE" in rendered
     assert "boundary node" in rendered
@@ -349,6 +374,23 @@ def test_drafter_prompt_formats_and_targets_subnodes():
     # Two anchor sets: fix the misaligned without regressing the aligned.
     assert "MISALIGNED" in rendered and "ALIGNED" in rendered
     assert "regress" in rendered
+
+
+def test_drafter_prompt_area_guidance():
+    # MNIST grows confusion-pair boundary nodes; the binary GenAI area grows
+    # KG sub-category cue nodes (subtype_of edges) — the drafter must be told
+    # the right graph idiom per area (Attila 2026-07-09).
+    mnist = exp.drafter_system_prompt(area="MNIST_Digits", max_changes=3)
+    assert "MD.boundary.4_vs_9.md" in mnist
+    assert "confused_with" in mnist
+    genai = exp.drafter_system_prompt(area="Generative_AI", max_changes=3)
+    assert "sub-category" in genai
+    assert "subtype_of" in genai
+    assert "GA." in genai and "MD." not in genai
+    # Shared spine either way: root frozen, decisive labels, JSON contract.
+    for rendered in (mnist, genai):
+        assert "frozen" in rendered and "abstain" in rendered
+        assert "at most 3 file changes" in rendered
 
 
 def test_gate_off_accepts_regardless_of_metric_and_agent():

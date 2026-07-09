@@ -221,18 +221,26 @@ def make_label_coercer(
     """Build a ground-truth label coercer for a multiclass task.
 
     The returned callable accepts ``(raw_label, label_int)`` from a manifest row
-    and returns the canonical class string. It accepts either the raw string
-    (when already in ``classes``) or the stringified ``label_int``.
+    and returns the canonical class string. It accepts the raw string (when
+    already in ``classes``), the sampler's source-of-truth vocabulary mapped
+    through :data:`pipeline.manifest.SME_LABEL_MAP` (GenAI manifests store
+    ``ai_generated``/``not_ai_generated``, scored as ``gen_ai``/``not_gen_ai``),
+    or the stringified ``label_int``.
 
     Raises:
-        ValueError: if neither form resolves to a member of ``classes``.
+        ValueError: if no form resolves to a member of ``classes``.
     """
+    from pipeline.manifest import SME_LABEL_MAP
+
     allowed = set(classes)
 
     def _coerce(raw: str, label_int: int | None) -> str:
         raw_str = str(raw)
         if raw_str in allowed:
             return raw_str
+        mapped = SME_LABEL_MAP.get(raw_str)
+        if mapped in allowed:
+            return mapped
         if label_int is not None and str(label_int) in allowed:
             return str(label_int)
         raise ValueError(

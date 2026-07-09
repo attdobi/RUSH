@@ -192,6 +192,7 @@
       gate_mode: gateMode,
       gate_model: (gateMode === 'agent' || gateMode === 'agent_only')
         ? gateModel : 'openai/gpt-5.5',
+      gate_persona: $('#experimentGatePersona')?.value || 'lenient',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
       drafter_context: $('#experimentDrafterContext')?.value || 'text_and_images',
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
@@ -456,7 +457,7 @@
         <div><span>Splits</span><strong>test ${esc(exp.test_n)} · batch ${esc(exp.batch_n)}/cycle · holdout locked</strong></div>
         <div><span>Gate</span><strong>${exp.gate_mode === 'off'
           ? 'OFF — accepts every edit'
-          : `${esc(exp.gate_model || 'metric rule')} (${esc(exp.gate_mode)})`}</strong></div>
+          : `${esc(exp.gate_model || 'metric rule')} (${esc(exp.gate_mode)}${(exp.gate_persona && exp.gate_mode !== 'metric_only') ? ` · ${esc(exp.gate_persona)}` : ''})`}</strong></div>
         <div title="The drafter that proposes each policy edit — its model, what it sees per anchor, and its total spend across all cycles so far"><span>Optimizer</span><strong>${esc(exp.drafter_model || 'openai/gpt-5.5')}${exp.drafter_context === 'text_only' ? ' · text only' : ''}${(() => {
           const spent = cycles.reduce((sum, c) => sum + (c.drafter?.cost_usd || 0), 0);
           return spent > 0 ? ` · ${fmtUsd(spent)}` : '';
@@ -1393,8 +1394,32 @@
 
   // ---- init -----------------------------------------------------------------
 
+  // Demo-aware form defaults. The static HTML defaults fit MNIST (dev_golden
+  // pool ~2k); the GenAI area's pool is only 40 images, so T=100 would kill
+  // the driver at startup, and it has no fixed validation split yet, so the
+  // benchmark readout cannot run. Every other knob is identical by design.
+  function applyDemoFormDefaults() {
+    const genai = activeDemoId() === 'genai';
+    const testN = $('#experimentTestN');
+    const batchN = $('#experimentBatchN');
+    if (genai) {
+      if (testN) testN.value = '20';
+      if (batchN) batchN.value = '10';
+    }
+    const benchmark = $('#experimentValidationFinal');
+    if (benchmark) {
+      benchmark.disabled = genai;
+      if (genai) {
+        benchmark.checked = false;
+        const label = benchmark.closest('label');
+        if (label) label.title = 'The GenAI manifest has no fixed validation split yet — mint one (like scripts/build_mnist_validation_split.py) to enable the cross-run benchmark readout.';
+      }
+    }
+  }
+
   function init() {
     if (!$('#experiment')) return;
+    applyDemoFormDefaults();
     const metricSelect = $('#experimentMetric');
     metricSelect.innerHTML = METRICS.map(([key, label]) => `<option value="${key}">${esc(label)}</option>`).join('');
     metricSelect.addEventListener('change', renderChart);

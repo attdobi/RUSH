@@ -383,6 +383,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "run number starts from the same baseline; accepted versions "
                          "branch from it (lineage recorded per run).")
     ap.add_argument("--gate-model", default=exp.DEFAULT_GATE_MODEL)
+    ap.add_argument("--gate-persona", choices=sorted(exp.GATE_PERSONAS),
+                    default=exp.DEFAULT_GATE_PERSONA,
+                    help="Gate-agent stance appended to its system prompt: lenient "
+                         "(default — a flat metric on a small test set is noise, skip "
+                         "only clear defects), moderate, or strict (any regression or "
+                         "unmeasured value skips).")
     ap.add_argument("--gate-mode", choices=["agent", "agent_only", "metric_only", "off"],
                     default="agent",
                     help="agent: metric rule + gate-agent veto | agent_only: the critic "
@@ -469,9 +475,16 @@ def main(argv: list[str] | None = None) -> int:
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     records = load_records(manifest)
-    test_ids, train_pool = exp.partition_test_train(
-        records, seed=seed, test_n=args.test_n
-    )
+    try:
+        test_ids, train_pool = exp.partition_test_train(
+            records, seed=seed, test_n=args.test_n
+        )
+    except ValueError as exc:
+        # E.g. --test-n 100 against the 40-image GenAI dev_golden pool. Exit
+        # cleanly BEFORE any state/spend so a UI launch surfaces a real error
+        # instead of a driver traceback with no experiment record.
+        print(f"[experiment] invalid --test-n for area {area}: {exc}", file=sys.stderr)
+        return 2
     holdout_ids = sorted(r.sample_id for r in records if r.split == "holdout")
     validation_records = [r for r in records if r.split == "validation"]
     validation_ids = sorted(r.sample_id for r in validation_records)
@@ -507,6 +520,7 @@ def main(argv: list[str] | None = None) -> int:
         "judge_models": models,
         "gate_model": args.gate_model,
         "gate_mode": args.gate_mode,
+        "gate_persona": args.gate_persona,
         "drafter_model": args.drafter_model,
         "drafter_context": args.drafter_context,
         "base_version": base_version,
@@ -974,6 +988,7 @@ def main(argv: list[str] | None = None) -> int:
                     .get("diffs", []),
                     anchors=anchors, k=k, comparison=comparison,
                     agent_is_sole_gate=args.gate_mode == "agent_only",
+                    persona=args.gate_persona,
                 )
                 n_gate_calls = len(usage_gate)
                 try:
@@ -1031,6 +1046,7 @@ def main(argv: list[str] | None = None) -> int:
                 "rationale": outcome["rationale"],
                 "risk_flags": outcome["risk_flags"],
                 "gate_model": args.gate_model if gate_chat is not None else None,
+                "persona": args.gate_persona if gate_chat is not None else None,
                 "cost_usd": round(gate_cost, 6),
                 "error": gate_error,
                 "raw_response": gate_raw[:2000],
@@ -1201,7 +1217,7 @@ def main(argv: list[str] | None = None) -> int:
     # Human-readable summary
     print(f"\n=== RUSH experiment {experiment_id} (run #{state['run_number']}, seed {seed}) ===")
     gate_desc = "OFF (accept all clipped edits)" if args.gate_mode == "off" \
-        else f"{args.gate_model} ({args.gate_mode})"
+        else f"{args.gate_model} ({args.gate_mode}, {args.gate_persona})"
     print(f"panel: {', '.join(models)} | gate: {gate_desc}")
     print(f"policy: {state['base_version']} -> {state['current_version']} "
           f"({len(accepted_cycles)} accepted, "

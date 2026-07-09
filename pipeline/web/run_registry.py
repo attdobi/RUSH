@@ -606,6 +606,8 @@ class RunRegistry:
             request["gate_model"],
             "--gate-mode",
             request["gate_mode"],
+            "--gate-persona",
+            request.get("gate_persona") or "lenient",
             "--drafter-model",
             request["drafter_model"],
             "--drafter-context",
@@ -656,7 +658,7 @@ class RunRegistry:
                 for key in (
                     "seed", "k_max", "batch_n", "test_n", "max_changes",
                     "max_anchors", "max_aligned_anchors", "epsilon",
-                    "gate_model", "gate_mode", "drafter_model",
+                    "gate_model", "gate_mode", "gate_persona", "drafter_model",
                     "drafter_context", "live", "holdout_final",
                 )
             },

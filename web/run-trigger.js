@@ -442,7 +442,11 @@
   }
 
   function defaultLocalReasoningForArea(area = activePolicyArea()) {
-    return String(area || '') !== 'MNIST_Digits';
+    // Same default on every demo (Attila 2026-07-09: GenAI defaulted On while
+    // MNIST defaulted Off — unify): local reasoning is opt-in per model via
+    // the toggle; session overrides still win.
+    void area;
+    return false;
   }
 
   function readLocalReasoningOverrides() {

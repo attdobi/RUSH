@@ -490,6 +490,33 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
     assert request["drafter_model"] == "openai/gpt-5.4-mini-low"
 
 
+def test_validate_experiment_payload_gate_persona() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    assert validate_experiment_payload(
+        _experiment_payload())["gate_persona"] == "lenient"
+    assert validate_experiment_payload(
+        _experiment_payload(gate_persona="strict"))["gate_persona"] == "strict"
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(gate_persona="ruthless"))
+
+
+def test_validate_experiment_payload_test_n_bounded_by_dev_golden_pool() -> None:
+    """The GenAI dev_golden pool has 40 images; the MNIST-sized default T=100
+    used to kill the driver at startup with no experiment record — the UI
+    launch looked like nothing happened. Reject it at payload time instead."""
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    with pytest.raises(APIError) as excinfo:
+        validate_experiment_payload(
+            _experiment_payload(area="Generative_AI", test_n=100))
+    assert excinfo.value.status == 400
+    assert "dev_golden" in str(excinfo.value)
+    ok = validate_experiment_payload(
+        _experiment_payload(area="Generative_AI", test_n=20, batch_n=10))
+    assert ok["test_n"] == 20 and ok["area"] == "Generative_AI"
+
+
 def test_validate_experiment_payload_drafter_context() -> None:
     from pipeline.web._safety import APIError, validate_experiment_payload
 
