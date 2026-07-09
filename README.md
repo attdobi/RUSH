@@ -151,35 +151,51 @@ The tokenomics run through the learning loop too: SME labels are expensive, so t
 
 ## See it live
 
-The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is three views around one loop:
+The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views around one loop:
 
 1. **Run the loop** — the experiment crank IS the page. The config panel is grouped by role:
    * **Judges** — your 2–5 cheap panel models. They label every image and score every metric;
      all decision-quality numbers (F1 before/after, the learning curve, the gate metric) come from
      THIS panel. No expensive model ever scores quality.
+   * **Splits** (GenAI only) — the current minted split state (dev / holdout / benchmark sizes +
+     the sampling seed) with editable seed/sizes and a **Mint splits** button. The seed is the
+     cross-machine alignment contract: the same seed + sizes over the same source tree produces
+     byte-identical manifests everywhere. MNIST's splits are committed, so the row is hidden there.
    * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low; it drafts, it never
      judges) writes ONE clipped policy edit per cycle from the misaligned anchors. Its "Input"
-     knob (`--drafter-context`) picks what each anchor carries: every judge's text output
-     (label, confidence, difficulty, boundary flag, justification) **plus the anchor image
-     itself** (default), or `text only` — much cheaper on image-heavy areas. "Anchors" picks the
-     selection strategy: `random_misalignment` (S1, unbiased) or `top_gradient`
-     (most-informative-first: panel avg |g| = 1−p descending, confident-wrong panels lead).
-     The optimizer's token usage and cost are recorded per cycle (`cycle.drafter` in
-     experiment.json) and shown in the gate ledger's Cost (k) column.
-   * **Gate** — deterministic metric rule by default (accept iff panel test macro-F1 strictly
-     improves). Optionally add an expensive gate agent that can VETO a suspicious win — never
-     force one — with every rationale reported in the gate ledger. Or `off` to watch unfiltered drift.
-   * While a run executes: a **live labeling card** (per-model calls, s/call, tok/s, cost) with a
-     **Cancel run** button, live phase text, and the learning curve / ledger / policy graph filling
-     in per cycle. Accepted versions are named **v\<run\>.\<k\>** — run 5 accepting at cycle 3 mints v5.3.
-   Every run finalizes a `summary` block (per-scorer baseline/final/delta test metrics + config
-   metadata, mirrored to `rush.experiment.summary`) for cross-run analysis.
+     knob (`--drafter-context`) picks what each anchor carries: **`text only` (default)** — every
+     judge's text output (label, confidence, difficulty, boundary flag, justification) plus the
+     SME truth, the justifications usually carry the visual evidence in words — or `images + text`,
+     which additionally attaches the anchor pixels for visual boundary cases at extra token cost.
+     "Anchors" picks the selection strategy: `random_misalignment` (S1, unbiased), `top_gradient`
+     (most-informative-first: panel avg |g| = 1−p descending, confident-wrong panels lead), or
+     `top_importance` (the four-tier misalignment × consensus rank). The optimizer's token usage
+     and cost are recorded per cycle (`cycle.drafter` in experiment.json) and shown in the gate
+     ledger's Cost (k) column.
+   * **Gate** — four modes. `metric_only`: a deterministic rule (accept iff panel test macro-F1
+     strictly improves). `+ agent`: that rule stays the hard wall and a gate agent may VETO a
+     suspicious win, never force one. **`agent_only` (default in the UI: gpt-5.5-low critic gate)**:
+     the critic's verdict alone decides — the metric is recorded as advisory, never enforced, so
+     the critic may accept a metric-flat but structurally sound edit (agent failure falls back to
+     the metric rule). `off`: accept every edit, to watch unfiltered drift. A **Persona** knob
+     (`--gate-persona`, default **lenient**) sets the agent's stance in both agent modes: lenient
+     treats a flat metric on a small test partition as sampling noise and skips only clear defects
+     or large regressions; `moderate` and `strict` tighten it. Every rationale is in the gate ledger.
+   * While a run executes: a **live labeling card** (per-model calls, s/call, tok/s, cache-aware
+     cost) with a **Cancel run** button, live phase text, and the learning curve / ledger / policy
+     graph filling in per cycle. Accepted versions are named **v\<run\>.\<k\>** — run 5 accepting at
+     cycle 3 mints v5.3. Every run finalizes a `summary` block (per-scorer baseline/final/delta test
+     metrics + config metadata, mirrored to `rush.experiment.summary`) for cross-run analysis.
 
 2. **Run summary** — drills into any run → cycle k → evaluation: every image with each judge's **complete** response — label, policy node, confidence [0,1], difficulty, `is_boundary` + the confusion pair, justification, policy citations and verbatim quotes, tokens and per-call cost — ranked misaligned-first. (Any field a future output template adds falls through to the cards automatically.)
 
 3. **Adjudicate** — the running cross-run SME queue: at the end of every run the driver flags each train / test / holdout / benchmark image whose latest evaluation is still misaligned (`readjudication` block in experiment.json, mirrored to `rush.experiment.readjudication`; served by `GET /api/adjudication`). Items are deduped by image sha256 with the flagging run number(s) shown, and stack-ranked by LLM consensus (or lack of it) → avg confidence → avg difficulty across the panel, or by the per-sample gradient formalism (|g| = 1−p, p = confidence if correct else 1−confidence): confident-wrong panels first — the strongest hint that either the policy or the golden label itself needs a human look. Dry runs never queue human work.
 
-**Cross-run benchmark**: `scripts/build_mnist_validation_split.py` mints a FIXED 1,000-image `validation` split (100/digit from the canonical MNIST test rows, disjoint from dev_golden + holdout, locked like the holdout). `--validation-final` (or the "Benchmark readout" checkbox) scores start + final policy on it — the numbers that compare run numbers and strategies on identical images.
+4. **Benchmarks** — the cross-run comparison table: one row per live run of the active demo with its config knobs (gate mode·persona, drafter·input, anchor method + counts, K·N·T, policy lineage, accepted/cycles, cost) and its start → final **system macro-F1 on the fixed validation benchmark** (the same images every run), with a signed pp delta chip and the locked-holdout readout alongside. Runs without a benchmark readout show a dash; dry runs are excluded.
+
+5. **About** — the formalism reference (per-judge p/|g|, the two alignment signals, the four-tier importance, every run-form knob and its default) plus the research agenda summary.
+
+**Cross-run benchmark**: each demo carries a FIXED `validation` split — the same images every run, disjoint from dev_golden + holdout and never used for training or gating. MNIST's is committed (`scripts/build_mnist_validation_split.py`, 1,000 images); GenAI's is minted per machine (`scripts/sample_genai_gold_sets.py --n-validation`, or the **Splits** row's Mint button). `--validation-final` (or the "Benchmark readout" checkbox, which enables itself once a validation split exists) scores start + final policy on it — the numbers the Benchmarks tab compares across runs and strategies on identical images.
 
 Presenting it? **[`docs/DEMO-FLOW.md`](docs/DEMO-FLOW.md)** is the 10-minute walkthrough script (with a 3-minute short version and a claim-verification appendix).
 
@@ -242,12 +258,16 @@ Expand the full 70k MNIST set locally from the committed archive, then resample 
   --n-train 2000 --n-val 500 --seed 20260703 --source-root ~/Downloads/mnist_png --force
 ```
 
-Pull the full ~12 GB GenAI source tree from the Mac mini and regenerate its manifests:
+Pull the full ~12 GB GenAI source tree from the Mac mini and mint the canonical splits (the bare
+command's defaults ARE the canonical splits — dev_golden 2000, holdout 1000, validation/benchmark
+200, seed 20260510 — so every machine with the source tree produces byte-identical manifests):
 ```bash
 rsync -avh <mac-mini-host>:/Users/sacsimoto/GitHub/RUSH/data/images/genai-classification/source-datasets/ \
   data/images/genai-classification/source-datasets/
-./.venv/bin/python scripts/sample_genai_gold_sets.py --n-dev 100 --n-holdout 100 --seed 20260510 --force
+./.venv/bin/python scripts/sample_genai_gold_sets.py --force
 ```
+Or, once the source tree is present, mint from the web UI: the GenAI demo's **Splits** row shows the
+current state and re-mints with the same seed/sizes at the click of a button (no terminal).
 
 ### Where to find the full datasets
 
@@ -279,13 +299,13 @@ The web UI needs the RUSH server (not a static file server): it serves `web/` **
 
 In production this runs under the macOS LaunchAgent `com.attdobi.rush-web`; restart with `launchctl kickstart -k gui/$(id -u)/com.attdobi.rush-web` and verify the new PID (see `docs/ai-handoff/HANDOFF.md` §3). A bare `python3 -m http.server` will serve the page but every `/api/*` call 404s, so the labeling and policy loops are dead.
 
-The web demo defaults to 100 dev golden + 100 locked holdout records. It first tries local manifests under `data/images/genai-classification/manifests/`; otherwise `window.RushGenaiSampler.runDemoReset({ seed, nDev, nHoldout, mode })` provides a synthetic fallback. Bulk multi-LLM labeling runs from §3 (`POST /api/runs/start`); cascade runs from `POST /api/runs/start-cascade`; §4–§5 score the results.
+The run form sizes itself from the resolved manifest via `GET /api/area-stats` (dev_golden pool → Test/Train defaults; benchmark checkbox enables once a validation split exists). Bulk multi-LLM labeling runs from `POST /api/runs/start`; the experiment crank from `POST /api/experiments/start`; cascade runs from `POST /api/runs/start-cascade`; GenAI splits are (re)minted from `POST /api/genai/splits/mint`.
 
 ## Models, cost, batching
 
 - **Model tiers.** §3 exposes **HIGH** (Opus 4.6/4.7, GPT-5.5 high/low, Gemini 3.1 Pro), **MEDIUM** (Sonnet 4.6/5, GPT-5.4-mini high/xhigh, Gemini flash), and **LOW / FREE** (GPT-5.4-mini low, Haiku 4.5, Gemini flash-lite, local models). High-tier models are unchecked by default — the cascade, not the picker, is where expensive models earn their keep. Opus 4.7+ emits ~30% more tokens; Haiku 4.5 is the cheap/fast vision default.
 - **Local GPU support.** LM Studio models run locally at $0.00: `local/gemma` is fast (~3.2s/img); `local/qwen2.5-vl-7b` is slower (~4s/img), higher quality, and is the vision model in the measured cheap panel. Use them for offline iteration and cost-free sweeps.
-- **Cost tracking.** Per-call USD cost comes from usage tokens (`pipeline/providers/pricing.py`, mirrored in `web/run-trigger.js`, kept in exact sync). Costs are reduced by request-level image batching now and provider async Batch APIs later.
+- **Cost tracking.** Per-call USD cost comes from usage tokens (`pipeline/providers/pricing.py`, mirrored in `web/run-trigger.js`, kept in exact sync), computed **cache-aware**: cached-prefix reads/writes are priced with each provider's discount, so the durable per-call ledger matches the header total (Anthropic reports cache tokens outside `input_tokens`; OpenAI/Gemini inside — the cost model and the "total tokens" column account for both). The optimizer (drafter) and gate agents ledger their own text-call spend per cycle. Costs are further reduced by request-level image batching now and prompt caching (below).
 - **Output budgets.** Justifications are capped at ≤300 words (~400 tokens). Anthropic/Gemini use ~1,000 visible tokens with separate thinking budgets. OpenAI reasoning models use combined `max_completion_tokens`, so they keep reasoning headroom plus ~1,000 visible tokens (~2000 low reasoning, ~4000 high/xhigh). Local models use 4000–6000.
 - **Split discipline.** Training-split runs can update policy/prompts; test-split results drive metrics only.
 
