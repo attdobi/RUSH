@@ -152,6 +152,60 @@ class TestOpenAICaching:
         assert OpenAIClient._extract_cached_tokens(response) is None
 
 
+class TestDrafterPacketCaching:
+    """The drafter packet keeps stable content (task + policy) as the prefix."""
+
+    def _messages(self, provider: str, with_images: bool):
+        from pipeline.experiment import build_drafter_messages
+
+        kwargs = dict(
+            policy_markdown="# policy body",
+            base_version="v0.1",
+            area="MNIST_Digits",
+            anchors=[],
+            max_changes=3,
+            k=2,
+            provider=provider,
+        )
+        if with_images:
+            kwargs["anchor_images"] = [
+                {"image_id": "i1", "sme_truth": "3", "mime_type": "image/jpeg", "b64": "QUJD"}
+            ]
+        return build_drafter_messages(**kwargs)
+
+    def test_anthropic_stable_block_carries_breakpoint(self) -> None:
+        import json as _json
+
+        messages = self._messages("anthropic", with_images=True)
+        parts = messages[1]["content"]
+        stable = _json.loads(parts[0]["text"])
+        volatile = _json.loads(parts[1]["text"])
+        # Stable prefix: task + policy, no per-cycle fields.
+        assert "policy_markdown" in stable and "cycle_k" not in stable
+        assert parts[0]["cache_control"] == {"type": "ephemeral"}
+        # Volatile block carries the per-cycle fields; no breakpoint.
+        assert volatile["cycle_k"] == 2 and "cache_control" not in parts[1]
+
+    def test_openai_parts_have_no_anthropic_cache_keys(self) -> None:
+        messages = self._messages("openai", with_images=True)
+        parts = messages[1]["content"]
+        assert all("cache_control" not in p for p in parts if isinstance(p, dict))
+        # Ordering still stable-first for OpenAI's automatic prefix caching.
+        assert "policy_markdown" in parts[0]["text"]
+        assert "cycle_k" in parts[1]["text"]
+
+    def test_no_image_path_stays_single_json_string(self) -> None:
+        import json as _json
+
+        messages = self._messages("openai", with_images=False)
+        payload = _json.loads(messages[1]["content"])
+        # All keys present (dry-run fake drafter parses this whole object) and
+        # the stable keys serialize before the volatile ones.
+        assert payload["cycle_k"] == 2 and "policy_markdown" in payload
+        raw = messages[1]["content"]
+        assert raw.index("policy_markdown") < raw.index("cycle_k")
+
+
 class TestCachedPricing:
     """compute_call_cost must follow each provider's usage semantics."""
 

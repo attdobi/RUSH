@@ -148,7 +148,20 @@ def policy_chat_callable(
             "messages": rest,
         }
         if system is not None:
-            params["system"] = system
+            # Block form with an ephemeral breakpoint: the system prompt is
+            # identical across a run's drafter/gate calls, so repeats within
+            # the cache TTL read it at ~0.1x. Below the model's minimum
+            # cacheable prefix this is a silent no-op (no extra cost). Callers
+            # marking their own stable user blocks (e.g. the drafter's policy
+            # bundle) extend the cached prefix further — user content is
+            # forwarded verbatim, cache_control included.
+            params["system"] = [
+                {
+                    "type": "text",
+                    "text": system,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
         response = _ensure_client().messages.create(**params)
         input_tokens, output_tokens = _extract_usage_tokens(response)
         if usage_sink is not None:

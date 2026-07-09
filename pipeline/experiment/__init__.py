@@ -863,17 +863,24 @@ def build_drafter_messages(
     old tests).
     """
     aligned_anchors = aligned_anchors or []
-    payload: dict[str, Any] = {
+    # Prompt-caching prefix discipline: the stable content (task + policy
+    # bundle, unchanged between cycles unless an edit was accepted) leads;
+    # the volatile content (cycle number, anchors) follows. Providers cache
+    # by byte prefix, so this ordering lets repeat drafter calls re-read the
+    # multi-thousand-token policy instead of re-paying for it.
+    stable_payload: dict[str, Any] = {
         "task": (
             "Improve the policy so ALL judges (and human raters) decide the "
             "MISALIGNED samples correctly, WITHOUT regressing the ALIGNED "
             "samples (already correct) or the rest of the set."
         ),
         "area": area,
+        "policy_markdown": policy_markdown,
+    }
+    volatile_payload: dict[str, Any] = {
         "base_version": base_version,
         "cycle_k": k,
         "max_changes": max_changes,
-        "policy_markdown": policy_markdown,
         "misaligned_samples": [_anchor_sample_block(a) for a in anchors],
         "aligned_samples": [_anchor_sample_block(a) for a in aligned_anchors],
     }
@@ -882,10 +889,24 @@ def build_drafter_messages(
         "content": DRAFTER_SYSTEM_PROMPT.format(max_changes=max_changes),
     }
     if not anchor_images and not aligned_images:
-        return [system, {"role": "user", "content": json.dumps(payload, indent=2)}]
+        # Single JSON string (dry runs, old tests): key order is
+        # stable-first, and json.loads consumers are order-agnostic.
+        return [
+            system,
+            {"role": "user", "content": json.dumps({**stable_payload, **volatile_payload}, indent=2)},
+        ]
 
+    stable_part: dict[str, Any] = {
+        "type": "text",
+        "text": json.dumps(stable_payload, indent=2),
+    }
+    if provider == "anthropic":
+        # Explicit breakpoint: system + this block (the policy bundle) is the
+        # reusable prefix across retries and unchanged-policy cycles.
+        stable_part["cache_control"] = {"type": "ephemeral"}
     parts: list[dict[str, Any]] = [
-        {"type": "text", "text": json.dumps(payload, indent=2)},
+        stable_part,
+        {"type": "text", "text": json.dumps(volatile_payload, indent=2)},
     ]
     _append_image_parts(
         parts, anchor_images or [], provider=provider,

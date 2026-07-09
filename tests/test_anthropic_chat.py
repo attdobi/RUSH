@@ -51,7 +51,11 @@ def test_policy_chat_callable_maps_messages_without_live_call(monkeypatch: Any) 
     call = _FakeAnthropic.instances[0].messages.calls[0]
     assert call["model"] == "claude-opus-4-7"
     assert call["max_tokens"] == 8000
-    assert call["system"] == "system prompt"
+    # System goes as a block with an ephemeral prompt-cache breakpoint so
+    # repeat drafter/gate calls re-read the shared prefix at ~0.1x.
+    assert call["system"] == [
+        {"type": "text", "text": "system prompt", "cache_control": {"type": "ephemeral"}}
+    ]
     assert call["messages"] == [
         {"role": "user", "content": "draft a policy"},
         {"role": "assistant", "content": "previous assistant text"},

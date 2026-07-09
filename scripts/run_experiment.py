@@ -776,6 +776,12 @@ def main(argv: list[str] | None = None) -> int:
                 raw = _call_chat_with_retries(
                     chat, messages, model_id=args.drafter_model,
                     reasoning_effort="high", timeout_s=300.0, retries=2, backoff_s=2.0,
+                    # OpenAI cache routing: the drafter prefix (system + policy
+                    # bundle) repeats across cycles while the policy is unchanged.
+                    prompt_cache_key=(
+                        f"rush:drafter:{args.area}:{state['current_version']}"
+                        if args.drafter_model.startswith("openai/") else None
+                    ),
                 )
                 proposed_files, removed = _proposal_from_llm_json(raw)
             except Exception as draft_exc:  # noqa: BLE001 - a bad draft skips the cycle
@@ -913,6 +919,12 @@ def main(argv: list[str] | None = None) -> int:
                     gate_raw = _call_chat_with_retries(
                         gate_chat, gate_messages, model_id=args.gate_model,
                         reasoning_effort="high", timeout_s=120.0, retries=2, backoff_s=2.0,
+                        # Gate packets are mostly unique per cycle; the shared
+                        # prefix is the system prompt — still worth routing.
+                        prompt_cache_key=(
+                            f"rush:gate:{args.area}"
+                            if args.gate_model.startswith("openai/") else None
+                        ),
                     )
                     agent_verdict = exp.parse_gate_response(gate_raw)
                     _persist_agent_exchange(

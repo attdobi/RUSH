@@ -120,6 +120,7 @@ def policy_chat_callable(
         *,
         model_id: str = model_id,
         reasoning_effort: str = "high",
+        prompt_cache_key: str | None = None,
         **_: Any,
     ) -> str:
         provider_model_name = default_model_name
@@ -134,6 +135,12 @@ def policy_chat_callable(
             "reasoning_effort": _effective_effort(model_id, reasoning_effort),
             "max_completion_tokens": max_completion_tokens,
         }
+        if prompt_cache_key:
+            # Routing hint for OpenAI's automatic prefix caching: same key ->
+            # same cache shard, so repeat drafter/gate calls sharing a prefix
+            # (system prompt, policy bundle) actually hit. Via extra_body so
+            # older SDKs without the typed kwarg still forward it.
+            params["extra_body"] = {"prompt_cache_key": prompt_cache_key}
         response = _ensure_client().chat.completions.create(**params)
         input_tokens, output_tokens = _extract_usage_tokens(response)
         if usage_sink is not None:

@@ -358,6 +358,7 @@ def _call_chat_with_retries(
     retries: int = DEFAULT_LLM_RETRIES,
     backoff_s: float = DEFAULT_LLM_BACKOFF_S,
     progress_callback: ProgressCallable | None = None,
+    prompt_cache_key: str | None = None,
 ) -> str:
     """Call the policy LLM with a per-attempt timeout and bounded retries."""
     attempts = max(1, int(retries) + 1)
@@ -377,11 +378,16 @@ def _call_chat_with_retries(
                 }
             )
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="policy-propose")
+        # OpenAI cache-shard routing hint; the Anthropic transport ignores it
+        # (its caching is the cache_control breakpoints). Forwarded only when
+        # set so key-less calls keep working with strict-signature fakes.
+        extra_kwargs = {"prompt_cache_key": prompt_cache_key} if prompt_cache_key else {}
         future = executor.submit(
             chat_callable,
             messages,
             model_id=model_id,
             reasoning_effort=reasoning_effort,
+            **extra_kwargs,
         )
         retryable = False
         try:
@@ -479,6 +485,11 @@ def propose_diff(
                 retries=llm_retries,
                 backoff_s=llm_backoff_s,
                 progress_callback=progress_callback,
+                prompt_cache_key=(
+                    f"rush:policy-diff:{effective_model}"
+                    if effective_model.startswith("openai/")
+                    else None
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - persist provider/proxy failures for review
             error = _error_summary(exc)
