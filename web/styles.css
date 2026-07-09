@@ -2778,6 +2778,12 @@ body.view-about section[data-view]:not([data-view="about"]) { display: none !imp
    Columns appear once there's room for two ~33rem tracks; one column below. */
 .about-doc { max-width: 1280px; margin: 0 auto; }
 .about-intro { max-width: 70ch; margin-bottom: 10px; }
+/* Architecture diagram: full-width (outside the columns), scrolls sideways on
+   narrow screens instead of squashing the SVG text. */
+.about-arch { margin: 8px 0 26px; }
+.about-arch .arch-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(8, 16, 31, .55); padding: 12px 8px 4px; }
+.arch-svg { display: block; width: 100%; min-width: 900px; height: auto; }
+.arch-svg text { font-family: inherit; }
 .about-columns { column-width: 33rem; column-gap: 52px; }
 .about-section { break-inside: avoid; display: block; }
 .about-section:not(:first-child) { margin-top: 22px; }

@@ -1,5 +1,9 @@
-// About this demo — the metric formalism, project-agnostic. Explains every
-// config knob on the Run tab, what one optimization cycle actually does (what
+// About this demo — the metric formalism, project-agnostic. Opens with the
+// MAS architecture diagram (four independent agents: judge panel = MAS
+// labelers, drafter = policy-iteration agent, gate + acceptance critic, SME =
+// human principal) and closes with the PPO/GEPA/VISTA comparison (distilled
+// from docs/TECHNICAL-REPORT.md §7). In between: every config knob on the Run
+// tab, what one optimization cycle actually does (what
 // the drafter sees, what the gate computes), the per-judge gradient (p, |g|),
 // the two multi-LLM alignment signals (SME agreement vs LLM consensus), the
 // four-tier importance that ranks the adjudication queue and the
@@ -25,24 +29,158 @@
       label. The numbers on the other tabs all come from the definitions below.</p>
     </div>
 
+    <section class="about-section about-arch">
+      <h2>The architecture — one cycle around the loop</h2>
+      <div class="arch-scroll">
+      <svg class="arch-svg" viewBox="0 0 1200 545" role="img"
+           aria-label="RUSH multi-agent architecture: policy graph, judge panel, anchor selection, drafter, candidate eval, gate, SME">
+        <defs>
+          <marker id="archArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+          <marker id="archArrowGreen" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/>
+          </marker>
+        </defs>
+
+        <!-- Policy graph: the parameter -->
+        <rect x="430" y="16" width="340" height="80" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="600" y="46" text-anchor="middle" fill="var(--text)" font-size="15" font-weight="800">POLICY GRAPH G<tspan baseline-shift="sub" font-size="11">k</tspan> — the parameter</text>
+        <text x="600" y="68" text-anchor="middle" fill="var(--muted)" font-size="11">versioned markdown KG · the exact prompt the judges run</text>
+        <text x="600" y="84" text-anchor="middle" fill="var(--muted)" font-size="11">accepted edits mint v&lt;run&gt;.&lt;k&gt;</text>
+
+        <!-- Data splits -->
+        <rect x="28" y="150" width="200" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="128" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">DATA — seeded splits</text>
+        <text x="44" y="200" fill="var(--muted)" font-size="11">train batch N · fresh per cycle</text>
+        <text x="44" y="220" fill="var(--muted)" font-size="11">test T · fixed at k=0 (gate)</text>
+        <text x="44" y="240" fill="var(--muted)" font-size="11">holdout · end-of-run only</text>
+        <text x="44" y="260" fill="var(--muted)" font-size="11">benchmark · fixed cross-run</text>
+        <text x="44" y="285" fill="var(--muted)" font-size="10" font-style="italic">same seed ⇒ same data path</text>
+
+        <!-- Judge panel -->
+        <rect x="272" y="150" width="240" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="392" y="176" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">JUDGE PANEL</text>
+        <text x="392" y="194" text-anchor="middle" fill="var(--muted)" font-size="11">MAS labelers — 2–5 independent mLLMs</text>
+        <g font-size="10.5" text-anchor="middle">
+          <rect x="290" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="313" y="223" fill="var(--text)">J1</text>
+          <rect x="342" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="365" y="223" fill="var(--text)">J2</text>
+          <rect x="394" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="417" y="223" fill="var(--text)">J3</text>
+          <rect x="446" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="469" y="223" fill="var(--text)">J4</text>
+        </g>
+        <text x="392" y="252" text-anchor="middle" fill="var(--muted)" font-size="11">ŷ, confidence, difficulty,</text>
+        <text x="392" y="268" text-anchor="middle" fill="var(--muted)" font-size="11">boundary flag, justification</text>
+        <text x="392" y="289" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">label only · never draft · never gate</text>
+
+        <!-- Anchor selection / stack ranking -->
+        <rect x="556" y="150" width="200" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="656" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">STACK RANK &amp; SELECT</text>
+        <text x="656" y="196" text-anchor="middle" fill="var(--muted)" font-size="11">anchors: ≤15 misaligned + ≤5 aligned</text>
+        <text x="656" y="216" text-anchor="middle" fill="var(--muted)" font-size="11">random / top |g| / importance</text>
+        <text x="656" y="236" text-anchor="middle" fill="var(--muted)" font-size="11">judge votes + SME truth</text>
+        <text x="656" y="256" text-anchor="middle" fill="var(--muted)" font-size="11">(+ images, if Input allows)</text>
+        <text x="656" y="285" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">random = the null hypothesis</text>
+
+        <!-- Drafter -->
+        <rect x="800" y="150" width="240" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--purple)" stroke-width="1.6"/>
+        <text x="920" y="176" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">DRAFTER</text>
+        <text x="920" y="194" text-anchor="middle" fill="var(--muted)" font-size="11">the policy-iteration agent (optimizer)</text>
+        <text x="920" y="222" text-anchor="middle" fill="var(--muted)" font-size="11">one edit per cycle · ≤5 node files</text>
+        <text x="920" y="242" text-anchor="middle" fill="var(--muted)" font-size="11">no per-image answers · no reword</text>
+        <text x="920" y="262" text-anchor="middle" fill="var(--muted)" font-size="11">grows KG sub-nodes, not the root</text>
+        <text x="920" y="289" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">drafts only · never scores</text>
+
+        <!-- Candidate eval -->
+        <rect x="800" y="380" width="240" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="920" y="408" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">CANDIDATE EVAL</text>
+        <text x="920" y="432" text-anchor="middle" fill="var(--muted)" font-size="11">the same judge panel re-labels</text>
+        <text x="920" y="450" text-anchor="middle" fill="var(--muted)" font-size="11">the fixed test T under G ⊕ e</text>
+        <text x="920" y="472" text-anchor="middle" fill="var(--muted)" font-size="11">→ F1 before vs after</text>
+
+        <!-- Gate -->
+        <rect x="430" y="380" width="300" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--gold)" stroke-width="1.6"/>
+        <text x="580" y="406" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">GATE</text>
+        <text x="580" y="428" text-anchor="middle" fill="var(--muted)" font-size="11">metric rule (default): accept ⇔ F1 improves + ε</text>
+        <text x="580" y="446" text-anchor="middle" fill="var(--muted)" font-size="11">optional gate agent — the acceptance critic</text>
+        <text x="580" y="462" text-anchor="middle" fill="var(--muted)" font-size="11">(persona: lenient · moderate · strict)</text>
+        <text x="580" y="481" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">verdicts only · never edits</text>
+
+        <!-- SME -->
+        <rect x="28" y="380" width="340" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--green)" stroke-width="1.6"/>
+        <text x="198" y="406" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">SME — the human principal</text>
+        <text x="198" y="430" text-anchor="middle" fill="var(--muted)" font-size="11">owns the golden labels y · works the re-adjudication queue</text>
+        <text x="198" y="448" text-anchor="middle" fill="var(--muted)" font-size="11">reviews gate verdicts — the critic-of-the-critic</text>
+        <text x="198" y="472" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">the only human · the only source of truth</text>
+
+        <!-- Flows -->
+        <g fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrow)">
+          <path d="M470,96 C440,118 410,130 396,146"/>
+          <path d="M228,225 L268,225"/>
+          <path d="M512,225 L552,225"/>
+          <path d="M756,225 L796,225"/>
+          <path d="M730,96 C800,112 870,128 912,146"/>
+          <path d="M920,300 L920,376"/>
+          <path d="M800,435 L734,435"/>
+          <path d="M310,380 C420,344 540,330 640,304"/>
+          <path d="M576,300 C440,318 250,338 150,374"/>
+        </g>
+        <g fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#archArrowGreen)">
+          <path d="M368,435 L426,435"/>
+        </g>
+        <path d="M534,380 L534,233" fill="none" stroke="var(--green)" stroke-width="1.8"/>
+        <path d="M534,217 L534,100" fill="none" stroke="var(--green)" stroke-width="1.8" marker-end="url(#archArrowGreen)"/>
+
+        <!-- Flow labels -->
+        <text x="256" y="132" fill="var(--muted)" font-size="10.5">policy = the judges’ prompt</text>
+        <text x="795" y="110" fill="var(--muted)" font-size="10.5" text-anchor="end">drafter reads the full policy</text>
+        <text x="930" y="340" fill="var(--muted)" font-size="10.5">candidate edit e (≤5 files)</text>
+        <text x="365" y="356" fill="var(--muted)" font-size="10.5">golden truth y → misalignment</text>
+        <text x="36" y="316" fill="var(--muted)" font-size="10.5">re-adjudication queue — same stack rank,</text>
+        <text x="36" y="330" fill="var(--muted)" font-size="10.5">misaligned + high LLM consensus (T1) first</text>
+        <text x="544" y="330" fill="var(--green)" font-size="10.5" font-weight="700">accept ⇒ G ⊕ e mints v&lt;run&gt;.&lt;k&gt;</text>
+        <text x="544" y="348" fill="var(--red)" font-size="10.5">skip ⇒ the incumbent stays</text>
+
+        <text x="600" y="530" text-anchor="middle" fill="var(--muted)" font-size="11" font-style="italic">One cycle k: label → select anchors → draft → eval → gate. Four parties, four boxes — no agent approves its own work.</text>
+      </svg>
+      </div>
+    </section>
+
     <div class="about-columns">
     <section class="about-section">
-      <h2>The three roles</h2>
+      <h2>The cast — four independent agents</h2>
+      <p>RUSH is a multi-agent system with a strict separation of powers: no agent both proposes
+      and approves, no LLM owns the ground truth, and each role can run a different model. The
+      canonical names, as they appear in the code, the ledgers, and this UI:</p>
       <ul>
-        <li><strong>Judges</strong> — the 2–5 cheap panel models. They label every item and produce
-        <em>every</em> decision-quality metric. No expensive model ever scores quality.</li>
-        <li><strong>Drafter</strong> — one model (cheap or frontier) that, each cycle, reads the most
-        instructive anchors (the misaligned images themselves, plus a sample of correctly-classified
-        ones) and writes a single policy edit of ≤5 node files. It drafts; it never judges.</li>
+        <li><strong>Judges</strong> (<em>the judge panel</em> — the MAS labeling layer) — 2–5 cheap
+        mLLMs that label every item independently and produce <em>every</em> decision-quality
+        metric. They label only: they never draft, never gate, and never see the golden label while
+        judging (LLM consensus κ is computed SME-blind). No expensive model ever scores quality.</li>
+        <li><strong>Drafter</strong> (<em>the policy-iteration agent</em>; "the optimizer" in the
+        cost ledger and on this page) — one model (cheap or frontier) that, each cycle, reads the
+        most instructive anchors and writes a single policy edit of ≤5 node files. It drafts; it
+        never judges. Its <strong>no-reword rule</strong> forbids paraphrase-only churn: a sentence
+        may be touched only to change its semantic meaning, tighten a decision boundary, or clarify
+        an objective fact — everything else stays byte-for-byte intact so every diff is real.</li>
         <li><strong>Gate</strong> — a deterministic rule: accept the edit only if the panel's
-        test-partition macro-F1 strictly improves. An optional <strong>gate agent</strong> is a
+        test-partition macro-F1 strictly improves. An optional <strong>gate agent</strong>
+        (<em>the acceptance critic</em>, ledgered as <code>gate_agent</code>) is a
         <em>subtractive</em> soundness check on top of that rule: it can veto a metric-passing edit
         it judges unsound — one that <strong>overfits to named examples instead of stating a general
-        rule</strong>, leaks the golden answer, games one judge's quirks, tells judges to abstain, or
-        dumps pair-specific rules into the root instead of the owning node. It never forces or accepts;
-        the metric stays the hard gate. That over-specificity veto is the crank's fourth overfitting
+        rule</strong>, leaks the golden answer, games one judge's quirks, tells judges to abstain,
+        dumps pair-specific rules into the root instead of the owning node, or <strong>merely
+        rewords existing sentences</strong> without changing their meaning (a no-op edit can pass
+        the metric on small-partition noise). It never forces or accepts, and it never writes edits;
+        the metric stays the hard gate. The over-specificity veto is the crank's fourth overfitting
         guard, alongside the ≤5-change trust region, the no-per-image-answers drafter rule, and the
         aligned anchors.</li>
+        <li><strong>SME</strong> (<em>the human principal</em>) — owns the golden labels, works the
+        re-adjudication queue, and reviews gate verdicts (the recorded critic-of-the-critic, future
+        RLHF data for the gate agent). The only human in the loop, and the only source of truth.</li>
       </ul>
     </section>
 
@@ -221,6 +359,40 @@
       <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
       (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror
       the <code>rush.sample_gradient</code> / <code>rush.panel_signal</code> SQL views.</p>
+    </section>
+
+    <section class="about-section">
+      <h2>How RUSH differs from PPO, GEPA, VISTA</h2>
+      <p>Same family — iterate a policy against feedback with bounded steps — but RUSH makes two
+      choices most neighbors don't: the reward is <em>human</em> (SME golden labels with a live
+      correction channel), and the search state is <em>one auditable incumbent</em>, not a
+      candidate pool.</p>
+      <ul>
+        <li><strong>PPO</strong> (Schulman et al. 2017, arXiv:1707.06347) — RUSH borrows the
+        discipline, not the math. The ≤5-file clip plus the strict-improvement gate bound each
+        step the way PPO's clipped surrogate bounds a policy ratio — but here the parameter is
+        text, the "gradient" is a drafted diff, and acceptance is closer to a line search than a
+        ratio clip. The reward's human provenance follows RLHF (Ouyang et al. 2022,
+        arXiv:2203.02155).</li>
+        <li><strong>GEPA</strong> (Agrawal et al. 2025, arXiv:2507.19457) — the nearest optimizer
+        family: reflective LLM mutation of prompts with an acceptance test. GEPA keeps an
+        instance-wise Pareto <em>pool</em> of candidate prompts and optimizes the system's own
+        metric; RUSH keeps exactly one versioned incumbent — an enterprise policy must be a
+        single reviewable document — and optimizes against external SME truth that
+        re-adjudication can correct mid-run.</li>
+        <li><strong>VISTA</strong> (Long et al. 2025, arXiv:2510.15831) — the same loop shape
+        (multi-agent, test-time self-improvement) with the opposite trust model: VISTA's judges
+        and reward are model-internal; RUSH's reward is human-anchored. That provenance
+        difference is exactly why the SME sits <em>inside</em> the loop, not above it.</li>
+        <li><strong>Adjacent</strong> — TextGrad (arXiv:2406.07496) backpropagates textual
+        feedback through a computation graph; OPRO (arXiv:2309.03409) prompts an optimizer LLM
+        with a (solution, score) history; MIPROv2 / DSPy (arXiv:2406.11695) searches
+        instructions + demonstrations. All optimize a single artifact in-process; none separate
+        labeler / drafter / critic / human into independent agents around a versioned
+        incumbent.</li>
+      </ul>
+      <p class="hint">Full comparison with the formalism and citations:
+      <code>docs/TECHNICAL-REPORT.md</code> §7.</p>
     </section>
 
     <section class="about-section">
