@@ -34,11 +34,11 @@ Current source-label assumptions:
 
 This directory has its own `.gitignore`: images, manifests, and derived files are ignored by default. Only the folder skeleton, `.gitkeep` files, this README, and ignore rules should be committed until we intentionally add safe public fixtures.
 
-**Exception (committed portable fixture):** a balanced 72-image sample (12 per
-dataset×class, both splits, original bytes, ~43 MB) under `sample/`, plus
+**Exception (committed portable fixture):** a balanced 132-image sample (22 per
+dataset×class, both splits, original bytes, ~86 MB) under `sample/`, plus
 `manifests/combined_labels.portable.jsonl`, are committed so the GenAI demo runs
 from a fresh clone without the ~12 GB source tree. Build it with
-`python3 scripts/build_portable_fixture.py --max-mb 50 --per-stratum 12`.
+`python3 scripts/build_portable_fixture.py --max-mb 90 --per-stratum 22`.
 
 ## Run / full dataset on another machine (e.g. Mac Pro)
 
