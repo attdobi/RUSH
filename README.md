@@ -228,7 +228,7 @@ RUSH_PORTABLE=1 ./.venv/bin/python scripts/run_bulk_labeling.py \
 
 What's committed:
 - **MNIST** — the full 2,500-image demo gold set as PNGs under `data/images/mnist-classification/source-datasets/mnist/<digit>/` (~1.6 MB), plus the entire 70k MNIST set packed compactly in `data/images/mnist-classification/mnist_full.npz` (~11.5 MB).
-- **GenAI** — a balanced 900-image sample (150 per dataset×class, both splits, JPEG derivatives at longest edge ≤1024px / quality 82, ~89 MiB) under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`.
+- **GenAI** — a balanced 900-image sample under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`. The fixture is 450 `ai_generated` / 450 `not_ai_generated`, exactly 150 images for each dataset×class pair (`midjourney`, `sdv1_4`, `wfir` × AI/not-AI). Split counts are `dev_golden=446` (222 AI / 224 not-AI) and `holdout=454` (228 AI / 226 not-AI). Images are JPEG derivatives at longest edge ≤1024px / quality 82, generated from the local full source tree.
 - **Source archives** — `data_sources/genai-sample.zip` and `data_sources/mnist_png.zip` preserve portable source bundles for setup/rebuild workflows.
 
 ### Full parity (all images)
@@ -256,7 +256,10 @@ rsync -avh <mac-mini-host>:/Users/sacsimoto/GitHub/RUSH/data/images/genai-classi
 
 Portable source bundles are also committed under `data_sources/`: `mnist_png.zip`
 keeps an upstream-style MNIST PNG export, and `genai-sample.zip` keeps the GenAI
-portable sample plus manifest.
+portable sample plus manifest. `data_sources/genai-sample.zip` is 93,464,198
+bytes (GitHub reports 89.13 MiB), contains 900 `.jpg` image files plus
+`data/images/genai-classification/manifests/combined_labels.portable.jsonl`,
+and mirrors the same class/source/split counts listed above.
 
 ## Dataset images are local-only (with one deliberate exception)
 
