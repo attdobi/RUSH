@@ -7,8 +7,11 @@ needed to rebuild or move the demos cleanly.
 
 ## Archives
 
-- `genai-sample.zip` — the committed 72-image GenAI portable sample plus
+- `genai-sample.zip` — the committed 900-image GenAI portable sample plus
   `data/images/genai-classification/manifests/combined_labels.portable.jsonl`.
+  The images are downscaled JPEG derivatives (longest edge ≤1024px, quality 82)
+  so the source archive carries many more examples while staying below GitHub's
+  100 MB file limit.
   Extract from the repo root:
 
   ```bash
