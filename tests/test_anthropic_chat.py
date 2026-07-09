@@ -17,7 +17,13 @@ class _FakeMessages:
         return SimpleNamespace(
             content=[
                 SimpleNamespace(type="text", text='{"files": []}'),
-            ]
+            ],
+            usage=SimpleNamespace(
+                input_tokens=40,
+                output_tokens=90,
+                cache_read_input_tokens=5000,
+                cache_creation_input_tokens=200,
+            ),
         )
 
 
@@ -59,4 +65,25 @@ def test_policy_chat_callable_maps_messages_without_live_call(monkeypatch: Any) 
     assert call["messages"] == [
         {"role": "user", "content": "draft a policy"},
         {"role": "assistant", "content": "previous assistant text"},
+    ]
+
+
+def test_anthropic_usage_sink_carries_cache_read_and_write(monkeypatch: Any) -> None:
+    """Anthropic bills cache reads/writes OUTSIDE input_tokens — the sink must
+    carry both or the drafter/gate ledger under-counts real spend."""
+    _FakeAnthropic.instances.clear()
+    monkeypatch.setattr(anthropic, "Anthropic", _FakeAnthropic)
+
+    sink: list[dict[str, Any]] = []
+    chat = policy_chat_callable("anthropic/claude-opus-4-7", usage_sink=sink)
+    chat([{"role": "user", "content": "draft"}], model_id="anthropic/claude-opus-4-7")
+
+    assert sink == [
+        {
+            "model_id": "anthropic/claude-opus-4-7",
+            "input_tokens": 40,
+            "output_tokens": 90,
+            "cached_input_tokens": 5000,
+            "cache_creation_input_tokens": 200,
+        }
     ]

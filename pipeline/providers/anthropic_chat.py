@@ -36,26 +36,33 @@ def _content_to_text(content: Any) -> str:
     return "" if content is None else str(content)
 
 
-def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
+def _extract_usage_tokens(
+    response: Any,
+) -> tuple[int | None, int | None, int | None, int | None]:
     usage = getattr(response, "usage", None)
     if usage is None and isinstance(response, dict):
         usage = response.get("usage")
     if usage is None:
-        return None, None
-    input_raw = getattr(usage, "input_tokens", None)
-    output_raw = getattr(usage, "output_tokens", None)
-    if isinstance(usage, dict):
-        input_raw = usage.get("input_tokens", input_raw)
-        output_raw = usage.get("output_tokens", output_raw)
-    try:
-        input_tokens = int(input_raw) if input_raw is not None else None
-    except (TypeError, ValueError):
-        input_tokens = None
-    try:
-        output_tokens = int(output_raw) if output_raw is not None else None
-    except (TypeError, ValueError):
-        output_tokens = None
-    return input_tokens, output_tokens
+        return None, None, None, None
+
+    def _field(name: str) -> int | None:
+        raw = getattr(usage, name, None)
+        if isinstance(usage, dict):
+            raw = usage.get(name, raw)
+        try:
+            return int(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    # Anthropic reports cache reads/writes OUTSIDE input_tokens; both are
+    # billed (0.1x / 1.25x) so the cost ledger needs them alongside the
+    # uncached remainder.
+    return (
+        _field("input_tokens"),
+        _field("output_tokens"),
+        _field("cache_read_input_tokens"),
+        _field("cache_creation_input_tokens"),
+    )
 
 
 def _extract_text(response: Any) -> str:
@@ -163,13 +170,17 @@ def policy_chat_callable(
                 }
             ]
         response = _ensure_client().messages.create(**params)
-        input_tokens, output_tokens = _extract_usage_tokens(response)
+        input_tokens, output_tokens, cached_tokens, cache_write_tokens = (
+            _extract_usage_tokens(response)
+        )
         if usage_sink is not None:
             usage_sink.append(
                 {
                     "model_id": model_id,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "cached_input_tokens": cached_tokens,
+                    "cache_creation_input_tokens": cache_write_tokens,
                 }
             )
         if input_tokens is None and output_tokens is None:

@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r42" />
-  <script src="demos.js?v=demo-mnist-kdd-r42"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r43" />
+  <script src="demos.js?v=demo-mnist-kdd-r43"></script>
 </head>
 <body>
   <header class="hero">
@@ -84,7 +84,7 @@
           </div>
         </details>
         <fieldset class="model-picker compact-model-picker" aria-label="Judge panel">
-          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels)</span></legend>
+          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate)</span></legend>
           <div id="runTriggerModels" class="model-picker-list"></div>
         </fieldset>
         <div class="run-controls experiment-config-row" aria-label="Loop parameters">
@@ -92,7 +92,7 @@
           <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
           <label>Train batch N<input id="experimentBatchN" type="number" value="20" min="2" max="200"></label>
           <label>Test size T<input id="experimentTestN" type="number" value="100" min="10" max="1000"></label>
-          <label>Seed<input id="experimentSeed" type="number" placeholder="random"></label>
+          <label>Seed<input id="experimentSeed" type="number" value="13" placeholder="random"></label>
         </div>
         <div class="run-controls experiment-config-row" aria-label="Optimizer">
           <span class="experiment-group-label">Optimizer</span>
@@ -104,6 +104,12 @@
               <option value="anthropic/claude-opus-4-7">opus-4-7</option>
             </select>
           </label>
+          <label title="What each anchor carries into the drafter packet: every judge's text output (label, confidence, difficulty, boundary flag, justification) with or without the anchor image itself. Text-only skips the image bytes — much cheaper on image-heavy areas.">Input
+            <select id="experimentDrafterContext">
+              <option value="text_and_images" selected>images + text fields</option>
+              <option value="text_only">text fields only — cheaper</option>
+            </select>
+          </label>
           <label>Anchors
             <select id="experimentStrategy">
               <option value="random_misalignment" selected>random misalignments (S1)</option>
@@ -111,15 +117,15 @@
               <option value="top_importance">top importance — 4-tier (misalignment × consensus × boundary)</option>
             </select>
           </label>
-          <label title="misaligned (error/SVM) anchors sent to the drafter">Misaligned<input id="experimentMaxAnchors" type="number" value="10" min="1" max="20"></label>
-          <label title="correctly-classified anchors sent alongside so the drafter learns from correct calls too (0 = off)">Aligned<input id="experimentMaxAlignedAnchors" type="number" value="10" min="0" max="20"></label>
-          <label>Max changes<input id="experimentMaxChanges" type="number" value="5" min="1" max="5"></label>
+          <label title="misaligned (error/SVM) anchors sent to the drafter">Misaligned<input id="experimentMaxAnchors" type="number" value="15" min="1" max="20"></label>
+          <label title="correctly-classified anchors sent alongside so the drafter learns from correct calls too (0 = off)">Aligned<input id="experimentMaxAlignedAnchors" type="number" value="5" min="0" max="20"></label>
+          <label>Max changes<input id="experimentMaxChanges" type="number" value="3" min="1" max="5"></label>
         </div>
         <div class="run-controls experiment-config-row" aria-label="Gate and readouts">
           <span class="experiment-group-label">Gate</span>
           <label>Mode
             <select id="experimentGateModel">
-              <option value="metric_only" selected>Metric rule only — scored by your panel (default)</option>
+              <option value="metric_only">Metric rule only — scored by your panel</option>
               <optgroup label="Metric rule + agent veto (rule is the hard wall)">
                 <option value="openai/gpt-5.5">+ gpt-5.5 gate agent — optional veto, reported in the ledger</option>
                 <option value="openai/gpt-5.5-low">+ gpt-5.5-low gate agent</option>
@@ -127,13 +133,13 @@
               </optgroup>
               <optgroup label="Critic agent only (agent verdict decides; metric advisory)">
                 <option value="agent_only:openai/gpt-5.5">gpt-5.5 critic gate — no metric rule</option>
-                <option value="agent_only:openai/gpt-5.5-low">gpt-5.5-low critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.5-low" selected>gpt-5.5-low critic gate — no metric rule (default)</option>
                 <option value="agent_only:anthropic/claude-opus-4-7">opus-4-7 critic gate — no metric rule</option>
               </optgroup>
               <option value="off">Gate OFF — accept every edit</option>
             </select>
           </label>
-          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same 1000 images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" /> Benchmark readout</label>
+          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same 1000 images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
         </div>
         <div class="run-controls experiment-config-row experiment-start-row" aria-label="Start">
           <span class="experiment-group-label">Run</span>
@@ -275,14 +281,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r42"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r42"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r42"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r42"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r42"></script>
-  <script src="about.js?v=demo-mnist-kdd-r42"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r42"></script>
+  <script src="app.js?v=demo-mnist-kdd-r43"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r43"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r43"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r43"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r43"></script>
+  <script src="about.js?v=demo-mnist-kdd-r43"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r43"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r42"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r43"></script>
 </body>
 </html>

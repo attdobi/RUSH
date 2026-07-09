@@ -751,6 +751,8 @@ def run_labeling(
                 response.input_tokens,
                 response.output_tokens,
                 image_count=1,
+                cached_input_tokens=response.cached_input_tokens,
+                cache_creation_input_tokens=response.cache_creation_input_tokens,
             )
 
         # If the client returned a populated `error`, persist as failure.
@@ -794,6 +796,8 @@ def run_labeling(
                     output_tokens=response.output_tokens,
                     latency_ms=response.latency_ms,
                     recorded_at=_utcnow_iso(),
+                    cached_input_tokens=response.cached_input_tokens,
+                    cache_creation_input_tokens=response.cache_creation_input_tokens,
                 )
                 persistence.append_cost_row(paths, cost_row)
                 cost_rows.append(cost_row)

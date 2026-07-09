@@ -170,7 +170,7 @@
       return;
     }
     const seedRaw = ($('#experimentSeed')?.value || '').trim();
-    const gateChoice = $('#experimentGateModel')?.value || 'metric_only';
+    const gateChoice = $('#experimentGateModel')?.value || 'agent_only:openai/gpt-5.5-low';
     // Select values: 'metric_only' | 'off' | '<model>' (metric rule + agent
     // veto) | 'agent_only:<model>' (the critic's verdict alone decides —
     // metric recorded as advisory, never enforced).
@@ -186,13 +186,14 @@
       k_max: Number($('#experimentKMax')?.value || 5),
       batch_n: Number($('#experimentBatchN')?.value || 20),
       test_n: Number($('#experimentTestN')?.value || 100),
-      max_changes: Number($('#experimentMaxChanges')?.value || 5),
-      max_anchors: Number($('#experimentMaxAnchors')?.value || 10),
-      max_aligned_anchors: Number($('#experimentMaxAlignedAnchors')?.value ?? 10),
+      max_changes: Number($('#experimentMaxChanges')?.value || 3),
+      max_anchors: Number($('#experimentMaxAnchors')?.value || 15),
+      max_aligned_anchors: Number($('#experimentMaxAlignedAnchors')?.value ?? 5),
       gate_mode: gateMode,
       gate_model: (gateMode === 'agent' || gateMode === 'agent_only')
         ? gateModel : 'openai/gpt-5.5',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
+      drafter_context: $('#experimentDrafterContext')?.value || 'text_and_images',
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,
@@ -456,6 +457,10 @@
         <div><span>Gate</span><strong>${exp.gate_mode === 'off'
           ? 'OFF — accepts every edit'
           : `${esc(exp.gate_model || 'metric rule')} (${esc(exp.gate_mode)})`}</strong></div>
+        <div title="The drafter that proposes each policy edit — its model, what it sees per anchor, and its total spend across all cycles so far"><span>Optimizer</span><strong>${esc(exp.drafter_model || 'openai/gpt-5.5')}${exp.drafter_context === 'text_only' ? ' · text only' : ''}${(() => {
+          const spent = cycles.reduce((sum, c) => sum + (c.drafter?.cost_usd || 0), 0);
+          return spent > 0 ? ` · ${fmtUsd(spent)}` : '';
+        })()}</strong></div>
         <div><span>Cost</span><strong>${fmtUsd(exp.cost_usd_total)}${exp.status === 'completed'
           ? ' <span class="experiment-cost-note">final</span>'
           : (exp.status === 'running' ? ' <span class="experiment-cost-note">so far</span>' : '')}</strong></div>
@@ -524,14 +529,22 @@
       const name = String(m.model || m.model_id || '');
       const done = m.calls_done ?? m.n_calls ?? 0;
       const total = m.calls_total ?? '—';
-      const toks = (m.total_input_tokens || 0) + (m.total_output_tokens || 0);
+      // Provider-consistent processed-token total from the backend (Anthropic
+      // cache reads/writes added back in); fall back to in+out for old runs.
+      const toks = m.total_tokens
+        || ((m.total_input_tokens || 0) + (m.total_output_tokens || 0));
+      const cached = m.total_cached_input_tokens || 0;
+      const cachedPct = (toks > 0 && cached > 0) ? Math.round((cached / toks) * 100) : 0;
+      const cachedNote = cachedPct > 0
+        ? `<span class="hint" title="${cached.toLocaleString()} input tokens served from the provider's prompt cache at a discounted rate"> · ${cachedPct}% cached</span>`
+        : '';
       const modelCost = m.total_cost_usd ?? m.total_cost;
       return `<tr class="${m.done ? 'experiment-live-row--done' : ''}">
         <td>${esc(name)}<span class="hint"> ${esc(done)}/${esc(total)} call(s)${m.done ? ' · done' : ''}</span></td>
         <td>${fmtNum(m.avg_s_per_call, 2)}</td>
         <td>${fmtNum(m.tokens_per_sec)}</td>
         <td>${fmtNum(m.images_per_min ?? m.throughput_imgs_per_min)}</td>
-        <td>${toks ? toks.toLocaleString() : '—'}</td>
+        <td>${toks ? toks.toLocaleString() : '—'}${cachedNote}</td>
         <td>${typeof modelCost === 'number' ? `$${modelCost.toFixed(4)}` : '—'}</td>
       </tr>`;
     }).join('');
@@ -961,7 +974,9 @@
         <td title="misaligned in batch / anchors sampled">${c.n_misaligned ?? '—'} / ${(c.anchor_ids || []).length}</td>
         <td>${edits}${clipNote}</td>
         <td>${delta}${rationale}</td>
-        <td title="train batch + candidate eval + gate agent for this cycle">${fmtUsd(c.cost_usd)}</td>
+        <td title="train batch + candidate eval + optimizer (drafter) + gate agent for this cycle">${fmtUsd(c.cost_usd)}${c.drafter && typeof c.drafter.cost_usd === 'number' && c.drafter.cost_usd > 0
+          ? `<div class="hint" title="The drafter call(s) that proposed this cycle's edit${c.drafter.cached_input_tokens ? ` — ${Number(c.drafter.cached_input_tokens).toLocaleString()} prompt tokens served from cache` : ''}">opt ${fmtUsd(c.drafter.cost_usd)}</div>`
+          : ''}</td>
         <td>${kgLink}</td>
         <td>${review}</td>
       </tr>
@@ -975,7 +990,7 @@
           <th>Cycle</th><th>Gate</th><th title="Misaligned in batch / anchors sampled (random misalignment anchors)">Misaligned / anchors</th>
           <th>Edit (≤${esc(exp.max_changes)} changes)</th>
           <th>Test system F1</th>
-          <th title="What this cycle spent: train batch + candidate eval + gate agent">Cost (k)</th>
+          <th title="What this cycle spent: train batch + candidate eval + optimizer (drafter) + gate agent">Cost (k)</th>
           <th>Policy</th>
           <th title="Was the gate's decision correct? Your verdicts are recorded as training data for the critic agent.">SME review</th>
         </tr></thead>

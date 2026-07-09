@@ -57,15 +57,16 @@
           <tr><td>Cycles <var>k</var></td><td>5</td><td>Optimization steps per run — each cycle proposes at most one policy edit. Accepted edits mint version <code>v&lt;run&gt;.&lt;k&gt;</code>.</td></tr>
           <tr><td>Train batch <var>N</var></td><td>20</td><td>Fresh seeded mini-batch labeled every cycle. Its misalignments are the raw gradient signal.</td></tr>
           <tr><td>Test size <var>T</var></td><td>100</td><td>The run's fixed test partition, drawn once at k=0 and reused all run — the gate's yardstick.</td></tr>
-          <tr><td>Seed</td><td>random</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
-          <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config.</td></tr>
+          <tr><td>Seed</td><td>13</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
+          <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config. Its per-cycle spend is recorded on each cycle and shown in the gate ledger.</td></tr>
+          <tr><td>Input</td><td>images + text</td><td>What the drafter gets per anchor: every judge's text output (label, confidence, difficulty, boundary flag, justification) <em>plus the anchor image itself</em> — or <code>text only</code>, which drops the image bytes and cuts optimizer cost on image-heavy areas.</td></tr>
           <tr><td>Anchors (method)</td><td>random (S1)</td><td>How misalignments are picked for the drafter: <code>random</code> = the null hypothesis every gradient must beat; <code>top |g|</code> = confident-wrong first; <code>top importance</code> = the four-tier rank below.</td></tr>
-          <tr><td>Misaligned</td><td>10</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
-          <tr><td>Aligned</td><td>10</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
-          <tr><td>Max changes</td><td>5</td><td>The edit clip: at most 5 node files touched per proposal — the trust region that keeps every step human-reviewable.</td></tr>
-          <tr><td>Gate mode</td><td>metric rule</td><td>Four modes: metric rule (accept only on strict panel macro-F1 improvement); + agent veto (rule stays the hard wall, agent can only reject); <strong>critic agent only</strong> (the agent's verdict decides — metric recorded as advisory, never enforced; agent failure falls back to the rule); OFF (accept every edit — the unfiltered-drift demo).</td></tr>
+          <tr><td>Misaligned</td><td>15</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
+          <tr><td>Aligned</td><td>5</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
+          <tr><td>Max changes</td><td>3</td><td>The edit clip: at most 3 node files touched per proposal (hard cap 5) — the trust region that keeps every step human-reviewable.</td></tr>
+          <tr><td>Gate mode</td><td>gpt-5.5-low critic</td><td>Four modes: metric rule (accept only on strict panel macro-F1 improvement); + agent veto (rule stays the hard wall, agent can only reject); <strong>critic agent only</strong> (the default — the agent's verdict decides, metric recorded as advisory, never enforced; agent failure falls back to the rule); OFF (accept every edit — the unfiltered-drift demo).</td></tr>
           <tr><td><var>ε</var> (epsilon)</td><td>0</td><td>Extra margin the candidate must clear. ε&gt;0 is the first winner's-curse mitigation on the research list.</td></tr>
-          <tr><td>Benchmark readout</td><td>off</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
+          <tr><td>Benchmark readout</td><td>on</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
           <tr><td>Parallelism</td><td>4</td><td>Concurrent labeling calls per judge; hosted judges of one provider run side by side in a shared, per-model-sized pool.</td></tr>
         </tbody>
       </table>
@@ -81,12 +82,14 @@
         <var>c</var>, difficulty, is_boundary (+ the confusion pair), and a justification citing
         policy nodes.</li>
         <li><strong>Select anchors.</strong> Misaligned images are ranked by the chosen method
-        (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤10 misaligned + ≤10 aligned
-        become the anchor set.</li>
+        (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤15 misaligned + ≤5 aligned
+        become the anchor set (both counts are knobs).</li>
         <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
-        <em>generator</em> — the exact prompt the judges run), and per anchor the image pixels, the
-        SME golden label, and each judge's label + confidence + justification. It returns
-        <em>one</em> edit touching ≤5 nodes.</li>
+        <em>generator</em> — the exact prompt the judges run), and per anchor the SME golden label,
+        each judge's full text output (label, confidence, difficulty, boundary flag, justification),
+        and — unless <code>text only</code> is selected — the anchor image pixels themselves. It
+        returns <em>one</em> edit touching ≤3 nodes (the clip knob). Its token usage and cost are
+        recorded per cycle.</li>
         <li><strong>Score.</strong> The panel relabels the fixed test partition under the candidate
         policy <var>G<sub>k</sub></var> ⊕ <var>e</var>.</li>
         <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive

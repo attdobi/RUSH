@@ -144,6 +144,10 @@ def _live_model_speed_rows(run_dir: Path | None) -> list[dict[str, Any]]:
                         "model_id": env.get("model_id"),
                         "input_tokens": output.get("input_tokens"),
                         "output_tokens": output.get("output_tokens"),
+                        "cached_input_tokens": output.get("cached_input_tokens"),
+                        "cache_creation_input_tokens": output.get(
+                            "cache_creation_input_tokens"
+                        ),
                         "latency_ms": output.get("latency_ms"),
                         "cost_usd": output.get("cost_usd"),
                         "recorded_at": env.get("recorded_at"),
@@ -292,6 +296,18 @@ def _per_model_rollup(
             "tokens_per_sec": summary.get("tokens_per_sec"),
             "total_input_tokens": int(summary.get("total_input_tokens") or 0),
             "total_output_tokens": int(summary.get("total_output_tokens") or 0),
+            "total_cached_input_tokens": int(summary.get("total_cached_input_tokens") or 0),
+            "total_cache_write_tokens": int(summary.get("total_cache_write_tokens") or 0),
+            # Provider-consistent processed-token total (Anthropic cache
+            # reads/writes added back in); falls back to in+out for summaries
+            # predating the cache-aware ledger.
+            "total_tokens": int(
+                summary.get("total_tokens")
+                or (
+                    int(summary.get("total_input_tokens") or 0)
+                    + int(summary.get("total_output_tokens") or 0)
+                )
+            ),
             "total_cost_usd": float(summary.get("total_cost_usd") or summary.get("total_cost") or 0.0),
             "total_cost": float(summary.get("total_cost") or summary.get("total_cost_usd") or 0.0),
             "done": bool(calls_total) and calls_done >= calls_total,
@@ -592,6 +608,8 @@ class RunRegistry:
             request["gate_mode"],
             "--drafter-model",
             request["drafter_model"],
+            "--drafter-context",
+            request.get("drafter_context") or "text_and_images",
             "--strategy",
             request.get("strategy") or "random_misalignment",
             "--concurrency",
@@ -638,8 +656,8 @@ class RunRegistry:
                 for key in (
                     "seed", "k_max", "batch_n", "test_n", "max_changes",
                     "max_anchors", "max_aligned_anchors", "epsilon",
-                    "gate_model", "gate_mode", "drafter_model", "live",
-                    "holdout_final",
+                    "gate_model", "gate_mode", "drafter_model",
+                    "drafter_context", "live", "holdout_final",
                 )
             },
         }

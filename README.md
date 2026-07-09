@@ -158,10 +158,14 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is three views ar
      all decision-quality numbers (F1 before/after, the learning curve, the gate metric) come from
      THIS panel. No expensive model ever scores quality.
    * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low; it drafts, it never
-     judges) writes ONE ≤5-file policy edit per cycle from the misaligned anchors — **the anchor
-     images themselves are attached to its prompt**. "Anchors" picks the selection strategy:
-     `random_misalignment` (S1, unbiased) or `top_gradient` (most-informative-first: panel avg
-     |g| = 1−p descending, confident-wrong panels lead).
+     judges) writes ONE clipped policy edit per cycle from the misaligned anchors. Its "Input"
+     knob (`--drafter-context`) picks what each anchor carries: every judge's text output
+     (label, confidence, difficulty, boundary flag, justification) **plus the anchor image
+     itself** (default), or `text only` — much cheaper on image-heavy areas. "Anchors" picks the
+     selection strategy: `random_misalignment` (S1, unbiased) or `top_gradient`
+     (most-informative-first: panel avg |g| = 1−p descending, confident-wrong panels lead).
+     The optimizer's token usage and cost are recorded per cycle (`cycle.drafter` in
+     experiment.json) and shown in the gate ledger's Cost (k) column.
    * **Gate** — deterministic metric rule by default (accept iff panel test macro-F1 strictly
      improves). Optionally add an expensive gate agent that can VETO a suspicious win — never
      force one — with every rationale reported in the gate ledger. Or `off` to watch unfiltered drift.

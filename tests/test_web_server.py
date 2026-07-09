@@ -295,11 +295,14 @@ def test_validate_experiment_payload_defaults() -> None:
     assert request["k_max"] == 5
     assert request["batch_n"] == 20
     assert request["test_n"] == 100
-    assert request["max_changes"] == 5
-    assert request["max_anchors"] == 10
-    assert request["max_aligned_anchors"] == 10  # aligned-anchor split default
+    # Run-form defaults (Attila 2026-07-09): 15 misaligned + 5 aligned
+    # anchors, max 3 changes per edit.
+    assert request["max_changes"] == 3
+    assert request["max_anchors"] == 15
+    assert request["max_aligned_anchors"] == 5
     assert request["gate_model"] == "openai/gpt-5.5"
     assert request["gate_mode"] == "agent"
+    assert request["drafter_context"] == "text_and_images"
     assert request["seed"] is None
     assert request["epsilon"] == 0.0
     assert "launch_pin" not in request
@@ -477,7 +480,7 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
 
     request = validate_experiment_payload(_experiment_payload())
     assert request["strategy"] == "random_misalignment"
-    assert request["max_anchors"] == 10
+    assert request["max_anchors"] == 15
 
     request = validate_experiment_payload(
         _experiment_payload(strategy="top_gradient",
@@ -485,6 +488,21 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
     )
     assert request["strategy"] == "top_gradient"
     assert request["drafter_model"] == "openai/gpt-5.4-mini-low"
+
+
+def test_validate_experiment_payload_drafter_context() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    # Omitted / null / empty -> images + text (the historical behavior).
+    assert validate_experiment_payload(
+        _experiment_payload())["drafter_context"] == "text_and_images"
+    assert validate_experiment_payload(
+        _experiment_payload(drafter_context=None))["drafter_context"] == "text_and_images"
+    # The cheap mode passes through; anything else is rejected.
+    assert validate_experiment_payload(
+        _experiment_payload(drafter_context="text_only"))["drafter_context"] == "text_only"
+    with pytest.raises(APIError):
+        validate_experiment_payload(_experiment_payload(drafter_context="pixels_only"))
 
     # Every strategy the backend/UI offers must validate here — the web layer
     # can't be stricter than the CLI (top_importance regression).

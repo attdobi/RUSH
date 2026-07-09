@@ -72,6 +72,38 @@ def test_build_cost_row_uses_live_registry_and_stamps_version() -> None:
     assert row["tokens_per_sec"] == 50000.0
 
 
+def test_build_cost_row_cache_fields_change_cost_and_persist() -> None:
+    """The ledger must bill cache-aware, not full-rate.
+
+    Regression: the 2026-07-09 live run's costs.jsonl billed gemini/openai at
+    full input rate (over) and dropped haiku's cache-read charges (under) —
+    the live card's per-model rows disagreed with the header by ~8%.
+    """
+    # Anthropic: reads/writes are ADDITIVE on top of input_tokens.
+    row = build_cost_row(
+        run_id="r", batch_index=0, image_id="a",
+        model_id="anthropic/claude-haiku-4-5-low",
+        input_tokens=100, output_tokens=1000, recorded_at="t",
+        cached_input_tokens=100_000, cache_creation_input_tokens=10_000,
+    )
+    expected = (
+        1.0 * 100 + 1.0 * 100_000 * 0.10 + 1.0 * 10_000 * 1.25 + 5.0 * 1000
+    ) / 1_000_000
+    assert row["cost_usd"] == pytest.approx(expected)
+    assert row["cached_input_tokens"] == 100_000
+    assert row["cache_creation_input_tokens"] == 10_000
+
+    # OpenAI: cached tokens are a DISCOUNTED SUBSET of input_tokens.
+    row = build_cost_row(
+        run_id="r", batch_index=0, image_id="a",
+        model_id="openai/gpt-5.4-mini-low",
+        input_tokens=100_000, output_tokens=1000, recorded_at="t",
+        cached_input_tokens=80_000,
+    )
+    expected = (0.15 * 20_000 + 0.15 * 80_000 * 0.50 + 0.60 * 1000) / 1_000_000
+    assert row["cost_usd"] == pytest.approx(expected)
+
+
 def test_build_cost_row_unknown_model_null_rates_and_cost() -> None:
     row = build_cost_row(
         run_id="r",
@@ -170,6 +202,41 @@ def test_model_speed_summary_fields() -> None:
     assert row["tokens_per_sec"] == pytest.approx(40.0 / 3.0)
     assert row["images_per_min"] == 40.0
     assert row["throughput_imgs_per_min"] == 40.0
+    # No cache activity: the canonical total is just in + out.
+    assert row["total_cached_input_tokens"] == 0
+    assert row["total_cache_write_tokens"] == 0
+    assert row["total_tokens"] == 240
+
+
+def test_model_speed_summary_total_tokens_is_provider_consistent() -> None:
+    """Anthropic reports cache reads OUTSIDE input_tokens; the display total
+    must add them back or a warm-cache haiku pass shows ~120 input tokens
+    while gemini (cached INSIDE the prompt count) shows six figures."""
+    rows = [
+        build_cost_row(
+            run_id="r", batch_index=0, image_id="a",
+            model_id="anthropic/claude-haiku-4-5-low",
+            input_tokens=6, output_tokens=390, latency_ms=1000,
+            recorded_at="2026-07-09T00:00:01Z",
+            cached_input_tokens=5900, cache_creation_input_tokens=100,
+        ),
+        build_cost_row(
+            run_id="r", batch_index=0, image_id="a",
+            model_id="openai/gpt-5.4-mini-low",
+            input_tokens=6000, output_tokens=300, latency_ms=1000,
+            recorded_at="2026-07-09T00:00:01Z",
+            cached_input_tokens=5000,
+        ),
+    ]
+    out = {row["model_id"]: row for row in build_model_speed_summary(rows)}
+    haiku = out["anthropic/claude-haiku-4-5-low"]
+    assert haiku["total_cached_input_tokens"] == 5900
+    assert haiku["total_cache_write_tokens"] == 100
+    assert haiku["total_tokens"] == 6 + 5900 + 100 + 390
+    mini = out["openai/gpt-5.4-mini-low"]
+    # Cached already sits INSIDE prompt_tokens: no double count.
+    assert mini["total_tokens"] == 6000 + 300
+    assert mini["total_cached_input_tokens"] == 5000
 
 
 # --- runner integration --------------------------------------------------------
@@ -224,6 +291,9 @@ def test_runner_writes_costs_jsonl_and_manifest_per_model() -> None:
             "active_elapsed_s",
             "total_input_tokens",
             "total_output_tokens",
+            "total_cached_input_tokens",
+            "total_cache_write_tokens",
+            "total_tokens",
             "total_cost_usd",
             "total_cost",
             "n_calls",

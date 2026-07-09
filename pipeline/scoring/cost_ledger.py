@@ -41,12 +41,19 @@ def build_cost_row(
     image_count: int = 1,
     cost_usd: float | None = None,
     latency_ms: int | float | None = None,
+    cached_input_tokens: int | None = None,
+    cache_creation_input_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Build one analysis-ready per-image-per-model cost ledger row.
 
     Cost is (re)computed with the LIVE pricing registry unless an explicit
     ``cost_usd`` is provided. Rates and ``pricing_version`` are always stamped
     from the current registry so the row is self-describing for later analysis.
+
+    Cache fields matter: without them the recompute bills the full input rate,
+    which OVERSTATES OpenAI/Gemini calls (cached tokens are a discounted
+    subset of input) and UNDERSTATES Anthropic calls (cache reads/writes are
+    billed on top of input_tokens). Callers with cache usage must pass both.
     """
     pricing = price_for(model_id)
     input_rate = float(pricing["input_per_mtok"]) if pricing else None
@@ -55,7 +62,9 @@ def build_cost_row(
 
     if cost_usd is None:
         cost_usd = compute_call_cost(
-            model_id, input_tokens, output_tokens, image_count=image_count
+            model_id, input_tokens, output_tokens, image_count=image_count,
+            cached_input_tokens=cached_input_tokens,
+            cache_creation_input_tokens=cache_creation_input_tokens,
         )
 
     latency_value: int | None = None
@@ -77,6 +86,13 @@ def build_cost_row(
         "model_id": model_id,
         "input_tokens": None if input_tokens is None else int(input_tokens),
         "output_tokens": output_value,
+        "cached_input_tokens": (
+            None if cached_input_tokens is None else int(cached_input_tokens)
+        ),
+        "cache_creation_input_tokens": (
+            None if cache_creation_input_tokens is None
+            else int(cache_creation_input_tokens)
+        ),
         "latency_ms": latency_value,
         "tokens_per_sec": tokens_per_sec,
         "input_rate_per_mtok": input_rate,
@@ -95,10 +111,30 @@ def _blank_rollup() -> dict[str, Any]:
         "priced_images": 0,
         "total_input_tokens": 0,
         "total_output_tokens": 0,
+        "total_cached_input_tokens": 0,
+        "total_cache_write_tokens": 0,
         "total_cost_usd": 0.0,
         "cost_per_image_usd": None,
         "cost_per_1000_labels": None,
     }
+
+
+def _total_tokens_for(
+    model_id: str, input_tokens: int, output_tokens: int,
+    cached_tokens: int, write_tokens: int,
+) -> int:
+    """Provider-consistent "tokens the model processed" total.
+
+    Anthropic reports cache reads/writes OUTSIDE input_tokens, so they must be
+    added back; OpenAI/Gemini report cached tokens INSIDE their prompt count,
+    so input + output already covers them. Without this, an Anthropic row
+    shows only the uncached remainder (e.g. 120 input tokens against 118k
+    served from cache) and cross-provider token columns are apples-to-oranges.
+    """
+    provider = model_id.split("/", 1)[0] if "/" in model_id else model_id
+    if provider == "anthropic":
+        return input_tokens + cached_tokens + write_tokens + output_tokens
+    return input_tokens + output_tokens
 
 
 def _finalize(bucket: dict[str, Any]) -> None:
@@ -131,6 +167,8 @@ def rollup_cost_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         cost = row.get("cost_usd")
         in_tok = int(row.get("input_tokens") or 0)
         out_tok = int(row.get("output_tokens") or 0)
+        cached_tok = int(row.get("cached_input_tokens") or 0)
+        write_tok = int(row.get("cache_creation_input_tokens") or 0)
         pv = row.get("pricing_version")
         if pv:
             pricing_versions.add(str(pv))
@@ -144,6 +182,8 @@ def rollup_cost_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
             bucket["images"] += 1
             bucket["total_input_tokens"] += in_tok
             bucket["total_output_tokens"] += out_tok
+            bucket["total_cached_input_tokens"] += cached_tok
+            bucket["total_cache_write_tokens"] += write_tok
             if cost is not None:
                 bucket["priced_images"] += 1
                 bucket["total_cost_usd"] += float(cost)
@@ -206,6 +246,8 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
                 "calls_done": 0,
                 "total_input_tokens": 0,
                 "total_output_tokens": 0,
+                "total_cached_input_tokens": 0,
+                "total_cache_write_tokens": 0,
                 "total_cost_usd": 0.0,
                 "total_cost": 0.0,
                 "_latency_ms": 0.0,
@@ -222,6 +264,16 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
             pass
         try:
             bucket["total_output_tokens"] += int(row.get("output_tokens") or 0)
+        except (TypeError, ValueError):
+            pass
+        try:
+            bucket["total_cached_input_tokens"] += int(row.get("cached_input_tokens") or 0)
+        except (TypeError, ValueError):
+            pass
+        try:
+            bucket["total_cache_write_tokens"] += int(
+                row.get("cache_creation_input_tokens") or 0
+            )
         except (TypeError, ValueError):
             pass
         cost = row.get("cost_usd")
@@ -285,6 +337,13 @@ def build_model_speed_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]
         bucket["tokens_per_sec"] = tokens_per_sec
         bucket["images_per_min"] = images_per_min
         bucket["throughput_imgs_per_min"] = images_per_min
+        bucket["total_tokens"] = _total_tokens_for(
+            model,
+            int(bucket["total_input_tokens"]),
+            int(bucket["total_output_tokens"]),
+            int(bucket["total_cached_input_tokens"]),
+            int(bucket["total_cache_write_tokens"]),
+        )
         out.append(bucket)
     return out
 
@@ -299,6 +358,9 @@ def build_per_model_timing_block(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total_calls = sum(int(row.get("calls_done") or row.get("n_calls") or 0) for row in per_model)
     total_input = sum(int(row.get("total_input_tokens") or 0) for row in per_model)
     total_output = sum(int(row.get("total_output_tokens") or 0) for row in per_model)
+    total_cached = sum(int(row.get("total_cached_input_tokens") or 0) for row in per_model)
+    total_write = sum(int(row.get("total_cache_write_tokens") or 0) for row in per_model)
+    total_tokens = sum(int(row.get("total_tokens") or 0) for row in per_model)
     total_cost = sum(float(row.get("total_cost_usd") or 0.0) for row in per_model)
     first_started = min(firsts) if firsts else None
     last_finished = max(lasts) if lasts else None
@@ -312,6 +374,9 @@ def build_per_model_timing_block(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "n_calls": total_calls,
         "total_input_tokens": total_input,
         "total_output_tokens": total_output,
+        "total_cached_input_tokens": total_cached,
+        "total_cache_write_tokens": total_write,
+        "total_tokens": total_tokens,
         "total_cost_usd": total_cost,
         "total_cost": total_cost,
         "first_started_at": _iso_z(first_started),

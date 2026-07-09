@@ -294,9 +294,19 @@ def _text_call_cost(model_id: str, usage_rows: list[dict[str, Any]]) -> float:
             row.get("input_tokens"),
             row.get("output_tokens"),
             image_count=0,
+            cached_input_tokens=row.get("cached_input_tokens"),
+            cache_creation_input_tokens=row.get("cache_creation_input_tokens"),
         )
         total += cost or 0.0
     return round(total, 6)
+
+
+def _sum_usage_field(usage_rows: list[dict[str, Any]], field: str) -> int | None:
+    """Sum a token field across agent usage rows; None when never reported."""
+    values = [row.get(field) for row in usage_rows if row.get(field) is not None]
+    if not values:
+        return None
+    return int(sum(int(v) for v in values))
 
 
 def _append_agent_cost(
@@ -318,6 +328,8 @@ def _append_agent_cost(
                 output_tokens=row.get("output_tokens"),
                 recorded_at=exp.utcnow_iso(),
                 image_count=0,
+                cached_input_tokens=row.get("cached_input_tokens"),
+                cache_creation_input_tokens=row.get("cache_creation_input_tokens"),
             )
             fh.write(json.dumps(ledger, sort_keys=True) + "\n")
 
@@ -355,14 +367,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--batch-n", type=int, default=20, help="Train images per cycle.")
     ap.add_argument("--test-n", type=int, default=100,
                     help="Fixed seeded test partition size (the gate set).")
-    ap.add_argument("--max-anchors", type=int, default=10,
+    ap.add_argument("--max-anchors", type=int, default=15,
                     help="Max MISALIGNED anchors per edit (the panel's errors / SVM side).")
-    ap.add_argument("--max-aligned-anchors", type=int, default=10,
+    ap.add_argument("--max-aligned-anchors", type=int, default=5,
                     help="Max ALIGNED anchors per edit — a sample of correctly-classified "
                          "images so the drafter also learns from correct calls (0 disables). "
                          "The mis/aligned split is a hyperparameter.")
-    ap.add_argument("--max-changes", type=int, default=exp.DEFAULT_MAX_CHANGES,
-                    help="Clip: max node-file changes per policy update (1-5).")
+    ap.add_argument("--max-changes", type=int, default=3,
+                    help=f"Clip: max node-file changes per policy update "
+                         f"(1-{exp.MAX_CHANGES_HARD_CAP}).")
     ap.add_argument("--epsilon", type=float, default=0.0,
                     help="Accept iff test system macro-F1 > before + epsilon.")
     ap.add_argument("--policy-version", default="v0.1",
@@ -379,6 +392,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "off: accept EVERY clipped edit (metric recorded, never enforced "
                          "— shows unfiltered policy drift; requires --live).")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
+    ap.add_argument("--drafter-context", choices=["text_and_images", "text_only"],
+                    default="text_and_images",
+                    help="What the drafter (optimizer) receives per anchor: "
+                         "text_and_images = the judges' full text output "
+                         "(label/confidence/difficulty/boundary/justification) "
+                         "PLUS the anchor images themselves | text_only = just "
+                         "the text fields — much cheaper on image-heavy areas.")
     ap.add_argument("--strategy", choices=list(exp.STRATEGIES), default=exp.DEFAULT_STRATEGY,
                     help="Anchor selection: random_misalignment (S1, unbiased) or "
                          "top_gradient (most-important-first: panel avg |g| desc).")
@@ -488,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
         "gate_model": args.gate_model,
         "gate_mode": args.gate_mode,
         "drafter_model": args.drafter_model,
+        "drafter_context": args.drafter_context,
         "base_version": base_version,
         "base_generator": _gen_id(area, base_version),
         "current_version": base_version,
@@ -761,8 +782,13 @@ def main(argv: list[str] | None = None) -> int:
                     })
                 return out
 
-            anchor_images = _load_anchor_images(anchors, "misaligned") if live else []
-            aligned_images = _load_anchor_images(aligned_anchors, "aligned") if live else []
+            with_images = args.drafter_context == "text_and_images"
+            anchor_images = (
+                _load_anchor_images(anchors, "misaligned") if live and with_images else []
+            )
+            aligned_images = (
+                _load_anchor_images(aligned_anchors, "aligned") if live and with_images else []
+            )
             messages = exp.build_drafter_messages(
                 policy_markdown=load_policy_markdown(base_dir),
                 base_version=state["current_version"],
@@ -778,6 +804,30 @@ def main(argv: list[str] | None = None) -> int:
             )
             chat = drafter_chat or exp.fake_drafter_callable(base_dir)
             n_drafter_calls = len(usage_drafter)
+
+            def _close_drafter_cost(cycle: dict[str, Any], n_before: int) -> float:
+                # The optimizer's per-cycle spend — ledgered and recorded on
+                # the cycle whether the draft parsed or not (retries of a
+                # failing drafter still bill).
+                rows = usage_drafter[n_before:]
+                cost = _text_call_cost(args.drafter_model, rows) if rows else 0.0
+                if rows:
+                    _add_cost(cost)
+                    _append_agent_cost(
+                        exp_dir, experiment_id=experiment_id, k=k, role="drafter",
+                        model_id=args.drafter_model, usage_rows=rows,
+                    )
+                cycle["drafter"] = {
+                    "model": args.drafter_model,
+                    "context": args.drafter_context,
+                    "n_calls": len(rows),
+                    "cost_usd": round(cost, 6),
+                    "input_tokens": _sum_usage_field(rows, "input_tokens"),
+                    "output_tokens": _sum_usage_field(rows, "output_tokens"),
+                    "cached_input_tokens": _sum_usage_field(rows, "cached_input_tokens"),
+                }
+                return cost
+
             try:
                 raw = _call_chat_with_retries(
                     chat, messages, model_id=args.drafter_model,
@@ -791,22 +841,18 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 proposed_files, removed = _proposal_from_llm_json(raw)
             except Exception as draft_exc:  # noqa: BLE001 - a bad draft skips the cycle
+                drafter_cost = _close_drafter_cost(cycle, n_drafter_calls)
                 cycle["status"] = "skipped"
                 cycle["error"] = f"drafter_error: {type(draft_exc).__name__}: {draft_exc}"[:400]
                 cycle["metrics"]["test"] = current_test_metrics
                 cycle["generator_after"] = cycle["generator_before"]
+                cycle["cost_usd"] = round(_run_cost(train_run["run_id"]) + drafter_cost, 6)
                 cycle["closed_at"] = exp.utcnow_iso()
                 _phase(f"cycle {k}/{args.k_max}: drafter failed — cycle skipped")
                 _sync()
                 continue
             _persist_agent_exchange(exp_dir, k=k, role="drafter", messages=messages, raw=raw)
-            if usage_drafter[n_drafter_calls:]:
-                cost = _text_call_cost(args.drafter_model, usage_drafter[n_drafter_calls:])
-                _add_cost(cost)
-                _append_agent_cost(
-                    exp_dir, experiment_id=experiment_id, k=k, role="drafter",
-                    model_id=args.drafter_model, usage_rows=usage_drafter[n_drafter_calls:],
-                )
+            drafter_cost = _close_drafter_cost(cycle, n_drafter_calls)
 
             clip = exp.clip_changes(
                 proposed_files, removed, base_dir=base_dir, max_changes=args.max_changes
@@ -820,6 +866,7 @@ def main(argv: list[str] | None = None) -> int:
                 cycle["error"] = "drafter proposed no effective changes"
                 cycle["metrics"]["test"] = current_test_metrics
                 cycle["generator_after"] = cycle["generator_before"]
+                cycle["cost_usd"] = round(_run_cost(train_run["run_id"]) + drafter_cost, 6)
                 cycle["closed_at"] = exp.utcnow_iso()
                 _phase(f"cycle {k}/{args.k_max}: no effective changes — cycle skipped")
                 _sync()
@@ -895,6 +942,13 @@ def main(argv: list[str] | None = None) -> int:
                 cycle["error"] = f"{type(cycle_exc).__name__}: {cycle_exc}"[:400]
                 cycle["metrics"]["test"] = current_test_metrics
                 cycle["generator_after"] = cycle["generator_before"]
+                cand_cost = (
+                    _run_cost(cycle["candidate_run_id"])
+                    if cycle.get("candidate_run_id") else 0.0
+                )
+                cycle["cost_usd"] = round(
+                    _run_cost(train_run["run_id"]) + drafter_cost + cand_cost, 6
+                )
                 cycle["closed_at"] = exp.utcnow_iso()
                 _phase(f"cycle {k}/{args.k_max}: FAILED ({cycle['error']}) — continuing")
                 _sync()
@@ -1023,7 +1077,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             cycle["metrics"]["test"] = current_test_metrics
             cycle["cost_usd"] = round(
-                _run_cost(train_run["run_id"]) + _run_cost(cand_run["run_id"]) + gate_cost, 6
+                _run_cost(train_run["run_id"]) + _run_cost(cand_run["run_id"])
+                + drafter_cost + gate_cost, 6
             )
             cycle["closed_at"] = exp.utcnow_iso()
             _sync()

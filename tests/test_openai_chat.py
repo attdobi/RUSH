@@ -17,7 +17,11 @@ class _FakeCompletions:
         self.calls.append(kwargs)
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content='{"files": []}'))],
-            usage=SimpleNamespace(prompt_tokens=123, completion_tokens=45),
+            usage=SimpleNamespace(
+                prompt_tokens=123,
+                completion_tokens=45,
+                prompt_tokens_details=SimpleNamespace(cached_tokens=100),
+            ),
         )
 
 
@@ -59,3 +63,24 @@ def test_openai_policy_chat_callable_maps_json_request_without_live_call(monkeyp
     assert call["response_format"] == {"type": "json_object"}
     assert call["reasoning_effort"] == "high"
     assert call["max_completion_tokens"] == 10000
+
+
+def test_openai_usage_sink_carries_cached_tokens(monkeypatch: Any) -> None:
+    """The drafter/gate cost ledger needs the cached share to discount it."""
+    _FakeOpenAI.instances.clear()
+    auth.reset_for_tests()
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(openai, "OpenAI", _FakeOpenAI)
+
+    sink: list[dict[str, Any]] = []
+    chat = policy_chat_callable("openai/gpt-5.5", usage_sink=sink)
+    chat([{"role": "user", "content": "draft"}], model_id="openai/gpt-5.5")
+
+    assert sink == [
+        {
+            "model_id": "openai/gpt-5.5",
+            "input_tokens": 123,
+            "output_tokens": 45,
+            "cached_input_tokens": 100,
+        }
+    ]

@@ -51,17 +51,24 @@ def _effective_effort(model_id: str, requested: str) -> str:
     return requested
 
 
-def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
+def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None, int | None]:
     usage = getattr(response, "usage", None)
     if usage is None and isinstance(response, dict):
         usage = response.get("usage")
     if usage is None:
-        return None, None
+        return None, None, None
     prompt = getattr(usage, "prompt_tokens", None)
     completion = getattr(usage, "completion_tokens", None)
+    details = getattr(usage, "prompt_tokens_details", None)
     if isinstance(usage, dict):
         prompt = usage.get("prompt_tokens", prompt)
         completion = usage.get("completion_tokens", completion)
+        details = usage.get("prompt_tokens_details", details)
+    # Cached tokens are a discounted SUBSET of prompt_tokens (OpenAI
+    # semantics) — needed so drafter/gate cost ledgers apply the discount.
+    cached = getattr(details, "cached_tokens", None) if details is not None else None
+    if isinstance(details, dict):
+        cached = details.get("cached_tokens", cached)
     try:
         input_tokens = int(prompt) if prompt is not None else None
     except (TypeError, ValueError):
@@ -70,7 +77,11 @@ def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:
         output_tokens = int(completion) if completion is not None else None
     except (TypeError, ValueError):
         output_tokens = None
-    return input_tokens, output_tokens
+    try:
+        cached_tokens = int(cached) if cached is not None else None
+    except (TypeError, ValueError):
+        cached_tokens = None
+    return input_tokens, output_tokens, cached_tokens
 
 
 def _extract_text(response: Any) -> str:
@@ -142,13 +153,14 @@ def policy_chat_callable(
             # older SDKs without the typed kwarg still forward it.
             params["extra_body"] = {"prompt_cache_key": prompt_cache_key}
         response = _ensure_client().chat.completions.create(**params)
-        input_tokens, output_tokens = _extract_usage_tokens(response)
+        input_tokens, output_tokens, cached_tokens = _extract_usage_tokens(response)
         if usage_sink is not None:
             usage_sink.append(
                 {
                     "model_id": model_id,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "cached_input_tokens": cached_tokens,
                 }
             )
         if input_tokens is None and output_tokens is None:

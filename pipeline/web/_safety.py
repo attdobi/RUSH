@@ -623,9 +623,11 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "k_max": _int_field("k_max", 5, 1, 50),
         "batch_n": _int_field("batch_n", 20, 2, 200),
         "test_n": _int_field("test_n", 100, 10, 1000),
-        "max_changes": _int_field("max_changes", 5, 1, 5),
-        "max_anchors": _int_field("max_anchors", 10, 1, 20),
-        "max_aligned_anchors": _int_field("max_aligned_anchors", 10, 0, 20),
+        # Defaults mirror the run form (Attila 2026-07-09): 15 misaligned +
+        # 5 aligned anchors, max 3 changes per edit.
+        "max_changes": _int_field("max_changes", 3, 1, 5),
+        "max_anchors": _int_field("max_anchors", 15, 1, 20),
+        "max_aligned_anchors": _int_field("max_aligned_anchors", 5, 0, 20),
         "concurrency": _int_field("concurrency", 4, 1, 4),
         "epsilon": float(epsilon),
         "gate_mode": gate_mode,
@@ -633,6 +635,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "drafter_model": _agent_model(
             "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
         ),
+        "drafter_context": _drafter_context(payload.get("drafter_context")),
         "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),
@@ -640,6 +643,17 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "live": live,
         "allow_spend": bool(payload.get("allow_spend")),
     }
+
+
+def _drafter_context(raw: Any) -> str:
+    """What the drafter (optimizer) sees per anchor: with or without images."""
+    if raw in (None, ""):
+        return "text_and_images"
+    if raw not in {"text_and_images", "text_only"}:
+        raise APIError(400, "validation_error",
+                       "drafter_context must be text_and_images|text_only",
+                       details={"field": "drafter_context"})
+    return str(raw)
 
 
 def _experiment_policy_version(raw: Any) -> str | None:
