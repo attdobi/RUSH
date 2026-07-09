@@ -63,7 +63,7 @@
           <tr><td>Misaligned</td><td>10</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
           <tr><td>Aligned</td><td>10</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
           <tr><td>Max changes</td><td>5</td><td>The edit clip: at most 5 node files touched per proposal — the trust region that keeps every step human-reviewable.</td></tr>
-          <tr><td>Gate mode</td><td>metric rule</td><td>Accept only on strict panel macro-F1 improvement on test; optionally a gate agent can veto (never force); OFF accepts every edit — the unfiltered-drift demo.</td></tr>
+          <tr><td>Gate mode</td><td>metric rule</td><td>Four modes: metric rule (accept only on strict panel macro-F1 improvement); + agent veto (rule stays the hard wall, agent can only reject); <strong>critic agent only</strong> (the agent's verdict decides — metric recorded as advisory, never enforced; agent failure falls back to the rule); OFF (accept every edit — the unfiltered-drift demo).</td></tr>
           <tr><td><var>ε</var> (epsilon)</td><td>0</td><td>Extra margin the candidate must clear. ε&gt;0 is the first winner's-curse mitigation on the research list.</td></tr>
           <tr><td>Benchmark readout</td><td>off</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
           <tr><td>Parallelism</td><td>4</td><td>Concurrent labeling calls per judge; hosted judges of one provider run side by side in a shared, per-model-sized pool.</td></tr>

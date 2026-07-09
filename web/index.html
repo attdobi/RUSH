@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r41" />
-  <script src="demos.js?v=demo-mnist-kdd-r41"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r42" />
+  <script src="demos.js?v=demo-mnist-kdd-r42"></script>
 </head>
 <body>
   <header class="hero">
@@ -71,10 +71,13 @@
             it never judges. "Anchors" picks how the misalignments are chosen: an unbiased random sample,
             top-gradient (confident-wrong panels first, |g| = 1−p), or top-importance (the four-tier
             misalignment × consensus rank — see the About tab).</p>
-            <p><strong>Gate — a deterministic rule.</strong> An edit is accepted only if the panel's
-            test-partition macro-F1 strictly improves. Optionally an expensive gate agent double-checks
-            and can VETO a suspicious win — it can never force one — and every rationale it produces is
-            reported in the gate ledger below.</p>
+            <p><strong>Gate — four modes.</strong> Default: a deterministic rule — an edit is accepted
+            only if the panel's test-partition macro-F1 strictly improves. "+ agent" keeps that rule as
+            the hard wall and lets a gate agent VETO a suspicious win (never force one). "Critic agent
+            only" hands the decision to the agent: the metric is reported as advisory evidence but not
+            enforced, so the critic may accept a metric-flat edit it judges sound — the arm that tests
+            LLM judgment against the metric rule (agent failure falls back to the metric rule). OFF
+            accepts everything. Every rationale is reported in the gate ledger below.</p>
             <p><strong>Cost.</strong> Each cycle labels N train + T test images with every judge; the
             benchmark readout adds two passes over the fixed 1,000-image validation split. Accepted
             versions are named v&lt;run&gt;.&lt;k&gt; — run 5 accepting at cycle 3 mints v5.3.</p>
@@ -117,9 +120,16 @@
           <label>Mode
             <select id="experimentGateModel">
               <option value="metric_only" selected>Metric rule only — scored by your panel (default)</option>
-              <option value="openai/gpt-5.5">+ gpt-5.5 gate agent — optional veto, reported in the ledger</option>
-              <option value="openai/gpt-5.5-low">+ gpt-5.5-low gate agent</option>
-              <option value="anthropic/claude-opus-4-7">+ opus-4-7 gate agent</option>
+              <optgroup label="Metric rule + agent veto (rule is the hard wall)">
+                <option value="openai/gpt-5.5">+ gpt-5.5 gate agent — optional veto, reported in the ledger</option>
+                <option value="openai/gpt-5.5-low">+ gpt-5.5-low gate agent</option>
+                <option value="anthropic/claude-opus-4-7">+ opus-4-7 gate agent</option>
+              </optgroup>
+              <optgroup label="Critic agent only (agent verdict decides; metric advisory)">
+                <option value="agent_only:openai/gpt-5.5">gpt-5.5 critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.5-low">gpt-5.5-low critic gate — no metric rule</option>
+                <option value="agent_only:anthropic/claude-opus-4-7">opus-4-7 critic gate — no metric rule</option>
+              </optgroup>
               <option value="off">Gate OFF — accept every edit</option>
             </select>
           </label>
@@ -262,14 +272,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r41"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r41"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r41"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r41"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r41"></script>
-  <script src="about.js?v=demo-mnist-kdd-r41"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r41"></script>
+  <script src="app.js?v=demo-mnist-kdd-r42"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r42"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r42"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r42"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r42"></script>
+  <script src="about.js?v=demo-mnist-kdd-r42"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r42"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r41"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r42"></script>
 </body>
 </html>

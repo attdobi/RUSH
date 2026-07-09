@@ -265,6 +265,38 @@ def test_gate_truth_table():
     assert out["risk_flags"] == ["leak"]
 
 
+def test_gate_agent_only_verdict_decides_regardless_of_metric():
+    accept = {"decision": "accept", "rationale": "sound boundary node", "risk_flags": []}
+    veto = {"decision": "skip", "rationale": "overfits", "risk_flags": ["overfit"]}
+    # The critic may accept a metric-FAILING edit (the whole point of the mode).
+    out = exp.resolve_gate_decision(metric_pass=False, agent=accept, agent_only=True)
+    assert out["decision"] == "accept" and out["decided_by"] == "gate_agent"
+    # And may skip a metric-passing one.
+    out = exp.resolve_gate_decision(metric_pass=True, agent=veto, agent_only=True)
+    assert out["decision"] == "skip" and out["decided_by"] == "gate_agent"
+    assert out["risk_flags"] == ["overfit"]
+    # No verdict (agent error): fall back to the metric rule — the gate never
+    # silently degrades to gate-off.
+    out = exp.resolve_gate_decision(metric_pass=True, agent=None, agent_only=True)
+    assert out["decision"] == "accept" and out["decided_by"] == "metric_rule"
+    assert "gate_agent_unavailable" in out["risk_flags"]
+    out = exp.resolve_gate_decision(metric_pass=False, agent=None, agent_only=True)
+    assert out["decision"] == "skip" and out["decided_by"] == "metric_rule"
+
+
+def test_gate_agent_only_prompt_selection():
+    kwargs = dict(
+        metric=exp.GATE_METRIC, value_before=0.9, value_after=0.9, epsilon=0.0,
+        metric_pass=False, metrics_before={}, metrics_after={}, diffs=[],
+        anchors=[], k=1,
+    )
+    default_messages = exp.build_gate_messages(**kwargs)
+    critic_messages = exp.build_gate_messages(**kwargs, agent_is_sole_gate=True)
+    assert default_messages[0]["content"] == exp.GATE_SYSTEM_PROMPT
+    assert critic_messages[0]["content"] == exp.GATE_AGENT_ONLY_SYSTEM_PROMPT
+    assert "verdict alone decides" in critic_messages[0]["content"]
+
+
 def test_build_run_summary_deltas_and_metadata():
     state = {
         "experiment_id": "exp-x", "run_number": 7, "status": "completed",

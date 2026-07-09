@@ -545,8 +545,9 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
                        details={"field": "epsilon"})
 
     gate_mode = payload.get("gate_mode") or "agent"
-    if gate_mode not in {"agent", "metric_only", "off"}:
-        raise APIError(400, "validation_error", "gate_mode must be agent|metric_only|off",
+    if gate_mode not in {"agent", "agent_only", "metric_only", "off"}:
+        raise APIError(400, "validation_error",
+                       "gate_mode must be agent|agent_only|metric_only|off",
                        details={"field": "gate_mode"})
     if gate_mode == "off" and payload.get("live", True) is False:
         # Mirrors the driver guard: a dry run with the gate off would mint

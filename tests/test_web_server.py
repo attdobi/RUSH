@@ -321,6 +321,22 @@ def test_validate_experiment_payload_gate_off_live() -> None:
     assert request["gate_model"] == "openai/gpt-5.5"
 
 
+def test_validate_experiment_payload_gate_agent_only() -> None:
+    from pipeline.web._safety import validate_experiment_payload
+
+    request = validate_experiment_payload(
+        _experiment_payload(gate_mode="agent_only", gate_model="openai/gpt-5.5-low")
+    )
+    assert request["gate_mode"] == "agent_only"
+    assert request["gate_model"] == "openai/gpt-5.5-low"
+    # Unlike gate-off, the critic gate still gates — dry runs are allowed
+    # (the fake gate defers to the metric rule offline).
+    request = validate_experiment_payload(
+        _experiment_payload(gate_mode="agent_only", live=False, allow_spend=False)
+    )
+    assert request["gate_mode"] == "agent_only"
+
+
 def test_experiment_endpoints_list_detail_and_review(tmp_path: Path, monkeypatch) -> None:
     from pipeline import experiment as exp
     from pipeline.experiment import store as exp_store

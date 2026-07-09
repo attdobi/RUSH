@@ -171,8 +171,13 @@
     }
     const seedRaw = ($('#experimentSeed')?.value || '').trim();
     const gateChoice = $('#experimentGateModel')?.value || 'metric_only';
+    // Select values: 'metric_only' | 'off' | '<model>' (metric rule + agent
+    // veto) | 'agent_only:<model>' (the critic's verdict alone decides —
+    // metric recorded as advisory, never enforced).
+    const agentOnly = gateChoice.startsWith('agent_only:');
     const gateMode = gateChoice === 'metric_only' ? 'metric_only'
-      : (gateChoice === 'off' ? 'off' : 'agent');
+      : (gateChoice === 'off' ? 'off' : (agentOnly ? 'agent_only' : 'agent'));
+    const gateModel = agentOnly ? gateChoice.slice('agent_only:'.length) : gateChoice;
     const payload = {
       demo: activeDemoId(),
       area: activeArea(),
@@ -185,7 +190,8 @@
       max_anchors: Number($('#experimentMaxAnchors')?.value || 10),
       max_aligned_anchors: Number($('#experimentMaxAlignedAnchors')?.value ?? 10),
       gate_mode: gateMode,
-      gate_model: gateMode === 'agent' ? gateChoice : 'openai/gpt-5.5',
+      gate_model: (gateMode === 'agent' || gateMode === 'agent_only')
+        ? gateModel : 'openai/gpt-5.5',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).

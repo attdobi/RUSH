@@ -601,6 +601,30 @@ GATE_SYSTEM_PROMPT = (
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
 )
 
+# --gate-mode agent_only: the critic agent IS the gate. The metric comparison
+# is advisory context (recorded for the learning curve, never enforced), so
+# the agent may accept a metric-flat edit it judges sound — the arm that
+# tests LLM judgment against the metric rule.
+GATE_AGENT_ONLY_SYSTEM_PROMPT = (
+    "You are RUSH's acceptance CRITIC for policy-prompt updates — in this run "
+    "your verdict alone decides; there is no hard metric rule. A candidate "
+    "policy edit was evaluated on the held-out test partition and the metric "
+    "comparison (value_before/value_after, per-judge tables, comparison "
+    "coverage) is supplied as ADVISORY evidence: weigh it, but you may accept "
+    "an edit whose metric did not improve if the edit is sound and clearly "
+    "valuable (e.g. a well-formed boundary node the small test partition "
+    "cannot yet measure), and you should SKIP any edit that is unsound — it "
+    "leaks ground-truth answers, overfits to named examples instead of "
+    "stating a general guideline, targets one judge model's quirks, tells "
+    "judges to abstain or defer instead of committing to a label, piles "
+    "class- or pair-specific rules into the root file instead of the owning "
+    "class/boundary node, is incoherent with the policy's structure, or "
+    "regresses the metric without compensating structural value. Be "
+    "conservative: an accepted edit ships as the next policy version. "
+    "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
+    "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
+)
+
 
 def build_gate_messages(
     *,
@@ -615,8 +639,13 @@ def build_gate_messages(
     anchors: list[dict[str, Any]],
     k: int,
     comparison: dict[str, Any] | None = None,
+    agent_is_sole_gate: bool = False,
 ) -> list[dict[str, str]]:
-    """Assemble the gate agent's review packet (metric table + diff + anchors)."""
+    """Assemble the gate agent's review packet (metric table + diff + anchors).
+
+    ``agent_is_sole_gate`` selects the agent_only system prompt: the critic
+    decides, the metric is advisory (--gate-mode agent_only).
+    """
 
     def _summary(metrics: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -667,7 +696,12 @@ def build_gate_messages(
         ],
     }
     return [
-        {"role": "system", "content": GATE_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": (
+                GATE_AGENT_ONLY_SYSTEM_PROMPT if agent_is_sole_gate else GATE_SYSTEM_PROMPT
+            ),
+        },
         {"role": "user", "content": json.dumps(payload, indent=2)},
     ]
 
@@ -688,7 +722,11 @@ def parse_gate_response(raw: str) -> dict[str, Any]:
 
 
 def resolve_gate_decision(
-    *, metric_pass: bool, agent: dict[str, Any] | None, gate_off: bool = False
+    *,
+    metric_pass: bool,
+    agent: dict[str, Any] | None,
+    gate_off: bool = False,
+    agent_only: bool = False,
 ) -> dict[str, Any]:
     """Compose the final gate outcome from the rule and the agent's review.
 
@@ -699,7 +737,29 @@ def resolve_gate_decision(
       rule pass + no agent       -> accept (metric_rule; --gate-mode metric_only)
       rule pass + agent accept   -> accept (gate_agent)
       rule pass + agent skip     -> skip  (gate_agent_veto)
+
+    ``agent_only`` (--gate-mode agent_only) replaces the table: the critic's
+    verdict decides regardless of the metric (decided_by gate_agent either
+    way); a missing verdict (agent error / unparseable reply) falls back to
+    the metric rule so the gate never silently degrades to gate-off.
     """
+    if agent_only and not gate_off:
+        if agent is not None:
+            return {
+                "decision": agent["decision"],
+                "decided_by": "gate_agent",
+                "rationale": agent.get("rationale", ""),
+                "risk_flags": agent.get("risk_flags", []),
+            }
+        return {
+            "decision": "accept" if metric_pass else "skip",
+            "decided_by": "metric_rule",
+            "rationale": (
+                "agent_only gate produced no verdict (agent error); fell back "
+                "to the metric rule"
+            ),
+            "risk_flags": ["gate_agent_unavailable"],
+        }
     if gate_off:
         return {
             "decision": "accept",

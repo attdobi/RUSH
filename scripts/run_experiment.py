@@ -370,8 +370,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "run number starts from the same baseline; accepted versions "
                          "branch from it (lineage recorded per run).")
     ap.add_argument("--gate-model", default=exp.DEFAULT_GATE_MODEL)
-    ap.add_argument("--gate-mode", choices=["agent", "metric_only", "off"], default="agent",
-                    help="agent: metric rule + gpt-5.5 veto | metric_only: rule alone | "
+    ap.add_argument("--gate-mode", choices=["agent", "agent_only", "metric_only", "off"],
+                    default="agent",
+                    help="agent: metric rule + gate-agent veto | agent_only: the critic "
+                         "agent's verdict alone decides (metric recorded as advisory, "
+                         "never enforced; agent failure falls back to the metric rule) | "
+                         "metric_only: rule alone | "
                          "off: accept EVERY clipped edit (metric recorded, never enforced "
                          "— shows unfiltered policy drift; requires --live).")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
@@ -554,12 +558,14 @@ def main(argv: list[str] | None = None) -> int:
         drafter_chat = get_chat_callable(args.drafter_model, usage_sink=usage_drafter)
         gate_chat = (
             get_chat_callable(args.gate_model, usage_sink=usage_gate)
-            if args.gate_mode == "agent"
+            if args.gate_mode in {"agent", "agent_only"}
             else None
         )
     else:
         drafter_chat = None  # rebuilt per cycle against the current version dir
-        gate_chat = exp.fake_gate_callable() if args.gate_mode == "agent" else None
+        gate_chat = (
+            exp.fake_gate_callable() if args.gate_mode in {"agent", "agent_only"} else None
+        )
 
     used_train_ids: set[str] = set()
     last_run_id: str | None = None
@@ -913,6 +919,7 @@ def main(argv: list[str] | None = None) -> int:
                     diffs=get_proposal(repo_root=ROOT, proposal_id=proposal["proposal_id"])
                     .get("diffs", []),
                     anchors=anchors, k=k, comparison=comparison,
+                    agent_is_sole_gate=args.gate_mode == "agent_only",
                 )
                 n_gate_calls = len(usage_gate)
                 try:
@@ -940,21 +947,23 @@ def main(argv: list[str] | None = None) -> int:
                         model_id=args.gate_model, usage_rows=usage_gate[n_gate_calls:],
                     )
 
-            if args.gate_mode == "off" and value_after is None:
-                # Even with the gate off, an edit whose candidate eval produced
-                # no decided system verdicts is unmeasurable — never applied.
+            if args.gate_mode in {"off", "agent_only"} and value_after is None:
+                # Even without the metric rule enforced, an edit whose candidate
+                # eval produced no decided system verdicts is unmeasurable —
+                # never applied (the critic cannot outvote missing evidence).
                 outcome = {
                     "decision": "skip",
                     "decided_by": "metric_rule",
-                    "rationale": "gate off, but the candidate produced no decided "
-                                 "system verdicts on test — an unmeasurable edit "
-                                 "is never applied",
+                    "rationale": f"gate mode {args.gate_mode}, but the candidate "
+                                 "produced no decided system verdicts on test — an "
+                                 "unmeasurable edit is never applied",
                     "risk_flags": [],
                 }
             else:
                 outcome = exp.resolve_gate_decision(
                     metric_pass=metric_pass, agent=agent_verdict,
                     gate_off=args.gate_mode == "off",
+                    agent_only=args.gate_mode == "agent_only",
                 )
             cycle["gate"] = {
                 "metric": exp.GATE_METRIC,
