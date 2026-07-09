@@ -10,8 +10,10 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import random
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -71,13 +73,39 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return h.hexdigest()
 
 
+def default_hash_workers() -> int:
+    """Threads for hashing the source tree.
+
+    Hashing the full ~12 GB / ~20k-image tree is IO-bound (per-file open +
+    read dominates), and ``read()`` releases the GIL, so oversubscribing the
+    core count overlaps those waits. Capped so we don't thrash the disk.
+    """
+    return min(16, (os.cpu_count() or 4) * 2)
+
+
+def hash_files(files: list[Path], *, workers: int) -> list[str]:
+    """SHA-256 every file, concurrently, PRESERVING input order.
+
+    ``ThreadPoolExecutor.map`` yields results in the order of ``files``, so the
+    hashes are byte-for-byte identical to serial hashing — the seed→manifest
+    alignment contract is untouched; only the wall-clock is smaller.
+    """
+    if workers <= 1 or len(files) <= 1:
+        return [sha256_file(path) for path in files]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(sha256_file, files))
+
+
 def split_evenly(total: int, buckets: Iterable[str]) -> dict[str, int]:
     names = list(buckets)
     base, remainder = divmod(total, len(names))
     return {name: base + (1 if idx < remainder else 0) for idx, name in enumerate(names)}
 
 
-def collect_candidates(repo_root: Path, source_root: Path) -> dict[tuple[str, str], list[Candidate]]:
+def collect_candidates(
+    repo_root: Path, source_root: Path, *, hash_workers: int | None = None
+) -> dict[tuple[str, str], list[Candidate]]:
+    workers = default_hash_workers() if hash_workers is None else hash_workers
     grouped: dict[tuple[str, str], list[Candidate]] = {}
     for dataset in DATASETS:
         for label in LABELS:
@@ -91,6 +119,7 @@ def collect_candidates(repo_root: Path, source_root: Path) -> dict[tuple[str, st
             if not files:
                 raise ValueError(f"No image files found in {class_dir}")
             key = (dataset, label)
+            digests = hash_files(files, workers=workers)
             grouped[key] = [
                 Candidate(
                     dataset=dataset,
@@ -100,10 +129,10 @@ def collect_candidates(repo_root: Path, source_root: Path) -> dict[tuple[str, st
                     original_filename=path.name,
                     file_ext=path.suffix.lower().lstrip("."),
                     source_label_dir=SOURCE_LABEL_DIRS[key],
-                    sha256=sha256_file(path),
+                    sha256=digest,
                     assumption_note=ASSUMPTION_NOTES.get(key, ""),
                 )
-                for path in files
+                for path, digest in zip(files, digests)
             ]
     return grouped
 
@@ -310,6 +339,10 @@ def main(argv: list[str] | None = None) -> int:
                              "it later with the SAME seed keeps existing dev/holdout "
                              "assignments identical.")
     parser.add_argument("--seed", type=int, default=20260510, help="deterministic sampling seed")
+    parser.add_argument("--jobs", type=int, default=None,
+                        help="threads for hashing the source tree (default: auto, "
+                             "min(16, 2*cpu)). Output is identical regardless — this "
+                             "only trades wall-clock, since hashing dominates the run.")
     parser.add_argument("--repo-root", type=Path, default=repo_root_from_script())
     parser.add_argument("--source-root", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, default=None)
@@ -335,7 +368,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {path}", file=sys.stderr)
         return 2
 
-    grouped = collect_candidates(repo_root, source_root.resolve())
+    grouped = collect_candidates(
+        repo_root, source_root.resolve(), hash_workers=args.jobs
+    )
     dev, holdout, validation, summary = sample_records(
         grouped, args.n_dev, args.n_holdout, args.seed, n_validation=args.n_validation
     )
