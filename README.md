@@ -172,12 +172,12 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      `top_importance` (the four-tier misalignment × consensus rank). The optimizer's token usage
      and cost are recorded per cycle (`cycle.drafter` in experiment.json) and shown in the gate
      ledger's Cost (k) column.
-   * **Gate** — four modes. `metric_only`: a deterministic rule (accept iff panel test macro-F1
-     strictly improves). `+ agent`: that rule stays the hard wall and a gate agent may VETO a
-     suspicious win, never force one. **`agent_only` (default in the UI: gpt-5.5-low critic gate)**:
-     the critic's verdict alone decides — the metric is recorded as advisory, never enforced, so
-     the critic may accept a metric-flat but structurally sound edit (agent failure falls back to
-     the metric rule). `off`: accept every edit, to watch unfiltered drift. A **Persona** knob
+   * **Gate** — four modes. **`metric_only` (default)**: a deterministic rule (accept iff panel
+     test macro-F1 strictly improves). `+ agent`: that rule stays the hard wall and a gate agent
+     may VETO a suspicious win, never force one. `agent_only` (e.g. gpt-5.5-low critic gate): the
+     critic's verdict alone decides — the metric is recorded as advisory, never enforced, so the
+     critic may accept a metric-flat but structurally sound edit (agent failure falls back to the
+     metric rule). `off`: accept every edit, to watch unfiltered drift. A **Persona** knob
      (`--gate-persona`, default **lenient**) sets the agent's stance in both agent modes: lenient
      treats a flat metric on a small test partition as sampling noise and skips only clear defects
      or large regressions; `moderate` and `strict` tighten it. Every rationale is in the gate ledger.

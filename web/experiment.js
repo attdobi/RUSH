@@ -172,7 +172,7 @@
       return;
     }
     const seedRaw = ($('#experimentSeed')?.value || '').trim();
-    const gateChoice = $('#experimentGateModel')?.value || 'agent_only:openai/gpt-5.5-low';
+    const gateChoice = $('#experimentGateModel')?.value || 'metric_only';
     // Select values: 'metric_only' | 'off' | '<model>' (metric rule + agent
     // veto) | 'agent_only:<model>' (the critic's verdict alone decides —
     // metric recorded as advisory, never enforced).
