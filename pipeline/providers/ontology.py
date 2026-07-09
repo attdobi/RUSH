@@ -12,8 +12,13 @@ Areas (see :mod:`pipeline.web.demo_area`):
   * ``MNIST_Digits`` — multiclass digit labeling; the digit is the L1 ``label``.
 
 Backward compatibility: :func:`get_ontology` defaults to GenAI, and the GenAI
-ontology re-exports the historical strings from :mod:`pipeline.providers._prompts`
-verbatim, so existing callers/tests are unchanged.
+ontology re-exports the strings from :mod:`pipeline.providers._prompts`.
+
+No-abstain contract (Attila 2026-07-09): models are never offered an abstain
+option — every area's prompt demands a decisive label and the provider-facing
+label enums contain only decisive classes. "abstain" survives solely as the
+internal sentinel for parse/transport failures (``Ontology.abstain_label``),
+counted as ``n_abstained`` and excluded from metric denominators.
 """
 from __future__ import annotations
 
@@ -52,6 +57,10 @@ class Ontology:
     user_instructions: str
     response_keys: tuple[str, ...]
     response_schema: dict[str, Any]
+    # INTERNAL failure sentinel only (r51): parse/transport failures are
+    # recorded as "abstain" and excluded from metric denominators
+    # (n_abstained). It is deliberately NOT in label_enum or the provider
+    # response schema — models are never offered abstain as a choice.
     abstain_label: str = "abstain"
     # Area-aware downsampler cap (longest edge, px) for the JPEG actually sent
     # to the provider. GenAI keeps the 1024px baseline; MNIST source digits are
@@ -98,7 +107,7 @@ _GENAI_SCHEMA["properties"]["is_boundary_between"] = copy.deepcopy(
 GENAI_ONTOLOGY = Ontology(
     area=DEFAULT_POLICY_AREA,
     l1_classes=("gen_ai", "not_gen_ai"),
-    label_enum=("gen_ai", "not_gen_ai", "abstain", "violative", "non_violative"),
+    label_enum=("gen_ai", "not_gen_ai", "violative", "non_violative"),
     scoring_task="genai_binary",
     l2_semantics=(
         "policy subcategory node id applied as the primary classification "
@@ -137,7 +146,7 @@ _MNIST_SCHEMA: dict[str, Any] = {
     "properties": {
         "label": {
             "type": "string",
-            "enum": list(MNIST_DIGITS) + ["abstain"],
+            "enum": list(MNIST_DIGITS),
         },
         "l2_label": {"type": "string"},
         "justification": {"type": "string", "min_length": 10},
@@ -242,7 +251,7 @@ MNIST_USER_INSTRUCTIONS: str = (
 MNIST_ONTOLOGY = Ontology(
     area=MNIST_POLICY_AREA,
     l1_classes=MNIST_DIGITS,
-    label_enum=MNIST_DIGITS + ("abstain",),
+    label_enum=MNIST_DIGITS,
     scoring_task="mnist_multiclass",
     l2_semantics="policy digit node id applied (MD.digit.N)",
     boundary_semantics=(

@@ -594,9 +594,13 @@ GATE_SYSTEM_PROMPT = (
     "answers, overfits to named examples instead of stating a general "
     "guideline, targets one judge model's quirks, tells judges to abstain or "
     "defer instead of committing to a label, piles class- or pair-specific "
-    "rules into the root file instead of the owning class/boundary node, or "
+    "rules into the root file instead of the owning class/boundary node, "
     "is incoherent with the "
-    "policy's structure. You can NEVER accept a metric-failing candidate. "
+    "policy's structure, or is mere rewording — restating existing sentences "
+    "with the same meaning. Diff churn that changes no semantic content, "
+    "decision boundary, or objective fact is not an improvement; SKIP it even "
+    "if the metric ticked up (small-partition noise can pass a no-op). "
+    "You can NEVER accept a metric-failing candidate. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
 )
@@ -618,7 +622,11 @@ GATE_AGENT_ONLY_SYSTEM_PROMPT = (
     "stating a general guideline, targets one judge model's quirks, tells "
     "judges to abstain or defer instead of committing to a label, piles "
     "class- or pair-specific rules into the root file instead of the owning "
-    "class/boundary node, or is incoherent with the policy's structure. "
+    "class/boundary node, is incoherent with the policy's structure, or is "
+    "mere rewording — restating existing sentences with the same meaning. "
+    "Diff churn that changes no semantic content, decision boundary, or "
+    "objective fact is not an improvement and must be skipped regardless of "
+    "structural tidiness. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
 )
@@ -636,9 +644,12 @@ GATE_PERSONAS: dict[str, str] = {
         "on a small test partition is sampling noise, not a defect — do not "
         "treat it alone as a reason to skip. Skip ONLY on a clear defect "
         "(ground-truth leakage, per-image answers, abstain guidance, "
-        "root-dumping, incoherent structure) or a large unambiguous "
-        "regression across multiple judges. A well-formed node addition with "
-        "plausible generalization value gets the benefit of the doubt."
+        "root-dumping, incoherent structure, meaning-preserving rewording) "
+        "or a large unambiguous regression across multiple judges. Lenient "
+        "means generous about unmeasured VALUE, not about no-op edits: a "
+        "diff that only re-phrases existing sentences is still a skip. A "
+        "well-formed node addition with plausible generalization value gets "
+        "the benefit of the doubt."
     ),
     "moderate": (
         "STANCE — MODERATE: balance progress against risk. Weigh measured "
@@ -843,9 +854,11 @@ def resolve_gate_decision(
 
 DRAFTER_SYSTEM_PROMPT = (
     "You are RUSH's policy diff writer inside a PPO-style iteration loop. "
-    "You are given two sets of anchors from this cycle's train batch, with "
-    "their images: MISALIGNED anchors (the panel disagreed with the SME "
-    "ground truth — the errors to fix) and ALIGNED anchors (the panel "
+    "You are given two sets of anchors from this cycle's train batch — as "
+    "each judge's full text output plus the SME ground truth, and sometimes "
+    "also the anchor images themselves: MISALIGNED anchors (the panel "
+    "disagreed with the SME ground truth — the errors to fix) and ALIGNED "
+    "anchors (the panel "
     "classified these CORRECTLY — the successes to protect). Draft the "
     "SINGLE most impactful policy improvement that would fix the misaligned "
     "cases WITHOUT regressing the aligned ones — use the aligned anchors as "
@@ -857,8 +870,16 @@ DRAFTER_SYSTEM_PROMPT = (
     "{area_guidance} State "
     "general, model-agnostic guidance (clear definitions, boundary rules, "
     "canonical examples); NEVER encode per-image answers or ground-truth "
-    "labels. The policy must always demand a decisive label: NEVER add "
-    "guidance telling judges to abstain, defer, or decline — uncertainty "
+    "labels. DO NOT REWORD: when you modify an existing file, leave every "
+    "sentence you are not semantically changing byte-for-byte intact — never "
+    "re-phrase, reorder, or polish text whose meaning stays the same. Touch "
+    "a sentence only to change its semantic meaning, tighten a decision "
+    "boundary, or clarify an objective fact; paraphrase-only churn wastes "
+    "the review diff and the gate will skip it. "
+    "The policy must always demand a decisive label: NEVER add "
+    "guidance telling judges to abstain, defer, or decline, and NEVER add "
+    "or reintroduce an 'abstain'/'unknown'/'uncertain' label, node, or "
+    "routing rule — uncertainty "
     "belongs in the confidence score [0,1] and the difficulty rating, not in "
     "refusing to answer. "
     "Keep each file's YAML frontmatter (id, version, title, area, "
@@ -1576,6 +1597,43 @@ def _recompute_importance(votes, effective_label, sme_confirmations):
     return panel_signal(record)
 
 
+def _read_time_misalignment_loader(
+    repo_root: Path | str,
+) -> Callable[[str], list[dict[str, Any]]]:
+    """Read-time twin of the driver's ``_load_misalignment``: pull the scored
+    misalignment records straight from ``data/runs/<run_id>/scoring/``."""
+    runs_root = Path(repo_root) / "data" / "runs"
+
+    def _load(run_id: str) -> list[dict[str, Any]]:
+        path = runs_root / str(run_id) / "scoring" / "misalignment.json"
+        if not path.exists():
+            return []
+        try:
+            return json.loads(path.read_text(encoding="utf-8")).get("records", [])
+        except (json.JSONDecodeError, OSError):
+            return []
+
+    return _load
+
+
+def _sha_by_image(repo_root: Path | str, area: str | None) -> dict[str, str]:
+    """sample_id -> sha256 from the area's manifest (the dedupe identity the
+    driver stamps on flagged items). Empty on any load failure — the queue
+    then dedupes by area:image_id, which is still correct within one area."""
+    try:
+        from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default
+        from pipeline.manifest import load_records
+        from pipeline.web.demo_area import MNIST_POLICY_AREA
+
+        manifest = (
+            MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA
+            else genai_manifest_default()
+        )
+        return {r.sample_id: r.sha256 for r in load_records(manifest)}
+    except Exception:  # noqa: BLE001 - enrichment only, never block the queue
+        return {}
+
+
 def aggregate_readjudication(
     repo_root: Path | str,
     *,
@@ -1585,7 +1643,11 @@ def aggregate_readjudication(
     """The cross-run running list of items awaiting SME re-adjudication.
 
     Derived at read time from every experiment.json readjudication block
-    (file = truth; no merge state to corrupt). Items are deduped by sha256
+    (file = truth; no merge state to corrupt). A run whose driver died before
+    end-of-run flagging (killed, stuck "running", benchmark crash) has no
+    block — for those, the queue is REBUILT here from the run's misalignment
+    records on disk, so any live run with recorded labels contributes its
+    residuals. Items are deduped by sha256
     (the label-store entity identity; sample_id fallback) with the run
     numbers that flagged them unioned, per-run evidence kept, and the rank
     signals averaged across runs. Dry runs are excluded by default — their
@@ -1593,6 +1655,8 @@ def aggregate_readjudication(
     """
     root = experiments_root(repo_root)
     reviews_by_key = load_adjudications(repo_root, area=area)
+    load_misalignment = _read_time_misalignment_loader(repo_root)
+    sha_maps: dict[str, dict[str, str]] = {}
     grouped: dict[str, dict[str, Any]] = {}
     if root.is_dir():
         for entry in sorted(root.iterdir()):
@@ -1610,6 +1674,18 @@ def aggregate_readjudication(
             if state.get("dry_run") and not include_dry:
                 continue
             block = state.get("readjudication") or {}
+            if not block.get("items"):
+                run_area = str(state.get("area") or "")
+                if run_area not in sha_maps:
+                    sha_maps[run_area] = _sha_by_image(repo_root, run_area)
+                try:
+                    block = build_readjudication(
+                        state,
+                        load_misalignment=load_misalignment,
+                        sha_by_image=sha_maps[run_area],
+                    )
+                except Exception:  # noqa: BLE001 - one bad run must not empty the queue
+                    block = {}
             for item in block.get("items") or []:
                 key = item.get("sha256") or f"{state.get('area')}:{item.get('image_id')}"
                 group = grouped.setdefault(key, {

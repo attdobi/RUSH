@@ -854,7 +854,6 @@ class TestGeminiClient:
         assert schema["properties"]["label"]["enum"] == [
             "gen_ai",
             "not_gen_ai",
-            "abstain",
             "violative",
             "non_violative",
         ]

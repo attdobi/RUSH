@@ -50,7 +50,6 @@ def test_get_ontology_genai_and_mnist_contracts():
     assert genai.label_enum == (
         "gen_ai",
         "not_gen_ai",
-        "abstain",
         "violative",
         "non_violative",
     )
@@ -60,17 +59,23 @@ def test_get_ontology_genai_and_mnist_contracts():
     mnist = get_ontology("MNIST_Digits")
     assert mnist.area == "MNIST_Digits"
     assert mnist.l1_classes == tuple(str(d) for d in range(10))
-    assert mnist.label_enum == tuple(str(d) for d in range(10)) + ("abstain",)
+    assert mnist.label_enum == tuple(str(d) for d in range(10))
     assert mnist.scoring_task == "mnist_multiclass"
     assert mnist.require_boundary_between is True
 
 
-def test_mnist_response_schema_label_enum_is_digits_plus_abstain():
+def test_response_schema_label_enums_offer_no_abstain():
+    # No-abstain contract (Attila 2026-07-09): the provider-facing schema
+    # must never OFFER abstain as a choice. "abstain" survives only as the
+    # internal parse/transport-failure sentinel (Ontology.abstain_label).
     mnist = get_ontology("MNIST_Digits")
     assert mnist.response_schema["properties"]["label"]["enum"] == [
-        *(str(d) for d in range(10)),
-        "abstain",
+        str(d) for d in range(10)
     ]
+    genai = get_ontology("Generative_AI")
+    assert "abstain" not in genai.response_schema["properties"]["label"]["enum"]
+    assert mnist.abstain_label == "abstain"
+    assert genai.abstain_label == "abstain"
 
 
 def test_coerce_label_fields_boundary_between_mnist_validation():

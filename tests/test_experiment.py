@@ -893,11 +893,48 @@ def test_aggregate_readjudication_dedupes_across_runs_and_skips_dry(tmp_path):
     assert everything["n_items"] == 2
 
 
+def test_aggregate_readjudication_rebuilds_queue_for_unflagged_runs(tmp_path):
+    # A driver killed mid-run (SIGKILL, stuck "running", benchmark crash)
+    # never reaches end-of-run flagging, so experiment.json has no
+    # readjudication block — but its labels are on disk. The aggregate must
+    # rebuild the queue from data/runs/<id>/scoring/misalignment.json so any
+    # run with recorded labels still surfaces its residual misalignments.
+    state = {
+        "experiment_id": exp.mint_experiment_id(),
+        "run_number": 7,
+        "area": "MNIST_Digits",
+        "seed": 7,
+        "dry_run": False,
+        "status": "stopped",          # died before finalize
+        "current_version": "v0.1",
+        "started_at": exp.utcnow_iso(),
+        "holdout": None, "benchmark": None,
+        "readjudication": None,        # <- the gap this test locks
+        "cycles": [{"k": 0, "test_run_id": "run-killed",
+                    "generator_before": "MNIST_Digits.v0.1",
+                    "status": "baseline"}],
+    }
+    exp.write_state(tmp_path, state)
+    scoring = tmp_path / "data" / "runs" / "run-killed" / "scoring"
+    scoring.mkdir(parents=True)
+    (scoring / "misalignment.json").write_text(json.dumps({"records": [
+        _mis_record("img_dead", "3",
+                    [{"label": "8", "confidence": 0.9, "difficulty": "low"}]),
+    ]}), encoding="utf-8")
+
+    queue = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
+    assert queue["n_items"] == 1
+    item = queue["items"][0]
+    assert item["image_id"] == "img_dead"
+    assert item["run_numbers"] == [7]
+    assert item["latest"]["run_id"] == "run-killed"
+
+
 def test_mnist_prompts_never_recommend_abstain():
     # Attila's standing rule: judges must always return a label; confidence
-    # [0,1] + difficulty carry the uncertainty. The schema stays tolerant
-    # (parser falls back to abstain on malformed replies) but the PROMPT
-    # must never suggest it.
+    # [0,1] + difficulty carry the uncertainty. The parser still falls back
+    # to the abstain sentinel on malformed replies but the PROMPT must never
+    # suggest it.
     from pipeline.providers.ontology import (
         MNIST_SYSTEM_PROMPT, MNIST_USER_INSTRUCTIONS,
     )
@@ -906,6 +943,34 @@ def test_mnist_prompts_never_recommend_abstain():
     assert "never abstain" in lowered
     assert "always return exactly one digit" in lowered
     assert "or \"abstain\"" not in MNIST_USER_INSTRUCTIONS.lower()
+
+
+def test_genai_prompts_never_recommend_abstain():
+    # Same rule for the GenAI area (Attila 2026-07-09: gemma abstained on
+    # 7/50). The prompt demands a decisive label, the enum offers none, and
+    # legacy policy clauses that mention abstain are explicitly overridden.
+    from pipeline.providers._prompts import (
+        LABELING_RESPONSE_SCHEMA,
+        LABELING_SYSTEM_PROMPT,
+        LABELING_USER_INSTRUCTIONS,
+    )
+    lowered = LABELING_SYSTEM_PROMPT.lower()
+    assert "abstain is a legitimate answer" not in lowered
+    assert "never abstain" in lowered
+    assert "still commit" in lowered
+    assert "this output contract overrides it" in lowered
+    assert "label=abstain" not in lowered
+    assert "never abstain" in LABELING_USER_INSTRUCTIONS.lower()
+    assert "abstain" not in LABELING_RESPONSE_SCHEMA["properties"]["label"]["enum"]
+
+
+def test_drafter_prompt_forbids_abstain_and_unknown_nodes():
+    # The policy-updater must never grow abstain/unknown/uncertain labels,
+    # nodes, or routing rules — uncertainty lives in confidence/difficulty.
+    for area in ("MNIST_Digits", "Generative_AI"):
+        prompt = exp.drafter_system_prompt(area=area, max_changes=3).lower()
+        assert "never add" in prompt
+        assert "'abstain'/'unknown'/'uncertain'" in prompt
 
 
 def test_build_readjudication_clears_stale_flag_on_later_all_agree():

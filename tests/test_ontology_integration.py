@@ -197,7 +197,7 @@ class TestGeminiOntologySelection:
         resp = client.label(_mnist_request(image_path))
         schema = fake.calls[0]["config"]["response_schema"]
         assert schema["properties"]["label"]["enum"] == [
-            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "abstain",
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
         ]
         # System text carries the MNIST prompt (Gemini folds system into text).
         # Text part leads (prompt-caching prefix); image part follows.

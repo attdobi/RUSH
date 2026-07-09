@@ -32,7 +32,7 @@ Use this hard-negative exception when the suspicious evidence is better explaine
 
 ## Boundary warnings
 - Compression applied to a generated image does **not** make the image `not_gen_ai`; it only weakens visual evidence if provenance or underlying artifacts remain.
-- Severe compression can erase decisive cues. When the image is too degraded to support a grounded decision, route to `[[GA.boundary.low_quality_uncertain]]` and use `abstain`.
+- Severe compression can erase decisive cues. When the image is too degraded to support a grounded decision, route to `[[GA.boundary.low_quality_uncertain]]` and follow its low-confidence `not_gen_ai` default — never `abstain`.
 - Compression ringing can resemble `[[GA.surface_texture.plastic_skin]]`, repeated teeth, warped text, or geometry seams. Require criteria beyond encoding damage before assigning a positive GenAI node.
 
 ## Hard negatives
