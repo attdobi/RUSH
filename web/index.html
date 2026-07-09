@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r47" />
-  <script src="demos.js?v=demo-mnist-kdd-r47"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r48" />
+  <script src="demos.js?v=demo-mnist-kdd-r48"></script>
 </head>
 <body>
   <header class="hero">
@@ -91,6 +91,15 @@
           <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate)</span></legend>
           <div id="runTriggerModels" class="model-picker-list"></div>
         </fieldset>
+        <div class="run-controls experiment-config-row" id="genaiSplitsRow" aria-label="GenAI data splits" hidden>
+          <span class="experiment-group-label">Splits</span>
+          <label title="The split-assignment seed — the alignment contract between machines: the same seed + sizes over the same source tree produces byte-identical dev/holdout/benchmark manifests everywhere. Change it only to deliberately re-deal the splits (prior runs' benchmark numbers stop being same-images-comparable).">Split seed<input id="genaiSplitSeed" type="number" value="20260510"></label>
+          <label title="dev_golden pool size — the only split runs sample from (per-run test partition + train batches)">Dev<input id="genaiSplitDev" type="number" value="2000" min="10" max="10000"></label>
+          <label title="Locked holdout size — scored only start/final with --holdout-final">Holdout<input id="genaiSplitHoldout" type="number" value="1000" min="10" max="10000"></label>
+          <label title="Fixed cross-run benchmark size — the same images every run (0 = none)">Benchmark<input id="genaiSplitValidation" type="number" value="200" min="0" max="10000"></label>
+          <button id="genaiSplitsMint" type="button">Mint splits</button>
+          <span id="genaiSplitsStatus" class="status-line" role="status"></span>
+        </div>
         <div class="run-controls experiment-config-row" aria-label="Loop parameters">
           <span class="experiment-group-label">Loop</span>
           <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
@@ -313,15 +322,15 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r47"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r47"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r47"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r47"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r47"></script>
-  <script src="benchmarks.js?v=demo-mnist-kdd-r47"></script>
-  <script src="about.js?v=demo-mnist-kdd-r47"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r47"></script>
+  <script src="app.js?v=demo-mnist-kdd-r48"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r48"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r48"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r48"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r48"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r48"></script>
+  <script src="about.js?v=demo-mnist-kdd-r48"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r48"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r47"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r48"></script>
 </body>
 </html>

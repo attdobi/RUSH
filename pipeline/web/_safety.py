@@ -674,11 +674,11 @@ def _gate_persona(raw: Any) -> str:
     return str(raw)
 
 
-# dev_golden pool sizes cached by RESOLVED manifest path (not by area): the
-# GenAI area's manifest can flip portable -> full mid-process once the source
-# tree lands and the gold manifests are minted, and the new pool must be
-# picked up without a restart.
-_DEV_GOLDEN_POOL_CACHE: dict[str, int] = {}
+# dev_golden pool sizes cached by RESOLVED manifest path + mtime (not by
+# area): the GenAI manifest can flip portable -> full mid-process, and can be
+# RE-MINTED from the UI (POST /api/genai/splits/mint rewrites the same file)
+# — both must be picked up without a restart.
+_DEV_GOLDEN_POOL_CACHE: dict[tuple[str, float], int] = {}
 
 
 def _dev_golden_pool_n(area: str) -> int | None:
@@ -692,13 +692,14 @@ def _dev_golden_pool_n(area: str) -> int | None:
         from pipeline.manifest import load_records
 
         path = MNIST_SAMPLE_MANIFEST if area == "MNIST_Digits" else genai_manifest_default()
-        cached = _DEV_GOLDEN_POOL_CACHE.get(str(path))
+        key = (str(path), path.stat().st_mtime)
+        cached = _DEV_GOLDEN_POOL_CACHE.get(key)
         if cached is not None:
             return cached
         pool_n = sum(1 for r in load_records(path) if r.split == "dev_golden")
     except Exception:  # noqa: BLE001 - advisory check only
         return None
-    _DEV_GOLDEN_POOL_CACHE[str(path)] = pool_n
+    _DEV_GOLDEN_POOL_CACHE[key] = pool_n
     return pool_n
 
 

@@ -511,6 +511,89 @@ def test_handle_area_stats_reports_split_sizes() -> None:
         handle_area_stats({"area": ["Cats_vs_Dogs"]})
 
 
+def test_handle_mint_splits_guards_and_spawn(monkeypatch, tmp_path) -> None:
+    """POST /api/genai/splits/mint — the seed is the cross-machine contract,
+    so the endpoint validates hard and refuses under any in-flight work."""
+    import os
+
+    from pipeline import io_paths
+    from pipeline.web import handlers_experiment as he
+    from pipeline.web._safety import APIError
+
+    # Keep the marker/log out of the real repo manifests dir.
+    monkeypatch.setattr(he, "_genai_manifests_dir", lambda: tmp_path)
+
+    class FakeRegistry:
+        def __init__(self, running):
+            self._running = running
+
+        def list_jobs(self, running_only=False):
+            return self._running
+
+    # Bad params reject before any guard work.
+    with pytest.raises(APIError) as excinfo:
+        he.handle_mint_splits(tmp_path, {"seed": "thirteen"}, FakeRegistry([]))
+    assert excinfo.value.status == 400
+
+    # No source tree -> nothing to sample.
+    monkeypatch.setattr(io_paths, "_genai_source_tree_has_images", lambda: False)
+    with pytest.raises(APIError) as excinfo:
+        he.handle_mint_splits(tmp_path, {}, FakeRegistry([]))
+    assert excinfo.value.code == "source_tree_missing"
+
+    monkeypatch.setattr(io_paths, "_genai_source_tree_has_images", lambda: True)
+
+    # A live labeling/experiment job blocks the re-deal.
+    with pytest.raises(APIError) as excinfo:
+        he.handle_mint_splits(tmp_path, {}, FakeRegistry([{"job_id": "x"}]))
+    assert excinfo.value.code == "run_in_flight"
+
+    # One mint at a time: a marker with a live pid refuses.
+    (tmp_path / ".mint_in_progress.json").write_text(
+        json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    with pytest.raises(APIError) as excinfo:
+        he.handle_mint_splits(tmp_path, {}, FakeRegistry([]))
+    assert excinfo.value.code == "mint_in_progress"
+    (tmp_path / ".mint_in_progress.json").unlink()
+
+    # Success: spawns the sampler detached and writes the pid marker.
+    import subprocess as subprocess_module
+
+    spawned: list[list[str]] = []
+
+    class FakePopen:
+        def __init__(self, argv, **kwargs):
+            spawned.append(list(argv))
+            self.pid = os.getpid()  # a live pid so the marker reads as running
+
+    monkeypatch.setattr(subprocess_module, "Popen", FakePopen)
+    status, body = he.handle_mint_splits(
+        tmp_path,
+        {"seed": 13, "n_dev": 2000, "n_holdout": 1000, "n_validation": 200},
+        FakeRegistry([]),
+    )
+    assert status == 202 and body["status"] == "minting" and body["seed"] == 13
+    argv = spawned[0]
+    assert "scripts/sample_genai_gold_sets.py" in argv
+    assert argv[argv.index("--seed") + 1] == "13"
+    assert argv[argv.index("--n-validation") + 1] == "200"
+    assert "--force" in argv
+    marker = json.loads(
+        (tmp_path / ".mint_in_progress.json").read_text(encoding="utf-8"))
+    assert marker["seed"] == 13 and marker["pid"] == os.getpid()
+    assert he._mint_status() is not None  # the poll surface sees it running
+
+
+def test_handle_area_stats_reports_sampling_seed_and_mint_state() -> None:
+    from pipeline.web.handlers_experiment import handle_area_stats
+
+    _status, genai = handle_area_stats({"demo": ["genai"]})
+    assert "sampling_seed" in genai and "mint_running" in genai
+    _status, mnist = handle_area_stats({"demo": ["mnist"]})
+    assert mnist["sampling_seed"] is None  # MNIST splits are committed, not minted
+    assert mnist["mint_running"] is False
+
+
 def test_validate_experiment_payload_gate_persona() -> None:
     from pipeline.web._safety import APIError, validate_experiment_payload
 

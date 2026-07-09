@@ -173,6 +173,12 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             status, body = handlers_experiment.handle_area_stats(query)
             send_json(handler, status, body)
             return
+        if method == "POST" and path == "/api/genai/splits/mint":
+            status, body = handlers_experiment.handle_mint_splits(
+                handler.repo_root, read_json_body(handler), registry
+            )
+            send_json(handler, status, body)
+            return
         if method == "GET" and path == "/api/adjudication":
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             status, body = handlers_experiment.handle_adjudication_queue(

@@ -39,6 +39,8 @@
     kgCycleK: null,        // KG cycle stepper: which k the graph is showing
     kgManual: false,       // true once the SME steps the graph by hand
     pendingRunNumber: null, // run just started — auto-select it when it appears
+    mintPollTimer: null,    // GenAI split mint in flight — poll until it lands
+    splitSeedTouched: false, // user edited the split seed; stop auto-filling it
     bundleCache: {},       // `${area}/${version}` -> { ids, texts } node markdown
     runSummaryCache: {},   // child run_id -> web/summary.json payload (successes only)
     policyChangesToken: 0, // guards overlapping async node-diff renders
@@ -1435,12 +1437,82 @@
       if (note) {
         note.textContent = hasValidation
           ? ''
-          : 'needs a validation split — mint one with sample_genai_gold_sets.py --n-validation on the data host';
+          : 'needs a benchmark split — mint one in the Splits row above';
       }
       const label = benchmark.closest('label');
       if (label && !hasValidation) {
-        label.title = `The ${stats?.area || 'active'} manifest has no fixed validation split yet — mint one (scripts/sample_genai_gold_sets.py --n-validation ... for GenAI) to enable the cross-run benchmark readout.`;
+        label.title = `The ${stats?.area || 'active'} manifest has no fixed validation split yet — mint one in the Splits row to enable the cross-run benchmark readout.`;
       }
+    }
+    renderSplitsRow(stats, genai);
+  }
+
+  // ---- GenAI split minting (the seed IS the cross-machine contract) ----------
+
+  function renderSplitsRow(stats, genai) {
+    const row = $('#genaiSplitsRow');
+    if (!row) return;
+    row.hidden = !genai;
+    if (!genai || !stats) return;
+    const s = stats.splits || {};
+    const statusEl = $('#genaiSplitsStatus');
+    const usingPortable = String(stats.manifest || '').endsWith('portable.jsonl');
+    if (statusEl && !state.mintPollTimer) {
+      statusEl.textContent = usingPortable
+        ? `portable fixture in use (dev ${s.dev_golden ?? 0} · holdout ${s.holdout ?? 0}) — mint to switch to the full source tree`
+        : `current: dev ${s.dev_golden ?? 0} · holdout ${s.holdout ?? 0} · bench ${s.validation ?? 0}${stats.sampling_seed != null ? ` · seed ${stats.sampling_seed}` : ''}`;
+    }
+    const seedInput = $('#genaiSplitSeed');
+    if (seedInput && stats.sampling_seed != null && !state.splitSeedTouched) {
+      seedInput.value = String(stats.sampling_seed);
+    }
+    if (stats.mint_running) beginMintPoll();
+  }
+
+  function beginMintPoll() {
+    if (state.mintPollTimer) return;
+    const statusEl = $('#genaiSplitsStatus');
+    const button = $('#genaiSplitsMint');
+    if (button) button.disabled = true;
+    let ticks = 0;
+    state.mintPollTimer = window.setInterval(async () => {
+      ticks += 1;
+      if (statusEl) statusEl.textContent = `minting splits — hashing the source tree… (${ticks * 4}s)`;
+      let stats = null;
+      try {
+        stats = await window.rushApiGetJson(`/api/area-stats?demo=${encodeURIComponent(activeDemoId())}`);
+      } catch (err) { return; }
+      if (!stats.mint_running || ticks > 150) {
+        window.clearInterval(state.mintPollTimer);
+        state.mintPollTimer = null;
+        if (button) button.disabled = false;
+        if (statusEl) statusEl.textContent = 'splits minted ✓ — form defaults refreshed';
+        // Re-size T/N, re-enable the benchmark checkbox, refresh the row text.
+        applyDemoFormDefaults();
+      }
+    }, 4000);
+  }
+
+  async function mintSplits() {
+    const statusEl = $('#genaiSplitsStatus');
+    const payload = {
+      seed: Number($('#genaiSplitSeed')?.value || 20260510),
+      n_dev: Number($('#genaiSplitDev')?.value || 2000),
+      n_holdout: Number($('#genaiSplitHoldout')?.value || 1000),
+      n_validation: Number($('#genaiSplitValidation')?.value ?? 200),
+    };
+    const warning = 'Re-mint the GenAI split manifests?\n\n'
+      + `seed ${payload.seed} · dev ${payload.n_dev} · holdout ${payload.n_holdout} · benchmark ${payload.n_validation}\n\n`
+      + 'Changing the seed or sizes re-deals which images belong to which split: '
+      + 'prior runs’ benchmark numbers stop being same-images-comparable with new runs, '
+      + 'and other machines must mint with the SAME seed + sizes to stay aligned.';
+    if (!window.confirm(warning)) return;
+    try {
+      await window.rushApiPostJson('/api/genai/splits/mint', payload);
+      if (statusEl) statusEl.textContent = 'minting splits — hashing the source tree…';
+      beginMintPoll();
+    } catch (err) {
+      if (statusEl) statusEl.textContent = `Mint failed: ${err?.message || err}`;
     }
   }
 
@@ -1466,6 +1538,9 @@
       loadList();
     });
     $('#experimentStart').addEventListener('click', startExperiment);
+    $('#genaiSplitsMint')?.addEventListener('click', mintSplits);
+    // A user-edited seed must survive the row's poll refreshes.
+    $('#genaiSplitSeed')?.addEventListener('input', () => { state.splitSeedTouched = true; });
     // Delegated: the live card rebuilds every poll, the listener must not.
     $('#experimentLiveCard')?.addEventListener('click', (event) => {
       if (event.target?.closest?.('[data-cancel-run]')) cancelCurrentRun();
