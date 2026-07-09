@@ -87,6 +87,13 @@ def genai_manifest_default() -> Path:
         return GENAI_PORTABLE_MANIFEST
     if not _genai_source_tree_has_images():
         return GENAI_PORTABLE_MANIFEST
+    if not DEFAULT_SAMPLE_MANIFEST.exists():
+        # Source images are present but the gold manifests haven't been
+        # minted yet (mid-rsync from the Mac mini, or a fresh 10 GB copy
+        # before running scripts/sample_genai_gold_sets.py). Keep serving the
+        # committed portable fixture instead of pointing every GenAI surface
+        # at a manifest that does not exist.
+        return GENAI_PORTABLE_MANIFEST
     return DEFAULT_SAMPLE_MANIFEST
 
 

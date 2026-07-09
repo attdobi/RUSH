@@ -674,8 +674,10 @@ def _gate_persona(raw: Any) -> str:
     return str(raw)
 
 
-# dev_golden pool sizes per area, cached for the process lifetime (the
-# manifests only change on re-mint, which ships with a server restart).
+# dev_golden pool sizes cached by RESOLVED manifest path (not by area): the
+# GenAI area's manifest can flip portable -> full mid-process once the source
+# tree lands and the gold manifests are minted, and the new pool must be
+# picked up without a restart.
 _DEV_GOLDEN_POOL_CACHE: dict[str, int] = {}
 
 
@@ -685,18 +687,18 @@ def _dev_golden_pool_n(area: str) -> int | None:
     Soft-fails on any manifest problem: this check exists to give launches a
     clear early error, never to block them on a filesystem hiccup.
     """
-    cached = _DEV_GOLDEN_POOL_CACHE.get(area)
-    if cached is not None:
-        return cached
     try:
         from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default
         from pipeline.manifest import load_records
 
         path = MNIST_SAMPLE_MANIFEST if area == "MNIST_Digits" else genai_manifest_default()
+        cached = _DEV_GOLDEN_POOL_CACHE.get(str(path))
+        if cached is not None:
+            return cached
         pool_n = sum(1 for r in load_records(path) if r.split == "dev_golden")
     except Exception:  # noqa: BLE001 - advisory check only
         return None
-    _DEV_GOLDEN_POOL_CACHE[area] = pool_n
+    _DEV_GOLDEN_POOL_CACHE[str(path)] = pool_n
     return pool_n
 
 

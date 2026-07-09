@@ -26,9 +26,25 @@ def _source_tree_available() -> bool:
     return io_paths._genai_source_tree_has_images()  # type: ignore[attr-defined]
 
 
+def _full_manifest_is_real() -> bool:
+    """True only when combined_labels.jsonl is the REAL minted gold manifest.
+
+    conftest.py mints a synthetic combined_labels.jsonl (flat fake paths,
+    dataset 'synthetic-test-fixture') for sparse worktrees and removes it
+    after the run — builder-determinism checks must not run against it. This
+    matters mid-data-migration: the moment source images land, the
+    tree-present check alone stops being a proxy for 'real manifest exists'.
+    """
+    if not DEFAULT_SAMPLE_MANIFEST.exists():
+        return False
+    with DEFAULT_SAMPLE_MANIFEST.open(encoding="utf-8") as fh:
+        first = fh.readline()
+    return "synthetic-test-fixture" not in first
+
+
 def test_portable_fixture_builder_is_deterministic_and_balanced() -> None:
-    if not DEFAULT_SAMPLE_MANIFEST.exists() or not _source_tree_available():
-        pytest.skip("full GenAI source tree is required for builder determinism")
+    if not _full_manifest_is_real() or not _source_tree_available():
+        pytest.skip("real GenAI gold manifest + source tree required for builder determinism")
 
     from scripts import build_portable_fixture as builder
 
@@ -86,9 +102,27 @@ def test_genai_manifest_default_uses_full_manifest_when_source_tree_present(
 ) -> None:
     if not _source_tree_available():
         pytest.skip("full GenAI source tree is absent in this checkout")
+    if not DEFAULT_SAMPLE_MANIFEST.exists():
+        pytest.skip("source tree present but gold manifests not yet minted")
     monkeypatch.delenv("RUSH_PORTABLE", raising=False)
 
     assert genai_manifest_default() == DEFAULT_SAMPLE_MANIFEST
+
+
+def test_genai_manifest_default_falls_back_while_full_manifest_unminted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path,
+) -> None:
+    """Mid-copy state: source images landed (10 GB rsync from the mini) but
+    sample_genai_gold_sets.py hasn't minted the full manifest yet — every
+    GenAI surface must keep running on the committed portable fixture instead
+    of crashing on a manifest that does not exist."""
+    monkeypatch.delenv("RUSH_PORTABLE", raising=False)
+    monkeypatch.setattr(io_paths, "_genai_source_tree_has_images", lambda: True)
+    monkeypatch.setattr(
+        io_paths, "DEFAULT_SAMPLE_MANIFEST", tmp_path / "not_minted_yet.jsonl"
+    )
+
+    assert genai_manifest_default() == GENAI_PORTABLE_MANIFEST
 
 
 def test_genai_manifest_default_uses_portable_when_source_tree_absent(
