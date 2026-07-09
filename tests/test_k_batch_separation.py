@@ -13,6 +13,11 @@ def _base(**over):
         "allow_spend": True,
         "limit": 50,
         "batch_size": 20,
+        # Live-run launches require the start-run PIN (see _safety.py
+        # START_RUN_PIN); mirror the fixture in test_web_server.py so these
+        # batch/limit checks reach the payload validation instead of tripping
+        # the 403 PIN guard first.
+        "launch_pin": "4850",
     }
     payload.update(over)
     return payload
