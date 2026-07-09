@@ -116,18 +116,36 @@ class TestIoPaths(unittest.TestCase):
 
 
 class TestManifestLoader(unittest.TestCase):
+    """Invariants of whatever GenAI manifest this checkout resolves.
+
+    The manifest is machine-local (conftest's synthetic 200-row fixture on
+    sparse worktrees; the minted 2000/1000/200 gold manifest where the source
+    tree lives) — assert SHAPE invariants, never an era's row count.
+    """
+
     @classmethod
     def setUpClass(cls):
         cls.records = load_records(DEFAULT_SAMPLE_MANIFEST)
 
-    def test_loader_yields_200(self):
-        self.assertEqual(len(self.records), 200)
+    def test_loader_yields_balanced_nonempty_splits(self):
+        self.assertGreaterEqual(len(self.records), 200)
+        by_split = {}
+        for rec in self.records:
+            by_split.setdefault(rec.split, []).append(rec)
+        self.assertIn("dev_golden", by_split)
+        self.assertIn("holdout", by_split)
+        # Class balance within every split present (validation included when
+        # minted): the sampler allocates labels evenly.
+        for split, rows in by_split.items():
+            labels = [r.sme_label for r in rows]
+            self.assertEqual(labels.count("gen_ai"), labels.count("not_gen_ai"),
+                             f"unbalanced labels in split {split}")
 
     def test_label_mapping_complete(self):
         for rec in self.records:
             self.assertIn(rec.sme_label_raw, SME_LABEL_MAP)
             self.assertEqual(rec.sme_label, SME_LABEL_MAP[rec.sme_label_raw])
-            self.assertIn(rec.split, {"dev_golden", "holdout"})
+            self.assertIn(rec.split, {"dev_golden", "holdout", "validation"})
 
     def test_select_samples_deterministic(self):
         a = select_samples(self.records, split="dev_golden", limit=5)

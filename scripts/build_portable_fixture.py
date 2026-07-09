@@ -107,6 +107,15 @@ def portable_target_filename(candidate: dict[str, Any], *, encode_jpeg: bool) ->
     return f"{candidate['sample_id']}_{stem}.jpg"
 
 
+# The portable fixture packs dev_golden + holdout only. The manifest may also
+# carry the fixed cross-run `validation` benchmark split (minted by
+# sample_genai_gold_sets.py --n-validation); those rows are deliberately
+# excluded here — the fixture is a size-budgeted demo corpus, and sparse
+# clones keep the benchmark readout disabled until a validation split exists
+# in whichever manifest resolves.
+FIXTURE_SPLITS = frozenset({"dev_golden", "holdout"})
+
+
 def candidates_from_rows(
     rows: Iterable[dict[str, Any]],
     *,
@@ -119,6 +128,8 @@ def candidates_from_rows(
         missing = [field for field in (*STRATUM_FIELDS, "repo_rel_path", "sample_id") if field not in row]
         if missing:
             raise ValueError(f"manifest row missing required fields {missing}: {row!r}")
+        if str(row["split"]) not in FIXTURE_SPLITS:
+            continue
         source_path = REPO_ROOT / str(row["repo_rel_path"])
         if not source_path.is_file():
             raise FileNotFoundError(f"missing source image for {row['sample_id']}: {source_path}")

@@ -299,9 +299,12 @@ def write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--n-dev", type=int, default=100, help="development golden-set size")
-    parser.add_argument("--n-holdout", type=int, default=100, help="locked holdout size")
-    parser.add_argument("--n-validation", type=int, default=0,
+    # Canonical split sizes (Attila 2026-07-09): run this script with NO
+    # arguments on every machine that has the source tree and the manifests
+    # come out byte-identical — that IS the cross-machine alignment mechanism.
+    parser.add_argument("--n-dev", type=int, default=2000, help="development golden-set size")
+    parser.add_argument("--n-holdout", type=int, default=1000, help="locked holdout size")
+    parser.add_argument("--n-validation", type=int, default=200,
                         help="fixed cross-run benchmark split size (0 = none). Drawn "
                              "AFTER dev+holdout from the same seeded shuffle, so adding "
                              "it later with the SAME seed keeps existing dev/holdout "
