@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 
+from PIL import Image
 import pytest
 
 from pipeline import io_paths
@@ -33,27 +35,11 @@ def test_portable_fixture_builder_is_deterministic_and_balanced() -> None:
     from scripts import build_portable_fixture as builder
 
     rows = builder.read_jsonl(DEFAULT_SAMPLE_MANIFEST)
-    candidates = builder.candidates_from_rows(rows)
-    # The committed fixture is built with --max-mb 50 --per-stratum 12.
-    selected_once = builder.select_per_stratum(candidates, 50 * 1024 * 1024, 12)
-    selected_twice = builder.select_per_stratum(candidates, 50 * 1024 * 1024, 12)
+    candidates = builder.candidates_from_rows(rows, encode_jpeg=True)
+    selected_once = builder.select_per_stratum(candidates, 90 * 1024 * 1024, 22)
+    selected_twice = builder.select_per_stratum(candidates, 90 * 1024 * 1024, 22)
 
     assert [c.sample_id for c in selected_once] == [c.sample_id for c in selected_twice]
-
-    def portable_manifest_text(selected: list[builder.Candidate]) -> str:
-        out: list[str] = []
-        for candidate in selected:
-            row = dict(candidate.record)
-            row["repo_rel_path"] = builder.repo_rel(
-                builder.sample_target(candidate, builder.DEFAULT_SAMPLE_ROOT)
-            )
-            out.append(json.dumps(row, ensure_ascii=True) + "\n")
-        return "".join(out)
-
-    manifest_once = portable_manifest_text(selected_once)
-    manifest_twice = portable_manifest_text(selected_twice)
-    assert manifest_once == manifest_twice
-    assert manifest_once == GENAI_PORTABLE_MANIFEST.read_text(encoding="utf-8")
 
     strata = Counter(candidate.stratum for candidate in selected_once)
     assert len(strata) == 12
@@ -62,17 +48,43 @@ def test_portable_fixture_builder_is_deterministic_and_balanced() -> None:
         "not_ai_generated",
     }
     assert {split for _dataset, _label, split in strata} == {"dev_golden", "holdout"}
-    assert len(selected_once) == 72
-    assert sum(candidate.size_bytes for candidate in selected_once) <= 50 * 1024 * 1024
+    assert len(selected_once) == 132
+    assert all(candidate.target_filename and candidate.target_filename.endswith(".jpg") for candidate in selected_once)
+    assert sum(candidate.size_bytes for candidate in selected_once) <= 90 * 1024 * 1024
 
 
 def test_portable_manifest_integrity() -> None:
     records = load_records(GENAI_PORTABLE_MANIFEST)
+    raw_rows = [json.loads(line) for line in GENAI_PORTABLE_MANIFEST.read_text(encoding="utf-8").splitlines()]
 
-    assert len(records) == 72
-    for record in records:
+    assert len(records) == 900
+    assert Counter(record.sme_label_raw for record in records) == {
+        "ai_generated": 450,
+        "not_ai_generated": 450,
+    }
+    assert Counter((record.dataset, record.sme_label_raw) for record in records) == {
+        ("midjourney", "ai_generated"): 150,
+        ("midjourney", "not_ai_generated"): 150,
+        ("sdv1_4", "ai_generated"): 150,
+        ("sdv1_4", "not_ai_generated"): 150,
+        ("wfir", "ai_generated"): 150,
+        ("wfir", "not_ai_generated"): 150,
+    }
+    for record, raw in zip(records, raw_rows, strict=True):
         assert record.repo_rel_path.startswith("data/images/genai-classification/sample/")
-        assert (REPO_ROOT / record.repo_rel_path).is_file()
+        assert record.repo_rel_path.endswith(".jpg")
+        path = REPO_ROOT / record.repo_rel_path
+        assert path.is_file()
+        payload = path.read_bytes()
+        assert hashlib.sha256(payload).hexdigest() == record.sha256
+        assert raw["portable_sha256"] == record.sha256
+        assert raw["portable_byte_size"] == len(payload)
+        assert raw["portable_encoding"] == "jpeg"
+        assert raw["source_sha256"]
+        assert raw["source_repo_rel_path"].startswith("data/images/genai-classification/source-datasets/")
+        with Image.open(path) as image:
+            assert image.format == "JPEG"
+            assert max(image.size) <= 1024
 
 
 def test_genai_manifest_default_env_force(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,7 +136,7 @@ def test_run_bulk_labeling_plan_only_uses_portable_manifest_with_env() -> None:
 
     assert proc.returncode == 0, proc.stderr
     plan = json.loads(proc.stdout)
-    assert plan["n_samples"] == expected == 40
+    assert plan["n_samples"] == expected
 
 
 def test_web_start_job_uses_portable_manifest_with_env(

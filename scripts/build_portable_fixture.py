@@ -2,12 +2,16 @@
 """Build a deterministic, small committed GenAI image fixture.
 
 The full GenAI image payload is intentionally local-only. This script copies a
-budgeted subset of original bytes into ``data/images/genai-classification/sample``
-and writes a matching manifest whose ``repo_rel_path`` points at that sample tree.
+budgeted subset into ``data/images/genai-classification/sample`` and writes a
+matching manifest whose ``repo_rel_path`` points at that sample tree. By default
+it preserves source bytes; ``--encode-jpeg`` writes deterministic resized JPEG
+derivatives for a denser portable fixture.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import shutil
 import sys
@@ -16,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from PIL import Image, ImageOps
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -23,8 +29,10 @@ if str(_REPO_ROOT) not in sys.path:
 from pipeline.io_paths import DEFAULT_SAMPLE_MANIFEST, GENAI_PORTABLE_MANIFEST, REPO_ROOT
 
 DEFAULT_SAMPLE_ROOT = REPO_ROOT / "data" / "images" / "genai-classification" / "sample"
-DEFAULT_MAX_MB = 50
-DEFAULT_PER_STRATUM = 12
+DEFAULT_MAX_MB = 90
+DEFAULT_PER_STRATUM = 22
+DEFAULT_JPEG_MAX_EDGE = 1024
+DEFAULT_JPEG_QUALITY = 82
 EXPECTED_STRATUM_COUNT = 12
 STRATUM_FIELDS = ("dataset", "label", "split")
 
@@ -34,6 +42,10 @@ class Candidate:
     record: dict[str, Any]
     source_path: Path
     size_bytes: int
+    payload: bytes | None = None
+    target_filename: str | None = None
+    width: int | None = None
+    height: int | None = None
 
     @property
     def sample_id(self) -> str:
@@ -65,7 +77,43 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def candidates_from_rows(rows: Iterable[dict[str, Any]]) -> list[Candidate]:
+def jpeg_payload(path: Path, *, max_edge: int, quality: int) -> tuple[bytes, int, int]:
+    if max_edge < 1:
+        raise ValueError(f"jpeg max edge must be positive, got {max_edge}")
+    if not 1 <= quality <= 95:
+        raise ValueError(f"jpeg quality must be in [1, 95], got {quality}")
+
+    with Image.open(path) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        image.save(
+            out,
+            format="JPEG",
+            quality=quality,
+            optimize=True,
+            progressive=True,
+        )
+        return out.getvalue(), image.width, image.height
+
+
+def portable_target_filename(candidate: dict[str, Any], *, encode_jpeg: bool) -> str:
+    original = str(candidate["original_filename"])
+    if not encode_jpeg:
+        return original
+    stem = Path(original).stem
+    return f"{candidate['sample_id']}_{stem}.jpg"
+
+
+def candidates_from_rows(
+    rows: Iterable[dict[str, Any]],
+    *,
+    encode_jpeg: bool = False,
+    jpeg_max_edge: int = DEFAULT_JPEG_MAX_EDGE,
+    jpeg_quality: int = DEFAULT_JPEG_QUALITY,
+) -> list[Candidate]:
     candidates: list[Candidate] = []
     for row in rows:
         missing = [field for field in (*STRATUM_FIELDS, "repo_rel_path", "sample_id") if field not in row]
@@ -74,7 +122,28 @@ def candidates_from_rows(rows: Iterable[dict[str, Any]]) -> list[Candidate]:
         source_path = REPO_ROOT / str(row["repo_rel_path"])
         if not source_path.is_file():
             raise FileNotFoundError(f"missing source image for {row['sample_id']}: {source_path}")
-        candidates.append(Candidate(row, source_path, source_path.stat().st_size))
+        payload: bytes | None = None
+        width: int | None = None
+        height: int | None = None
+        size_bytes = source_path.stat().st_size
+        if encode_jpeg:
+            payload, width, height = jpeg_payload(
+                source_path,
+                max_edge=jpeg_max_edge,
+                quality=jpeg_quality,
+            )
+            size_bytes = len(payload)
+        candidates.append(
+            Candidate(
+                row,
+                source_path,
+                size_bytes,
+                payload=payload,
+                target_filename=portable_target_filename(row, encode_jpeg=encode_jpeg),
+                width=width,
+                height=height,
+            )
+        )
     return candidates
 
 
@@ -208,7 +277,7 @@ def select_per_stratum(
 
 def sample_target(candidate: Candidate, sample_root: Path) -> Path:
     dataset, label, _split = candidate.stratum
-    return sample_root / dataset / label / str(candidate.record["original_filename"])
+    return sample_root / dataset / label / str(candidate.target_filename or candidate.record["original_filename"])
 
 
 def rebuild_sample_tree(selected: Iterable[Candidate], sample_root: Path) -> list[dict[str, Any]]:
@@ -224,9 +293,26 @@ def rebuild_sample_tree(selected: Iterable[Candidate], sample_root: Path) -> lis
             raise ValueError(f"sample target collision: {target}")
         target_paths.add(target)
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(candidate.source_path, target)
+        if candidate.payload is None:
+            shutil.copy2(candidate.source_path, target)
+            payload_hash = str(candidate.record["sha256"])
+        else:
+            target.write_bytes(candidate.payload)
+            payload_hash = hashlib.sha256(candidate.payload).hexdigest()
 
         row = dict(candidate.record)
+        if candidate.payload is not None:
+            row["source_repo_rel_path"] = row["repo_rel_path"]
+            row["source_sha256"] = row["sha256"]
+            row["source_original_filename"] = row["original_filename"]
+            row["original_filename"] = target.name
+            row["file_ext"] = "jpg"
+            row["sha256"] = payload_hash
+            row["portable_sha256"] = payload_hash
+            row["portable_byte_size"] = candidate.size_bytes
+            row["portable_width"] = candidate.width
+            row["portable_height"] = candidate.height
+            row["portable_encoding"] = "jpeg"
         row["repo_rel_path"] = repo_rel(target)
         rows.append(row)
     rows.sort(key=lambda row: str(row["sample_id"]))
@@ -298,13 +384,35 @@ def parse_args() -> argparse.Namespace:
             f"(default: {DEFAULT_PER_STRATUM})"
         ),
     )
+    parser.add_argument(
+        "--encode-jpeg",
+        action="store_true",
+        help="write portable fixture images as downscaled JPEG derivatives",
+    )
+    parser.add_argument(
+        "--jpeg-max-edge",
+        type=int,
+        default=DEFAULT_JPEG_MAX_EDGE,
+        help=f"maximum JPEG output width/height when --encode-jpeg is used (default: {DEFAULT_JPEG_MAX_EDGE})",
+    )
+    parser.add_argument(
+        "--jpeg-quality",
+        type=int,
+        default=DEFAULT_JPEG_QUALITY,
+        help=f"JPEG quality when --encode-jpeg is used (default: {DEFAULT_JPEG_QUALITY})",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     rows = read_jsonl(args.manifest)
-    candidates = candidates_from_rows(rows)
+    candidates = candidates_from_rows(
+        rows,
+        encode_jpeg=args.encode_jpeg,
+        jpeg_max_edge=args.jpeg_max_edge,
+        jpeg_quality=args.jpeg_quality,
+    )
     budget_bytes = int(args.max_mb * 1024 * 1024)
     selected = select_per_stratum(candidates, budget_bytes, args.per_stratum)
     portable_rows = rebuild_sample_tree(selected, args.sample_root)

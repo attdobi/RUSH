@@ -228,7 +228,7 @@ RUSH_PORTABLE=1 ./.venv/bin/python scripts/run_bulk_labeling.py \
 
 What's committed:
 - **MNIST** — the full 2,500-image demo gold set as PNGs under `data/images/mnist-classification/source-datasets/mnist/<digit>/` (~1.6 MB), plus the entire 70k MNIST set packed compactly in `data/images/mnist-classification/mnist_full.npz` (~11.5 MB).
-- **GenAI** — a balanced 132-image sample (22 per dataset×class, both splits, original bytes, ~86 MB) under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`.
+- **GenAI** — a balanced 900-image sample (150 per dataset×class, both splits, JPEG derivatives at longest edge ≤1024px / quality 82, ~89 MiB) under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`.
 - **Source archives** — `data_sources/genai-sample.zip` and `data_sources/mnist_png.zip` preserve portable source bundles for setup/rebuild workflows.
 
 ### Full parity (all images)
@@ -260,7 +260,7 @@ portable sample plus manifest.
 
 ## Dataset images are local-only (with one deliberate exception)
 
-The full source datasets are never committed to git: the ~12 GB GenAI source tree and the full 70k MNIST expansion stay local — `.png`, `.jpg`, and `.jpeg` files under the `data/images/**` source trees are excluded by `.gitignore`. The committed ~100 MB portable fixture (the MNIST demo gold set + `mnist_full.npz`, and the 132-image GenAI sample) is the deliberate exception, so a fresh clone runs end to end. Beyond the fixture, the repo tracks manifests that reference local files.
+The full source datasets are never committed to git: the ~12 GB GenAI source tree and the full 70k MNIST expansion stay local — `.png`, `.jpg`, and `.jpeg` files under the `data/images/**` source trees are excluded by `.gitignore`. The committed portable fixture (the MNIST demo gold set + `mnist_full.npz`, and the 900-image compressed GenAI sample) is the deliberate exception, so a fresh clone runs end to end. Beyond the fixture, the repo tracks manifests that reference local files.
 
 Generate manifests with `python3 scripts/sample_genai_gold_sets.py` against ignored `data/images/genai-classification/source-datasets/` folders. The CLI reads local images and writes ignored manifests without adding bytes to git.
 
