@@ -53,7 +53,11 @@ def _redirect(handler, location: str) -> None:
     handler.send_response(302)
     handler.send_header("Location", location)
     handler.send_header("Content-Length", "0")
-    handler.send_header("Cache-Control", "public, max-age=3600")
+    # Never cache the redirect itself: the thumbnail-vs-source decision flips
+    # as derived thumbnails get built, and a cached 302 pins the browser to
+    # the multi-MB source image for an hour. The TARGET carries a ?v=build-id
+    # cachebuster and stays cacheable — that is where the bytes are.
+    handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
 
 

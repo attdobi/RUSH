@@ -45,6 +45,10 @@
     document.addEventListener('click', hide, true); // dismiss on any click (e.g. sorting)
   })();
 
+  // One page of rows at a time: every row carries a thumbnail <img>, so an
+  // unpaged 500-item queue means 500 image fetches on open. 100/page bounds it.
+  const PAGE_SIZE = 100;
+
   const state = {
     items: null,
     loaded: false,
@@ -53,6 +57,7 @@
     sortKey: 'importance',
     sortDir: -1,           // -1 desc, +1 asc
     hideResolved: false,
+    page: 0,               // 0-based page into the sorted+filtered list
     busy: null             // key currently posting a review
   };
 
@@ -297,6 +302,7 @@
     state.items = payload?.items || [];
     state.loaded = true;
     state.expanded.clear();
+    state.page = 0;
     setStatus(`${state.items.length} item(s) awaiting SME re-adjudication`);
     render();
   }
@@ -347,7 +353,19 @@
       host.innerHTML = '<p class="hint">All items resolved. Uncheck "hide resolved" to review them.</p>';
       return;
     }
-    const body = items.map((item) => {
+    // Page AFTER sort+filter so page 1 is always the current top of the rank.
+    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    state.page = Math.min(Math.max(0, state.page), pages - 1);
+    const first = state.page * PAGE_SIZE;
+    const pageItems = items.slice(first, first + PAGE_SIZE);
+    const pager = pages > 1
+      ? `<div class="adjudicate-pager">
+          <button type="button" class="adjudicate-page-btn" data-page-delta="-1" ${state.page === 0 ? 'disabled' : ''}>‹ Prev</button>
+          <span>Showing ${first + 1}–${first + pageItems.length} of ${items.length} · page ${state.page + 1}/${pages}</span>
+          <button type="button" class="adjudicate-page-btn" data-page-delta="1" ${state.page >= pages - 1 ? 'disabled' : ''}>Next ›</button>
+        </div>`
+      : '';
+    const body = pageItems.map((item) => {
       const key = item.key || item.image_id;
       const expanded = state.expanded.has(key);
       const row = `<tr>${COLUMNS.map((c) => c.cell(item, expanded)).join('')}</tr>`;
@@ -362,8 +380,15 @@
       const tip = c.title ? ` data-tip="${esc(c.title)}"` : '';
       return `<th class="adjudicate-sortable${active ? ' adjudicate-sorted' : ''}" data-sort="${c.key}"${tip}>${esc(c.label)}${arrow}</th>`;
     }).join('');
-    host.innerHTML = `<div class="adjudicate-table-scroll"><table class="summary-table adjudicate-table">
-      <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    host.innerHTML = `${pager}<div class="adjudicate-table-scroll"><table class="summary-table adjudicate-table">
+      <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${pager}`;
+    host.querySelectorAll('.adjudicate-page-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.page += Number(btn.dataset.pageDelta || 0);
+        render();
+        host.scrollIntoView({ block: 'start' });
+      });
+    });
     host.querySelectorAll('.experiment-detail-toggle').forEach((button) => {
       button.addEventListener('click', () => {
         const key = button.dataset.key;
@@ -377,6 +402,7 @@
         const col = COLUMNS.find((c) => c.key === k);
         if (state.sortKey === k) state.sortDir = -state.sortDir;
         else { state.sortKey = k; state.sortDir = col?.dir ?? -1; }
+        state.page = 0;   // a new ranking starts back at the top
         render();
       });
     });
@@ -398,7 +424,7 @@
     if (!$('#adjudicate')) return;
     $('#adjudicateRefresh')?.addEventListener('click', () => loadQueue());
     $('#adjudicateHideResolved')?.addEventListener('change', (e) => {
-      state.hideResolved = e.target.checked; render();
+      state.hideResolved = e.target.checked; state.page = 0; render();
     });
     window.addEventListener('rush-api-catalog', () => { if (state.loaded) loadQueue(); });
     window.addEventListener('rush-view-changed', (event) => {

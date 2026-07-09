@@ -2735,6 +2735,9 @@ body.view-about section[data-view]:not([data-view="about"]) { display: none !imp
 
 /* Adjudication queue: tier badges, sortable headers, alignment cells */
 .adjudicate-table-scroll { overflow-x: auto; }
+.adjudicate-pager { display: flex; align-items: center; gap: 12px; margin: 10px 0; color: var(--muted); font-size: 12.5px; }
+.adjudicate-page-btn { border: 1px solid var(--line); border-radius: 10px; background: #13254a; color: var(--text); padding: 6px 12px; font-weight: 800; cursor: pointer; }
+.adjudicate-page-btn:disabled { opacity: .4; cursor: default; }
 /* Floating metric tooltip (adjudicate.js) — escapes the scroll container */
 .rush-tip { position: fixed; z-index: 9999; display: none; max-width: 300px; padding: 8px 11px; border-radius: 9px; background: #0b1526; border: 1px solid var(--line); color: var(--text); font-size: 12px; line-height: 1.5; box-shadow: 0 8px 28px rgba(0, 0, 0, .55); pointer-events: none; }
 .adjudicate-tier[data-tip] { cursor: help; }
