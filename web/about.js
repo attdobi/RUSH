@@ -126,8 +126,12 @@
           <path d="M920,300 L920,376"/>
           <path d="M800,435 L734,435"/>
           <path d="M310,380 C420,344 540,330 640,304"/>
-          <path d="M576,300 C440,318 250,338 150,374"/>
         </g>
+        <!-- Post-run flow (dashed): only AFTER the last cycle closes does the
+             driver stack-rank the residual misalignments under the final
+             policy into the SME re-adjudication queue. Routed around the page
+             edge to read as outside the per-cycle loop. -->
+        <path d="M426,56 L18,56 L18,430 L24,430" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#archArrow)"/>
         <g fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#archArrowGreen)">
           <path d="M368,435 L426,435"/>
         </g>
@@ -139,12 +143,12 @@
         <text x="795" y="110" fill="var(--muted)" font-size="10.5" text-anchor="end">drafter reads the full policy</text>
         <text x="930" y="340" fill="var(--muted)" font-size="10.5">candidate edit e (≤5 files)</text>
         <text x="365" y="356" fill="var(--muted)" font-size="10.5">golden truth y → misalignment</text>
-        <text x="36" y="316" fill="var(--muted)" font-size="10.5">re-adjudication queue — same stack rank,</text>
-        <text x="36" y="330" fill="var(--muted)" font-size="10.5">misaligned + high LLM consensus (T1) first</text>
+        <text x="18" y="30" fill="var(--muted)" font-size="10.5">AFTER THE RUN — residuals still misaligned under the final policy</text>
+        <text x="18" y="46" fill="var(--muted)" font-size="10.5">→ re-adjudication queue: misaligned + high LLM consensus (T1) first</text>
         <text x="544" y="330" fill="var(--green)" font-size="10.5" font-weight="700">accept ⇒ G ⊕ e mints v&lt;run&gt;.&lt;k&gt;</text>
         <text x="544" y="348" fill="var(--red)" font-size="10.5">skip ⇒ the incumbent stays</text>
 
-        <text x="600" y="530" text-anchor="middle" fill="var(--muted)" font-size="11" font-style="italic">One cycle k: label → select anchors → draft → eval → gate. Four parties, four boxes — no agent approves its own work.</text>
+        <text x="600" y="530" text-anchor="middle" fill="var(--muted)" font-size="11" font-style="italic">One cycle k (solid): label → stack rank &amp; select → draft → eval → gate. After the last cycle (dashed): residuals → SME queue. No agent approves its own work.</text>
       </svg>
       </div>
     </section>
