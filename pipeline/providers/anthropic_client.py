@@ -110,10 +110,23 @@ class AnthropicClient(LabelClient):
             f"{ontology.user_instructions}\n\n"
             f"[POLICY DOCUMENT]\n{policy_markdown}\n"
         )
+        # Prompt caching is a PREFIX match, so the shared bytes must come
+        # before the per-image bytes: text (instructions + policy, identical
+        # for every image in a pass) first, image last. The ephemeral
+        # cache_control breakpoint caches system + this text block; each
+        # subsequent call in the pass re-reads it at ~0.1x input price
+        # instead of re-paying the full ~5-7k-token policy per image.
+        # Minimum cacheable prefix is model-dependent (Haiku 4.5: 4096
+        # tokens) — a tiny policy silently skips caching, which is harmless.
         return [
             {
                 "role": "user",
                 "content": [
+                    {
+                        "type": "text",
+                        "text": user_text,
+                        "cache_control": {"type": "ephemeral"},
+                    },
                     {
                         "type": "image",
                         "source": {
@@ -122,7 +135,6 @@ class AnthropicClient(LabelClient):
                             "data": prepared.to_base64(),
                         },
                     },
-                    {"type": "text", "text": user_text},
                 ],
             }
         ]
@@ -257,9 +269,17 @@ class AnthropicClient(LabelClient):
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
         input_tokens, output_tokens = self._extract_usage_tokens(response)
+        cache_read_tokens, cache_write_tokens = self._extract_cache_tokens(response)
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s", request.model_id)
-        cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
+        cost_usd = compute_call_cost(
+            request.model_id,
+            input_tokens,
+            output_tokens,
+            image_count=1,
+            cached_input_tokens=cache_read_tokens,
+            cache_creation_input_tokens=cache_write_tokens,
+        )
 
         try:
             parsed = parse_label_json(text)
@@ -299,6 +319,8 @@ class AnthropicClient(LabelClient):
             prepared_image_byte_size=prepared.byte_size,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cached_input_tokens=cache_read_tokens,
+            cache_creation_input_tokens=cache_write_tokens,
             cost_usd=cost_usd,
             is_boundary_between=fields["is_boundary_between"],
             policy_citations=fields["policy_citations"],
@@ -331,6 +353,31 @@ class AnthropicClient(LabelClient):
         except (TypeError, ValueError):
             output_tokens = None
         return input_tokens, output_tokens
+
+    @staticmethod
+    def _extract_cache_tokens(response: Any) -> tuple[int | None, int | None]:
+        """(cache_read_input_tokens, cache_creation_input_tokens) from usage.
+
+        Anthropic reports cached tokens SEPARATELY from ``input_tokens``
+        (which is the uncached remainder only) — both must reach the pricing
+        layer or the ledger drops the cached-token charges entirely.
+        """
+        usage = getattr(response, "usage", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage")
+        if usage is None:
+            return None, None
+
+        def _field(name: str) -> int | None:
+            raw = getattr(usage, name, None)
+            if isinstance(usage, dict):
+                raw = usage.get(name, raw)
+            try:
+                return int(raw) if raw is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        return _field("cache_read_input_tokens"), _field("cache_creation_input_tokens")
 
     @staticmethod
     def _extract_text(response: Any) -> str:

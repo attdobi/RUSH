@@ -200,7 +200,8 @@ class TestGeminiOntologySelection:
             "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "abstain",
         ]
         # System text carries the MNIST prompt (Gemini folds system into text).
-        text = fake.calls[0]["contents"][0]["parts"][1]["text"]
+        # Text part leads (prompt-caching prefix); image part follows.
+        text = fake.calls[0]["contents"][0]["parts"][0]["text"]
         assert MNIST_ONTOLOGY.system_prompt in text
         assert resp.label == "7"
 

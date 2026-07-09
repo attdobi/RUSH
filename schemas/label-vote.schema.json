@@ -166,6 +166,22 @@
       ],
       "minimum": 0
     },
+    "cached_input_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Prompt-cache hit size. OpenAI/Gemini report it as a discounted subset of input_tokens; Anthropic reports cache reads separately from input_tokens."
+    },
+    "cache_creation_input_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Anthropic prompt-cache write size (billed at 1.25x the input rate; separate from input_tokens)."
+    },
     "cost_usd": {
       "type": [
         "number",

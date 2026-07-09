@@ -155,10 +155,29 @@ class OpenAIClient(LabelClient):
             {"role": "user", "content": user_content},
         ]
 
+    @staticmethod
+    def _prompt_cache_key(request: LabelRequest) -> str | None:
+        """Stable cache-routing key for OpenAI's automatic prefix caching.
+
+        All calls in a labeling pass share the same system+instructions+policy
+        prefix; sending the same ``prompt_cache_key`` routes them to the same
+        cache shard so concurrent judges actually HIT the prefix cache instead
+        of scattering across machines. Keyed by area + policy version: a new
+        policy version is a new prefix, so it gets its own key.
+
+        Hosted OpenAI only — local models (LM Studio) reuse this client and
+        strict OpenAI-compat servers can reject unknown body fields, so the
+        key is withheld for them (None ⇒ _build_api_params omits it).
+        """
+        if not request.model_id.startswith("openai/"):
+            return None
+        return f"rush:{request.area}:{request.policy_graph_version}"
+
     def _build_api_params(
         self,
         *,
         messages: list[dict[str, Any]],
+        prompt_cache_key: str | None = None,
     ) -> dict[str, Any]:
         if self.config.reasoning_effort and self.config.reasoning_effort not in {
             "none",
@@ -182,6 +201,10 @@ class OpenAIClient(LabelClient):
             params["response_format"] = self.config.response_format
         if self.config.reasoning_effort:
             params["reasoning_effort"] = self.config.reasoning_effort
+        if prompt_cache_key:
+            # Via extra_body so older SDK versions without the typed kwarg
+            # still forward it; the API ignores it where unsupported.
+            params["extra_body"] = {"prompt_cache_key": prompt_cache_key}
         # GPT-5.5 reasoning models do not accept custom temperature; never
         # forward it for OpenAI while preserving reasoning behavior.
         for k, v in self.config.extra_params.items():
@@ -251,7 +274,9 @@ class OpenAIClient(LabelClient):
             policy_markdown=request.policy_markdown,
             ontology=ontology,
         )
-        api_params = self._build_api_params(messages=messages)
+        api_params = self._build_api_params(
+            messages=messages, prompt_cache_key=self._prompt_cache_key(request)
+        )
 
         attempts_holder = {"n": 0}
 
@@ -293,9 +318,16 @@ class OpenAIClient(LabelClient):
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
         input_tokens, output_tokens = self._extract_usage_tokens(response)
+        cached_tokens = self._extract_cached_tokens(response)
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s", request.model_id)
-        cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
+        cost_usd = compute_call_cost(
+            request.model_id,
+            input_tokens,
+            output_tokens,
+            image_count=1,
+            cached_input_tokens=cached_tokens,
+        )
 
         try:
             parsed = parse_label_json(text)
@@ -335,6 +367,7 @@ class OpenAIClient(LabelClient):
             prepared_image_byte_size=prepared.byte_size,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cached_input_tokens=cached_tokens,
             cost_usd=cost_usd,
             is_boundary_between=fields["is_boundary_between"],
             policy_citations=fields["policy_citations"],
@@ -410,7 +443,9 @@ class OpenAIClient(LabelClient):
             {"role": "system", "content": batch_system_prompt},
             {"role": "user", "content": user_content},
         ]
-        api_params = self._build_api_params(messages=messages)
+        api_params = self._build_api_params(
+            messages=messages, prompt_cache_key=self._prompt_cache_key(requests[0])
+        )
 
         attempts_holder = {"n": 0}
 
@@ -455,6 +490,7 @@ class OpenAIClient(LabelClient):
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
         input_tokens, output_tokens = self._extract_usage_tokens(response)
+        cached_tokens = self._extract_cached_tokens(response)
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s batch_size=%s", requests[0].model_id, len(requests))
         total_cost = compute_call_cost(
@@ -462,6 +498,7 @@ class OpenAIClient(LabelClient):
             input_tokens,
             output_tokens,
             image_count=len(requests),
+            cached_input_tokens=cached_tokens,
         )
         per_image_cost = None if total_cost is None else total_cost / len(requests)
         per_image_input_tokens = (
@@ -469,6 +506,9 @@ class OpenAIClient(LabelClient):
         )
         per_image_output_tokens = (
             None if output_tokens is None else int(output_tokens / len(requests))
+        )
+        per_image_cached_tokens = (
+            None if cached_tokens is None else int(cached_tokens / len(requests))
         )
 
         try:
@@ -528,6 +568,7 @@ class OpenAIClient(LabelClient):
                     prepared_image_byte_size=prepared.byte_size,
                     input_tokens=per_image_input_tokens,
                     output_tokens=per_image_output_tokens,
+                    cached_input_tokens=per_image_cached_tokens,
                     cost_usd=per_image_cost,
                     is_boundary_between=fields["is_boundary_between"],
                     policy_citations=fields["policy_citations"],
@@ -562,6 +603,31 @@ class OpenAIClient(LabelClient):
         except (TypeError, ValueError):
             output_tokens = None
         return input_tokens, output_tokens
+
+    @staticmethod
+    def _extract_cached_tokens(response: Any) -> int | None:
+        """Automatic-prefix-cache hit size (usage.prompt_tokens_details.cached_tokens).
+
+        OpenAI's ``prompt_tokens`` INCLUDES cached tokens; the cached share is
+        billed at a discount, so pricing needs it split out.
+        """
+        usage = getattr(response, "usage", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage")
+        if usage is None:
+            return None
+        details = getattr(usage, "prompt_tokens_details", None)
+        if details is None and isinstance(usage, dict):
+            details = usage.get("prompt_tokens_details")
+        if details is None:
+            return None
+        cached = getattr(details, "cached_tokens", None)
+        if cached is None and isinstance(details, dict):
+            cached = details.get("cached_tokens")
+        try:
+            return int(cached) if cached is not None else None
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _extract_text(response: Any) -> str:

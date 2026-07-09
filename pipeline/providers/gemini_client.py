@@ -111,17 +111,23 @@ class GeminiClient(LabelClient):
             f"{ontology.user_instructions}\n\n"
             f"[POLICY DOCUMENT]\n{policy_markdown}\n"
         )
+        # Gemini's implicit prompt caching is a PREFIX match: the shared
+        # system+instructions+policy text (identical for every image in a
+        # pass) must come before the per-image bytes or nothing can ever hit.
+        # With text first, repeat calls bill the cached prefix at a steep
+        # discount automatically (usage_metadata.cached_content_token_count
+        # reports the hit; no explicit CachedContent lifecycle needed).
         return [
             {
                 "role": "user",
                 "parts": [
+                    {"text": text},
                     {
                         "inline_data": {
                             "mime_type": prepared.mime_type,
                             "data": prepared.to_base64(),
                         }
                     },
-                    {"text": text},
                 ],
             }
         ]
@@ -256,9 +262,16 @@ class GeminiClient(LabelClient):
         text = self._extract_text(response)
         raw_payload = self._serialize_response(response, api_params)
         input_tokens, output_tokens = self._extract_usage_tokens(response)
+        cached_tokens = self._extract_cached_tokens(response)
         if input_tokens is None and output_tokens is None:
             logger.info("usage_unknown for %s", request.model_id)
-        cost_usd = compute_call_cost(request.model_id, input_tokens, output_tokens, image_count=1)
+        cost_usd = compute_call_cost(
+            request.model_id,
+            input_tokens,
+            output_tokens,
+            image_count=1,
+            cached_input_tokens=cached_tokens,
+        )
 
         parsed = self._extract_parsed_json(response)
         if parsed is None:
@@ -300,6 +313,7 @@ class GeminiClient(LabelClient):
             prepared_image_byte_size=prepared.byte_size,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            cached_input_tokens=cached_tokens,
             cost_usd=cost_usd,
             is_boundary_between=fields["is_boundary_between"],
             policy_citations=fields["policy_citations"],
@@ -310,6 +324,30 @@ class GeminiClient(LabelClient):
     # ------------------------------------------------------------------
     # Response helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_cached_tokens(response: Any) -> int | None:
+        """Implicit-cache hit size from usage_metadata (None when absent).
+
+        Gemini's ``prompt_token_count`` INCLUDES cached tokens; the cached
+        share is billed at a discount, so pricing needs it split out.
+        """
+        usage = getattr(response, "usage_metadata", None)
+        if usage is None and isinstance(response, dict):
+            usage = response.get("usage_metadata") or response.get("usage")
+        if usage is None:
+            return None
+        for name in ("cached_content_token_count", "cached_tokens"):
+            value = getattr(usage, name, None)
+            if value is None and isinstance(usage, dict):
+                value = usage.get(name)
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
 
     @staticmethod
     def _extract_usage_tokens(response: Any) -> tuple[int | None, int | None]:

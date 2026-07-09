@@ -335,6 +335,10 @@ def _build_llm_output(response: LabelResponse) -> dict:
         output["input_tokens"] = int(response.input_tokens)
     if response.output_tokens is not None:
         output["output_tokens"] = int(response.output_tokens)
+    if response.cached_input_tokens is not None:
+        output["cached_input_tokens"] = int(response.cached_input_tokens)
+    if response.cache_creation_input_tokens is not None:
+        output["cache_creation_input_tokens"] = int(response.cache_creation_input_tokens)
     if response.cost_usd is not None:
         output["cost_usd"] = float(response.cost_usd)
     return output
@@ -392,6 +396,10 @@ def _build_label_vote(
         vote["input_tokens"] = int(response.input_tokens)
     if response.output_tokens is not None:
         vote["output_tokens"] = int(response.output_tokens)
+    if response.cached_input_tokens is not None:
+        vote["cached_input_tokens"] = int(response.cached_input_tokens)
+    if response.cache_creation_input_tokens is not None:
+        vote["cache_creation_input_tokens"] = int(response.cache_creation_input_tokens)
     if response.cost_usd is not None:
         vote["cost_usd"] = float(response.cost_usd)
     return vote

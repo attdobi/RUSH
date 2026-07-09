@@ -199,16 +199,41 @@ def cost_tier_for(model_id: str) -> str:
     return "LOW"
 
 
+# Prompt-cache billing multipliers, applied to the model's input rate.
+# Provider semantics differ in WHERE cached tokens are reported:
+#   - anthropic: usage.input_tokens EXCLUDES cache reads/writes — both arrive
+#     as separate counters. Reads bill at 0.1x, writes at 1.25x (5-min TTL).
+#   - openai:    usage.prompt_tokens INCLUDES cached_tokens; the cached share
+#     is discounted (50% used here — the conservative published discount;
+#     newer models discount deeper, so this overestimates rather than under).
+#   - google:    prompt_token_count INCLUDES cached_content_token_count;
+#     implicit-cache hits bill at 25% of the input rate.
+# Unlisted providers get no discount (cached tokens bill at the full rate).
+CACHED_INPUT_MULTIPLIER: dict[str, float] = {
+    "anthropic": 0.10,
+    "openai": 0.50,
+    "google": 0.25,
+}
+CACHE_WRITE_MULTIPLIER: dict[str, float] = {
+    "anthropic": 1.25,
+}
+
+
 def compute_call_cost(
     model_id: str,
     input_tokens: int | None,
     output_tokens: int | None,
     image_count: int = 1,
+    cached_input_tokens: int | None = None,
+    cache_creation_input_tokens: int | None = None,
 ) -> float | None:
     """Compute one provider call's USD cost from usage tokens.
 
     Unknown model pricing returns None. If both token counts are unknown, we
     only return a cost when the model has a non-zero per-image price.
+    Cached-token accounting follows each provider's reporting semantics (see
+    CACHED_INPUT_MULTIPLIER above); omitting the cache fields preserves the
+    historical full-rate behavior.
     """
     pricing = price_for(model_id)
     if pricing is None:
@@ -219,10 +244,34 @@ def compute_call_cost(
     if not tokens_known and image_cost <= 0:
         return None
 
+    provider = model_id.split("/", 1)[0] if "/" in model_id else model_id
+    input_rate = pricing["input_per_mtok"]
     input_count = 0 if input_tokens is None else max(0, int(input_tokens))
     output_count = 0 if output_tokens is None else max(0, int(output_tokens))
+    cached_count = 0 if cached_input_tokens is None else max(0, int(cached_input_tokens))
+    write_count = (
+        0 if cache_creation_input_tokens is None else max(0, int(cache_creation_input_tokens))
+    )
+
+    cached_mult = CACHED_INPUT_MULTIPLIER.get(provider, 1.0)
+    if provider == "anthropic":
+        # input_tokens is already the uncached remainder; reads and writes
+        # are additive terms.
+        input_cost = (
+            input_rate * input_count
+            + input_rate * cached_count * cached_mult
+            + input_rate * write_count * CACHE_WRITE_MULTIPLIER["anthropic"]
+        ) / 1_000_000
+    else:
+        # cached tokens are a discounted SUBSET of input_tokens.
+        cached_count = min(cached_count, input_count)
+        input_cost = (
+            input_rate * (input_count - cached_count)
+            + input_rate * cached_count * cached_mult
+        ) / 1_000_000
+
     return (
-        pricing["input_per_mtok"] * input_count / 1_000_000
+        input_cost
         + pricing["output_per_mtok"] * output_count / 1_000_000
         + image_cost
     )

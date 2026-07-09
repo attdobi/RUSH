@@ -110,6 +110,11 @@ class LabelResponse:
     prepared_image_byte_size: int = 0
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # Prompt-cache telemetry. Provider semantics differ and pricing.py owns
+    # the math: OpenAI/Gemini report cached tokens INSIDE input_tokens;
+    # Anthropic reports cache reads/writes SEPARATELY from input_tokens.
+    cached_input_tokens: int | None = None
+    cache_creation_input_tokens: int | None = None
     cost_usd: float | None = None
     # Policy-grounded provenance (v2 prompt): which policy nodes the
     # labeler invoked and the exact policy clauses it leaned on. Empty
