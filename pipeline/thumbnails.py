@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 # --- Per-demo/area roots (clean separation) --------------------------------
 GENAI_SOURCE_ROOT_REL = Path("data/images/genai-classification/source-datasets")
 GENAI_THUMBNAIL_ROOT_REL = Path("data/images/genai-classification/derived/thumbnails")
+GENAI_SAMPLE_ROOT_REL = Path("data/images/genai-classification/sample")
 MNIST_SOURCE_ROOT_REL = Path("data/images/mnist-classification/source-datasets")
 MNIST_THUMBNAIL_ROOT_REL = Path("data/images/mnist-classification/derived/thumbnails")
 
@@ -26,6 +27,11 @@ THUMBNAIL_ROOT_REL = GENAI_THUMBNAIL_ROOT_REL
 # Each demo owns its own derived/thumbnails tree that mirrors its source tree.
 SOURCE_THUMBNAIL_ROOTS: tuple[tuple[Path, Path | None], ...] = (
     (GENAI_SOURCE_ROOT_REL, GENAI_THUMBNAIL_ROOT_REL),
+    # The committed GenAI portable fixture: sparse clones run entirely off
+    # these images (their manifest rows point HERE, not at source-datasets),
+    # so anchor-evidence thumbnails must resolve them. No derived thumbnails
+    # exist for the fixture — the (already small) originals serve as-is.
+    (GENAI_SAMPLE_ROOT_REL, None),
     (MNIST_SOURCE_ROOT_REL, MNIST_THUMBNAIL_ROOT_REL),
 )
 
@@ -126,6 +132,7 @@ __all__ = [
     "THUMBNAIL_ROOT_REL",
     "GENAI_SOURCE_ROOT_REL",
     "GENAI_THUMBNAIL_ROOT_REL",
+    "GENAI_SAMPLE_ROOT_REL",
     "MNIST_SOURCE_ROOT_REL",
     "MNIST_THUMBNAIL_ROOT_REL",
     "DEMO_THUMBNAIL_ROOTS",

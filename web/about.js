@@ -59,7 +59,7 @@
           <tr><td>Test size <var>T</var></td><td>100</td><td>The run's fixed test partition, drawn once at k=0 and reused all run — the gate's yardstick.</td></tr>
           <tr><td>Seed</td><td>13</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
           <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config. Its per-cycle spend is recorded on each cycle and shown in the gate ledger.</td></tr>
-          <tr><td>Input</td><td>images + text</td><td>What the drafter gets per anchor: every judge's text output (label, confidence, difficulty, boundary flag, justification) <em>plus the anchor image itself</em> — or <code>text only</code>, which drops the image bytes and cuts optimizer cost on image-heavy areas.</td></tr>
+          <tr><td>Input</td><td>text only</td><td>What the drafter gets per anchor. <code>text only</code> (default): every judge's full text output — label, confidence, difficulty, boundary flag, justification — plus the SME truth. The justifications describe what the judges saw, so this is usually enough, and it keeps optimizer cost flat as anchor counts grow. <code>images + text</code>: additionally attaches the anchor image bytes so the drafter can inspect the pixels itself — stronger evidence on visual boundary cases (a 9 with a broken loop, a plastic-skin artifact) at extra input-token cost per cycle.</td></tr>
           <tr><td>Anchors (method)</td><td>random (S1)</td><td>How misalignments are picked for the drafter: <code>random</code> = the null hypothesis every gradient must beat; <code>top |g|</code> = confident-wrong first; <code>top importance</code> = the four-tier rank below.</td></tr>
           <tr><td>Misaligned</td><td>15</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
           <tr><td>Aligned</td><td>5</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
@@ -86,11 +86,12 @@
         (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤15 misaligned + ≤5 aligned
         become the anchor set (both counts are knobs).</li>
         <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
-        <em>generator</em> — the exact prompt the judges run), and per anchor the SME golden label,
-        each judge's full text output (label, confidence, difficulty, boundary flag, justification),
-        and — unless <code>text only</code> is selected — the anchor image pixels themselves. It
-        returns <em>one</em> edit touching ≤3 nodes (the clip knob). Its token usage and cost are
-        recorded per cycle.</li>
+        <em>generator</em> — the exact prompt the judges run), and per anchor the SME golden label
+        plus each judge's full text output (label, confidence, difficulty, boundary flag,
+        justification). With the Input knob on <code>images + text</code> the anchor image pixels
+        are also attached (<code>text only</code> is the default — the justifications usually carry
+        the visual evidence in words). It returns <em>one</em> edit touching ≤3 nodes (the clip
+        knob). Its token usage and cost are recorded per cycle.</li>
         <li><strong>Score.</strong> The panel relabels the fixed test partition under the candidate
         policy <var>G<sub>k</sub></var> ⊕ <var>e</var>.</li>
         <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive

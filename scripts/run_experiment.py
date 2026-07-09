@@ -399,12 +399,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "— shows unfiltered policy drift; requires --live).")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
     ap.add_argument("--drafter-context", choices=["text_and_images", "text_only"],
-                    default="text_and_images",
+                    default="text_only",
                     help="What the drafter (optimizer) receives per anchor: "
-                         "text_and_images = the judges' full text output "
+                         "text_only (default) = the judges' full text output "
                          "(label/confidence/difficulty/boundary/justification) "
-                         "PLUS the anchor images themselves | text_only = just "
-                         "the text fields — much cheaper on image-heavy areas.")
+                         "— cheap, and the justifications usually carry the "
+                         "signal | text_and_images = additionally attach the "
+                         "anchor image bytes so the drafter sees the pixels "
+                         "(visual boundary cases, extra input tokens).")
     ap.add_argument("--strategy", choices=list(exp.STRATEGIES), default=exp.DEFAULT_STRATEGY,
                     help="Anchor selection: random_misalignment (S1, unbiased) or "
                          "top_gradient (most-important-first: panel avg |g| desc).")

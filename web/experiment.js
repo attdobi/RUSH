@@ -194,7 +194,7 @@
         ? gateModel : 'openai/gpt-5.5',
       gate_persona: $('#experimentGatePersona')?.value || 'lenient',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
-      drafter_context: $('#experimentDrafterContext')?.value || 'text_and_images',
+      drafter_context: $('#experimentDrafterContext')?.value || 'text_only',
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,
@@ -1411,6 +1411,8 @@
       if (testN) testN.value = '20';
       if (batchN) batchN.value = '10';
       if (benchmark) { benchmark.checked = false; benchmark.disabled = true; }
+      const note = $('#experimentBenchmarkNote');
+      if (note) note.textContent = 'needs a validation split — mint one with sample_genai_gold_sets.py --n-validation on the data host';
     }
     let stats = null;
     try {
@@ -1428,6 +1430,13 @@
     if (benchmark) {
       benchmark.disabled = !hasValidation;
       benchmark.checked = hasValidation;
+      // A silently disabled checkbox reads as broken — say WHY inline.
+      const note = $('#experimentBenchmarkNote');
+      if (note) {
+        note.textContent = hasValidation
+          ? ''
+          : 'needs a validation split — mint one with sample_genai_gold_sets.py --n-validation on the data host';
+      }
       const label = benchmark.closest('label');
       if (label && !hasValidation) {
         label.title = `The ${stats?.area || 'active'} manifest has no fixed validation split yet — mint one (scripts/sample_genai_gold_sets.py --n-validation ... for GenAI) to enable the cross-run benchmark readout.`;

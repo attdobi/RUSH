@@ -302,7 +302,7 @@ def test_validate_experiment_payload_defaults() -> None:
     assert request["max_aligned_anchors"] == 5
     assert request["gate_model"] == "openai/gpt-5.5"
     assert request["gate_mode"] == "agent"
-    assert request["drafter_context"] == "text_and_images"
+    assert request["drafter_context"] == "text_only"
     assert request["seed"] is None
     assert request["epsilon"] == 0.0
     assert "launch_pin" not in request
@@ -523,32 +523,42 @@ def test_validate_experiment_payload_gate_persona() -> None:
 
 
 def test_validate_experiment_payload_test_n_bounded_by_dev_golden_pool() -> None:
-    """The GenAI dev_golden pool has 40 images; the MNIST-sized default T=100
-    used to kill the driver at startup with no experiment record — the UI
-    launch looked like nothing happened. Reject it at payload time instead."""
-    from pipeline.web._safety import APIError, validate_experiment_payload
+    """A test_n at/above the area's dev_golden pool used to kill the driver at
+    startup with no experiment record — the UI launch looked like nothing
+    happened. Reject it at payload time instead. The pool size is read live
+    (the GenAI fixture has grown before and will again), so the bound is
+    computed, not hardcoded."""
+    from pipeline.web._safety import (
+        APIError, _dev_golden_pool_n, validate_experiment_payload,
+    )
 
+    pool = _dev_golden_pool_n("Generative_AI")
+    assert pool is not None and pool >= 11  # need a valid passing test_n too
+    if pool > 1000:
+        pytest.skip("pool exceeds the validator's test_n ceiling; bound unreachable")
     with pytest.raises(APIError) as excinfo:
         validate_experiment_payload(
-            _experiment_payload(area="Generative_AI", test_n=100))
+            _experiment_payload(area="Generative_AI", test_n=pool))
     assert excinfo.value.status == 400
     assert "dev_golden" in str(excinfo.value)
     ok = validate_experiment_payload(
-        _experiment_payload(area="Generative_AI", test_n=20, batch_n=10))
-    assert ok["test_n"] == 20 and ok["area"] == "Generative_AI"
+        _experiment_payload(area="Generative_AI", test_n=min(pool - 1, 20), batch_n=10))
+    assert ok["area"] == "Generative_AI" and ok["test_n"] < pool
 
 
 def test_validate_experiment_payload_drafter_context() -> None:
     from pipeline.web._safety import APIError, validate_experiment_payload
 
-    # Omitted / null / empty -> images + text (the historical behavior).
+    # Omitted / null / empty -> text_only (Attila 2026-07-09: the judges'
+    # justifications usually carry the signal; images are the opt-in).
     assert validate_experiment_payload(
-        _experiment_payload())["drafter_context"] == "text_and_images"
+        _experiment_payload())["drafter_context"] == "text_only"
     assert validate_experiment_payload(
-        _experiment_payload(drafter_context=None))["drafter_context"] == "text_and_images"
-    # The cheap mode passes through; anything else is rejected.
+        _experiment_payload(drafter_context=None))["drafter_context"] == "text_only"
+    # The image-attaching mode passes through; anything else is rejected.
     assert validate_experiment_payload(
-        _experiment_payload(drafter_context="text_only"))["drafter_context"] == "text_only"
+        _experiment_payload(drafter_context="text_and_images")
+    )["drafter_context"] == "text_and_images"
     with pytest.raises(APIError):
         validate_experiment_payload(_experiment_payload(drafter_context="pixels_only"))
 

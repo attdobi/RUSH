@@ -2795,9 +2795,35 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .about-tier-table th, .about-tier-table td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
 .about-tier-table th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 
-/* Config groups (wave 6 menu cleanup) */
-.experiment-config-row { align-items: center; }
+/* Config groups (wave 6 menu cleanup; r46 polish) */
+.experiment-config-row { align-items: flex-end; gap: 12px 20px; }
 .experiment-group-label { min-width: 72px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+/* r46: every field in the config panel shares the same dark treatment (the
+   number inputs used to render native/white), the group label is a fixed
+   left rail, and selects are sized per role so no row overflows into an
+   orphaned control. */
+.experiment-config-row .experiment-group-label { flex: 0 0 84px; align-self: center; }
+.experiment-config-row input[type="number"] {
+  width: 88px; border: 1px solid var(--line); border-radius: 13px;
+  background: #07101f; color: var(--text); padding: 11px 12px;
+  font-variant-numeric: tabular-nums; font-weight: 700;
+}
+.experiment-config-row #experimentSeed { width: 128px; }
+.experiment-config-row select { min-width: 0; }
+.experiment-config-row #experimentDrafterModel { width: 232px; }
+.experiment-config-row #experimentDrafterContext { width: 250px; }
+.experiment-config-row #experimentStrategy { width: 330px; }
+.experiment-config-row #experimentGateModel { width: 372px; }
+.experiment-config-row #experimentGatePersona { width: 172px; }
+.experiment-config-row input[type="number"]:focus,
+.experiment-config-row select:focus {
+  border-color: rgba(130, 181, 255, .72);
+  outline: 2px solid rgba(130, 181, 255, .16);
+}
+.experiment-config-row .checkbox-label { align-self: center; padding-bottom: 2px; }
+.experiment-config-row .checkbox-label:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.experiment-benchmark-note { align-self: center; max-width: 330px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.experiment-benchmark-note:empty { display: none; }
 .experiment-help { border: 1px solid var(--line); border-radius: 11px; padding: 8px 14px; background: rgba(8, 16, 31, .5); }
 .experiment-help summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
 .experiment-help-body { padding: 8px 2px 4px; }

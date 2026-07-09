@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r45" />
-  <script src="demos.js?v=demo-mnist-kdd-r45"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r46" />
+  <script src="demos.js?v=demo-mnist-kdd-r46"></script>
 </head>
 <body>
   <header class="hero">
@@ -65,12 +65,15 @@
             <p><strong>Judges — your panel.</strong> The 2–5 cheap models below label every image and score
             every metric. All decision-quality numbers on this page — F1 before/after, the learning curve,
             the gate metric — come from THIS panel. No expensive model ever scores quality.</p>
-            <p><strong>Drafter — the optimizer.</strong> Once per cycle, one model looks at the most
-            instructive misaligned images (the actual pixels are attached to its prompt) and writes ONE
-            policy edit of at most 5 node files. A cheaper drafter is a legitimate choice — it drafts,
-            it never judges. "Anchors" picks how the misalignments are chosen: an unbiased random sample,
-            top-gradient (confident-wrong panels first, |g| = 1−p), or top-importance (the four-tier
-            misalignment × consensus rank — see the About tab).</p>
+            <p><strong>Drafter — the optimizer.</strong> Once per cycle, one model reads the most
+            instructive misaligned anchors and writes ONE policy edit of at most 5 node files. A cheaper
+            drafter is a legitimate choice — it drafts, it never judges. "Input" picks what it reads per
+            anchor: <em>text fields only</em> (default — each judge's label, confidence, difficulty,
+            boundary flag, and justification, plus the SME truth) or <em>images + text</em>, which also
+            attaches the anchor pixels for visual boundary cases at extra token cost. "Anchors" picks how
+            the misalignments are chosen: an unbiased random sample, top-gradient (confident-wrong panels
+            first, |g| = 1−p), or top-importance (the four-tier misalignment × consensus rank — see the
+            About tab).</p>
             <p><strong>Gate — four modes.</strong> Default: a deterministic rule — an edit is accepted
             only if the panel's test-partition macro-F1 strictly improves. "+ agent" keeps that rule as
             the hard wall and lets a gate agent VETO a suspicious win (never force one). "Critic agent
@@ -104,10 +107,10 @@
               <option value="anthropic/claude-opus-4-7">opus-4-7</option>
             </select>
           </label>
-          <label title="What each anchor carries into the drafter packet: every judge's text output (label, confidence, difficulty, boundary flag, justification) with or without the anchor image itself. Text-only skips the image bytes — much cheaper on image-heavy areas.">Input
+          <label title="What the drafter reads per anchor. Text fields only (default): every judge's full text output — label, confidence, difficulty, boundary flag, justification — plus the SME truth; cheap, and usually enough because the justifications describe what the judges saw. Images + text fields: additionally attaches the anchor image bytes so the drafter can look at the pixels itself — stronger evidence on visual boundary cases, at extra input-token cost per cycle.">Input
             <select id="experimentDrafterContext">
-              <option value="text_and_images" selected>images + text fields</option>
-              <option value="text_only">text fields only — cheaper</option>
+              <option value="text_only" selected>text fields only (default)</option>
+              <option value="text_and_images">images + text — drafter sees pixels</option>
             </select>
           </label>
           <label title="Edit clip: the most policy-node files one proposal may touch — the trust region that keeps every step human-reviewable.">Max changes<input id="experimentMaxChanges" type="number" value="3" min="1" max="5"></label>
@@ -149,7 +152,8 @@
               <option value="strict">strict</option>
             </select>
           </label>
-          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same 1000 images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
+          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
+          <span id="experimentBenchmarkNote" class="hint experiment-benchmark-note"></span>
         </div>
         <div class="run-controls experiment-config-row experiment-start-row" aria-label="Start">
           <span class="experiment-group-label">Run</span>
@@ -291,14 +295,14 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r45"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r45"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r45"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r45"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r45"></script>
-  <script src="about.js?v=demo-mnist-kdd-r45"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r45"></script>
+  <script src="app.js?v=demo-mnist-kdd-r46"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r46"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r46"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r46"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r46"></script>
+  <script src="about.js?v=demo-mnist-kdd-r46"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r46"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r45"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r46"></script>
 </body>
 </html>

@@ -703,9 +703,14 @@ def _dev_golden_pool_n(area: str) -> int | None:
 
 
 def _drafter_context(raw: Any) -> str:
-    """What the drafter (optimizer) sees per anchor: with or without images."""
+    """What the drafter (optimizer) sees per anchor: with or without images.
+
+    Default text_only (Attila 2026-07-09): the judges' justifications usually
+    carry the signal; attaching anchor image bytes is the opt-in for visual
+    boundary cases.
+    """
     if raw in (None, ""):
-        return "text_and_images"
+        return "text_only"
     if raw not in {"text_and_images", "text_only"}:
         raise APIError(400, "validation_error",
                        "drafter_context must be text_and_images|text_only",
