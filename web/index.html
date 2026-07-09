@@ -110,7 +110,11 @@
               <option value="text_only">text fields only — cheaper</option>
             </select>
           </label>
-          <label>Anchors
+          <label title="Edit clip: the most policy-node files one proposal may touch — the trust region that keeps every step human-reviewable.">Max changes<input id="experimentMaxChanges" type="number" value="3" min="1" max="5"></label>
+        </div>
+        <div class="run-controls experiment-config-row" aria-label="Anchors">
+          <span class="experiment-group-label">Anchors</span>
+          <label title="How the misaligned anchors that drive each edit are chosen.">Method
             <select id="experimentStrategy">
               <option value="random_misalignment" selected>random misalignments (S1)</option>
               <option value="top_gradient">top gradient |g| — most informative first</option>
@@ -119,7 +123,6 @@
           </label>
           <label title="misaligned (error/SVM) anchors sent to the drafter">Misaligned<input id="experimentMaxAnchors" type="number" value="15" min="1" max="20"></label>
           <label title="correctly-classified anchors sent alongside so the drafter learns from correct calls too (0 = off)">Aligned<input id="experimentMaxAlignedAnchors" type="number" value="5" min="0" max="20"></label>
-          <label>Max changes<input id="experimentMaxChanges" type="number" value="3" min="1" max="5"></label>
         </div>
         <div class="run-controls experiment-config-row" aria-label="Gate and readouts">
           <span class="experiment-group-label">Gate</span>
