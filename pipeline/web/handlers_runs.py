@@ -168,6 +168,11 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             status, body = handlers_experiment.handle_list_experiments(handler.repo_root)
             send_json(handler, status, body)
             return
+        if method == "GET" and path == "/api/area-stats":
+            query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+            status, body = handlers_experiment.handle_area_stats(query)
+            send_json(handler, status, body)
+            return
         if method == "GET" and path == "/api/adjudication":
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             status, body = handlers_experiment.handle_adjudication_queue(

@@ -490,6 +490,27 @@ def test_validate_experiment_payload_strategy_and_drafter() -> None:
     assert request["drafter_model"] == "openai/gpt-5.4-mini-low"
 
 
+def test_handle_area_stats_reports_split_sizes() -> None:
+    """The run form sizes itself from these counts (and enables the benchmark
+    readout only when a validation split exists)."""
+    from pipeline.web.handlers_experiment import handle_area_stats
+
+    status, mnist = handle_area_stats({"demo": ["mnist"]})
+    assert status == 200 and mnist["area"] == "MNIST_Digits"
+    assert mnist["splits"]["dev_golden"] > 0
+    assert mnist["splits"]["validation"] > 0  # the fixed 1k benchmark split
+    assert mnist["total"] == sum(mnist["splits"].values())
+
+    status, genai = handle_area_stats({"demo": ["genai"]})
+    assert status == 200 and genai["area"] == "Generative_AI"
+    assert genai["splits"]["dev_golden"] > 0
+    assert genai["total"] == sum(genai["splits"].values())
+
+    from pipeline.web._safety import APIError
+    with pytest.raises(APIError):
+        handle_area_stats({"area": ["Cats_vs_Dogs"]})
+
+
 def test_validate_experiment_payload_gate_persona() -> None:
     from pipeline.web._safety import APIError, validate_experiment_payload
 

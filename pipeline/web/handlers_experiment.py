@@ -12,6 +12,7 @@ Endpoints (dispatched from handlers_runs.handle_api):
     POST /api/experiments/start               — spawn run_experiment.py (registry job)
     POST /api/experiments/{id}/review         — {k, verdict, reviewer?, comment?}
     GET  /api/adjudication[?area=...]         — cross-run SME re-adjudication queue
+    GET  /api/area-stats[?demo=|area=]        — the area's manifest split sizes
 """
 from __future__ import annotations
 
@@ -25,6 +26,47 @@ from ._safety import APIError
 
 def handle_list_experiments(repo_root: Path | str) -> tuple[int, dict[str, Any]]:
     return 200, {"experiments": exp.list_experiments(repo_root)}
+
+
+def handle_area_stats(
+    query: dict[str, list[str]] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    """Split sizes of the active area's manifest, for demo-aware form sizing.
+
+    The run form uses this to size Test/Train defaults to the dev_golden pool
+    and to enable the benchmark readout only when a fixed ``validation`` split
+    actually exists (the GenAI area ships without one until it is minted with
+    ``scripts/sample_genai_gold_sets.py --n-validation ...``). Counts reflect
+    whichever manifest :func:`genai_manifest_default` resolves on THIS host —
+    portable sample on sparse clones, the full manifest where the source
+    image tree exists.
+    """
+    from pipeline.io_paths import MNIST_SAMPLE_MANIFEST, genai_manifest_default
+    from pipeline.manifest import load_records
+
+    from .demo_area import MNIST_POLICY_AREA, area_from_query
+
+    try:
+        area = area_from_query(query or {})
+    except ValueError as exc:
+        raise APIError(400, "validation_error", str(exc)) from exc
+    manifest = (
+        MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
+    )
+    splits: dict[str, int] = {"dev_golden": 0, "holdout": 0, "validation": 0}
+    try:
+        for record in load_records(manifest):
+            if record.split in splits:
+                splits[record.split] += 1
+    except (OSError, ValueError) as exc:
+        raise APIError(503, "manifest_unavailable",
+                       f"cannot read the {area} manifest: {exc}") from exc
+    return 200, {
+        "area": area,
+        "manifest": str(manifest),
+        "splits": splits,
+        "total": sum(splits.values()),
+    }
 
 
 def handle_get_experiment(

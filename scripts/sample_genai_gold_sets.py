@@ -131,59 +131,100 @@ def sample_records(
     n_dev: int,
     n_holdout: int,
     seed: int,
-) -> tuple[list[dict[str, object]], list[dict[str, object]], dict[str, object]]:
+    n_validation: int = 0,
+) -> tuple[
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    dict[str, object],
+]:
+    """Draw the three disjoint splits from one seeded shuffle per source group.
+
+    The validation split (the fixed cross-run benchmark, mirroring MNIST's
+    ``bench_*`` rows) is sliced AFTER dev+holdout, so re-running with the SAME
+    seed and a newly non-zero ``n_validation`` keeps every existing dev_golden
+    and holdout assignment identical — the benchmark can be minted later
+    without invalidating labels already gathered on the other splits.
+    """
     rng = random.Random(seed)
     dev_counts = allocate_split_counts(n_dev)
     holdout_counts = allocate_split_counts(n_holdout)
+    validation_counts = (
+        allocate_split_counts(n_validation)
+        if n_validation > 0
+        else {label: {dataset: 0 for dataset in DATASETS} for label in LABELS}
+    )
     dev: list[dict[str, object]] = []
     holdout: list[dict[str, object]] = []
+    validation: list[dict[str, object]] = []
     source_counts: dict[str, dict[str, int]] = {}
 
     for label in LABELS:
         for dataset in DATASETS:
             key = (dataset, label)
             candidates = dedupe_by_hash(grouped[key])
-            needed = dev_counts[label][dataset] + holdout_counts[label][dataset]
+            dev_take = dev_counts[label][dataset]
+            holdout_take = holdout_counts[label][dataset]
+            validation_take = validation_counts[label][dataset]
+            needed = dev_take + holdout_take + validation_take
             if len(candidates) < needed:
                 raise ValueError(
                     f"Not enough unique files for {dataset}/{label}: need {needed}, have {len(candidates)}"
                 )
             shuffled = list(candidates)
             rng.shuffle(shuffled)
-            dev_take = dev_counts[label][dataset]
             dev_candidates = shuffled[:dev_take]
-            holdout_candidates = shuffled[dev_take:needed]
+            holdout_candidates = shuffled[dev_take:dev_take + holdout_take]
+            validation_candidates = shuffled[dev_take + holdout_take:needed]
             source_counts[f"{dataset}/{label}"] = {
                 "available_unique": len(candidates),
                 "dev_golden": len(dev_candidates),
                 "holdout": len(holdout_candidates),
+                "validation": len(validation_candidates),
             }
-            for split, rows in (("dev_golden", dev_candidates), ("holdout", holdout_candidates)):
-                target = dev if split == "dev_golden" else holdout
+            for split, rows, target in (
+                ("dev_golden", dev_candidates, dev),
+                ("holdout", holdout_candidates, holdout),
+                ("validation", validation_candidates, validation),
+            ):
                 for idx, candidate in enumerate(rows, 1):
                     target.append(record_for(candidate, split, seed, idx))
 
-    dev.sort(key=lambda r: (str(r["dataset"]), str(r["label"]), str(r["repo_rel_path"])))
-    holdout.sort(key=lambda r: (str(r["dataset"]), str(r["label"]), str(r["repo_rel_path"])))
+    for rows in (dev, holdout, validation):
+        rows.sort(key=lambda r: (str(r["dataset"]), str(r["label"]), str(r["repo_rel_path"])))
     for i, row in enumerate(dev, 1):
         row["sample_id"] = f"dev_golden_{i:04d}"
     for i, row in enumerate(holdout, 1):
         row["sample_id"] = f"holdout_{i:04d}"
+    for i, row in enumerate(validation, 1):
+        # Mirrors the MNIST benchmark split's id convention (bench_0001...).
+        row["sample_id"] = f"bench_{i:04d}"
 
-    verify_disjoint(dev, holdout)
+    verify_disjoint(dev, holdout, validation)
     summary = {
         "sampling_version": SAMPLING_VERSION,
         "seed": seed,
         "n_dev_golden": len(dev),
         "n_holdout": len(holdout),
+        "n_validation": len(validation),
         "allocation": {
             "dev_golden": dev_counts,
             "holdout": holdout_counts,
+            "validation": validation_counts,
         },
         "source_counts": source_counts,
         "label_assumptions": [note for note in ASSUMPTION_NOTES.values()],
     }
-    return dev, holdout, summary
+    return dev, holdout, validation, summary
+
+
+_POLICY_USE_BY_SPLIT = {
+    "dev_golden": "develop_policy",
+    "holdout": "locked_holdout_decision_quality",
+    # Same value the MNIST validation split uses: the fixed cross-run
+    # benchmark scored only under the start + final policy versions.
+    "validation": "benchmark_cross_run",
+}
 
 
 def record_for(candidate: Candidate, split: str, seed: int, draw_index: int) -> dict[str, object]:
@@ -203,21 +244,24 @@ def record_for(candidate: Candidate, split: str, seed: int, draw_index: int) -> 
         "draw_index_within_dataset_label": draw_index,
         "assumption_note": candidate.assumption_note,
         "truth_tier": "gold_candidate",
-        "policy_use": "develop_policy" if split == "dev_golden" else "locked_holdout_decision_quality",
+        "policy_use": _POLICY_USE_BY_SPLIT[split],
     }
 
 
-def verify_disjoint(dev: list[dict[str, object]], holdout: list[dict[str, object]]) -> None:
-    dev_paths = {str(row["repo_rel_path"]) for row in dev}
-    holdout_paths = {str(row["repo_rel_path"]) for row in holdout}
-    dev_hashes = {str(row["sha256"]) for row in dev}
-    holdout_hashes = {str(row["sha256"]) for row in holdout}
-    path_overlap = dev_paths & holdout_paths
-    hash_overlap = dev_hashes & holdout_hashes
-    if path_overlap:
-        raise ValueError(f"Dev/holdout path overlap: {sorted(path_overlap)[:5]}")
-    if hash_overlap:
-        raise ValueError(f"Dev/holdout hash overlap: {sorted(hash_overlap)[:5]}")
+def verify_disjoint(*split_rows: list[dict[str, object]]) -> None:
+    """Every pair of splits must share no path and no content hash."""
+    seen_paths: dict[str, str] = {}
+    seen_hashes: dict[str, str] = {}
+    for rows in split_rows:
+        for row in rows:
+            path, digest = str(row["repo_rel_path"]), str(row["sha256"])
+            split = str(row["split"])
+            if path in seen_paths and seen_paths[path] != split:
+                raise ValueError(f"Split path overlap ({seen_paths[path]}/{split}): {path}")
+            if digest in seen_hashes and seen_hashes[digest] != split:
+                raise ValueError(f"Split hash overlap ({seen_hashes[digest]}/{split}): {digest}")
+            seen_paths[path] = split
+            seen_hashes[digest] = split
 
 
 def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
@@ -257,6 +301,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n-dev", type=int, default=100, help="development golden-set size")
     parser.add_argument("--n-holdout", type=int, default=100, help="locked holdout size")
+    parser.add_argument("--n-validation", type=int, default=0,
+                        help="fixed cross-run benchmark split size (0 = none). Drawn "
+                             "AFTER dev+holdout from the same seeded shuffle, so adding "
+                             "it later with the SAME seed keeps existing dev/holdout "
+                             "assignments identical.")
     parser.add_argument("--seed", type=int, default=20260510, help="deterministic sampling seed")
     parser.add_argument("--repo-root", type=Path, default=repo_root_from_script())
     parser.add_argument("--source-root", type=Path, default=None)
@@ -273,6 +322,9 @@ def main(argv: list[str] | None = None) -> int:
         out_dir / "combined_labels.jsonl",
         out_dir / "sampling_summary.json",
     ]
+    validation_csv = out_dir / "validation_labels.csv"
+    if args.n_validation > 0:
+        outputs.append(validation_csv)
     existing = [path for path in outputs if path.exists()]
     if existing and not args.force:
         print("Refusing to overwrite existing manifests without --force:", file=sys.stderr)
@@ -281,10 +333,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     grouped = collect_candidates(repo_root, source_root.resolve())
-    dev, holdout, summary = sample_records(grouped, args.n_dev, args.n_holdout, args.seed)
+    dev, holdout, validation, summary = sample_records(
+        grouped, args.n_dev, args.n_holdout, args.seed, n_validation=args.n_validation
+    )
     write_csv(outputs[0], dev)
     write_csv(outputs[1], holdout)
-    write_jsonl(outputs[2], [*dev, *holdout])
+    if validation:
+        write_csv(validation_csv, validation)
+    write_jsonl(outputs[2], [*dev, *holdout, *validation])
     outputs[3].write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     print(json.dumps(summary, indent=2, sort_keys=True))

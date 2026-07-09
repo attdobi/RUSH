@@ -1394,25 +1394,43 @@
 
   // ---- init -----------------------------------------------------------------
 
-  // Demo-aware form defaults. The static HTML defaults fit MNIST (dev_golden
-  // pool ~2k); the GenAI area's pool is only 40 images, so T=100 would kill
-  // the driver at startup, and it has no fixed validation split yet, so the
-  // benchmark readout cannot run. Every other knob is identical by design.
-  function applyDemoFormDefaults() {
+  // Demo-aware form defaults, sized from the area's REAL manifest via
+  // /api/area-stats. The static HTML defaults fit MNIST (dev_golden ~2k);
+  // the GenAI pool is far smaller (40 on portable clones, 100+ where the
+  // source tree exists), so Test/Train scale to the pool, and the benchmark
+  // readout enables only when a fixed validation split actually exists.
+  // Every other knob is identical across demos by design.
+  async function applyDemoFormDefaults() {
     const genai = activeDemoId() === 'genai';
     const testN = $('#experimentTestN');
     const batchN = $('#experimentBatchN');
+    const benchmark = $('#experimentValidationFinal');
+    // Static fallback (portable GenAI pool = 40) so the form is sane even if
+    // the stats endpoint is unreachable.
     if (genai) {
       if (testN) testN.value = '20';
       if (batchN) batchN.value = '10';
+      if (benchmark) { benchmark.checked = false; benchmark.disabled = true; }
     }
-    const benchmark = $('#experimentValidationFinal');
+    let stats = null;
+    try {
+      stats = await window.rushApiGetJson(`/api/area-stats?demo=${encodeURIComponent(activeDemoId())}`);
+    } catch (err) { /* fall back to the static defaults above */ }
+    if (!stats || activeDemoId() !== (genai ? 'genai' : 'mnist')) return;
+    const pool = Number(stats?.splits?.dev_golden) || 0;
+    if (genai && pool > 0) {
+      // Half the pool tests, the rest is the train pool; clamp to the
+      // MNIST-sized defaults so a big future pool converges to parity.
+      if (testN) testN.value = String(Math.max(10, Math.min(100, Math.floor(pool / 2))));
+      if (batchN) batchN.value = String(Math.max(2, Math.min(20, Math.floor(pool / 4))));
+    }
+    const hasValidation = (Number(stats?.splits?.validation) || 0) > 0;
     if (benchmark) {
-      benchmark.disabled = genai;
-      if (genai) {
-        benchmark.checked = false;
-        const label = benchmark.closest('label');
-        if (label) label.title = 'The GenAI manifest has no fixed validation split yet — mint one (like scripts/build_mnist_validation_split.py) to enable the cross-run benchmark readout.';
+      benchmark.disabled = !hasValidation;
+      benchmark.checked = hasValidation;
+      const label = benchmark.closest('label');
+      if (label && !hasValidation) {
+        label.title = `The ${stats?.area || 'active'} manifest has no fixed validation split yet — mint one (scripts/sample_genai_gold_sets.py --n-validation ... for GenAI) to enable the cross-run benchmark readout.`;
       }
     }
   }

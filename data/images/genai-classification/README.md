@@ -22,6 +22,23 @@ Generate deterministic development and holdout label manifests from the local so
 python3 scripts/sample_genai_gold_sets.py --n-dev 100 --n-holdout 100 --seed 20260510 --force
 ```
 
+To also mint the FIXED cross-run **validation** split (the benchmark readout
+the experiment crank scores under the start + final policy — mirrors MNIST's
+`bench_*` rows), add `--n-validation`. Run on the machine that has the source
+images (the Mac mini):
+
+```bash
+python3 scripts/sample_genai_gold_sets.py --n-dev 200 --n-holdout 100 \
+    --n-validation 200 --seed 20260510 --force
+```
+
+The validation slice is drawn AFTER dev+holdout from the same seeded shuffle,
+so re-running with the SAME seed and a new `--n-validation` keeps every
+existing dev_golden/holdout assignment identical. The web run form reads split
+sizes via `GET /api/area-stats`: the benchmark checkbox enables itself once
+validation rows exist, and the Test/Train defaults scale to the dev_golden
+pool.
+
 The default sampling is class-balanced and source-stratified. For N=100 per split, each split contains 50 `ai_generated` and 50 `not_ai_generated` labels, distributed as 17/17/16 per class across `sdv1_4`, `midjourney`, and `wfir`.
 
 Current source-label assumptions:
