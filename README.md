@@ -229,6 +229,7 @@ RUSH_PORTABLE=1 ./.venv/bin/python scripts/run_bulk_labeling.py \
 What's committed:
 - **MNIST** — the full 2,500-image demo gold set as PNGs under `data/images/mnist-classification/source-datasets/mnist/<digit>/` (~1.6 MB), plus the entire 70k MNIST set packed compactly in `data/images/mnist-classification/mnist_full.npz` (~11.5 MB).
 - **GenAI** — a balanced 72-image sample (12 per dataset×class, both splits, original bytes, ~43 MB) under `data/images/genai-classification/sample/`, with `manifests/combined_labels.portable.jsonl`.
+- **Source archives** — `data_sources/genai-sample.zip` and `data_sources/mnist_png.zip` preserve portable source bundles for setup/rebuild workflows.
 
 ### Full parity (all images)
 
@@ -252,6 +253,10 @@ rsync -avh <mac-mini-host>:/Users/sacsimoto/GitHub/RUSH/data/images/genai-classi
 
 - **MNIST (70k):** shipped compact in-repo as `mnist_full.npz` — unpack with `scripts/unpack_mnist.py`, or regenerate from `~/Downloads/mnist_png/` with `scripts/pack_mnist_full.py`. Publicly, MNIST as image files + labels is widely available on Kaggle and many GitHub repos (e.g. `mnist_png`-style exports).
 - **GenAI (~12 GB, ~20k raw images):** byte-exact copies live on the Mac mini at `data/images/genai-classification/source-datasets/{midjourney,sdv1_4,wfir}/{ai_generated,not_ai_generated}/` — `rsync` from there for full parity (command above). Dataset identities: `midjourney` = Midjourney-generated vs real, `sdv1_4` = Stable Diffusion v1.4 generated vs real, `wfir` = StyleGAN faces ("Which Face Is Real"-style) vs real. No single canonical public URL is recorded in-repo; the Mac mini tree is the source of truth.
+
+Portable source bundles are also committed under `data_sources/`: `mnist_png.zip`
+keeps an upstream-style MNIST PNG export, and `genai-sample.zip` keeps the GenAI
+portable sample plus manifest.
 
 ## Dataset images are local-only (with one deliberate exception)
 
