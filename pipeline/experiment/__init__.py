@@ -1730,6 +1730,27 @@ def aggregate_readjudication(
                   if isinstance(v, (int, float)) and not isinstance(v, bool)]
         return round(sum(values) / len(values), 6) if values else None
 
+    # Full-evidence enrichment: queue blocks store votes stripped to five
+    # fields (experiment.json stays lean), but the SME drawer needs the whole
+    # LLM response — justification, l2_label, citations, quotes, boundary
+    # pair, tokens, cost. Re-attach it to each item's LATEST run from that
+    # run's misalignment.json, one read per distinct run id.
+    full_votes_cache: dict[str, dict[str, list[dict[str, Any]]]] = {}
+
+    def _full_votes(run_id: str | None, image_id: str | None) -> list[dict[str, Any]] | None:
+        if not run_id or not image_id:
+            return None
+        if run_id not in full_votes_cache:
+            full_votes_cache[run_id] = {
+                str(rec.get("image_id")): rec.get("votes") or []
+                for rec in load_misalignment(str(run_id))
+            }
+        votes = full_votes_cache[run_id].get(str(image_id))
+        if not votes:
+            return None
+        return [{**v, "model": v.get("labeler_id") or v.get("model_id")}
+                for v in votes]
+
     items: list[dict[str, Any]] = []
     for group in grouped.values():
         runs = sorted(group["runs"],
@@ -1740,6 +1761,9 @@ def aggregate_readjudication(
         group["run_numbers"] = sorted({r.get("run_number") for r in runs
                                        if r.get("run_number") is not None})
         group["latest"] = runs[-1]
+        enriched = _full_votes(runs[-1].get("run_id"), group.get("image_id"))
+        if enriched:
+            runs[-1]["votes"] = enriched
         group["agg"] = {
             "importance": _mean(runs, lambda r: (r.get("importance") or {}).get("readjudication")),
             "anchor": _mean(runs, lambda r: (r.get("importance") or {}).get("anchor")),

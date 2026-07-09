@@ -1,4 +1,9 @@
-// Per-image evidence drawer. Loaded from index.html after policy-graph.js.
+// Per-image evidence drawer: the full LLM response per judge (justification,
+// l2_label / sub-category, boundary flag + pair, difficulty, confidence,
+// citations, verbatim policy quotes, tokens, cost). Loaded from index.html
+// after policy-graph.js. Remounted r53 (Attila 2026-07-09): thumbnails on the
+// Adjudicate queue and the gate-ledger anchor evidence open it via
+// window.rushShowEvidence(record).
 (() => {
   const DRAWER_ID = 'justificationsDrawer';
   const STYLE_ID = 'justificationsDrawerStyles';
@@ -219,4 +224,8 @@
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') closeDrawer();
   });
+
+  // Public entry point: pass a full record ({image_id, repo_rel_path,
+  // sme_truth, run_id, votes:[...]}) — no window.runState needed.
+  window.rushShowEvidence = (record) => renderDrawer(record || {});
 })();

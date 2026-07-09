@@ -138,7 +138,7 @@
     { key: 'image', label: 'Image', dir: 1, get: (it) => String(it.image_id || ''),
       cell: (it) => {
         const img = it.repo_rel_path
-          ? `<img src="/api/thumbnail?path=${encodeURIComponent(it.repo_rel_path)}" alt="${esc(it.image_id)}" loading="lazy" />` : '';
+          ? `<img src="/api/thumbnail?path=${encodeURIComponent(it.repo_rel_path)}" alt="${esc(it.image_id)}" loading="lazy" class="adjudicate-thumb" data-evidence-key="${esc(it.key || it.image_id)}" title="Click for the full LLM evidence — per-judge justification, sub-category, boundary, difficulty, confidence" />` : '';
         return `<td>${img}<span class="hint">${esc(it.image_id)}<br/>${esc(it.split ?? '')}</span></td>`;
       } },
     { key: 'runs', label: 'Flagged by', dir: -1, get: (it) => it.n_runs || 0,
@@ -358,11 +358,17 @@
     state.page = Math.min(Math.max(0, state.page), pages - 1);
     const first = state.page * PAGE_SIZE;
     const pageItems = items.slice(first, first + PAGE_SIZE);
+    const rangeBtns = Array.from({ length: pages }, (_, p) => {
+      const lo = p * PAGE_SIZE + 1;
+      const hi = Math.min((p + 1) * PAGE_SIZE, items.length);
+      return `<button type="button" class="adjudicate-page-btn${p === state.page ? ' adjudicate-page-btn--active' : ''}" data-page="${p}">${lo}–${hi}</button>`;
+    }).join('');
     const pager = pages > 1
       ? `<div class="adjudicate-pager">
           <button type="button" class="adjudicate-page-btn" data-page-delta="-1" ${state.page === 0 ? 'disabled' : ''}>‹ Prev</button>
-          <span>Showing ${first + 1}–${first + pageItems.length} of ${items.length} · page ${state.page + 1}/${pages}</span>
+          ${rangeBtns}
           <button type="button" class="adjudicate-page-btn" data-page-delta="1" ${state.page >= pages - 1 ? 'disabled' : ''}>Next ›</button>
+          <span>${items.length} item(s)</span>
         </div>`
       : '';
     const body = pageItems.map((item) => {
@@ -384,9 +390,27 @@
       <thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${pager}`;
     host.querySelectorAll('.adjudicate-page-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        state.page += Number(btn.dataset.pageDelta || 0);
+        if (btn.dataset.page !== undefined) state.page = Number(btn.dataset.page);
+        else state.page += Number(btn.dataset.pageDelta || 0);
         render();
         host.scrollIntoView({ block: 'start' });
+      });
+    });
+    // Thumbnail click -> the full-evidence drawer (per-judge justification,
+    // l2_label, boundary pair, difficulty, confidence, quotes, tokens).
+    host.querySelectorAll('[data-evidence-key]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const item = (state.items || []).find(
+          (it) => (it.key || it.image_id) === el.dataset.evidenceKey);
+        if (!item || typeof window.rushShowEvidence !== 'function') return;
+        const latest = item.latest || {};
+        window.rushShowEvidence({
+          image_id: item.image_id,
+          repo_rel_path: item.repo_rel_path,
+          sme_truth: item.sme_truth,
+          run_id: latest.run_id,
+          votes: latest.votes || []
+        });
       });
     });
     host.querySelectorAll('.experiment-detail-toggle').forEach((button) => {

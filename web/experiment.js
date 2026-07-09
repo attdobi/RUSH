@@ -847,18 +847,23 @@
     return `/api/thumbnail?path=${encodeURIComponent(repoRelPath)}`;
   }
 
+  // image_id -> the last-rendered anchor record; the click handler below
+  // hands it to the full-evidence drawer (justifications.js).
+  const evidenceIndex = {};
+
   function renderAnchorCards(anchors) {
     if (!anchors || !anchors.length) {
       return '<p class="hint">No anchor records stored for this cycle.</p>';
     }
     const cards = anchors.map((a) => {
+      evidenceIndex[String(a.image_id)] = a;
       const votes = (a.votes || []).map((v) => {
         const wrong = v.label !== a.sme_truth;
         return `<span class="experiment-vote ${wrong ? 'experiment-vote--wrong' : 'experiment-vote--right'}"
           title="${esc(v.model)} · confidence ${v.confidence ?? '—'}">${esc(String(v.model || '').split('/').pop())}: ${esc(v.label)}</span>`;
       }).join(' ');
       const img = a.repo_rel_path
-        ? `<img src="${esc(thumbnailUrl(a.repo_rel_path))}" alt="${esc(a.image_id)}" loading="lazy" />`
+        ? `<img src="${esc(thumbnailUrl(a.repo_rel_path))}" alt="${esc(a.image_id)}" loading="lazy" class="experiment-anchor-thumb" data-evidence-image="${esc(a.image_id)}" title="Click for the full LLM evidence — per-judge justification, sub-category, boundary, difficulty, confidence" />`
         : '';
       return `<figure class="experiment-anchor-card">
         ${img}
@@ -871,6 +876,16 @@
     }).join('');
     return `<div class="experiment-anchor-grid">${cards}</div>`;
   }
+
+  document.addEventListener('click', (event) => {
+    const el = event.target instanceof Element
+      ? event.target.closest('[data-evidence-image]') : null;
+    if (!el) return;
+    const record = evidenceIndex[el.dataset.evidenceImage];
+    if (record && typeof window.rushShowEvidence === 'function') {
+      window.rushShowEvidence(record);
+    }
+  });
 
   function renderDiffBlocks(diffs) {
     if (!diffs || !diffs.length) return '<p class="hint">No diff available.</p>';
@@ -889,11 +904,7 @@
     }).join('');
   }
 
-  async function fetchAnchors(cycle) {
-    // New runs persist anchors on the cycle; older ones fall back to the
-    // train run's misalignment artifact (statically served).
-    if (cycle.anchors && cycle.anchors.length) return cycle.anchors;
-    const runId = cycle.train_run_id;
+  async function loadMisalignmentRecords(runId) {
     if (!runId) return [];
     if (!state.anchorCache[runId]) {
       try {
@@ -906,19 +917,38 @@
         state.anchorCache[runId] = [];
       }
     }
+    return state.anchorCache[runId];
+  }
+
+  async function fetchAnchors(cycle) {
+    // New runs persist anchor blocks on the cycle; the train run's
+    // misalignment artifact carries the FULL per-judge responses
+    // (justification, l2_label, citations, quotes) — merge them in so the
+    // evidence drawer has everything, falling back to the lean block votes.
+    const runId = cycle.train_run_id;
+    const records = await loadMisalignmentRecords(runId);
+    const fullByImage = new Map(records.map((r) => [String(r.image_id), r]));
+    const fromRecord = (r) => ({
+      image_id: r.image_id,
+      repo_rel_path: r.repo_rel_path,
+      sme_truth: r.sme_truth,
+      misalignment_type: r.misalignment_type,
+      severity: r.severity,
+      run_id: runId,
+      votes: (r.votes || []).map((v) => ({
+        ...v, model: v.labeler_id || v.model_id || v.model
+      }))
+    });
+    if (cycle.anchors && cycle.anchors.length) {
+      return cycle.anchors.map((a) => {
+        const full = fullByImage.get(String(a.image_id));
+        return full ? { ...a, ...fromRecord(full) } : a;
+      });
+    }
     const wanted = new Set(cycle.anchor_ids || []);
-    return state.anchorCache[runId]
+    return records
       .filter((r) => wanted.has(String(r.image_id)))
-      .map((r) => ({
-        image_id: r.image_id,
-        repo_rel_path: r.repo_rel_path,
-        sme_truth: r.sme_truth,
-        misalignment_type: r.misalignment_type,
-        severity: r.severity,
-        votes: (r.votes || []).map((v) => ({
-          model: v.labeler_id || v.model_id, label: v.label, confidence: v.confidence
-        }))
-      }));
+      .map(fromRecord);
   }
 
   async function fetchProposalDiffs(proposalId) {
