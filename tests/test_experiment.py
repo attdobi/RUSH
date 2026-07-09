@@ -322,6 +322,36 @@ def test_gate_persona_stance_appended_and_validated():
         exp.build_gate_messages(**kwargs, persona="ruthless")
 
 
+def test_gate_packet_carries_bundle_size_and_prompts_watch_bloat():
+    # Prompt-mass watch (Attila 2026-07-09, after the qwen probe: a 7B judge
+    # collapses under a bloated bundle). The gate packet carries measured
+    # before/after bundle sizes; both gate prompts and the drafter treat
+    # needless growth as a defect.
+    kwargs = dict(
+        metric=exp.GATE_METRIC, value_before=0.9, value_after=0.95, epsilon=0.0,
+        metric_pass=True, metrics_before={}, metrics_after={}, diffs=[],
+        anchors=[], k=1,
+    )
+    packet = json.loads(exp.build_gate_messages(
+        **kwargs, bundle_chars_before=24000, bundle_chars_after=26500
+    )[1]["content"])
+    size = packet["policy_bundle_size"]
+    assert size["chars_before"] == 24000
+    assert size["chars_after"] == 26500
+    assert size["delta_chars"] == 2500
+    assert size["approx_tokens_after"] == 26500 // 4
+    # Sizes omitted -> no block (old callers / failed loads unaffected).
+    bare = json.loads(exp.build_gate_messages(**kwargs)[1]["content"])
+    assert "policy_bundle_size" not in bare
+    for prompt in (exp.GATE_SYSTEM_PROMPT, exp.GATE_AGENT_ONLY_SYSTEM_PROMPT):
+        assert "balloons the policy's prompt mass" in prompt
+    assert "gross prompt bloat" in exp.GATE_PERSONAS["lenient"]
+    for area in ("MNIST_Digits", "Generative_AI"):
+        drafter = exp.drafter_system_prompt(area=area, max_changes=3)
+        assert "PROMPT BUDGET" in drafter
+        assert "DELETING redundant" in drafter
+
+
 def test_build_run_summary_deltas_and_metadata():
     state = {
         "experiment_id": "exp-x", "run_number": 7, "status": "completed",

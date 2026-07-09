@@ -973,6 +973,19 @@ def main(argv: list[str] | None = None) -> int:
             value_before = comparison["value_before"]
             value_after = comparison["value_after"]
             metric_pass = exp.metric_passes(value_before, value_after, epsilon=args.epsilon)
+            # Measured prompt mass — the bundle is every judge's context (a
+            # 7B collapses under a bloated one; 2026-07-09 probe). Recorded on
+            # every cycle (policy size over k = the parameter-count analog)
+            # and handed to the gate agent as bloat-watch evidence.
+            from pipeline.policy_iterator import load_policy_markdown as _lpm
+            try:
+                bundle_before = len(_lpm(base_dir))
+                bundle_after = len(_lpm(candidate_dir))
+            except Exception:  # noqa: BLE001 - evidence only, never block the gate
+                bundle_before = bundle_after = None
+            cycle["policy_bundle_chars"] = {
+                "before": bundle_before, "candidate": bundle_after,
+            }
             agent_verdict = None
             gate_error = None
             gate_raw = ""
@@ -991,6 +1004,8 @@ def main(argv: list[str] | None = None) -> int:
                     anchors=anchors, k=k, comparison=comparison,
                     agent_is_sole_gate=args.gate_mode == "agent_only",
                     persona=args.gate_persona,
+                    bundle_chars_before=bundle_before,
+                    bundle_chars_after=bundle_after,
                 )
                 n_gate_calls = len(usage_gate)
                 try:

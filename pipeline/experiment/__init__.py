@@ -596,8 +596,12 @@ GATE_SYSTEM_PROMPT = (
     "defer instead of committing to a label, piles class- or pair-specific "
     "rules into the root file instead of the owning class/boundary node, "
     "is incoherent with the "
-    "policy's structure, or is mere rewording — restating existing sentences "
-    "with the same meaning. Diff churn that changes no semantic content, "
+    "policy's structure, is mere rewording — restating existing sentences "
+    "with the same meaning — or needlessly balloons the policy's prompt "
+    "mass (see policy_bundle_size: the bundle is every judge's context, and "
+    "small judges measurably collapse under a bloated one — weigh the size "
+    "delta against the value delivered). Diff churn that changes no "
+    "semantic content, "
     "decision boundary, or objective fact is not an improvement; SKIP it even "
     "if the metric ticked up (small-partition noise can pass a no-op). "
     "You can NEVER accept a metric-failing candidate. "
@@ -622,8 +626,12 @@ GATE_AGENT_ONLY_SYSTEM_PROMPT = (
     "stating a general guideline, targets one judge model's quirks, tells "
     "judges to abstain or defer instead of committing to a label, piles "
     "class- or pair-specific rules into the root file instead of the owning "
-    "class/boundary node, is incoherent with the policy's structure, or is "
-    "mere rewording — restating existing sentences with the same meaning. "
+    "class/boundary node, is incoherent with the policy's structure, is "
+    "mere rewording — restating existing sentences with the same meaning — "
+    "or needlessly balloons the policy's prompt mass (see "
+    "policy_bundle_size: the bundle is every judge's context, and small "
+    "judges measurably collapse under a bloated one — weigh the size delta "
+    "against the value delivered). "
     "Diff churn that changes no semantic content, decision boundary, or "
     "objective fact is not an improvement and must be skipped regardless of "
     "structural tidiness. "
@@ -644,7 +652,8 @@ GATE_PERSONAS: dict[str, str] = {
         "on a small test partition is sampling noise, not a defect — do not "
         "treat it alone as a reason to skip. Skip ONLY on a clear defect "
         "(ground-truth leakage, per-image answers, abstain guidance, "
-        "root-dumping, incoherent structure, meaning-preserving rewording) "
+        "root-dumping, incoherent structure, meaning-preserving rewording, "
+        "gross prompt bloat) "
         "or a large unambiguous regression across multiple judges. Lenient "
         "means generous about unmeasured VALUE, not about no-op edits: a "
         "diff that only re-phrases existing sentences is still a skip. A "
@@ -680,6 +689,8 @@ def build_gate_messages(
     comparison: dict[str, Any] | None = None,
     agent_is_sole_gate: bool = False,
     persona: str = DEFAULT_GATE_PERSONA,
+    bundle_chars_before: int | None = None,
+    bundle_chars_after: int | None = None,
 ) -> list[dict[str, str]]:
     """Assemble the gate agent's review packet (metric table + diff + anchors).
 
@@ -710,7 +721,7 @@ def build_gate_messages(
             for scorer, m in metrics.items()
         }
 
-    payload = {
+    payload: dict[str, Any] = {
         "cycle_k": k,
         "gate_metric": metric,
         "value_before": value_before,
@@ -740,6 +751,19 @@ def build_gate_messages(
             for a in anchors
         ],
     }
+    if bundle_chars_before is not None and bundle_chars_after is not None:
+        # Hard evidence for the prompt-mass watch: the policy bundle is every
+        # judge's context window, and a measured failure mode (2026-07-09) is
+        # a 7B judge collapsing to the policy's default branch under a bloated
+        # bundle while a 26B still discriminates.
+        payload["policy_bundle_size"] = {
+            "chars_before": bundle_chars_before,
+            "chars_after": bundle_chars_after,
+            "delta_chars": bundle_chars_after - bundle_chars_before,
+            "approx_tokens_after": bundle_chars_after // 4,
+            "note": ("the full bundle is prepended to every judge call; "
+                     "unnecessary growth dilutes small judges"),
+        }
     base_prompt = GATE_AGENT_ONLY_SYSTEM_PROMPT if agent_is_sole_gate else GATE_SYSTEM_PROMPT
     return [
         {
@@ -876,6 +900,13 @@ DRAFTER_SYSTEM_PROMPT = (
     "a sentence only to change its semantic meaning, tighten a decision "
     "boundary, or clarify an objective fact; paraphrase-only churn wastes "
     "the review diff and the gate will skip it. "
+    "PROMPT BUDGET: the policy bundle is prepended to EVERY judge call — it "
+    "is the judges' entire context, and small judges measurably collapse "
+    "under a bloated bundle. Keep new text tight (a new node's body well "
+    "under ~250 words), never duplicate guidance that already lives in "
+    "another node (cite that node instead), and DELETING redundant or "
+    "duplicated guidance is a legitimate edit when you state that as its "
+    "purpose — deletion trims prompt mass; re-phrasing does not. "
     "The policy must always demand a decisive label: NEVER add "
     "guidance telling judges to abstain, defer, or decline, and NEVER add "
     "or reintroduce an 'abstain'/'unknown'/'uncertain' label, node, or "
