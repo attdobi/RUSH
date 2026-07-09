@@ -1781,6 +1781,30 @@ def load_state(repo_root: Path | str, experiment_id: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _system_leg_readout(block: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Compact start→final system readout of a holdout/benchmark block.
+
+    Feeds the cross-run Benchmarks tab: one small dict per run instead of the
+    full per-judge metric tree.
+    """
+    if not isinstance(block, dict) or not isinstance(block.get("start"), dict):
+        return None
+
+    def _system(leg: dict[str, Any] | None) -> dict[str, Any]:
+        return ((leg or {}).get("metrics") or {}).get("system") or {}
+
+    start, final = block["start"], block.get("final")
+    return {
+        "n": block.get("n"),
+        "start_version": start.get("version"),
+        "final_version": (final or {}).get("version"),
+        "start_macro_f1": _system(start).get("macro_f1"),
+        "final_macro_f1": _system(final).get("macro_f1"),
+        "start_accuracy": _system(start).get("accuracy"),
+        "final_accuracy": _system(final).get("accuracy"),
+    }
+
+
 def list_experiments(repo_root: Path | str) -> list[dict[str, Any]]:
     """Newest-first experiment summaries for the web list endpoint."""
     root = experiments_root(repo_root)
@@ -1812,12 +1836,25 @@ def list_experiments(repo_root: Path | str) -> list[dict[str, Any]]:
                 "accepted": accepted,
                 "judge_models": state.get("judge_models", []),
                 "gate_model": state.get("gate_model"),
+                "gate_mode": state.get("gate_mode"),
+                "gate_persona": state.get("gate_persona"),
+                "drafter_model": state.get("drafter_model"),
+                "drafter_context": state.get("drafter_context"),
+                "strategy": state.get("strategy"),
+                "batch_n": state.get("batch_n"),
+                "test_n": state.get("test_n"),
+                "max_anchors": state.get("max_anchors"),
+                "max_aligned_anchors": state.get("max_aligned_anchors"),
+                "max_changes": state.get("max_changes"),
                 "base_version": state.get("base_version"),
                 "current_version": state.get("current_version"),
                 "dry_run": state.get("dry_run", False),
                 "cost_usd_total": state.get("cost_usd_total"),
                 "started_at": state.get("started_at"),
                 "finished_at": state.get("finished_at"),
+                # Compact start→final system readouts for the Benchmarks tab.
+                "benchmark": _system_leg_readout(state.get("benchmark")),
+                "holdout": _system_leg_readout(state.get("holdout")),
             }
         )
     out.sort(key=lambda e: str(e.get("started_at") or ""), reverse=True)

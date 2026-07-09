@@ -450,7 +450,21 @@ def test_state_roundtrip_and_listing(tmp_path):
         "k_max": 3,
         "status": "running",
         "started_at": exp.utcnow_iso(),
+        "gate_mode": "agent_only",
+        "gate_persona": "lenient",
+        "drafter_model": "openai/gpt-5.5",
+        "drafter_context": "text_only",
+        "strategy": "random_misalignment",
         "cycles": [{"k": 0}, {"k": 1, "status": "accepted"}],
+        # The compact shape the Benchmarks tab consumes.
+        "benchmark": {
+            "n": 1000,
+            "split": "validation",
+            "start": {"version": "v0.1",
+                      "metrics": {"system": {"macro_f1": 0.9710, "accuracy": 0.9717}}},
+            "final": {"version": "v1.1",
+                      "metrics": {"system": {"macro_f1": 0.9800, "accuracy": 0.9805}}},
+        },
     }
     exp.write_state(tmp_path, state)
     loaded = exp.load_state(tmp_path, state["experiment_id"])
@@ -459,6 +473,20 @@ def test_state_roundtrip_and_listing(tmp_path):
     assert len(listing) == 1
     assert listing[0]["accepted"] == 1
     assert listing[0]["cycles_done"] == 1  # k=0 baseline excluded
+    # Knobs + compact benchmark readout ride the list payload (Benchmarks tab).
+    assert listing[0]["gate_mode"] == "agent_only"
+    assert listing[0]["gate_persona"] == "lenient"
+    assert listing[0]["drafter_context"] == "text_only"
+    assert listing[0]["benchmark"] == {
+        "n": 1000,
+        "start_version": "v0.1",
+        "final_version": "v1.1",
+        "start_macro_f1": 0.9710,
+        "final_macro_f1": 0.9800,
+        "start_accuracy": 0.9717,
+        "final_accuracy": 0.9805,
+    }
+    assert listing[0]["holdout"] is None  # no holdout readout on this run
     assert exp.next_run_number(tmp_path, "MNIST_Digits") == 2
     assert exp.next_run_number(tmp_path, "Generative_AI") == 1
 

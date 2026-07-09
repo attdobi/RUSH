@@ -2725,11 +2725,13 @@ main { padding-bottom: 82px; }
 .view-switcher-option:hover { color: var(--text); }
 .view-switcher-option[aria-pressed="true"]:hover { color: #06101f; }
 /* Tabs: sections opt into a view via data-view. Default (no JS) shows all;
-   each active view hides the three sections that aren't its own. */
-body.view-loop section[data-view="summary"], body.view-loop section[data-view="adjudicate"], body.view-loop section[data-view="about"] { display: none !important; }
-body.view-summary section[data-view="loop"], body.view-summary section[data-view="adjudicate"], body.view-summary section[data-view="about"] { display: none !important; }
-body.view-adjudicate section[data-view="loop"], body.view-adjudicate section[data-view="summary"], body.view-adjudicate section[data-view="about"] { display: none !important; }
-body.view-about section[data-view="loop"], body.view-about section[data-view="summary"], body.view-about section[data-view="adjudicate"] { display: none !important; }
+   an active view hides every data-view section that isn't its own (generic
+   :not() form so adding a tab is one line, not an n^2 matrix). */
+body.view-loop section[data-view]:not([data-view="loop"]) { display: none !important; }
+body.view-summary section[data-view]:not([data-view="summary"]) { display: none !important; }
+body.view-adjudicate section[data-view]:not([data-view="adjudicate"]) { display: none !important; }
+body.view-benchmarks section[data-view]:not([data-view="benchmarks"]) { display: none !important; }
+body.view-about section[data-view]:not([data-view="about"]) { display: none !important; }
 
 /* Adjudication queue: tier badges, sortable headers, alignment cells */
 .adjudicate-table-scroll { overflow-x: auto; }
@@ -2986,12 +2988,28 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .section { margin-top: 24px; }
 body.view-summary .hero-grid,
 body.view-adjudicate .hero-grid,
+body.view-benchmarks .hero-grid,
 body.view-about .hero-grid { display: none; }
 /* Provenance footer is loop-only context (it documents the policy the loop
    edits); a <details>, so the section[data-view] gating above misses it. */
 body.view-summary #provenance,
 body.view-adjudicate #provenance,
+body.view-benchmarks #provenance,
 body.view-about #provenance { display: none !important; }
+
+/* ---- Benchmarks tab: cross-run comparison table --------------------------- */
+.benchmarks-table-scroll { overflow-x: auto; }
+.benchmarks-table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 12.5px; }
+.benchmarks-table th { text-align: left; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.benchmarks-table td { padding: 9px 10px; border-bottom: 1px solid rgba(44, 62, 104, .35); vertical-align: top; font-variant-numeric: tabular-nums; }
+.benchmarks-table td .hint { display: block; margin-top: 2px; }
+.benchmarks-run-cell { white-space: nowrap; font-weight: 700; }
+.benchmarks-readout { white-space: nowrap; }
+.benchmarks-delta { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.benchmarks-delta--up { color: #4de0a6; background: rgba(77, 224, 166, .12); }
+.benchmarks-delta--down { color: var(--red, #ff6f91); background: rgba(255, 111, 145, .12); }
+.benchmarks-delta--flat { color: var(--muted); background: rgba(44, 62, 104, .35); }
+.benchmarks-table tr.benchmarks-row--none td { opacity: .55; }
 
 /* ---- R40: About visual pass ----------------------------------------------
    Display-math blocks: each equation is a grid row (lhs = rhs — note) with

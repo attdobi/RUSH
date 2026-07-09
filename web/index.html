@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r46" />
-  <script src="demos.js?v=demo-mnist-kdd-r46"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r47" />
+  <script src="demos.js?v=demo-mnist-kdd-r47"></script>
 </head>
 <body>
   <header class="hero">
@@ -26,6 +26,7 @@
         <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
         <button class="view-switcher-option" type="button" data-view="summary" aria-pressed="false">Run summary</button>
         <button class="view-switcher-option" type="button" data-view="adjudicate" aria-pressed="false">Adjudicate</button>
+        <button class="view-switcher-option" type="button" data-view="benchmarks" aria-pressed="false">Benchmarks</button>
         <button class="view-switcher-option" type="button" data-view="about" aria-pressed="false">About</button>
       </div>
       <div class="topbar-actions" aria-label="Repository actions">
@@ -282,6 +283,23 @@
       <div id="adjudicateSummary" class="experiment-summary"></div>
       <div id="adjudicateTable"></div>
     </section>
+    <section id="benchmarks" data-view="benchmarks" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Cross-run benchmarks</p>
+        <h2>Every run on the same yardstick.</h2>
+        <p>One row per live run of the active demo: its configuration knobs and its start&nbsp;→&nbsp;final
+        <strong>system macro-F1 on the fixed validation benchmark</strong> — the same images every run, never
+        used for training or gating, so runs, anchor strategies, gate modes, and drafters compare honestly.
+        The locked-holdout readout is shown alongside when a run paid for it. Runs without a benchmark
+        readout show a dash — tick <em>Benchmark readout</em> on the run form to get one. Dry runs are
+        excluded (fake labels would fake the numbers).</p>
+      </div>
+      <div class="run-controls" aria-label="Benchmark controls">
+        <button id="benchmarksRefresh" type="button">Refresh</button>
+        <span id="benchmarksStatusLine" class="status-line" role="status"></span>
+      </div>
+      <div id="benchmarksTable"></div>
+    </section>
     <section id="about" data-view="about" class="section api-section">
       <div id="aboutContent"></div>
     </section>
@@ -295,14 +313,15 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r46"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r46"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r46"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r46"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r46"></script>
-  <script src="about.js?v=demo-mnist-kdd-r46"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r46"></script>
+  <script src="app.js?v=demo-mnist-kdd-r47"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r47"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r47"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r47"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r47"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r47"></script>
+  <script src="about.js?v=demo-mnist-kdd-r47"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r47"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r46"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r47"></script>
 </body>
 </html>

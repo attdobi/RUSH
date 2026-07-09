@@ -59,9 +59,9 @@
     return true;
   }
 
-  // ---- view switcher (loop | summary | adjudicate) --------------------------
+  // ---- view switcher (loop | summary | adjudicate | benchmarks | about) -----
 
-  const VIEWS = ['loop', 'summary', 'adjudicate', 'about'];
+  const VIEWS = ['loop', 'summary', 'adjudicate', 'benchmarks', 'about'];
 
   function applyView(view) {
     VIEWS.forEach((v) => document.body.classList.toggle(`view-${v}`, view === v));
