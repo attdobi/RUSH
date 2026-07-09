@@ -230,14 +230,14 @@ def _require_start_run_pin(payload: dict[str, Any]) -> None:
         raise APIError(
             403,
             "launch_pin_required",
-            'Enter start run # before launching a labeling run',
+            "Enter code to run.",
             details={"field": "launch_pin"},
         )
     if not isinstance(raw_pin, str) or raw_pin.strip() != START_RUN_PIN:
         raise APIError(
             403,
             "launch_pin_invalid",
-            'Invalid start run #',
+            "Invalid launch code.",
             details={"field": "launch_pin"},
         )
 

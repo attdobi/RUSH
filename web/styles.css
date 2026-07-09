@@ -2822,6 +2822,22 @@ body.view-about section[data-view="loop"], body.view-about section[data-view="su
 .experiment-config { padding: 16px 18px; margin-bottom: 16px; display: grid; gap: 12px; }
 .experiment-config .compact-model-picker { margin: 0; }
 .experiment-spend-label { align-self: end; }
+.experiment-launch-pin-label {
+  min-width: 150px;
+}
+.experiment-launch-pin-label input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #07101f;
+  color: var(--text);
+  padding: 11px 12px;
+  font-weight: 900;
+}
+.experiment-launch-pin-label input:focus {
+  border-color: rgba(77, 224, 166, .72);
+  outline: 2px solid rgba(77, 224, 166, .18);
+}
 .experiment-block-title { margin: 26px 0 10px; font-size: 16px; }
 .experiment-block-title .muted { font-weight: 600; font-size: 13px; }
 

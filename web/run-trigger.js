@@ -802,10 +802,10 @@
   }
 
   function addLaunchPin(payload) {
-    const pin = window.prompt('start run #');
+    const pin = window.prompt('Enter code to run');
     if (pin === null) throw new Error('Run launch canceled.');
     const normalized = String(pin).trim();
-    if (!normalized) throw new Error('Enter start run # to launch a labeling run.');
+    if (!normalized) throw new Error('Enter code to run.');
     return { ...payload, launch_pin: normalized };
   }
 

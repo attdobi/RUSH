@@ -138,6 +138,9 @@
         <div class="run-controls experiment-config-row experiment-start-row" aria-label="Start">
           <span class="experiment-group-label">Run</span>
           <label class="checkbox-label experiment-spend-label"><input id="experimentAllowSpend" type="checkbox" checked /> Allow spend</label>
+          <label class="experiment-launch-pin-label">Enter code to run
+            <input id="experimentLaunchPin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="run launch code">
+          </label>
           <button id="experimentStart" class="primary-action" type="button">Start run</button>
           <span id="experimentStartStatus" class="status-line" role="status"></span>
         </div>

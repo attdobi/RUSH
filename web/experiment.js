@@ -201,14 +201,11 @@
       live: true,
       allow_spend: true
     };
-    const pin = window.prompt('start run #');
-    if (pin === null) {
-      statusEl.textContent = 'Run launch canceled.';
-      return;
-    }
-    const launchPin = String(pin).trim();
+    const pinInput = $('#experimentLaunchPin');
+    const launchPin = String(pinInput?.value || '').trim();
     if (!launchPin) {
-      statusEl.textContent = 'Enter start run # to launch a live run.';
+      statusEl.textContent = 'Enter code to run.';
+      pinInput?.focus();
       return;
     }
     payload.launch_pin = launchPin;
@@ -237,6 +234,7 @@
     } catch (err) {
       statusEl.textContent = `Start failed: ${err?.message || err}`;
     } finally {
+      if (pinInput) pinInput.value = '';
       button.disabled = false;
     }
   }
