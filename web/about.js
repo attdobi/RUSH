@@ -163,7 +163,10 @@
         <li><strong>Judges</strong> (<em>the judge panel</em> — the MAS labeling layer) — 2–5 cheap
         mLLMs that label every item independently and produce <em>every</em> decision-quality
         metric. They label only: they never draft, never gate, and never see the golden label while
-        judging (LLM consensus κ is computed SME-blind). No expensive model ever scores quality.</li>
+        judging (LLM consensus κ is computed SME-blind). No expensive model ever scores quality.
+        The panel is also what makes <strong>policy blame</strong> measurable: several independent
+        labelers citing the same clause while voting wrong indicts the policy text itself — a
+        signal a single-labeler system cannot produce (see the derived-scores section).</li>
         <li><strong>Drafter</strong> (<em>the policy-iteration agent</em>; "the optimizer" in the
         cost ledger and on this page) — one model (cheap or frontier) that, each cycle, reads the
         most instructive anchors and writes a single policy edit of ≤5 node files. It drafts; it
@@ -318,13 +321,34 @@
 
     <section class="about-section">
       <h2>Two derived scores: anchor value and re-adjudication priority</h2>
-      <p>The base score is amplified by the panel's confidence (mean <var>|g|</var>) and its boundary
-      rate, because a confident, boundary-flagged error teaches more:</p>
+      <p><strong>amp is the amplifier</strong> on the base misalignment×consensus score — how much
+      this item can <em>teach</em>. Three multiplicative factors, each in [1, 1+w]: the panel's
+      confidence (mean <var>|g|</var> — a confident-wrong error teaches more than a hesitant one),
+      its boundary rate (<var>b</var> — documented confusion cases teach more), and the
+      <strong>policy-blame share</strong> (<var>s</var><sub>blame</sub> — the fraction of this
+      image's wrong votes that cited an <em>indicted</em> policy clause; see below):</p>
       ${eq([
-        ['amp', '=', '(1 + mean|<var>g</var>|) · (1 + ½·<var>b</var>)', ''],
+        ['amp', '=', '(1 + mean|<var>g</var>|) · (1 + ½·<var>b</var>) · (1 + <var>s</var><sub>blame</sub>)', ''],
+        ['<var>s</var><sub>blame</sub>', '=', '(# wrong votes citing a blamed node) / (# wrong votes)', 'anchor-selection side only'],
         ['anchor value', '=', '<var>I</var><sub>base</sub> · amp', 'ranks policy-learning anchors'],
-        ['re-adjudication', '=', '<var>I</var><sub>base</sub> · amp · (1 − <var>p</var><sub>human</sub>)', 'ranks the human queue'],
+        ['re-adjudication', '=', '<var>I</var><sub>base</sub> · amp · (1 − <var>p</var><sub>human</sub>)', 'ranks the human queue (s_blame = 0 here)'],
       ])}
+      <h3>Policy blame — the panel indicts the clause, not the model</h3>
+      <p>Every judge cites the policy node it applied, so a <em>wrong</em> vote names the clause
+      that misled it. Each cycle aggregates these into a per-node table — wrong vs right citation
+      counts, <code>wrong_share</code>, and an advisory edit-type <code>hint</code>
+      (<em>remove_or_narrow</em>: cited mostly in error, the clause misleads ·
+      <em>split_or_tighten</em>: mixed at volume, the node conflates two patterns ·
+      <em>clarify</em>: mostly right, occasional misleads) — recorded on the cycle
+      (<code>policy_blame</code>) and fed to the drafter and gate. Only nodes wrong-cited by
+      <strong>≥2 distinct judges</strong> reach the agents or the amplifier: one judge's quirks
+      never steer the policy, but a clause that misleads several gets fixed once and helps them
+      all. <strong>This signal only exists because the labeling layer is a multi-agent panel</strong>
+      — with a single labeler, "the model is weak" and "the policy misleads" are indistinguishable;
+      with several independent labelers converging on the same cited clause, the policy text itself
+      is indicted. An image whose errors are policy-attributable outranks an idiosyncratic one
+      (via <var>s</var><sub>blame</sub>) precisely because fixing the clause fixes every judge it
+      misleads.</p>
       <p><strong>Anchor value</strong> drives the <code>top_importance</code> selection strategy —
       which misalignments the drafter studies. <strong>Re-adjudication priority</strong> is the same
       score, but faded by how confident we already are in the golden label:</p>

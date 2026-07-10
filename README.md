@@ -180,9 +180,15 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      flashes; it drafts, it never judges) writes ONE clipped policy edit per cycle from the
      misaligned anchors **plus the cycle's policy-blame table**: the nodes most often cited by
      *wrong* votes across ≥2 distinct judges (every judge cites the node it applied, so wrong
-     votes name the clause that misled them — model-agnostic by construction, and recorded on the
-     cycle as `policy_blame`). A blamed clause takes precedence: fixing the text helps every judge
-     at once. The drafter's edit repertoire is full — it may narrow or delete clauses, remove
+     votes name the clause that misled them — model-agnostic by construction; a signal only a
+     multi-agent labeling panel can produce). The FULL per-node table — wrong/right citation
+     counts, `wrong_share`, and an advisory edit-type `hint` (remove_or_narrow / split_or_tighten
+     / clarify) — is recorded on every cycle as `policy_blame` for node health-tracking. A blamed
+     clause takes precedence: fixing the text helps every judge at once — and under
+     `top_importance` anchor selection, policy-attributable errors also rank higher via the
+     amplifier's new `(1 + blame_share)` factor (blame_share = the fraction of an image's wrong
+     votes citing an indicted node; the SME queue's historical rank is untouched). The drafter's
+     edit repertoire is full — it may narrow or delete clauses, remove
      nodes, and simplify the graph (including repairing an implicated root clause), not just
      append; the gate is instructed that well-evidenced removals are legitimate. Its "Input"
      knob (`--drafter-context`) picks what each anchor carries: **`text only` (default)** — every

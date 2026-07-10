@@ -1030,6 +1030,57 @@ def test_policy_blame_is_model_agnostic_and_ranks_shared_failures():
     assert exp.policy_blame(records, min_models=1)[0]["node"] == "GA.boundary.cgi_game_render"
 
 
+def test_blame_share_amplifies_anchor_value_and_steers_top_importance():
+    # amp = (1 + mean|g|)(1 + ½b)(1 + s_blame) — the blame factor applies
+    # only when blamed_nodes is passed (anchor-selection side); the SME
+    # queue's historical rank stays byte-identical.
+    base = exp.importance_scores(
+        sme_fraction=0.0, consensus_fraction=1.0, majority_aligned=False,
+        mean_grad=0.5, boundary_rate=0.0)
+    boosted = exp.importance_scores(
+        sme_fraction=0.0, consensus_fraction=1.0, majority_aligned=False,
+        mean_grad=0.5, boundary_rate=0.0, blame_share=1.0)
+    assert boosted["anchor"] == pytest.approx(base["anchor"] * 2.0)
+    assert base["blame_share"] == 0.0 and boosted["blame_share"] == 1.0
+
+    # Two misaligned images: A's wrong votes cite a blamed node, B's do not.
+    # Same confidences, so without blame they tie-break by id (A first
+    # anyway) — make B strictly stronger without blame to prove the flip.
+    rec_a = {"image_id": "img_a", "sme_truth": "gen_ai",
+             "misalignment_type": "consensus_wrong", "votes": [
+                 _blame_vote("m/1", "not_gen_ai", ["GA.bad.clause"], conf=0.8),
+                 _blame_vote("m/2", "not_gen_ai", ["GA.bad.clause"], conf=0.8)]}
+    rec_b = {"image_id": "img_b", "sme_truth": "gen_ai",
+             "misalignment_type": "consensus_wrong", "votes": [
+                 _blame_vote("m/1", "not_gen_ai", ["GA.fine.node"], conf=0.95),
+                 _blame_vote("m/2", "not_gen_ai", ["GA.fine.node"], conf=0.95)]}
+    without = exp.select_anchors(
+        [rec_a, rec_b], seed=1, k=1, max_anchors=1, strategy="top_importance")
+    assert without[0]["image_id"] == "img_b"   # higher |g| wins unblamed
+    with_blame = exp.select_anchors(
+        [rec_a, rec_b], seed=1, k=1, max_anchors=1, strategy="top_importance",
+        blamed_nodes=frozenset({"GA.bad.clause"}))
+    assert with_blame[0]["image_id"] == "img_a"  # policy-attributable wins
+
+
+def test_policy_blame_wrong_share_and_hints():
+    def rec(image_id, votes):
+        return {"image_id": image_id, "sme_truth": "gen_ai", "votes": votes}
+    records = [rec(f"img_{i}", [
+        _blame_vote("m/1", "not_gen_ai", ["GA.mostly_wrong"]),
+        _blame_vote("m/2", "not_gen_ai", ["GA.mostly_wrong", "GA.mixed"]),
+        _blame_vote("m/3", "gen_ai", ["GA.mixed"]),
+    ]) for i in range(3)]
+    table = {r["node"]: r for r in exp.policy_blame(records, min_models=1, top_n=None)}
+    assert table["GA.mostly_wrong"]["wrong_share"] == 1.0
+    assert table["GA.mostly_wrong"]["hint"] == "remove_or_narrow"
+    # GA.mixed: 3 wrong (m/2) + 3 right (m/3) -> share 0.5 at volume -> split.
+    assert table["GA.mixed"]["wrong_share"] == 0.5
+    assert table["GA.mixed"]["hint"] == "split_or_tighten"
+    # Full table (top_n=None) keeps single-model rows too.
+    assert exp.policy_blame(records, min_models=2, top_n=None) != []
+
+
 def test_policy_blame_flows_into_drafter_and_gate_packets():
     blame = [{"node": "GA.boundary.cgi_game_render", "n_wrong_votes": 3,
               "n_right_votes": 1, "n_models_wrong": 2,

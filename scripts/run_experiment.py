@@ -753,15 +753,24 @@ def main(argv: list[str] | None = None) -> int:
                 _sync()
                 continue
             mis_records = _load_misalignment(train_run["run_id"])
-            # Policy blame: which nodes WRONG votes cited, across ≥2 distinct
-            # judges — evidence the policy TEXT misleads (model-agnostic by
-            # construction). Fed to the drafter (fix the clause, help every
-            # judge) and the gate (judge removals fairly); recorded for audit.
-            blame = exp.policy_blame(mis_records)
-            cycle["policy_blame"] = blame
+            # Per-node citation stats: which nodes votes cited, wrong vs
+            # right, with wrong_share + an advisory edit-type hint (split /
+            # remove / clarify). The FULL table (every cited node, incl.
+            # single-model rows) is recorded on the cycle for audit and node
+            # health-tracking; the AGENTS get only the cross-model (>=2
+            # judges) top rows — model-agnostic by construction: one judge's
+            # quirks never steer the policy, a clause that misleads several
+            # gets fixed once and helps them all.
+            cycle["policy_blame"] = exp.policy_blame(
+                mis_records, min_models=1, top_n=None
+            )
+            blame = [r for r in cycle["policy_blame"]
+                     if r["n_models_wrong"] >= 2][:8]
+            blamed_node_ids = frozenset(r["node"] for r in blame)
             anchors = exp.select_anchors(
                 mis_records, seed=seed, k=k, max_anchors=args.max_anchors,
                 train_ids=train_ids, strategy=args.strategy,
+                blamed_nodes=blamed_node_ids or None,
             )
             # Aligned anchors: a sample of the panel's CORRECT calls, fed
             # alongside the errors so the drafter learns from correct

@@ -192,6 +192,7 @@ def select_anchors(
     max_anchors: int,
     train_ids: Iterable[str] | None = None,
     strategy: str = "random_misalignment",
+    blamed_nodes: set[str] | frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Pick the misalignments that drive this cycle's policy edit.
 
@@ -229,8 +230,12 @@ def select_anchors(
     if strategy == "top_importance":
         def _imp_key(record: dict[str, Any]) -> tuple[float, str]:
             # Full four-tier anchor value: misalignment x LLM-consensus x
-            # confidence x boundary. T1 (unanimous & wrong) leads.
-            score = (panel_signal(record).get("importance") or {}).get("anchor")
+            # confidence x boundary x policy blame (amp gains a
+            # (1 + blame_share) factor when the cycle's blamed nodes are
+            # supplied — policy-attributable errors outrank idiosyncratic
+            # ones because fixing the clause fixes every judge it misleads).
+            score = (panel_signal(record, blamed_nodes=blamed_nodes)
+                     .get("importance") or {}).get("anchor")
             return (-(score if score is not None else 0.0),
                     str(record.get("image_id")))
         return sorted(eligible, key=_imp_key)[:max_anchors]
@@ -288,7 +293,7 @@ def policy_blame(
     misalignment_records: list[dict[str, Any]],
     *,
     min_models: int = 2,
-    top_n: int = 8,
+    top_n: int | None = 8,
 ) -> list[dict[str, Any]]:
     """Rank the policy nodes most often CITED BY WRONG VOTES across judges.
 
@@ -341,10 +346,25 @@ def policy_blame(
         if len(s["wrong_models"]) < min_models:
             continue
         confs = s["wrong_confidences"]
+        total = s["n_wrong_votes"] + s["n_right_votes"]
+        wrong_share = s["n_wrong_votes"] / total if total else 0.0
+        # Advisory edit-type heuristic (Attila 2026-07-10: use the per-node
+        # breakdown to guide WHEN to split, remove, or update a node):
+        #   mostly wrong  -> the clause misleads: narrow or remove it;
+        #   mixed at volume -> the node conflates patterns: split/tighten;
+        #   mostly right  -> occasional misleads: clarify wording/examples.
+        if wrong_share >= 0.6:
+            hint = "remove_or_narrow"
+        elif wrong_share >= 0.3 and s["n_wrong_votes"] >= 3:
+            hint = "split_or_tighten"
+        else:
+            hint = "clarify"
         out.append({
             "node": s["node"],
             "n_wrong_votes": s["n_wrong_votes"],
             "n_right_votes": s["n_right_votes"],
+            "wrong_share": round(wrong_share, 3),
+            "hint": hint,
             "n_models_wrong": len(s["wrong_models"]),
             "models_wrong": sorted(s["wrong_models"]),
             "avg_wrong_confidence": (
@@ -353,7 +373,7 @@ def policy_blame(
             "example_images": s["example_images"],
         })
     out.sort(key=lambda r: (-r["n_models_wrong"], -r["n_wrong_votes"], r["node"]))
-    return out[:top_n]
+    return out if top_n is None else out[:top_n]
 
 
 # ---------------------------------------------------------------------------
@@ -981,9 +1001,12 @@ DRAFTER_SYSTEM_PROMPT = (
     "cited by WRONG votes across MULTIPLE different judges, i.e. clauses "
     "whose text itself misleads (a default or example routing judges to the "
     "wrong label). Fixing a blamed clause helps every judge at once and "
-    "takes precedence over patching per-image symptoms; use n_right_votes "
-    "for calibration — a node that also carries correct decisions wants "
-    "NARROWING, one cited almost only in error is a removal candidate. "
+    "takes precedence over patching per-image symptoms. Each row's "
+    "wrong_share and hint suggest the edit TYPE: remove_or_narrow (cited "
+    "mostly in error — the clause misleads), split_or_tighten (mixed at "
+    "volume — the node conflates two patterns; split it into sub-nodes "
+    "with a sharper boundary), clarify (mostly right, occasional misleads "
+    "— fix the wording or examples). "
     "EDIT REPERTOIRE: you may amend, narrow, or DELETE clauses, REMOVE "
     "entire nodes, and simplify the graph — you are not limited to "
     "appending and clarifying. When existing text causes misalignments, "
@@ -1411,6 +1434,10 @@ def _avg(values: list[float]) -> float | None:
 CONSENSUS_HIGH = 0.5
 GRAD_WEIGHT = 1.0        # confidence amplifier: x (1 + w * mean|g|)
 BOUNDARY_WEIGHT = 0.5    # boundary amplifier:   x (1 + w * boundary_rate)
+BLAME_WEIGHT = 1.0       # policy-blame amplifier: x (1 + w * blame_share)
+                         # (anchor-selection side only — the SME queue's
+                         # historical rank is untouched unless a caller
+                         # passes blamed_nodes)
 
 
 def human_confidence(sme_confirmations: int = 1) -> float:
@@ -1425,13 +1452,27 @@ def human_confidence(sme_confirmations: int = 1) -> float:
 
 
 def importance_scores(*, sme_fraction, consensus_fraction, majority_aligned,
-                      mean_grad, boundary_rate, sme_confirmations=1):
-    """The four-tier hierarchy as a continuous score plus a discrete tier."""
+                      mean_grad, boundary_rate, sme_confirmations=1,
+                      blame_share=0.0):
+    """The four-tier hierarchy as a continuous score plus a discrete tier.
+
+    ``amp`` is the AMPLIFIER on the base misalignment×consensus score: how
+    much this item can teach. It multiplies three [1, 1+w] factors —
+    confidence (mean |g|: confident-wrong errors teach more), boundary rate
+    (documented confusion cases teach more), and, when a blamed-node set is
+    in play, ``blame_share`` — the fraction of this image's wrong votes that
+    cited an indicted policy clause. A high blame share means the error is
+    POLICY-ATTRIBUTABLE: fixing the clause fixes the image (and every judge
+    it misleads), so it outranks idiosyncratic one-off errors (Attila
+    2026-07-10). Default 0 keeps historical numbers identical.
+    """
     a = sme_fraction if sme_fraction is not None else 0.0   # all-abstain -> 0
     k = consensus_fraction if consensus_fraction is not None else 0.0
     m = 1.0 - a
     base = (m + k * (2.0 * m - 1.0) + 1.0) / 3.0            # [-1,2] -> [0,1]
-    amp = (1.0 + GRAD_WEIGHT * (mean_grad or 0.0)) * (1.0 + BOUNDARY_WEIGHT * (boundary_rate or 0.0))
+    amp = ((1.0 + GRAD_WEIGHT * (mean_grad or 0.0))
+           * (1.0 + BOUNDARY_WEIGHT * (boundary_rate or 0.0))
+           * (1.0 + BLAME_WEIGHT * (blame_share or 0.0)))
     anchor = base * amp
     h = human_confidence(sme_confirmations)
     high_consensus = k > CONSENSUS_HIGH   # strict: an even-split tie is NOT consensus
@@ -1442,13 +1483,18 @@ def importance_scores(*, sme_fraction, consensus_fraction, majority_aligned,
     return {
         "base": round(base, 6),
         "tier": tier,
+        "blame_share": round(blame_share or 0.0, 6),
         "anchor": round(anchor, 6),                        # policy-learning value
         "readjudication": round(anchor * (1.0 - h), 6),    # human-review priority
         "human_confidence": h,
     }
 
 
-def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
+def panel_signal(
+    record: dict[str, Any],
+    *,
+    blamed_nodes: set[str] | frozenset[str] | None = None,
+) -> dict[str, Any]:
     """Per-image rollup across the judge panel — the stack-rank substrate.
 
     Mirrors rush.panel_signal and adds the multi-LLM alignment layer. Two
@@ -1457,6 +1503,12 @@ def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
     ``sme_agreement`` is alignment with the human label (graded m/N, its sign
     the majority-vote collapse used for accounting). Plus a boundary rate and
     the four-tier importance scores (see ``importance_scores``).
+
+    ``blamed_nodes`` (anchor-selection side): the cycle's policy-blame node
+    ids. When given, the image's ``blame_share`` — wrong votes citing an
+    indicted node / wrong votes — feeds the importance amplifier, so
+    policy-attributable errors outrank idiosyncratic ones. Omitted (the SME
+    queue, historical callers) the scores are byte-identical to before.
     """
     truth = str(record.get("sme_truth"))
     votes = record.get("votes") or []
@@ -1479,11 +1531,22 @@ def panel_signal(record: dict[str, Any]) -> dict[str, Any]:
 
     grads = [g for g in (vote_gradient(v, truth) for v in decisive) if g]
     mean_grad = _avg([g["magnitude"] for g in grads])
+    blame_share = 0.0
+    if blamed_nodes:
+        wrong = [v for v in decisive if str(v.get("label")) != truth]
+        if wrong:
+            def _cites_blamed(vote: dict[str, Any]) -> bool:
+                cited = {c for c in (vote.get("policy_citations") or []) if c}
+                if vote.get("l2_label"):
+                    cited.add(str(vote["l2_label"]))
+                return bool(cited & blamed_nodes)
+            blame_share = sum(1 for v in wrong if _cites_blamed(v)) / len(wrong)
     importance = importance_scores(
         sme_fraction=sme_fraction, consensus_fraction=consensus_fraction,
         majority_aligned=majority_aligned, mean_grad=mean_grad,
         boundary_rate=boundary_rate,
         sme_confirmations=int(record.get("sme_confirmations") or 1),
+        blame_share=blame_share,
     )
     return {
         "n_judges": n_judges,
