@@ -487,6 +487,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     global _COMPRESSED_MODELS_ARG
     _COMPRESSED_MODELS_ARG = ",".join(compressed_models)
+    if (args.drafter_model.startswith("google/")
+            and args.drafter_context == "text_and_images"):
+        # Mirror of the web validator: the gemini text transport would
+        # silently drop the anchor images.
+        print("[experiment] gemini drafters support --drafter-context "
+              "text_only (anchor images are not wired for the gemini "
+              "transport yet)", file=sys.stderr)
+        return 2
     manifest = args.manifest or (
         MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
     )

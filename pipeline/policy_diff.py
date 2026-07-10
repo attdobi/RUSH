@@ -42,6 +42,12 @@ ALLOWED_POLICY_MODELS = {
     # Cheap drafter lane (Attila 2026-07-07): with the anchor IMAGES now in
     # the drafter packet, a low-cost model is a legitimate optimizer choice.
     "openai/gpt-5.4-mini-low",
+    # Gemini drafters (Attila 2026-07-09) — text_only input mode only: the
+    # drafter's image-attachment path shapes parts for OpenAI/Anthropic, and
+    # the gemini text transport would silently drop them (validated at both
+    # the web layer and the driver).
+    "google/gemini-3.5-flash",
+    "google/gemini-3.1-flash-lite",
 }
 _VERSION_RE = re.compile(r"^v(\d+)\.(\d+)$")
 
@@ -348,6 +354,8 @@ def _chat_callable_for(effective_model: str) -> ChatCallable:
         from pipeline.providers.openai_chat import policy_chat_callable
     elif effective_model.startswith("anthropic/"):
         from pipeline.providers.anthropic_chat import policy_chat_callable
+    elif effective_model.startswith("google/"):
+        from pipeline.providers.gemini_chat import policy_chat_callable
     else:  # guarded by ALLOWED_POLICY_MODELS at every entry point
         raise ValueError(f"unsupported policy proposal model_id: {effective_model}")
     return policy_chat_callable(effective_model)

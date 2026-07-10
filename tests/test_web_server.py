@@ -321,6 +321,26 @@ def test_validate_experiment_payload_live_requires_launch_pin() -> None:
     assert excinfo.value.code == "launch_pin_required"
 
 
+def test_validate_experiment_payload_gemini_drafter_text_only() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    # Gemini drafters are legitimate optimizers (r60) — text_only input.
+    for model in ("google/gemini-3.5-flash", "google/gemini-3.1-flash-lite"):
+        request = validate_experiment_payload(
+            _experiment_payload(drafter_model=model, drafter_context="text_only")
+        )
+        assert request["drafter_model"] == model
+    # ...but images+text would silently drop the anchor pixels in the gemini
+    # transport — refused loudly.
+    with pytest.raises(APIError) as excinfo:
+        validate_experiment_payload(_experiment_payload(
+            drafter_model="google/gemini-3.5-flash",
+            drafter_context="text_and_images",
+        ))
+    assert excinfo.value.status == 400
+    assert "text only" in excinfo.value.message
+
+
 def test_validate_experiment_payload_compressed_models() -> None:
     from pipeline.web._safety import APIError, validate_experiment_payload
 

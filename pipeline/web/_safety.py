@@ -634,6 +634,21 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
             details={"field": "allow_spend"},
         )
 
+    drafter_model = _agent_model(
+        "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
+    )
+    drafter_context = _drafter_context(payload.get("drafter_context"))
+    if drafter_model.startswith("google/") and drafter_context == "text_and_images":
+        # The drafter's image attachments are shaped for OpenAI/Anthropic
+        # transports; the gemini text transport would silently DROP the
+        # anchor pixels — refuse loudly instead of degrading quietly.
+        raise APIError(
+            400, "validation_error",
+            "gemini drafters support Input = text only (anchor images are "
+            "not wired for the gemini transport yet)",
+            details={"field": "drafter_context"},
+        )
+
     return {
         "area": area,
         "demo": payload.get("demo"),
@@ -652,10 +667,8 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "gate_mode": gate_mode,
         "gate_model": _agent_model("gate_model", "openai/gpt-5.5"),
         "gate_persona": _gate_persona(payload.get("gate_persona")),
-        "drafter_model": _agent_model(
-            "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
-        ),
-        "drafter_context": _drafter_context(payload.get("drafter_context")),
+        "drafter_model": drafter_model,
+        "drafter_context": drafter_context,
         "compressed_models": _compressed_models(
             payload.get("compressed_models"), models
         ),

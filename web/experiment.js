@@ -1577,6 +1577,26 @@
       loadList();
     });
     $('#experimentStart').addEventListener('click', startExperiment);
+    // Gemini drafters are text-only: their transport would silently drop
+    // anchor images, so the server rejects the combination — lock the Input
+    // select client-side instead of letting the launch 400.
+    const syncDrafterInputForModel = () => {
+      const drafter = $('#experimentDrafterModel')?.value || '';
+      const contextSelect = $('#experimentDrafterContext');
+      const imagesOpt = contextSelect?.querySelector('option[value="text_and_images"]');
+      const isGemini = drafter.startsWith('google/');
+      if (imagesOpt) {
+        imagesOpt.disabled = isGemini;
+        imagesOpt.title = isGemini
+          ? 'Not available for gemini drafters (anchor images are not wired for the gemini transport)'
+          : '';
+      }
+      if (isGemini && contextSelect && contextSelect.value === 'text_and_images') {
+        contextSelect.value = 'text_only';
+      }
+    };
+    $('#experimentDrafterModel')?.addEventListener('change', syncDrafterInputForModel);
+    syncDrafterInputForModel();
     $('#genaiSplitsMint')?.addEventListener('click', mintSplits);
     // A user-edited seed must survive the row's poll refreshes.
     $('#genaiSplitSeed')?.addEventListener('input', () => { state.splitSeedTouched = true; });
