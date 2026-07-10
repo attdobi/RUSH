@@ -395,12 +395,26 @@
       return `<button type="button" class="experiment-kg-chip${active ? ' experiment-kg-chip--active' : ''}${accepted ? ' experiment-kg-chip--accepted' : ''}" data-kg-k="${c.k}" title="${esc(title)}">${text}</button>`;
     }).join('');
     const version = versionInForceAfter(cycles, state.kgCycleK);
+    // The final accepted policy is the run's PRODUCT for downstream
+    // consumers — a directory of .md node files (policy-graph/<area>/<v>/)
+    // served whole by /api/policy/render. Offer it right where the version
+    // in force is announced: view, download, and the compressed digest.
+    const finalVersion = versionInForceAfter(cycles, cycles[cycles.length - 1].k);
+    const artifactBase = `/api/policy/render?area=${encodeURIComponent(exp.area || '')}&version=${encodeURIComponent(finalVersion)}`;
+    const artifactLinks = `
+      <span class="experiment-kg-note experiment-kg-artifact">final policy <strong>${esc(finalVersion)}</strong>:
+        <a href="${artifactBase}&render=full" target="_blank" rel="noopener"
+           title="View the run's final policy bundle — the optimized prompt, the artifact downstream labelers consume">view ↗</a>
+        <a href="${artifactBase}&render=full" download="${esc(exp.area || 'policy')}-${esc(finalVersion)}-policy.md"
+           title="Download the final policy bundle as one markdown file">download ⬇</a>
+        <a href="${artifactBase}&render=compressed" target="_blank" rel="noopener"
+           title="View the compressed render — the digest lightweight judges label under">digest ↗</a></span>`;
     host.innerHTML = `
       <span class="experiment-kg-strip-label">Graph by cycle</span>
       <button type="button" class="experiment-kg-step" data-kg-step="-1" aria-label="Previous cycle">‹</button>
       <div class="experiment-kg-chip-row">${chips}</div>
       <button type="button" class="experiment-kg-step" data-kg-step="1" aria-label="Next cycle">›</button>
-      <span class="experiment-kg-note">after k=${state.kgCycleK}: <strong>${esc(version)}</strong> in force</span>`;
+      <span class="experiment-kg-note">after k=${state.kgCycleK}: <strong>${esc(version)}</strong> in force</span>${artifactLinks}`;
     const applyK = (k) => {
       state.kgCycleK = k;
       state.kgManual = true;
@@ -826,12 +840,25 @@
       return `<span class="experiment-delta ${cls}">${diff > 0 ? '+' : ''}${(diff * 100).toFixed(1)}</span>`;
     };
 
+    // Judge self-health from the latest cycle that recorded it: a judge
+    // flagged degenerate emits a near-constant label — policy edits cannot
+    // move it, so say so right where its flat Δ row invites the question.
+    const healthByJudge = {};
+    cycles.forEach((c) => (c.judge_health || []).forEach((h) => {
+      if (h?.model) healthByJudge[h.model] = h;
+    }));
+
     const rows = scorers.map((scorer) => {
       const m = finalMetrics[scorer] || {};
       const isSystem = scorer === 'system';
       const name = isSystem ? 'system (majority vote)' : scorer;
+      const health = healthByJudge[scorer];
+      const degenerateChip = health?.degenerate
+        ? ` <span class="experiment-chip experiment-chip--failed"
+            title="Degenerate judge: ${Math.round((health.top_share || 0) * 100)}% of its train votes are '${esc(health.top_label || '')}' — it is not conditioning on the policy text, so no policy edit can improve it. Fix lives outside the policy: prompt compression, a lighter response contract, or drop it from the panel.">⚠ constant output</span>`
+        : '';
       return `<tr class="${isSystem ? 'experiment-judge-system' : ''}">
-        <td>${esc(name)}</td>
+        <td>${esc(name)}${degenerateChip}</td>
         <td>${fmtPct(m.accuracy)} ${delta(scorer, 'accuracy')}</td>
         <td>${fmtPct(m.macro_f1)} ${delta(scorer, 'macro_f1')}</td>
         <td>${fmtPct(m.macro_precision)} ${delta(scorer, 'macro_precision')}</td>

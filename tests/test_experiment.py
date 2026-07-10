@@ -1568,3 +1568,50 @@ def test_still_misaligned_overturn_stays_open_and_top_priority(tmp_path):
     q2 = exp.aggregate_readjudication(tmp_path, area="MNIST_Digits")
     assert q2["items"][0]["review"]["resolved"] is True
     assert q2["n_open"] == 0
+
+
+def test_judge_health_flags_constant_output_judge():
+    # qwen-shaped failure (GenAI run 5, 2026-07-10): one judge answers the
+    # same class regardless of input; a healthy judge varies and is mostly
+    # right. Only the constant judge is flagged degenerate.
+    records = []
+    for i in range(12):
+        truth = "gen_ai" if i % 2 == 0 else "not_gen_ai"
+        records.append(_mis_record(f"img_{i}", truth, [
+            {"labeler_id": "local/flatliner", "label": "not_gen_ai"},
+            {"labeler_id": "openai/healthy", "label": truth if i % 3 else "gen_ai"},
+        ]))
+    health = {h["model"]: h for h in exp.judge_health(records)}
+    flat = health["local/flatliner"]
+    assert flat["degenerate"] is True
+    assert flat["top_label"] == "not_gen_ai"
+    assert flat["top_share"] == 1.0
+    assert flat["accuracy"] == pytest.approx(0.5)
+    assert health["openai/healthy"]["degenerate"] is False
+    # Below the vote floor nothing is flagged — one batch of two votes is
+    # not evidence of degeneracy.
+    tiny = exp.judge_health(records[:2])
+    assert all(not h["degenerate"] for h in tiny)
+
+
+def test_judge_health_flows_into_drafter_packet_and_prompt():
+    health = [{"model": "local/flatliner", "n_votes": 20,
+               "label_counts": {"not_gen_ai": 20}, "top_label": "not_gen_ai",
+               "top_share": 1.0, "accuracy": 0.5, "degenerate": True}]
+    drafter = exp.build_drafter_messages(
+        policy_markdown="# P", base_version="v0.1", area="Generative_AI",
+        anchors=[], max_changes=3, k=1, judge_health=health,
+    )
+    payload = json.loads(drafter[1]["content"])
+    assert payload["judge_health"] == health
+    bare = exp.build_drafter_messages(
+        policy_markdown="# P", base_version="v0.1", area="Generative_AI",
+        anchors=[], max_changes=3, k=1,
+    )
+    assert "judge_health" not in json.loads(bare[1]["content"])
+    # The system prompt must tell the drafter a degenerate judge has no
+    # policy-text gradient — do not chase it with clause edits.
+    for area in ("MNIST_Digits", "Generative_AI"):
+        prompt = exp.drafter_system_prompt(area=area, max_changes=3)
+        assert "JUDGE HEALTH" in prompt
+        assert "degenerate" in prompt

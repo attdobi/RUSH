@@ -376,6 +376,68 @@ def policy_blame(
     return out if top_n is None else out[:top_n]
 
 
+# A judge whose votes are this share one single label (over at least
+# JUDGE_HEALTH_MIN_VOTES votes) is treated as degenerate: it is emitting a
+# constant answer, not conditioning on the input or the policy.
+JUDGE_DEGENERATE_SHARE = 0.9
+JUDGE_HEALTH_MIN_VOTES = 10
+
+
+def judge_health(
+    misalignment_records: list[dict[str, Any]],
+    *,
+    degenerate_share: float = JUDGE_DEGENERATE_SHARE,
+    min_votes: int = JUDGE_HEALTH_MIN_VOTES,
+) -> list[dict[str, Any]]:
+    """Per-judge self-health over one batch: label spread, accuracy, degeneracy.
+
+    Why this exists (measured, GenAI run 5, 2026-07-10): qwen2.5-vl-7b voted
+    not_gen_ai on 49/50 anchors and stayed byte-flat across three accepted
+    policy edits while every other judge improved (+8.8 to +21.2 macro-F1).
+    A judge with near-constant output is not conditioning on the policy
+    text, so the textual gradient w.r.t. that judge is ZERO — no drafter
+    edit can move it, and its errors pollute the misalignment signal. The
+    fix lives outside the policy (render compression, a lighter response
+    contract, or dropping the judge), so the loop's job is to DETECT it in
+    cycle 1 and say so, not to keep chasing it with clause edits.
+
+    Deliberately does not conflict with the model-agnostic blame contract:
+    ``policy_blame`` still ignores single-judge quirks; this flags the judge
+    itself, never a policy node.
+
+    Returns one row per judge: ``{"model", "n_votes", "label_counts",
+    "top_label", "top_share", "accuracy", "degenerate"}``, sorted by model.
+    """
+    per_judge: dict[str, dict[str, Any]] = {}
+    for rec in misalignment_records:
+        truth = rec.get("sme_truth")
+        for vote in rec.get("votes") or []:
+            label = vote.get("label")
+            if label in (None, "", "abstain"):
+                continue
+            model = str(vote.get("labeler_id") or vote.get("model_id") or "?")
+            s = per_judge.setdefault(model, {"n": 0, "correct": 0, "counts": {}})
+            s["n"] += 1
+            s["counts"][str(label)] = s["counts"].get(str(label), 0) + 1
+            if label == truth:
+                s["correct"] += 1
+    out: list[dict[str, Any]] = []
+    for model in sorted(per_judge):
+        s = per_judge[model]
+        top_label, top_n = max(s["counts"].items(), key=lambda kv: (kv[1], kv[0]))
+        top_share = top_n / s["n"] if s["n"] else 0.0
+        out.append({
+            "model": model,
+            "n_votes": s["n"],
+            "label_counts": dict(sorted(s["counts"].items())),
+            "top_label": top_label,
+            "top_share": round(top_share, 3),
+            "accuracy": round(s["correct"] / s["n"], 3) if s["n"] else None,
+            "degenerate": s["n"] >= min_votes and top_share >= degenerate_share,
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Edit clipping: 1..max_changes discrete node-file changes per version bump
 
@@ -996,6 +1058,14 @@ DRAFTER_SYSTEM_PROMPT = (
     "cases WITHOUT regressing the aligned ones — use the aligned anchors as "
     "positive references for what the current policy already gets right, so "
     "your edit sharpens the boundary instead of over-correcting past it. "
+    "JUDGE HEALTH: when the packet includes judge_health, check it before "
+    "chasing errors. A judge flagged degenerate emits a near-constant label "
+    "regardless of input — it is not conditioning on the policy text, so no "
+    "clause edit can move it (capability/format failure, not a policy "
+    "failure). Do NOT spend your edit budget on misalignments explainable "
+    "purely by a degenerate judge's constant vote; optimize for the healthy "
+    "judges and note the degenerate judge in your rationale so the operator "
+    "can act (compression, a lighter response contract, or removal). "
     "POLICY BLAME: when the packet includes policy_blame, treat it as the "
     "strongest structural signal — it lists the policy nodes most often "
     "cited by WRONG votes across MULTIPLE different judges, i.e. clauses "
@@ -1154,6 +1224,7 @@ def build_drafter_messages(
     aligned_images: list[dict[str, Any]] | None = None,
     provider: str = "openai",
     policy_blame: list[dict[str, Any]] | None = None,
+    judge_health: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Assemble the drafter packet: current bundle + both anchor sets + budget.
 
@@ -1196,6 +1267,11 @@ def build_drafter_messages(
     }
     if policy_blame:
         volatile_payload["policy_blame"] = policy_blame
+    if judge_health:
+        # Per-judge self-health for THIS batch. A degenerate judge's errors
+        # carry no policy-text gradient (see judge_health) — the system
+        # prompt tells the drafter not to chase them.
+        volatile_payload["judge_health"] = judge_health
     system = {
         "role": "system",
         "content": drafter_system_prompt(area=area, max_changes=max_changes),

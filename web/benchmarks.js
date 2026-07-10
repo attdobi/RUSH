@@ -86,6 +86,23 @@
       host.innerHTML = '<p class="hint">No live runs for this demo yet — start one on the Run the loop tab (tick "Benchmark readout" to land on this board).</p>';
       return;
     }
+    // The optimized policy IS the run's product for downstream consumers:
+    // every accepted version is a directory of .md node files
+    // (policy-graph/<area>/<version>/), served verbatim by
+    // /api/policy/render. Link the final version to view + download it.
+    function policyArtifactLinks(e) {
+      const version = String(e.current_version || '');
+      if (!version) return '—';
+      const base = `/api/policy/render?area=${encodeURIComponent(e.area)}&version=${encodeURIComponent(version)}`;
+      return `<strong>${esc(version)}</strong>
+        <a href="${base}&render=full" target="_blank" rel="noopener"
+           title="View the final policy bundle — the optimized prompt this run produced">view ↗</a>
+        <a href="${base}&render=full" download="${esc(e.area)}-${esc(version)}-policy.md"
+           title="Download the final policy bundle as one markdown file">⬇</a>
+        <a href="${base}&render=compressed" target="_blank" rel="noopener"
+           title="View the compressed render — the digest lightweight judges label under">digest ↗</a>`;
+    }
+
     const rows = runs.map((e) => {
       const started = String(e.started_at || '').slice(0, 16).replace('T', ' ');
       const gate = e.gate_mode === 'off' ? 'OFF'
@@ -108,7 +125,7 @@
       return `<tr class="${e.benchmark ? '' : 'benchmarks-row--none'}">
         <td class="benchmarks-run-cell">#${esc(e.run_number ?? '?')} · seed ${esc(e.seed)}<span class="hint">${esc(started)}</span></td>
         <td>${statusChip(e.status)}<span class="hint">${esc(e.accepted ?? 0)} accepted / ${esc(e.cycles_done ?? 0)}</span></td>
-        <td>${esc(e.base_version)} → ${esc(e.current_version)}<span class="hint">${judgesCell}</span></td>
+        <td>${esc(e.base_version)} → ${policyArtifactLinks(e)}<span class="hint">${judgesCell}</span></td>
         <td>${gate}</td>
         <td>${esc(optimizer)}</td>
         <td>${anchors}</td>

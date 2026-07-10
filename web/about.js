@@ -355,6 +355,19 @@
       is indicted. An image whose errors are policy-attributable outranks an idiosyncratic one
       (via <var>s</var><sub>blame</sub>) precisely because fixing the clause fixes every judge it
       misleads.</p>
+      <p><strong>Judge health — the converse check.</strong> Blame assumes every judge is at least
+      <em>reading</em> the policy. Each cycle also computes per-judge self-health over the train
+      batch (label distribution, accuracy) and flags a judge <strong>degenerate</strong> when
+      ≥90% of its votes are one class: a constant output does not condition on the policy text, so
+      the textual gradient with respect to that judge is <em>zero</em> — no clause edit can move
+      it, and its errors pollute the misalignment pool. Measured case (GenAI run 5): qwen-7B voted
+      <code>not_gen_ai</code> on 49/50 anchors and stayed byte-flat across three accepted edits
+      while every reading judge gained +8.8 to +21.2 macro-F1. The flag is recorded on the cycle,
+      shown as a ⚠ chip in the Judges table, and included in the drafter packet with an explicit
+      instruction: don't spend the edit budget chasing a judge that isn't listening — the fix
+      lives outside the policy (compression, a lighter response contract, or dropping the judge).
+      This deliberately never touches the model-agnostic blame contract: it flags the judge,
+      never a policy node.</p>
       <p><strong>Anchor value</strong> drives the <code>top_importance</code> selection strategy —
       which misalignments the drafter studies. <strong>Re-adjudication priority</strong> is the same
       score, but faded by how confident we already are in the golden label:</p>
@@ -406,6 +419,12 @@
         chips on changed-node cards, and a <em>Run health</em> row in the Guideline-details
         pane when a node is clicked, both aggregating each cycle's <code>policy_blame</code>
         table (wrong✗/right✓ citations, % wrong, and the split / remove / clarify hint).</li>
+        <li><strong>Final policy artifact</strong> — the optimized policy is the run's
+        <em>product</em>: every accepted version lives as a directory of <code>.md</code> node
+        files (<code>policy-graph/&lt;area&gt;/v&lt;run&gt;.&lt;k&gt;/</code>, mirrored to the
+        <code>generator_version</code> SQL table) and is viewable/downloadable — full bundle or
+        compressed digest — from the "final policy" links by the cycle stepper and from the
+        Policy column on the Benchmarks board (<code>GET /api/policy/render</code>).</li>
       </ul>
       <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
       (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror

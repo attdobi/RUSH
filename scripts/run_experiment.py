@@ -780,6 +780,18 @@ def main(argv: list[str] | None = None) -> int:
             cycle["policy_blame"] = exp.policy_blame(
                 mis_records, min_models=1, top_n=None
             )
+            # Judge self-health for this batch: a near-constant judge has no
+            # policy-text gradient — record it, tell the drafter, warn the
+            # operator (measured: qwen byte-flat across three accepted edits
+            # in GenAI run 5 while every reading judge improved).
+            cycle["judge_health"] = exp.judge_health(mis_records)
+            for h in cycle["judge_health"]:
+                if h["degenerate"]:
+                    _phase(
+                        f"cycle {k}/{args.k_max}: WARNING judge {h['model']} "
+                        f"degenerate — {h['top_share']:.0%} of votes are "
+                        f"'{h['top_label']}'; policy edits cannot fix this judge"
+                    )
             blame = [r for r in cycle["policy_blame"]
                      if r["n_models_wrong"] >= 2][:8]
             blamed_node_ids = frozenset(r["node"] for r in blame)
@@ -885,6 +897,7 @@ def main(argv: list[str] | None = None) -> int:
                 provider="anthropic" if args.drafter_model.startswith("anthropic/")
                 else "openai",
                 policy_blame=blame or None,
+                judge_health=cycle["judge_health"] or None,
             )
             chat = drafter_chat or exp.fake_drafter_callable(base_dir)
             n_drafter_calls = len(usage_drafter)

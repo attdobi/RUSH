@@ -347,6 +347,31 @@ Batching sends the policy bundle (~3.7k tokens) once instead of once per image; 
 
 Every call in a labeling pass shares the same system + instructions + policy prefix (~5–7k tokens); caching is a **prefix match**, so all three hosted clients put that shared text *before* the per-image bytes. **Anthropic** additionally sets an explicit `cache_control: {"type": "ephemeral"}` breakpoint on the shared text block — after the first call writes the cache (1.25× input rate), every later call in the pass re-reads the prefix at ~0.1×; note the model-dependent minimum cacheable prefix (Haiku 4.5: 4096 tokens — smaller policies silently skip caching, harmlessly). **OpenAI** caches prefixes automatically; the clients send a stable `prompt_cache_key` (`rush:<area>:<policy_version>`, hosted models only) so concurrent judges route to the same cache shard. **Gemini** caches implicitly once the text part leads. Cache hits are recorded per vote (`cached_input_tokens`, `cache_creation_input_tokens` in `llm_outputs.jsonl` / `label_votes.jsonl`) and priced with provider-specific discounts in `pipeline/providers/pricing.py` (Anthropic reads 0.1×/writes 1.25×; OpenAI cached 0.5×; Gemini cached 0.25×). Caveats: a new policy version is a new prefix (each candidate eval re-warms once); the first `concurrency`-wide wave of a pass all miss (a cache entry is only readable after the first response starts); verify hits by checking the cached-token fields in the run artifacts.
 
+### Judge health — a constant judge has no policy-text gradient
+
+Every cycle records per-judge self-health over the train batch (label distribution +
+accuracy, `cycle["judge_health"]`) and flags a judge **degenerate** when ≥90% of its votes
+are a single class: constant output means the judge is not conditioning on the policy text,
+so no clause edit can move it and its errors pollute the misalignment pool. Measured case
+(GenAI run 5, 2026-07-10): qwen-7B voted `not_gen_ai` on 49/50 anchors and stayed byte-flat
+across three accepted policy edits while every reading judge gained +8.8 to +21.2 macro-F1 —
+the drafter was correctly fixing the policy, but a judge that doesn't read cannot benefit.
+The flag is surfaced as a ⚠ "constant output" chip in the Judges table, warned in the run
+log at the cycle it first appears (k=1, not k=5), and included in the drafter packet with an
+explicit instruction not to spend the edit budget chasing it — the fix lives outside the
+policy (render compression, a lighter response contract, or dropping the judge). This never
+touches the model-agnostic blame contract: it flags the judge, never a policy node.
+
+### Final policy artifact — the run's product
+
+The optimized policy is what downstream consumers ship. Every accepted version is stored as
+a directory of `.md` node files (`policy-graph/<area>/v<run>.<k>/` on the machine that ran
+it, mirrored to the `rush.generator_version` SQL table), and the whole bundle is served by
+`GET /api/policy/render?area=…&version=…&render=full|compressed`. The UI links it in two
+places: **"final policy vN.k — view / download / digest"** next to the cycle stepper in the
+Policy evolution panel, and the Policy column of the **Benchmarks** board. The compressed
+digest link is the production artifact for lightweight labelers.
+
 ### Label cache — never pay for the same (image, prompt, model) twice
 
 Live runs with **Label cache** on (UI checkbox, default checked; CLI `--label-cache` on both
