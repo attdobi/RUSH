@@ -1349,6 +1349,61 @@
     return entries.length ? entries[0] : null;
   }
 
+  // Node health: the per-cycle policy_blame tables (wrong/right citation
+  // counts per node) aggregated across the run — decision quality AT THE
+  // NODE level, guiding when to split, remove, or just clarify a node.
+  const HINT_CHIP = {
+    remove_or_narrow: 'experiment-chip--failed',
+    split_or_tighten: 'experiment-chip--neutral',
+    clarify: 'experiment-chip--accepted',
+  };
+  const HINT_TIP = {
+    remove_or_narrow: 'cited mostly in error — the clause misleads: narrow or remove it',
+    split_or_tighten: 'mixed at volume — the node conflates two patterns: split it into sub-nodes',
+    clarify: 'mostly right, occasional misleads — clarify wording or examples',
+  };
+
+  function nodeBlameStats(cycles) {
+    const agg = {};
+    cycles.forEach((c) => (c.policy_blame || []).forEach((row) => {
+      if (!row?.node) return;
+      const entry = agg[row.node] = agg[row.node] || { wrong: 0, right: 0, models: new Set() };
+      entry.wrong += row.n_wrong_votes || 0;
+      entry.right += row.n_right_votes || 0;
+      (row.models_wrong || []).forEach((m) => entry.models.add(m));
+    }));
+    const out = {};
+    Object.entries(agg).forEach(([node, entry]) => {
+      const total = entry.wrong + entry.right;
+      const share = total ? entry.wrong / total : 0;
+      const hint = share >= 0.6 ? 'remove_or_narrow'
+        : (share >= 0.3 && entry.wrong >= 3 ? 'split_or_tighten' : 'clarify');
+      out[node] = { wrong: entry.wrong, right: entry.right, share, hint,
+                    models: entry.models.size };
+    });
+    return out;
+  }
+
+  function nodeHealthChip(id, health) {
+    if (!health) return '';
+    const pct = `${Math.round(health.share * 100)}%`;
+    return `<span class="experiment-chip ${HINT_CHIP[health.hint] || 'experiment-chip--neutral'}"
+      title="Node health across this run's train batches: cited by WRONG votes ${health.wrong}× vs right ${health.right}× (${pct} wrong · ${health.models} judge${health.models === 1 ? '' : 's'} misled). ${esc(HINT_TIP[health.hint] || '')}">${esc(health.hint)} · ${health.wrong}✗/${health.right}✓</span>`;
+  }
+
+  function nodeHealthStrip(healthByNode) {
+    const rows = Object.entries(healthByNode)
+      .filter(([, h]) => h.wrong > 0)
+      .sort((a, b) => b[1].wrong - a[1].wrong)
+      .slice(0, 8);
+    if (!rows.length) return '';
+    const chips = rows.map(([id, h]) =>
+      `<span class="experiment-node-stat" title="${esc(HINT_TIP[h.hint] || '')} — ${h.models} judge(s) misled">
+        <code>${esc(id)}</code> · ${h.wrong}✗/${h.right}✓ (${Math.round(h.share * 100)}% wrong) · <strong>${esc(h.hint)}</strong></span>`).join('');
+    return `<div class="experiment-node-stats" aria-label="Node health — per-node decision quality">
+      <span class="experiment-node-stat"><strong>Node health</strong> <span class="hint" title="Per policy node, across this run's train batches: how often WRONG votes cited it vs right ones (every judge cites the node it applied, so wrong votes name the clause that misled them). The hint suggests the edit type.">— wrong✗/right✓ citations per node</span></span>${chips}</div>`;
+  }
+
   async function renderPolicyChanges() {
     const host = $('#experimentPolicyChanges');
     if (!host) return;
@@ -1369,9 +1424,10 @@
         return `<span class="experiment-node-stat" title="anchors with SME truth ${esc(truth)} across this run's cycles">
           truth <strong>${esc(truth)}</strong> · ${s.count} anchor${s.count === 1 ? '' : 's'}${top ? ` · misread as <strong>${esc(top[0])}</strong> ×${top[1]}` : ''}</span>`;
       }).join('');
-    const statsBlock = statChips
+    const healthByNode = nodeBlameStats(cycles);
+    const statsBlock = (statChips
       ? `<div class="experiment-node-stats" aria-label="Anchor evidence by class">${statChips}</div>`
-      : '';
+      : '') + nodeHealthStrip(healthByNode);
 
     if (shownVersion === baseVersion) {
       host.innerHTML = `${statsBlock}<p class="hint">Showing ${esc(baseVersion)} (k=0 baseline) — no accepted changes yet.
@@ -1414,6 +1470,7 @@
           <div class="experiment-node-card-head">
             <code>${esc(id)}</code>
             <span class="experiment-chip ${change === 'added' ? 'experiment-chip--accepted' : 'experiment-chip--neutral'}">${esc(change)}</span>
+            ${nodeHealthChip(id, healthByNode[id])}
             <span class="experiment-node-cycle-chips">${cycleChips || '<span class="hint">changed outside this run</span>'}</span>
           </div>
           <div class="experiment-node-card-body">
