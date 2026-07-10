@@ -342,10 +342,11 @@
       <em>split_or_tighten</em>: mixed at volume, the node conflates two patterns ·
       <em>clarify</em>: mostly right, occasional misleads) — recorded on the cycle
       (<code>policy_blame</code>) and fed to the drafter and gate. Aggregated across the run's
-      cycles, the same stats render in the loop view's <strong>Policy evolution</strong> panel as a
-      <em>Node health</em> strip and a per-node chip on each changed node's card
+      cycles, the same stats surface on demand in the loop view's <strong>Policy evolution</strong>
+      panel: a health chip on each changed node's card, and a <em>Run health</em> row in the
+      Guideline-details pane when you click a node in the policy graph
       (wrong✗/right✓ citations, % wrong, hint) — decision quality at the node/sub-category level,
-      at a glance. Only nodes wrong-cited by
+      exactly where you're reading that node. Only nodes wrong-cited by
       <strong>≥2 distinct judges</strong> reach the agents or the amplifier: one judge's quirks
       never steer the policy, but a clause that misleads several gets fixed once and helps them
       all. <strong>This signal only exists because the labeling layer is a multi-agent panel</strong>
@@ -401,9 +402,10 @@
         <code>top_gradient</code>, or <code>top_importance</code>) decides which of these the drafter sees.
         <code>top_importance</code> ranks by the same score as the Adjudicate Importance column
         (plus the (1 + <var>s</var><sub>blame</sub>) factor on the anchor side).</li>
-        <li><strong>Policy evolution panel</strong> — per-node decision quality: the Node health
-        strip and per-node chips aggregate each cycle's <code>policy_blame</code> table
-        (wrong✗/right✓ citations, % wrong, and the split / remove / clarify hint).</li>
+        <li><strong>Policy evolution panel</strong> — per-node decision quality on demand:
+        chips on changed-node cards, and a <em>Run health</em> row in the Guideline-details
+        pane when a node is clicked, both aggregating each cycle's <code>policy_blame</code>
+        table (wrong✗/right✓ citations, % wrong, and the split / remove / clarify hint).</li>
       </ul>
       <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
       (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror

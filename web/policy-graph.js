@@ -357,6 +357,13 @@
             : `<button type="button" class="policy-crumb" data-node-id="${esc(n.id)}">${esc(truncate(n.title || n.id, 24))}</button>`
         ).join('<span class="policy-crumb-sep" aria-hidden="true">›</span>')}</nav>`
       : '';
+    // Node health for the selected run — published by experiment.js from the
+    // per-cycle policy_blame tables (wrong✗/right✓ citations per node). Shown
+    // only on click, only when the node was actually cited by wrong votes.
+    const health = window.rushNodeHealth?.[node.id];
+    const healthRow = health
+      ? `<div><dt>Run health</dt><dd title="${esc(health.tip || '')}">${esc(health.label || '')}</dd></div>`
+      : '';
     return `${clearButton}
       <div class="policy-node-kicker" style="--node-color:${color}">${esc(node.id)}</div>
       <h3>${esc(node.title || node.id)}</h3>
@@ -365,6 +372,7 @@
         <div><dt>Type</dt><dd>${esc(node.node_type || 'unknown')}</dd></div>
         <div><dt>Polarity</dt><dd>${esc(node.polarity || 'mixed')}</dd></div>
         <div><dt>Parent</dt><dd>${esc(node.parent || '—')}</dd></div>
+        ${healthRow}
       </dl>
       <div id="policyNodeMarkdown" class="policy-node-markdown">${markdownHtml}</div>
       <p class="policy-node-file">Source: <code>${esc(node.id)}.md</code> in the versioned policy folder.</p>`;

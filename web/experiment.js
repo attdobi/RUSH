@@ -1394,17 +1394,21 @@
       title="Node health across this run's train batches: cited by WRONG votes ${health.wrong}× vs right ${health.right}× (${pct} wrong · ${health.models} judge${health.models === 1 ? '' : 's'} misled). ${esc(HINT_TIP[health.hint] || '')}">${esc(health.hint)} · ${health.wrong}✗/${health.right}✓</span>`;
   }
 
-  function nodeHealthStrip(healthByNode) {
-    const rows = Object.entries(healthByNode)
-      .filter(([, h]) => h.wrong > 0)
-      .sort((a, b) => b[1].wrong - a[1].wrong)
-      .slice(0, 8);
-    if (!rows.length) return '';
-    const chips = rows.map(([id, h]) =>
-      `<span class="experiment-node-stat" title="${esc(HINT_TIP[h.hint] || '')} — ${h.models} judge(s) misled">
-        <code>${esc(id)}</code> · ${h.wrong}✗/${h.right}✓ (${Math.round(h.share * 100)}% wrong) · <strong>${esc(h.hint)}</strong></span>`).join('');
-    return `<div class="experiment-node-stats" aria-label="Node health — per-node decision quality">
-      <span class="experiment-node-stat"><strong>Node health</strong> <span class="hint" title="Per policy node, across this run's train batches: how often WRONG votes cited it vs right ones (every judge cites the node it applied, so wrong votes name the clause that misled them). The hint suggests the edit type.">— wrong✗/right✓ citations per node</span></span>${chips}</div>`;
+  // Node health lives in two quiet places instead of a strip over the diff
+  // panel (Attila 2026-07-09: distracting under v0 baselines): a chip on each
+  // changed node's card, and the Guideline-details panel when a node is
+  // clicked in the policy graph — published here for policy-graph.js.
+  function publishNodeHealth(healthByNode) {
+    const out = {};
+    Object.entries(healthByNode).forEach(([id, h]) => {
+      if (!h.wrong) return;
+      out[id] = {
+        ...h,
+        label: `${h.wrong}✗/${h.right}✓ citations (${Math.round(h.share * 100)}% wrong) · ${h.hint}`,
+        tip: `Across this run's train batches: cited by WRONG votes ${h.wrong}× vs right ${h.right}× — ${h.models} judge${h.models === 1 ? '' : 's'} misled. ${HINT_TIP[h.hint] || ''}`,
+      };
+    });
+    window.rushNodeHealth = out;
   }
 
   async function renderPolicyChanges() {
@@ -1415,7 +1419,11 @@
     const token = ++state.policyChangesToken;
     const exp = state.current;
     const cycles = (exp?.cycles || []).filter((c) => typeof c.k === 'number');
-    if (!exp || !cycles.length) { host.innerHTML = ''; return; }
+    if (!exp || !cycles.length) {
+      window.rushNodeHealth = {};
+      host.innerHTML = '';
+      return;
+    }
     const shownVersion = versionInForceAfter(cycles, state.kgCycleK ?? cycles[cycles.length - 1].k);
     const baseVersion = exp.base_version || 'v0.1';
 
@@ -1428,9 +1436,10 @@
           truth <strong>${esc(truth)}</strong> · ${s.count} anchor${s.count === 1 ? '' : 's'}${top ? ` · misread as <strong>${esc(top[0])}</strong> ×${top[1]}` : ''}</span>`;
       }).join('');
     const healthByNode = nodeBlameStats(cycles);
-    const statsBlock = (statChips
+    publishNodeHealth(healthByNode);
+    const statsBlock = statChips
       ? `<div class="experiment-node-stats" aria-label="Anchor evidence by class">${statChips}</div>`
-      : '') + nodeHealthStrip(healthByNode);
+      : '';
 
     if (shownVersion === baseVersion) {
       host.innerHTML = `${statsBlock}<p class="hint">Showing ${esc(baseVersion)} (k=0 baseline) — no accepted changes yet.
