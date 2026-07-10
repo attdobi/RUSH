@@ -3053,3 +3053,35 @@ body.view-about #provenance { display: none !important; }
 .about-flow > li::before { content: counter(aboutstep); position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border-radius: 999px; border: 1px solid rgba(130, 181, 255, .5); color: var(--blue, #82b5ff); font-size: 11.5px; font-weight: 800; display: grid; place-items: center; }
 .experiment-live-phase { flex: 1 1 240px; min-width: 0; }
 .experiment-live-bar--idle div { opacity: .35; }
+
+/* r68: compact the loop-view policy-graph header (Attila 2026-07-10: "a
+   bunch of white space appeared"). The version controls wrapped into a tall
+   right-hand stack (select row / stepper row / status row, each full-width),
+   stretching the header to ~330px beside ~100px of copy. Scoped to the
+   spotlight so the run form's .run-controls are untouched. */
+.policy-graph-spotlight .policy-graph-version-controls {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  flex: 0 0 auto;
+}
+.policy-graph-spotlight .policy-graph-version-controls select { min-width: 140px; }
+.policy-graph-spotlight .policy-graph-version-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.policy-graph-spotlight .policy-graph-version-stepper button {
+  min-height: 32px;
+  padding: 6px 14px;
+}
+.policy-graph-spotlight .policy-graph-version-stepper #policyGraphNextNote {
+  flex-basis: 100%;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+}
+.policy-graph-spotlight #policyGraphStatus { margin: 0; text-align: right; }
