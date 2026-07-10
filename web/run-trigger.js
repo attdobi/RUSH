@@ -78,7 +78,11 @@
   // the policy bundle instead of the full render. Default ON only for the
   // measured drowned judge (qwen-7B: 0/6 under the full bundle, 8/8 under a
   // short prompt — 2026-07-09 probe).
-  const COMPRESSED_POLICY_SESSION_KEY = 'rush_compressed_policy_overrides_v1';
+  // _v2 (r58): the _v1 era shipped with a visually-dead toggle (r56 CSS
+  // scoping bug), so stray clicks silently stored overrides users never saw
+  // — e.g. sonnet-5-low stuck "On". Bumping the key discards those; the only
+  // intended default is qwen-7B (the measured prompt-drowned judge).
+  const COMPRESSED_POLICY_SESSION_KEY = 'rush_compressed_policy_overrides_v2';
   const DEFAULT_COMPRESSED_MODELS = new Set(['local/qwen2.5-vl-7b']);
   const compressedPolicyOverrides = readCompressedPolicyOverrides();
 
