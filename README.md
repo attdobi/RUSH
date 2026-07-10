@@ -172,10 +172,19 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      browsable at `GET /api/policy/render?area=…&render=compressed` ("view compressed render" link
      by the picker) — it is the production artifact a lightweight labeler would ship with. Together
      these make **policy length × judge capacity** a first-class research axis of the crank.
+     Each judge is also **compliance-checked** every batch (see "The compliance flag" below):
+     a near-constant-output judge gets a "⚠ non-compliant · deweighted" chip in the Judges
+     table and — with *Deweight non-compliant* on (default) — weight 0 in the system vote and
+     the optimizer signal.
    * **Splits** (GenAI only) — the current minted split state (dev / holdout / benchmark sizes +
      the sampling seed) with editable seed/sizes and a **Mint splits** button. The seed is the
      cross-machine alignment contract: the same seed + sizes over the same source tree produces
      byte-identical manifests everywhere. MNIST's splits are committed, so the row is hidden there.
+   * **Run checkboxes** — **Label cache** (on: serve already-sampled (image, prompt, judge)
+     verdicts from Postgres — see below), **Deweight non-compliant** (on: weight-0 a flagged
+     judge — see "The compliance flag"), **Randomize test / cycle** (off: per-cycle gate
+     partitions with paired incumbent re-eval — see "Test-partition regime"), and **Benchmark
+     readout** (on: the fixed cross-run validation readout that lands on the Benchmarks tab).
    * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low, plus the Gemini
      flashes; it drafts, it never judges) writes ONE clipped policy edit per cycle from the
      misaligned anchors **plus the cycle's policy-blame table**: the nodes most often cited by
@@ -183,7 +192,10 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      votes name the clause that misled them — model-agnostic by construction; a signal only a
      multi-agent labeling panel can produce). The FULL per-node table — wrong/right citation
      counts, `wrong_share`, and an advisory edit-type `hint` (remove_or_narrow / split_or_tighten
-     / clarify) — is recorded on every cycle as `policy_blame` for node health-tracking. A blamed
+     / clarify) — is recorded on every cycle as `policy_blame`: **decision quality as a node
+     property**, surfaced on demand in the UI as a health chip on each changed node's card in
+     the Policy evolution panel and as a **Run health** row in the Guideline-details pane when
+     you click a node in the policy graph (wrong✗/right✓ citations, % wrong, hint). A blamed
      clause takes precedence: fixing the text helps every judge at once — and under
      `top_importance` anchor selection, policy-attributable errors also rank higher via the
      amplifier's new `(1 + blame_share)` factor (blame_share = the fraction of an image's wrong

@@ -238,8 +238,12 @@
         <li><strong>Label.</strong> The panel labels a fresh <var>N</var>-image train batch under the
         current policy <var>G<sub>k</sub></var>. Every judge returns label <var>ŷ</var>, confidence
         <var>c</var>, difficulty, is_boundary (+ the confusion pair), and a justification citing
-        policy nodes.</li>
-        <li><strong>Select anchors.</strong> Misaligned images are ranked by the chosen method
+        policy nodes. A <strong>compliance check</strong> runs on the batch (and on the k=0
+        baseline): a judge whose votes are ≥90% one class is flagged non-compliant — it is not
+        reading the policy — and, with deweighting on, its votes leave everything downstream
+        (sticky for the run).</li>
+        <li><strong>Select anchors.</strong> Misaligned images — computed over <em>compliant</em>
+        votes when deweighting is on — are ranked by the chosen method
         (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤15 misaligned + ≤5 aligned
         become the anchor set (both counts are knobs).</li>
         <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
@@ -252,10 +256,14 @@
         are also attached (<code>text only</code> is the default — the justifications usually carry
         the visual evidence in words). It returns <em>one</em> edit touching ≤3 nodes (the clip
         knob) — add, amend, narrow, or remove. Its token usage and cost are recorded per cycle.</li>
-        <li><strong>Score.</strong> The panel relabels the fixed test partition under the candidate
-        policy <var>G<sub>k</sub></var> ⊕ <var>e</var>.</li>
+        <li><strong>Score.</strong> The panel relabels the gate partition under the candidate
+        policy <var>G<sub>k</sub></var> ⊕ <var>e</var> — the run-long fixed partition by default,
+        or a fresh per-cycle draw with a paired incumbent re-eval when
+        <em>Randomize test / cycle</em> is on. Already-sampled (image, prompt, judge) keys are
+        served from the label cache instead of re-billed.</li>
         <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive
-        model never computes decision quality:</li>
+        model never computes decision quality (the system majority vote excludes deweighted
+        non-compliant judges on both sides):</li>
       </ol>
       ${eq([
         ['accept(<var>e</var>)', '⇔', 'F1<sub>test</sub>(<var>G</var> ⊕ <var>e</var>) &gt; F1<sub>test</sub>(<var>G</var>) + <var>ε</var>', 'and no gate-agent veto'],

@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r68" />
-  <script src="demos.js?v=demo-mnist-kdd-r68"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r69" />
+  <script src="demos.js?v=demo-mnist-kdd-r69"></script>
 </head>
 <body>
   <header class="hero">
@@ -65,7 +65,10 @@
           <div class="experiment-help-body">
             <p><strong>Judges — your panel.</strong> The 2–5 cheap models below label every image and score
             every metric. All decision-quality numbers on this page — F1 before/after, the learning curve,
-            the gate metric — come from THIS panel. No expensive model ever scores quality.</p>
+            the gate metric — come from THIS panel. No expensive model ever scores quality. Every batch is
+            compliance-checked: a judge emitting a near-constant label is flagged non-compliant and (by
+            default) deweighted — its votes leave the majority vote and the optimizer signal, because no
+            policy edit can fix a judge that isn't reading the policy.</p>
             <p><strong>Drafter — the optimizer.</strong> Once per cycle, one model reads the most
             instructive misaligned anchors and writes ONE policy edit of at most 5 node files. A cheaper
             drafter is a legitimate choice — it drafts, it never judges. "Input" picks what it reads per
@@ -335,16 +338,16 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r68"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r68"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r68"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r68"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r68"></script>
-  <script src="benchmarks.js?v=demo-mnist-kdd-r68"></script>
-  <script src="about.js?v=demo-mnist-kdd-r68"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r68"></script>
+  <script src="app.js?v=demo-mnist-kdd-r69"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r69"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r69"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r69"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r69"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r69"></script>
+  <script src="about.js?v=demo-mnist-kdd-r69"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r69"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r68"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r68"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r69"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r69"></script>
 </body>
 </html>
