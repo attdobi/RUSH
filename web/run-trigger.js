@@ -27,10 +27,9 @@
     { id: 'openai/gpt-5.4-mini-medium', checked: false },
     { id: 'openai/gpt-5.4-mini-low', checked: true },
     { id: 'google/gemini-3.5-flash', checked: false },
-    // Note: distinct gemini-3.1-flash SKU/rate is unverified (public sources
-    // show the 3.1 gen as Pro + Flash-Lite; the full Flash is 3.5). Rate
-    // mirrors gemini-3-flash-preview (0.50/3.00) — may be identical.
-    { id: 'google/gemini-3.1-flash', checked: false },
+    // gemini-3.1-flash (bare) REMOVED r56: it does not exist upstream — the
+    // live models.list() shows the 3.1 gen as Pro + Flash-Lite only; the
+    // full Flash is 3.5. The old registry entry 404'd on every call.
     { id: 'google/gemini-3-flash-preview', checked: false },
     // Attila 2026-07-07: haiku out of the defaults (too expensive per
     // unit of quality on this task) — still selectable.
@@ -109,10 +108,6 @@
     'anthropic/claude-haiku-4-5-low': { input: 1.0, output: 5.0 },
     'anthropic/claude-haiku-4-5-medium': { input: 1.0, output: 5.0 },
     'google/gemini-3.5-flash': { input: 1.50, output: 9.0 },
-    // Note: gemini-3.1-flash rate unverified — mirrors gemini-3-flash-preview
-    // (0.50/3.00); may be the same SKU. Keep in sync with
-    // pipeline/providers/pricing.py (sync-tested).
-    'google/gemini-3.1-flash': { input: 0.50, output: 3.0 },
     'google/gemini-3-flash-preview': { input: 0.50, output: 3.0 },
     'google/gemini-3.1-flash-lite': { input: 0.25, output: 1.50 },
     'local/qwen3.6-27b': { input: 0.0, output: 0.0 },
@@ -526,11 +521,11 @@
     const enabled = compressedPolicyEnabled(model);
     return `
       <div class="local-reasoning-control" data-compressed-policy-for="${attr(model)}">
-        <span class="local-reasoning-label" title="Which render of the policy bundle this judge labels under. Compressed = the deterministic structural digest (rationale/SME-workflow/curation sections dropped, every decision rule kept verbatim) — small judges measurably collapse under the full bundle (qwen-7B: 0/6 detected under the full ~25k-char policy, 8/8 under a short prompt). The policy-rendering × judge-scale research knob; recorded on every run.">Policy</span>
-        <label class="local-reasoning-switch" aria-label="Policy render for ${attr(model)}">
+        <span class="local-reasoning-label" title="On = this judge labels under the compressed policy (the deterministic structural digest: rationale/SME-workflow/curation sections dropped, every decision rule kept verbatim). Off = the full policy bundle. Small judges measurably collapse under the full bundle (qwen-7B: 0/6 detected under the full ~25k-char policy, 8/8 under a short prompt). The policy-length × judge-capacity research knob; recorded on every run.">Prompt compression</span>
+        <label class="local-reasoning-switch" aria-label="Prompt compression for ${attr(model)}">
           <input class="compressed-policy-input" type="checkbox" data-compressed-policy-model="${attr(model)}"${enabled ? ' checked' : ''} />
           <span class="local-reasoning-slider" aria-hidden="true"></span>
-          <span class="local-reasoning-state">${enabled ? 'compressed' : 'full'}</span>
+          <span class="local-reasoning-state">${enabled ? 'On' : 'Off'}</span>
         </label>
       </div>`;
   }
@@ -1157,7 +1152,7 @@
         compressedPolicyOverrides[model] = input.checked === true;
         writeCompressedPolicyOverrides();
         const stateEl = input.closest('.local-reasoning-switch')?.querySelector('.local-reasoning-state');
-        if (stateEl) stateEl.textContent = input.checked ? 'compressed' : 'full';
+        if (stateEl) stateEl.textContent = input.checked ? 'On' : 'Off';
         return;
       }
       if (!input.classList.contains('local-reasoning-input')) return;

@@ -601,10 +601,11 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
                            details={"field": name})
         model_id = raw.strip()
         provider = model_id.split("/", 1)[0]
-        if provider not in {"openai", "anthropic"}:
+        if provider not in {"openai", "anthropic", "google"}:
             raise APIError(
                 400, "validation_error",
-                f"{name} must be an openai/* or anthropic/* model (text-only agent path)",
+                f"{name} must be an openai/*, anthropic/*, or google/* model "
+                "(text-only agent path)",
                 details={"field": name},
             )
         if policy_allowed_only:

@@ -1224,3 +1224,83 @@ class TestProviderInvariants:
         assert resp.prepared_image_height > 0
         assert resp.prepared_image_byte_size > 0
         assert resp.prepared_image_mime_type == "image/jpeg"
+
+
+class TestGeminiChatTransport:
+    """Text-only Gemini chat path for drafter/gate agents (r56 — Attila:
+    gemini-3.1-flash as a gate option)."""
+
+    def test_registry_dispatches_gemini_chat_lazily(self) -> None:
+        # Construction must never authenticate or touch the network — the
+        # SDK client is built lazily on the first call.
+        from pipeline.providers.registry import get_chat_callable
+
+        chat = get_chat_callable("google/gemini-3.5-flash")
+        assert callable(chat)
+
+    def test_message_mapping_and_usage_sink(self, monkeypatch: Any) -> None:
+        from pipeline.providers import gemini_chat
+
+        recorded: dict[str, Any] = {}
+
+        class _FakeModels:
+            def generate_content(self, **kwargs: Any):
+                recorded.update(kwargs)
+                return {
+                    "candidates": [
+                        {"content": {"parts": [{"text": '{"decision":"accept"}'}]}}
+                    ],
+                    "usage_metadata": {
+                        "prompt_token_count": 120,
+                        "candidates_token_count": 30,
+                        "cached_content_token_count": 40,
+                    },
+                }
+
+        class _FakeClient:
+            models = _FakeModels()
+
+        # Intercept BOTH the secret lookup and the SDK client so the lazy
+        # auth path can never reach the network.
+        monkeypatch.setattr(gemini_chat.auth, "get_secret", lambda var: "test-key")
+        import google.genai as genai_module
+
+        monkeypatch.setattr(genai_module, "Client", lambda **kw: _FakeClient())
+
+        sink: list[dict[str, Any]] = []
+        chat = gemini_chat.policy_chat_callable(
+            "google/gemini-3.5-flash", usage_sink=sink
+        )
+        out = chat([
+            {"role": "system", "content": "You are the gate."},
+            {"role": "user", "content": "verdict?"},
+        ])
+        assert out == '{"decision":"accept"}'
+        assert recorded["model"] == "gemini-3.5-flash"
+        assert recorded["config"]["system_instruction"] == "You are the gate."
+        assert recorded["contents"] == [
+            {"role": "user", "parts": [{"text": "verdict?"}]}
+        ]
+        assert sink == [{
+            "model_id": "google/gemini-3.5-flash",
+            "input_tokens": 120,
+            "output_tokens": 30,
+            "cached_input_tokens": 40,
+        }]
+
+    def test_spec_for_rejects_non_gemini(self) -> None:
+        from pipeline.providers.gemini_chat import _spec_for
+
+        with pytest.raises(ValueError):
+            _spec_for("local/qwen2.5-vl-7b")
+        with pytest.raises(KeyError):
+            _spec_for("google/not-a-model")
+
+    def test_gate_validator_accepts_google_models(self) -> None:
+        from pipeline.web._safety import validate_experiment_payload
+        from tests.test_web_server import _experiment_payload
+
+        request = validate_experiment_payload(
+            _experiment_payload(gate_model="google/gemini-3.5-flash")
+        )
+        assert request["gate_model"] == "google/gemini-3.5-flash"

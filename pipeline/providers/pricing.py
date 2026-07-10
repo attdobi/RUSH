@@ -42,12 +42,8 @@ PRICING: dict[str, dict[str, float]] = {
     "anthropic/claude-haiku-4-5-medium": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "image_per_image": 0.0},
     # Latest Gemini flash (GA).
     "google/gemini-3.5-flash": {"input_per_mtok": 1.50, "output_per_mtok": 9.0, "image_per_image": 0.0},
-    # TODO(attila-confirm): the distinct gemini-3.1-flash SKU/rate is UNVERIFIED.
-    # Public sources show the 3.1 generation as Pro + Flash-Lite only; the full
-    # "Flash" tier is 3.5. This rate (0.50/3.00) MIRRORS gemini-3-flash-preview
-    # and may in fact be the SAME SKU. Confirm the real 3.1-flash rate (or drop
-    # it if it collapses into 3-flash-preview) before trusting the estimate.
-    "google/gemini-3.1-flash": {"input_per_mtok": 0.50, "output_per_mtok": 3.0, "image_per_image": 0.0},
+    # gemini-3.1-flash (bare) REMOVED r56: confirmed nonexistent upstream
+    # (models.list() has 3.1 Pro + Flash-Lite only; full Flash is 3.5).
     # Gemini 3 Flash Preview.
     "google/gemini-3-flash-preview": {"input_per_mtok": 0.50, "output_per_mtok": 3.0, "image_per_image": 0.0},
     # Cheapest Gemini: Flash-Lite GA.

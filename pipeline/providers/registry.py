@@ -272,17 +272,9 @@ MODEL_REGISTRY: Final[dict[str, ModelSpec]] = {
         phase=2,
         params={},
     ),
-    # TODO(attila-confirm): gemini-3.1-flash is UNVERIFIED. Public sources show
-    # the 3.1 gen as Pro + Flash-Lite only (full Flash is 3.5); this may be the
-    # SAME SKU as gemini-3-flash-preview (identical 0.50/3.00 rate). Confirm the
-    # real 3.1-flash model name/rate — or drop it — before trusting results.
-    "google/gemini-3.1-flash": ModelSpec(
-        model_id="google/gemini-3.1-flash",
-        provider="gemini",
-        provider_model_name="gemini-3.1-flash",
-        phase=2,
-        params={},
-    ),
+    # gemini-3.1-flash (bare) REMOVED r56: confirmed nonexistent upstream —
+    # models.list() shows the 3.1 generation as Pro + Flash-Lite only (the
+    # full Flash tier is 3.5). Every call to it 404'd.
     # Gemini 3 Flash Preview — cheaper than 3.5 flash ($0.50/$3.00).
     "google/gemini-3-flash-preview": ModelSpec(
         model_id="google/gemini-3-flash-preview",
@@ -525,8 +517,8 @@ def build_client(
 def get_chat_callable(model_id: str, *, usage_sink: list | None = None):
     """Return a TEXT-ONLY ``ChatCallable`` for a registry model id.
 
-    Dispatches by provider to the policy chat factories (OpenAI / Anthropic —
-    the only providers with a text-only path today). This is the factory
+    Dispatches by provider to the policy chat factories (OpenAI / Anthropic /
+    Gemini). This is the factory
     ``scripts/propose_policy_patch.py --execute`` probes for, and what the
     experiment crank uses for its drafter and gate agents.
 
@@ -548,9 +540,13 @@ def get_chat_callable(model_id: str, *, usage_sink: list | None = None):
         from pipeline.providers.anthropic_chat import policy_chat_callable
 
         return policy_chat_callable(model_id, usage_sink=usage_sink)
+    if spec.provider == "gemini":
+        from pipeline.providers.gemini_chat import policy_chat_callable
+
+        return policy_chat_callable(model_id, usage_sink=usage_sink)
     raise ValueError(
         f"no text-only chat path for provider '{spec.provider}' (model {model_id}); "
-        "use an openai/* or anthropic/* model for drafter/gate agents"
+        "use an openai/*, anthropic/*, or google/* model for drafter/gate agents"
     )
 
 

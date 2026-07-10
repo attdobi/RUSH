@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r55" />
-  <script src="demos.js?v=demo-mnist-kdd-r55"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r56" />
+  <script src="demos.js?v=demo-mnist-kdd-r56"></script>
 </head>
 <body>
   <header class="hero">
@@ -88,7 +88,7 @@
           </div>
         </details>
         <fieldset class="model-picker compact-model-picker" aria-label="Judge panel">
-          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate) · per-judge <strong>Policy</strong> toggle = full bundle vs the deterministic compressed render (<a id="compressedRenderLink" href="/api/policy/render?render=compressed" target="_blank" rel="noopener" title="The exact digest a compressed judge labels under — the production artifact for lightweight labelers">view compressed render ↗</a>)</span></legend>
+          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate) · per-judge <strong>Prompt compression</strong> toggle: On = the judge labels under the deterministic compressed policy, Off = the full bundle (<a id="compressedRenderLink" href="/api/policy/render?render=compressed" target="_blank" rel="noopener" title="The exact digest a compressed judge labels under — the production artifact for lightweight labelers">view compressed render ↗</a>)</span></legend>
           <div id="runTriggerModels" class="model-picker-list"></div>
         </fieldset>
         <div class="run-controls experiment-config-row" id="genaiSplitsRow" aria-label="GenAI data splits" hidden>
@@ -145,11 +145,19 @@
               <optgroup label="Metric rule + agent veto (rule is the hard wall)">
                 <option value="openai/gpt-5.5">+ gpt-5.5 gate agent — optional veto, reported in the ledger</option>
                 <option value="openai/gpt-5.5-low">+ gpt-5.5-low gate agent</option>
+                <option value="openai/gpt-5.4-mini-medium">+ gpt-5.4-mini-medium gate agent (cheap)</option>
+                <option value="openai/gpt-5.4-mini-low">+ gpt-5.4-mini-low gate agent (cheapest)</option>
+                <option value="google/gemini-3.5-flash">+ gemini-3.5-flash gate agent</option>
+                <option value="google/gemini-3.1-flash-lite">+ gemini-3.1-flash-lite gate agent (cheapest)</option>
                 <option value="anthropic/claude-opus-4-7">+ opus-4-7 gate agent</option>
               </optgroup>
               <optgroup label="Critic agent only (agent verdict decides; metric advisory)">
                 <option value="agent_only:openai/gpt-5.5">gpt-5.5 critic gate — no metric rule</option>
                 <option value="agent_only:openai/gpt-5.5-low">gpt-5.5-low critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.4-mini-medium">gpt-5.4-mini-medium critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.4-mini-low">gpt-5.4-mini-low critic gate — no metric rule</option>
+                <option value="agent_only:google/gemini-3.5-flash">gemini-3.5-flash critic gate — no metric rule</option>
+                <option value="agent_only:google/gemini-3.1-flash-lite">gemini-3.1-flash-lite critic gate — no metric rule</option>
                 <option value="agent_only:anthropic/claude-opus-4-7">opus-4-7 critic gate — no metric rule</option>
               </optgroup>
               <option value="off">Gate OFF — accept every edit</option>
@@ -322,16 +330,16 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r55"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r55"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r55"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r55"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r55"></script>
-  <script src="benchmarks.js?v=demo-mnist-kdd-r55"></script>
-  <script src="about.js?v=demo-mnist-kdd-r55"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r55"></script>
+  <script src="app.js?v=demo-mnist-kdd-r56"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r56"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r56"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r56"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r56"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r56"></script>
+  <script src="about.js?v=demo-mnist-kdd-r56"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r56"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r55"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r55"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r56"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r56"></script>
 </body>
 </html>

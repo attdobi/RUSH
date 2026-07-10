@@ -156,9 +156,9 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
 1. **Run the loop** — the experiment crank IS the page. The config panel is grouped by role:
    * **Judges** — your 2–5 cheap panel models. They label every image and score every metric;
      all decision-quality numbers (F1 before/after, the learning curve, the gate metric) come from
-     THIS panel. No expensive model ever scores quality. Each judge row carries a **Policy** toggle
-     (`--compressed-models`, per-judge): `full` labels under the complete policy bundle;
-     `compressed` labels under the **deterministic structural digest**
+     THIS panel. No expensive model ever scores quality. Each judge row carries a
+     **Prompt compression** toggle (`--compressed-models`, per-judge): **Off** labels under the
+     complete policy bundle; **On** labels under the **deterministic structural digest**
      (`pipeline/policy_render.py`) — rationale, SME-workflow, and dataset-curation sections
      dropped whole, every node id / edge / decision rule kept byte-for-byte. A projection, never a
      paraphrase: no compression agent, nothing to audit, and (policy version, render) still pins
