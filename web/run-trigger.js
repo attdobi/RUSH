@@ -521,7 +521,7 @@
     const enabled = compressedPolicyEnabled(model);
     return `
       <div class="local-reasoning-control" data-compressed-policy-for="${attr(model)}">
-        <span class="local-reasoning-label" title="On = this judge labels under the compressed policy (the deterministic structural digest: rationale/SME-workflow/curation sections dropped, every decision rule kept verbatim). Off = the full policy bundle. Small judges measurably collapse under the full bundle (qwen-7B: 0/6 detected under the full ~25k-char policy, 8/8 under a short prompt). The policy-length × judge-capacity research knob; recorded on every run.">Prompt compression</span>
+        <span class="local-reasoning-label" title="Prompt compression. On = this judge labels under the compressed policy (the deterministic structural digest: rationale/SME-workflow/curation sections dropped, every decision rule kept verbatim). Off = the full policy bundle. Small judges measurably collapse under the full bundle (qwen-7B: 0/6 detected under the full ~25k-char policy, 8/8 under a short prompt). The policy-length × judge-capacity research knob; recorded on every run.">Compress</span>
         <label class="local-reasoning-switch" aria-label="Prompt compression for ${attr(model)}">
           <input class="compressed-policy-input" type="checkbox" data-compressed-policy-model="${attr(model)}"${enabled ? ' checked' : ''} />
           <span class="local-reasoning-slider" aria-hidden="true"></span>

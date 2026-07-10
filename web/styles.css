@@ -737,15 +737,18 @@ body.rush-api-unavailable .api-section:not(#about) > :not(.api-placeholder) { di
   background:#aab2bf;
   transition:transform .16s ease, background .16s ease;
 }
-.local-reasoning-input:checked + .local-reasoning-slider {
+.local-reasoning-input:checked + .local-reasoning-slider,
+.compressed-policy-input:checked + .local-reasoning-slider {
   border-color:#1f4a3c;
   background:#123227;
 }
-.local-reasoning-input:checked + .local-reasoning-slider::after {
+.local-reasoning-input:checked + .local-reasoning-slider::after,
+.compressed-policy-input:checked + .local-reasoning-slider::after {
   transform:translateX(16px);
   background:#38d39f;
 }
-.local-reasoning-input:focus-visible + .local-reasoning-slider {
+.local-reasoning-input:focus-visible + .local-reasoning-slider,
+.compressed-policy-input:focus-visible + .local-reasoning-slider {
   outline:2px solid #4de0a6;
   outline-offset:2px;
 }
