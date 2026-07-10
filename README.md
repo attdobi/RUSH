@@ -347,20 +347,38 @@ Batching sends the policy bundle (~3.7k tokens) once instead of once per image; 
 
 Every call in a labeling pass shares the same system + instructions + policy prefix (~5–7k tokens); caching is a **prefix match**, so all three hosted clients put that shared text *before* the per-image bytes. **Anthropic** additionally sets an explicit `cache_control: {"type": "ephemeral"}` breakpoint on the shared text block — after the first call writes the cache (1.25× input rate), every later call in the pass re-reads the prefix at ~0.1×; note the model-dependent minimum cacheable prefix (Haiku 4.5: 4096 tokens — smaller policies silently skip caching, harmlessly). **OpenAI** caches prefixes automatically; the clients send a stable `prompt_cache_key` (`rush:<area>:<policy_version>`, hosted models only) so concurrent judges route to the same cache shard. **Gemini** caches implicitly once the text part leads. Cache hits are recorded per vote (`cached_input_tokens`, `cache_creation_input_tokens` in `llm_outputs.jsonl` / `label_votes.jsonl`) and priced with provider-specific discounts in `pipeline/providers/pricing.py` (Anthropic reads 0.1×/writes 1.25×; OpenAI cached 0.5×; Gemini cached 0.25×). Caveats: a new policy version is a new prefix (each candidate eval re-warms once); the first `concurrency`-wide wave of a pass all miss (a cache entry is only readable after the first response starts); verify hits by checking the cached-token fields in the run artifacts.
 
-### Judge health — a constant judge has no policy-text gradient
+### The compliance flag — a constant judge has no policy-text gradient
 
-Every cycle records per-judge self-health over the train batch (label distribution +
-accuracy, `cycle["judge_health"]`) and flags a judge **degenerate** when ≥90% of its votes
-are a single class: constant output means the judge is not conditioning on the policy text,
-so no clause edit can move it and its errors pollute the misalignment pool. Measured case
-(GenAI run 5, 2026-07-10): qwen-7B voted `not_gen_ai` on 49/50 anchors and stayed byte-flat
-across three accepted policy edits while every reading judge gained +8.8 to +21.2 macro-F1 —
-the drafter was correctly fixing the policy, but a judge that doesn't read cannot benefit.
-The flag is surfaced as a ⚠ "constant output" chip in the Judges table, warned in the run
-log at the cycle it first appears (k=1, not k=5), and included in the drafter packet with an
-explicit instruction not to spend the edit budget chasing it — the fix lives outside the
-policy (render compression, a lighter response contract, or dropping the judge). This never
-touches the model-agnostic blame contract: it flags the judge, never a policy node.
+The k=0 baseline and every cycle record per-judge self-health (label distribution +
+accuracy, `cycle["judge_health"]`) and flag a judge **non-compliant** when ≥90% of its
+votes are a single class: constant output means the judge is not conditioning on the policy
+text, so no clause edit can move it and its errors pollute the misalignment pool. Measured
+case (GenAI run 5, 2026-07-10): qwen-7B voted `not_gen_ai` on 49/50 anchors and stayed
+byte-flat across three accepted policy edits while every reading judge gained +8.8 to +21.2
+macro-F1 — the drafter was correctly fixing the policy, but a judge that doesn't read
+cannot benefit.
+
+The response is to **deweight, not fix** (`--compliance-deweight on`, the default; UI
+"Deweight non-compliant"): once flagged (sticky for the run, usually at the baseline), the
+judge's votes leave the **system majority vote** and the optimizer's **anchor/blame
+signal** — an image only the non-compliant judge got wrong reclassifies as aligned and
+stops feeding the drafter. Its own per-judge row stays on the chart and in the Judges table
+("⚠ non-compliant · deweighted") and the drafter packet says so explicitly. The stance
+(Attila): for a classification goal you'd compress harder; the goal here is *policy
+development*, so deweight the non-listener. Holdout/benchmark readouts stay full-panel
+(product truth, cross-run comparable). This never touches the model-agnostic blame
+contract: it flags the judge, never a policy node.
+
+### Test-partition regime — fixed yardstick or per-cycle resample
+
+Default (`--test-mode fixed`): one seeded, stratified test partition per run — the gate's
+stable yardstick (which argues for a relatively large T). `--test-mode resample` (UI
+"Randomize test / cycle", off by default) re-draws the gate partition every cycle from
+images never used for training and **re-evaluates the incumbent on it before the
+candidate** — a paired eval on the same fresh images, removing fixed-partition overfitting
+and doubling as a winner's-curse mitigation, at ~+1 test eval per cycle. The K-fold-style
+variant — parallel runs rotating the test partition — is on the research list; the fixed
+cross-run benchmark remains the honest comparison in every mode.
 
 ### Final policy artifact — the run's product
 

@@ -21,7 +21,7 @@ from pipeline import experiment as exp  # noqa: E402
 from pipeline.scoring.decision_quality_multiclass import (  # noqa: E402
     compute_multiclass_metrics,
 )
-from pipeline.scoring.tasks import MNIST_MULTICLASS  # noqa: E402
+from pipeline.scoring.tasks import GENAI_BINARY, MNIST_MULTICLASS  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -1583,21 +1583,22 @@ def test_judge_health_flags_constant_output_judge():
         ]))
     health = {h["model"]: h for h in exp.judge_health(records)}
     flat = health["local/flatliner"]
-    assert flat["degenerate"] is True
+    assert flat["compliant"] is False
     assert flat["top_label"] == "not_gen_ai"
     assert flat["top_share"] == 1.0
     assert flat["accuracy"] == pytest.approx(0.5)
-    assert health["openai/healthy"]["degenerate"] is False
+    assert health["openai/healthy"]["compliant"] is True
+    assert exp.noncompliant_judges(exp.judge_health(records)) == frozenset({"local/flatliner"})
     # Below the vote floor nothing is flagged — one batch of two votes is
-    # not evidence of degeneracy.
+    # not evidence of non-compliance.
     tiny = exp.judge_health(records[:2])
-    assert all(not h["degenerate"] for h in tiny)
+    assert all(h["compliant"] for h in tiny)
 
 
 def test_judge_health_flows_into_drafter_packet_and_prompt():
     health = [{"model": "local/flatliner", "n_votes": 20,
                "label_counts": {"not_gen_ai": 20}, "top_label": "not_gen_ai",
-               "top_share": 1.0, "accuracy": 0.5, "degenerate": True}]
+               "top_share": 1.0, "accuracy": 0.5, "compliant": False}]
     drafter = exp.build_drafter_messages(
         policy_markdown="# P", base_version="v0.1", area="Generative_AI",
         anchors=[], max_changes=3, k=1, judge_health=health,
@@ -1609,9 +1610,82 @@ def test_judge_health_flows_into_drafter_packet_and_prompt():
         anchors=[], max_changes=3, k=1,
     )
     assert "judge_health" not in json.loads(bare[1]["content"])
-    # The system prompt must tell the drafter a degenerate judge has no
+    # The system prompt must tell the drafter a non-compliant judge has no
     # policy-text gradient — do not chase it with clause edits.
     for area in ("MNIST_Digits", "Generative_AI"):
         prompt = exp.drafter_system_prompt(area=area, max_changes=3)
         assert "JUDGE HEALTH" in prompt
-        assert "degenerate" in prompt
+        assert "non-compliant" in prompt
+
+
+def test_deweight_excludes_noncompliant_from_system_vote_only():
+    # 3-judge panel: two compliant judges are right, the flatliner is wrong.
+    # Deweighted, the system vote is unanimous-right; undeweighted, the
+    # flatliner still can't outvote 2-1 here, so assert on a tie case: with
+    # 2 judges split and the flatliner breaking the tie, exclusion flips the
+    # system verdict from decided-wrong to right (or tie-excluded).
+    truth = {"img_1": "gen_ai"}
+    votes = [
+        {"image_id": "img_1", "labeler_id": "openai/a", "label": "gen_ai"},
+        {"image_id": "img_1", "labeler_id": "google/b", "label": "not_gen_ai"},
+        {"image_id": "img_1", "labeler_id": "local/flatliner", "label": "not_gen_ai"},
+    ]
+    full = exp.panel_metrics(votes, truth, task=GENAI_BINARY)
+    assert full[exp.SYSTEM_SCORER]["accuracy"] == 0.0  # 2-1 wrong majority
+    # Per-judge rows survive the deweight; the system row loses the vote and
+    # the remaining 1-1 tie yields no decided system verdict at all.
+    deweighted = exp.panel_metrics(
+        votes, truth, task=GENAI_BINARY,
+        system_exclude=frozenset({"local/flatliner"}),
+    )
+    assert "local/flatliner" in deweighted
+    assert exp.SYSTEM_SCORER not in deweighted  # tie -> no system verdict
+    decisions = exp.system_decisions(
+        votes, truth, task=GENAI_BINARY,
+        system_exclude=frozenset({"local/flatliner"}),
+    )
+    assert decisions == {}
+
+
+def test_strip_noncompliant_votes_recomputes_alignment():
+    records = [
+        _mis_record("img_1", "gen_ai", [
+            {"labeler_id": "openai/a", "label": "gen_ai"},
+            {"labeler_id": "local/flatliner", "label": "not_gen_ai"},
+        ], mis_type="minority_wrong"),
+        _mis_record("img_2", "gen_ai", [
+            {"labeler_id": "openai/a", "label": "not_gen_ai"},
+            {"labeler_id": "local/flatliner", "label": "not_gen_ai"},
+        ], mis_type="consensus_wrong"),
+    ]
+    stripped = exp.strip_noncompliant_votes(records, frozenset({"local/flatliner"}))
+    # img_1: only the flatliner was wrong -> now all remaining votes agree
+    # with truth -> reclassified all_agree (leaves the anchor/blame pool).
+    assert stripped[0]["misalignment_type"] == "all_agree"
+    assert all(v["labeler_id"] != "local/flatliner" for v in stripped[0]["votes"])
+    # img_2: a compliant judge is still wrong -> stays misaligned.
+    assert stripped[1]["misalignment_type"] == "consensus_wrong"
+    # Originals untouched (optimization-time view, never a rewrite).
+    assert len(records[0]["votes"]) == 2
+    assert records[0]["misalignment_type"] == "minority_wrong"
+    # No-op fast path.
+    assert exp.strip_noncompliant_votes(records, frozenset()) is records
+
+
+def test_gate_comparison_honors_system_exclude():
+    truth = {"img_1": "gen_ai", "img_2": "not_gen_ai"}
+    def _votes(a_labels):
+        out = []
+        for img, (a, flat) in a_labels.items():
+            out.append({"image_id": img, "labeler_id": "openai/a", "label": a})
+            out.append({"image_id": img, "labeler_id": "openai/b", "label": a})
+            out.append({"image_id": img, "labeler_id": "local/flatliner", "label": flat})
+        return out
+    before = _votes({"img_1": ("gen_ai", "not_gen_ai"), "img_2": ("not_gen_ai", "not_gen_ai")})
+    after = _votes({"img_1": ("gen_ai", "not_gen_ai"), "img_2": ("not_gen_ai", "not_gen_ai")})
+    excl = frozenset({"local/flatliner"})
+    comparison = exp.gate_comparison(
+        before, after, truth, task=GENAI_BINARY, system_exclude=excl
+    )
+    assert comparison["n_common"] == 2
+    assert comparison["value_before"] == comparison["value_after"] == 1.0

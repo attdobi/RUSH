@@ -674,6 +674,8 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
             payload.get("compressed_models"), models
         ),
         "label_cache": payload.get("label_cache") is True,
+        "test_mode": _test_mode(payload.get("test_mode")),
+        "compliance_deweight": payload.get("compliance_deweight") is not False,
         "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),
@@ -681,6 +683,17 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "live": live,
         "allow_spend": bool(payload.get("allow_spend")),
     }
+
+
+def _test_mode(raw: Any) -> str:
+    """Gate-partition mode: fixed (default) or per-cycle resample."""
+    if raw in (None, "", "fixed"):
+        return "fixed"
+    if raw == "resample":
+        return "resample"
+    raise APIError(400, "validation_error",
+                   "test_mode must be 'fixed' or 'resample'",
+                   details={"field": "test_mode"})
 
 
 def _gate_persona(raw: Any) -> str:

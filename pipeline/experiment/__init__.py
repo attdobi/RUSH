@@ -405,8 +405,15 @@ def judge_health(
     ``policy_blame`` still ignores single-judge quirks; this flags the judge
     itself, never a policy node.
 
+    Attila's framing (2026-07-10): this is a COMPLIANCE flag — the judge is
+    not complying with the labeling task (not listening to the input/policy).
+    The response is to DEWEIGHT its vote (see the driver's
+    ``--compliance-deweight``), not to chase it with edits: "if the goal is
+    classification we can compress more, but if our goal is policy
+    development it's best to deweight."
+
     Returns one row per judge: ``{"model", "n_votes", "label_counts",
-    "top_label", "top_share", "accuracy", "degenerate"}``, sorted by model.
+    "top_label", "top_share", "accuracy", "compliant"}``, sorted by model.
     """
     per_judge: dict[str, dict[str, Any]] = {}
     for rec in misalignment_records:
@@ -433,8 +440,45 @@ def judge_health(
             "top_label": top_label,
             "top_share": round(top_share, 3),
             "accuracy": round(s["correct"] / s["n"], 3) if s["n"] else None,
-            "degenerate": s["n"] >= min_votes and top_share >= degenerate_share,
+            "compliant": not (s["n"] >= min_votes and top_share >= degenerate_share),
         })
+    return out
+
+
+def noncompliant_judges(health: list[dict[str, Any]]) -> frozenset[str]:
+    """Model ids flagged non-compliant in a judge_health table."""
+    return frozenset(
+        str(h["model"]) for h in health or [] if h.get("compliant") is False
+    )
+
+
+def strip_noncompliant_votes(
+    misalignment_records: list[dict[str, Any]],
+    excluded: frozenset[str] | set[str],
+) -> list[dict[str, Any]]:
+    """Deweight (weight 0) non-compliant judges in the OPTIMIZATION signal.
+
+    Returns copies of the records with the excluded judges' votes removed,
+    and ``misalignment_type`` recomputed to ``all_agree`` when every
+    remaining decisive vote matches the SME truth — so an image that only a
+    non-compliant judge got wrong no longer feeds anchors or blame. The
+    original records (and the run artifacts) are untouched: deweighting is
+    an optimization-time view, never a rewrite of what the judges said.
+    """
+    if not excluded:
+        return misalignment_records
+    out: list[dict[str, Any]] = []
+    for rec in misalignment_records:
+        votes = [
+            v for v in (rec.get("votes") or [])
+            if str(v.get("labeler_id") or v.get("model_id") or "?") not in excluded
+        ]
+        clone = {**rec, "votes": votes}
+        truth = rec.get("sme_truth")
+        decisive = [v for v in votes if v.get("label") not in (None, "", "abstain")]
+        if decisive and all(v.get("label") == truth for v in decisive):
+            clone["misalignment_type"] = "all_agree"
+        out.append(clone)
     return out
 
 
@@ -544,6 +588,7 @@ def panel_metrics(
     *,
     task: ScoringTask,
     include_confusion: bool = False,
+    system_exclude: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, dict[str, Any]]:
     """Compute per-judge + system metrics for one run's votes.
 
@@ -553,6 +598,11 @@ def panel_metrics(
     judges, ties excluded — the same ensemble rule as the scoring artifacts).
     The heavyweight confusion matrix is stripped unless requested; the full
     artifact remains in the child run's scoring dir.
+
+    ``system_exclude``: judges DEWEIGHTED (weight 0) in the majority vote —
+    the compliance response to a non-compliant judge. Their per-judge rows
+    are still computed and reported (transparency: the flat line stays on
+    the chart); only the SYSTEM ensemble stops counting their votes.
     """
     class_set = set(task.classes)
     by_labeler: dict[str, list[tuple[str, str]]] = defaultdict(list)
@@ -570,7 +620,8 @@ def panel_metrics(
             match = re.fullmatch(r"MD\.digit\.(\d+)", str(vote.get("l2_label", "")))
             if match and match.group(1) in class_set:
                 label = match.group(1)
-        per_image[image_id][labeler] = label
+        if labeler not in system_exclude:
+            per_image[image_id][labeler] = label
         if label == task.abstain:
             abstains[labeler] += 1
             continue
@@ -637,6 +688,7 @@ def load_run_panel_metrics(
     task: ScoringTask,
     restrict_ids: Iterable[str] | None = None,
     ground_truth_tier: tuple[str, ...] = ("gold", "platinum", "gold_candidate"),
+    system_exclude: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, dict[str, Any]]:
     """Panel metrics for a completed child run, straight from its artifacts."""
     truth = _common.load_ground_truth(
@@ -651,7 +703,9 @@ def load_run_panel_metrics(
         if allowed is None or image_id in allowed
     }
     votes = _common.load_label_votes(run_dir / "label_votes.jsonl")
-    return panel_metrics(votes, truth_labels, task=task)
+    return panel_metrics(
+        votes, truth_labels, task=task, system_exclude=system_exclude
+    )
 
 
 def system_decisions(
@@ -659,8 +713,12 @@ def system_decisions(
     truth_labels: dict[str, str],
     *,
     task: ScoringTask,
+    system_exclude: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, str]:
-    """Per-image majority-vote decision (ties/all-abstain excluded)."""
+    """Per-image majority-vote decision (ties/all-abstain excluded).
+
+    ``system_exclude``: non-compliant judges deweighted out of the vote.
+    """
     class_set = set(task.classes)
     per_image: dict[str, dict[str, str]] = defaultdict(dict)
     for vote in votes:
@@ -672,7 +730,10 @@ def system_decisions(
             match = re.fullmatch(r"MD\.digit\.(\d+)", str(vote.get("l2_label", "")))
             if match and match.group(1) in class_set:
                 label = match.group(1)
-        per_image[image_id][_common.labeler_id_for(vote)] = label
+        labeler = _common.labeler_id_for(vote)
+        if labeler in system_exclude:
+            continue
+        per_image[image_id][labeler] = label
     out: dict[str, str] = {}
     for image_id, panel in per_image.items():
         winner = _majority_vote(panel)
@@ -687,6 +748,7 @@ def gate_comparison(
     truth_labels: dict[str, str],
     *,
     task: ScoringTask,
+    system_exclude: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, Any]:
     """The gate's before/after values, computed over the SAME images.
 
@@ -698,8 +760,12 @@ def gate_comparison(
     produced a decided system verdict, and reports coverage so the gate
     record (and the gate agent) can see when it degraded.
     """
-    before = system_decisions(votes_before, truth_labels, task=task)
-    after = system_decisions(votes_after, truth_labels, task=task)
+    before = system_decisions(
+        votes_before, truth_labels, task=task, system_exclude=system_exclude
+    )
+    after = system_decisions(
+        votes_after, truth_labels, task=task, system_exclude=system_exclude
+    )
     common = sorted(set(before) & set(after))
     result: dict[str, Any] = {
         "n_common": len(common),
@@ -1059,13 +1125,16 @@ DRAFTER_SYSTEM_PROMPT = (
     "positive references for what the current policy already gets right, so "
     "your edit sharpens the boundary instead of over-correcting past it. "
     "JUDGE HEALTH: when the packet includes judge_health, check it before "
-    "chasing errors. A judge flagged degenerate emits a near-constant label "
-    "regardless of input — it is not conditioning on the policy text, so no "
-    "clause edit can move it (capability/format failure, not a policy "
-    "failure). Do NOT spend your edit budget on misalignments explainable "
-    "purely by a degenerate judge's constant vote; optimize for the healthy "
-    "judges and note the degenerate judge in your rationale so the operator "
-    "can act (compression, a lighter response contract, or removal). "
+    "chasing errors. A judge flagged non-compliant (compliant: false) emits "
+    "a near-constant label regardless of input — it is not conditioning on "
+    "the policy text, so no clause edit can move it (capability/format "
+    "failure, not a policy failure). Its vote is DEWEIGHTED: when "
+    "compliance deweighting is on, its votes are already removed from the "
+    "samples and blame you see. Do NOT spend your edit budget on "
+    "misalignments explainable purely by a non-compliant judge's constant "
+    "vote; optimize for the compliant judges and note the non-compliant "
+    "judge in your rationale so the operator can act (compression, a "
+    "lighter response contract, or removal). "
     "POLICY BLAME: when the packet includes policy_blame, treat it as the "
     "strongest structural signal — it lists the policy nodes most often "
     "cited by WRONG votes across MULTIPLE different judges, i.e. clauses "

@@ -630,6 +630,10 @@ class RunRegistry:
         if request.get("label_cache"):
             # Live-only inside the driver: dry children never see the flag.
             argv.append("--label-cache")
+        if request.get("test_mode") == "resample":
+            argv.extend(["--test-mode", "resample"])
+        if request.get("compliance_deweight") is False:
+            argv.extend(["--compliance-deweight", "off"])
         if request.get("policy_version"):
             argv.extend(["--policy-version", request["policy_version"]])
         if request.get("holdout_final"):
@@ -671,7 +675,7 @@ class RunRegistry:
                     "max_anchors", "max_aligned_anchors", "epsilon",
                     "gate_model", "gate_mode", "gate_persona", "drafter_model",
                     "drafter_context", "compressed_models", "label_cache",
-                    "live", "holdout_final",
+                    "test_mode", "compliance_deweight", "live", "holdout_final",
                 )
             },
         }

@@ -384,6 +384,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--batch-n", type=int, default=20, help="Train images per cycle.")
     ap.add_argument("--test-n", type=int, default=100,
                     help="Fixed seeded test partition size (the gate set).")
+    ap.add_argument("--test-mode", choices=["fixed", "resample"], default="fixed",
+                    help="fixed (default): one seeded test partition for the whole "
+                         "run — the stable gate yardstick. resample: re-draw the "
+                         "gate partition every cycle from the not-yet-trained-on "
+                         "pool and RE-EVALUATE the incumbent on it before the "
+                         "candidate (paired eval on the same fresh images) — "
+                         "removes fixed-partition overfitting at ~+1 test eval "
+                         "per cycle; the cross-run benchmark stays the honest "
+                         "comparison.")
+    ap.add_argument("--compliance-deweight", choices=["on", "off"], default="on",
+                    help="on (default): a judge flagged non-compliant (near-"
+                         "constant output — it is not conditioning on the policy) "
+                         "is DEWEIGHTED: its votes leave the system majority vote "
+                         "and the drafter's anchor/blame signal (per-judge rows "
+                         "still reported). off: votes count everywhere regardless.")
     ap.add_argument("--max-anchors", type=int, default=15,
                     help="Max MISALIGNED anchors per edit (the panel's errors / SVM side).")
     ap.add_argument("--max-aligned-anchors", type=int, default=5,
@@ -577,6 +592,8 @@ def main(argv: list[str] | None = None) -> int:
         "drafter_context": args.drafter_context,
         "compressed_models": compressed_models,
         "label_cache": bool(args.label_cache),
+        "test_mode": args.test_mode,
+        "compliance_deweight": args.compliance_deweight == "on",
         "base_version": base_version,
         "base_generator": _gen_id(area, base_version),
         "current_version": base_version,
@@ -692,8 +709,29 @@ def main(argv: list[str] | None = None) -> int:
         )
         last_run_id = baseline["run_id"]
         _add_cost(_run_cost(baseline["run_id"]))
+        # Compliance flag from the k=0 eval itself: a non-compliant judge is
+        # known BEFORE the first drafter call, and (when deweighting is on)
+        # its votes leave the system majority + the optimization signal from
+        # the very first measurement.
+        baseline_health = exp.judge_health(_load_misalignment(baseline["run_id"]))
+        noncompliant: set[str] = set(exp.noncompliant_judges(baseline_health))
+        deweight = args.compliance_deweight == "on"
+
+        def _sys_excl() -> frozenset[str]:
+            return frozenset(noncompliant) if deweight else frozenset()
+
+        for h in baseline_health:
+            if not h["compliant"]:
+                _phase(
+                    f"cycle 0/{args.k_max}: WARNING judge {h['model']} "
+                    f"non-compliant — {h['top_share']:.0%} of votes are "
+                    f"'{h['top_label']}'"
+                    + ("; deweighted from the system vote" if deweight else "")
+                )
+        state["noncompliant_judges"] = sorted(noncompliant)
         current_test_metrics = exp.load_run_panel_metrics(
-            _run_dir(baseline["run_id"]), manifest, task=task, restrict_ids=test_ids
+            _run_dir(baseline["run_id"]), manifest, task=task, restrict_ids=test_ids,
+            system_exclude=_sys_excl(),
         )
         current_test_run_id = baseline["run_id"]
         _ingest(baseline["run_id"])
@@ -706,6 +744,7 @@ def main(argv: list[str] | None = None) -> int:
                 "generator_after": _gen_id(area, base_version),
                 "test_run_id": baseline["run_id"],
                 "errored_calls": baseline.get("errored_calls") or 0,
+                "judge_health": baseline_health,
                 "metrics": {"test": current_test_metrics},
                 "status": "baseline",
                 "started_at": state["started_at"],
@@ -752,7 +791,8 @@ def main(argv: list[str] | None = None) -> int:
             if train_run.get("errored_calls"):
                 cycle["train_errored_calls"] = train_run["errored_calls"]
             cycle["metrics"]["train"] = exp.load_run_panel_metrics(
-                _run_dir(train_run["run_id"]), manifest, task=task, restrict_ids=train_ids
+                _run_dir(train_run["run_id"]), manifest, task=task,
+                restrict_ids=train_ids, system_exclude=_sys_excl(),
             )
 
             # 2. S1: random misalignment anchors. A missing misalignment
@@ -777,26 +817,35 @@ def main(argv: list[str] | None = None) -> int:
             # judges) top rows — model-agnostic by construction: one judge's
             # quirks never steer the policy, a clause that misleads several
             # gets fixed once and helps them all.
-            cycle["policy_blame"] = exp.policy_blame(
-                mis_records, min_models=1, top_n=None
-            )
             # Judge self-health for this batch: a near-constant judge has no
             # policy-text gradient — record it, tell the drafter, warn the
             # operator (measured: qwen byte-flat across three accepted edits
-            # in GenAI run 5 while every reading judge improved).
+            # in GenAI run 5 while every reading judge improved). The flag is
+            # STICKY for the run: once non-compliant, deweighted until done.
             cycle["judge_health"] = exp.judge_health(mis_records)
+            newly = exp.noncompliant_judges(cycle["judge_health"]) - noncompliant
+            noncompliant.update(newly)
+            state["noncompliant_judges"] = sorted(noncompliant)
             for h in cycle["judge_health"]:
-                if h["degenerate"]:
+                if not h["compliant"]:
                     _phase(
                         f"cycle {k}/{args.k_max}: WARNING judge {h['model']} "
-                        f"degenerate — {h['top_share']:.0%} of votes are "
+                        f"non-compliant — {h['top_share']:.0%} of votes are "
                         f"'{h['top_label']}'; policy edits cannot fix this judge"
+                        + ("; deweighted from the system vote" if deweight else "")
                     )
+            # Deweight (weight 0) non-compliant votes in the OPTIMIZATION
+            # signal: blame, anchors, and eligibility are computed as if the
+            # non-compliant judge never voted (run artifacts untouched).
+            opt_records = exp.strip_noncompliant_votes(mis_records, _sys_excl())
+            cycle["policy_blame"] = exp.policy_blame(
+                opt_records, min_models=1, top_n=None
+            )
             blame = [r for r in cycle["policy_blame"]
                      if r["n_models_wrong"] >= 2][:8]
             blamed_node_ids = frozenset(r["node"] for r in blame)
             anchors = exp.select_anchors(
-                mis_records, seed=seed, k=k, max_anchors=args.max_anchors,
+                opt_records, seed=seed, k=k, max_anchors=args.max_anchors,
                 train_ids=train_ids, strategy=args.strategy,
                 blamed_nodes=blamed_node_ids or None,
             )
@@ -804,11 +853,11 @@ def main(argv: list[str] | None = None) -> int:
             # alongside the errors so the drafter learns from correct
             # classifications and does not regress them (Attila 2026-07-07).
             aligned_anchors = exp.select_aligned_anchors(
-                mis_records, seed=seed, k=k, max_aligned=args.max_aligned_anchors,
+                opt_records, seed=seed, k=k, max_aligned=args.max_aligned_anchors,
                 train_ids=train_ids,
             )
             eligible = [
-                r for r in mis_records
+                r for r in opt_records
                 if r.get("misalignment_type") != "all_agree"
                 and str(r.get("image_id")) in set(train_ids)
             ]
@@ -1000,7 +1049,62 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 cycle["proposal_id"] = inflight_proposal["id"] = proposal["proposal_id"]
 
-                # 5. candidate eval on the fixed test partition
+                # 5. candidate eval on the gate partition. Fixed mode: the
+                # run-long seeded partition (the stable yardstick). Resample
+                # mode (--test-mode resample): a FRESH seeded partition each
+                # cycle, drawn from the pool minus every train image used so
+                # far (no optimization->test leakage), with the INCUMBENT
+                # re-evaluated on it first — a paired eval on the same fresh
+                # images, at ~+1 test eval per cycle. K-folds-over-parallel-
+                # runs remains the cross-run variant of the same idea.
+                gate_test_ids, gate_truth = test_ids, test_truth
+                incumbent_cost = 0.0
+                if args.test_mode == "resample":
+                    eligible_test = [
+                        r for r in records
+                        if r.split == "dev_golden"
+                        and r.sample_id not in used_train_ids
+                    ]
+                    if len(eligible_test) > args.test_n:
+                        gate_test_ids, _rest = exp.partition_test_train(
+                            eligible_test, seed=exp.cycle_seed(seed, k),
+                            test_n=args.test_n,
+                        )
+                        gate_truth = exp.load_truth_labels(
+                            manifest, task=task, restrict_ids=gate_test_ids
+                        )
+                        cycle["test_ids"] = gate_test_ids
+                        _phase(
+                            f"cycle {k}/{args.k_max}: re-evaluating incumbent "
+                            f"{state['current_version']} on fresh test "
+                            f"({len(gate_test_ids)})"
+                        )
+                        incumbent_run = _run_child(
+                            models=models, area=area, sample_ids=gate_test_ids,
+                            manifest=manifest, concurrency=args.concurrency,
+                            batch_size=args.batch_size, live=live,
+                            policy_version=state["current_version"],
+                            label=f"k{k} incumbent test eval",
+                            on_progress=_progress_phase(
+                                f"cycle {k}/{args.k_max}: re-evaluating incumbent "
+                                "on fresh test"
+                            ),
+                        )
+                        last_run_id = cycle["test_run_id"] = incumbent_run["run_id"]
+                        incumbent_cost = _run_cost(incumbent_run["run_id"])
+                        _add_cost(incumbent_cost)
+                        _ingest(incumbent_run["run_id"])
+                        current_test_metrics = exp.load_run_panel_metrics(
+                            _run_dir(incumbent_run["run_id"]), manifest, task=task,
+                            restrict_ids=gate_test_ids, system_exclude=_sys_excl(),
+                        )
+                        current_test_run_id = incumbent_run["run_id"]
+                    else:
+                        _phase(
+                            f"cycle {k}/{args.k_max}: resample pool too small "
+                            f"({len(eligible_test)} <= test_n) — falling back to "
+                            "the fixed partition"
+                        )
                 candidate_gen = f"{area}.{experiment_id}.k{k}"
                 cycle["candidate_generator"] = candidate_gen
                 candidate_dir = exp.materialize_candidate(
@@ -1009,9 +1113,9 @@ def main(argv: list[str] | None = None) -> int:
                     files=clip["files"],
                     removed=clip["removed"],
                 )
-                _phase(f"cycle {k}/{args.k_max}: evaluating candidate on test ({len(test_ids)})")
+                _phase(f"cycle {k}/{args.k_max}: evaluating candidate on test ({len(gate_test_ids)})")
                 cand_run = _run_child(
-                    models=models, area=area, sample_ids=test_ids, manifest=manifest,
+                    models=models, area=area, sample_ids=gate_test_ids, manifest=manifest,
                     concurrency=args.concurrency, batch_size=args.batch_size, live=live,
                     policy_version=state["current_version"],
                     policy_dir=candidate_dir, policy_label=candidate_gen,
@@ -1026,19 +1130,22 @@ def main(argv: list[str] | None = None) -> int:
                 if cand_run.get("errored_calls"):
                     cycle["candidate_errored_calls"] = cand_run["errored_calls"]
                 candidate_metrics = exp.load_run_panel_metrics(
-                    _run_dir(cand_run["run_id"]), manifest, task=task, restrict_ids=test_ids
+                    _run_dir(cand_run["run_id"]), manifest, task=task,
+                    restrict_ids=gate_test_ids, system_exclude=_sys_excl(),
                 )
                 cycle["metrics"]["test_candidate"] = candidate_metrics
 
                 # 6. the PPO gate — before/after computed over the SAME
                 # images (intersection of decided system verdicts), so
                 # errored calls or majority ties can't flip the gate on
-                # coverage alone.
+                # coverage alone. Non-compliant judges are deweighted from
+                # BOTH sides' system verdicts (same rule, fair comparison).
                 comparison = exp.gate_comparison(
                     exp.load_votes(_run_dir(current_test_run_id)),
                     exp.load_votes(_run_dir(cand_run["run_id"])),
-                    test_truth,
+                    gate_truth,
                     task=task,
+                    system_exclude=_sys_excl(),
                 )
             except ExperimentStopped:
                 _archive_inflight_proposal("experiment stopped")
@@ -1203,7 +1310,7 @@ def main(argv: list[str] | None = None) -> int:
             cycle["metrics"]["test"] = current_test_metrics
             cycle["cost_usd"] = round(
                 _run_cost(train_run["run_id"]) + _run_cost(cand_run["run_id"])
-                + drafter_cost + gate_cost, 6
+                + incumbent_cost + drafter_cost + gate_cost, 6
             )
             cycle["closed_at"] = exp.utcnow_iso()
             _sync()

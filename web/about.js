@@ -222,6 +222,8 @@
           <tr><td>Gate persona</td><td>lenient</td><td>The critic's stance, appended to its system prompt. <code>lenient</code>: a flat metric on a small test partition is sampling noise — skip only clear defects or large multi-judge regressions. <code>moderate</code>: weigh measured movement and structural value together. <code>strict</code>: any regression or unmeasured claimed value skips.</td></tr>
           <tr><td><var>ε</var> (epsilon)</td><td>0</td><td>Extra margin the candidate must clear. ε&gt;0 is the first winner's-curse mitigation on the research list.</td></tr>
           <tr><td>Label cache</td><td>on</td><td>Never pay for the same measurement twice. Live runs serve <code>(image, prompt, judge)</code> verdicts from the local Postgres cache once the key has been sampled enough live rounds: <strong>3</strong> for judges decoding at temp&nbsp;≠&nbsp;0 (the served label is the majority vote over the rounds), <strong>1</strong> at temp&nbsp;=&nbsp;0. The prompt key is <em>content-derived, never version-named</em> — a hash of the system prompt + response schema + the exact policy render the judge saw + temperature + runtime params — so any prompt drift auto-invalidates and only byte-identical prompts hit. In practice that's the fixed v0 baseline/benchmark legs (~100% hits after warm-up); every candidate policy has fresh bytes and always runs live. Served votes are marked in the run record (<code>label_cache</code> on the vote, hit/miss counts on the manifest), cost $0, and carry the <strong>intra-rater flip rate</strong> — the disagreement across a judge's own repeated rounds on the same input, a per-model self-consistency score the panel's inter-rater split cannot see. Fail-open: no Postgres, no cache, the run proceeds fully live; dry runs never touch the database.</td></tr>
+          <tr><td>Deweight non-compliant</td><td>on</td><td>The response to a judge that fails the <strong>compliance flag</strong> (≥90% of its votes are one class — near-constant output means it is not conditioning on the policy, so no edit can move it). Deweighted = weight&nbsp;0: its votes leave the <em>system majority vote</em> AND the optimizer's anchor/blame signal (an image only it got wrong stops feeding the drafter). Its own row stays on the chart and in the Judges table — transparency, marked "⚠ non-compliant · deweighted". The stance: if the goal were classification you'd compress harder; the goal here is <em>policy development</em>, so deweight the non-listener rather than chase it.</td></tr>
+          <tr><td>Randomize test / cycle</td><td>off</td><td><strong>Off</strong>: one seeded test partition for the whole run — the stable gate yardstick (accept/skip decisions stay comparable across cycles; favors a relatively large T). <strong>On</strong> (<code>--test-mode resample</code>): every cycle re-draws the gate partition from images never used for training, and re-evaluates the <em>incumbent</em> on it before the candidate — a paired eval on the same fresh images. Removes fixed-partition overfitting and doubles as a winner's-curse mitigation, at ~+1 test eval per cycle. The cross-run benchmark stays the honest comparison either way.</td></tr>
           <tr><td>Benchmark readout</td><td>on</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
           <tr><td>Parallelism</td><td>4</td><td>Concurrent labeling calls per judge; hosted judges of one provider run side by side in a shared, per-model-sized pool.</td></tr>
         </tbody>
@@ -355,19 +357,24 @@
       is indicted. An image whose errors are policy-attributable outranks an idiosyncratic one
       (via <var>s</var><sub>blame</sub>) precisely because fixing the clause fixes every judge it
       misleads.</p>
-      <p><strong>Judge health — the converse check.</strong> Blame assumes every judge is at least
-      <em>reading</em> the policy. Each cycle also computes per-judge self-health over the train
-      batch (label distribution, accuracy) and flags a judge <strong>degenerate</strong> when
-      ≥90% of its votes are one class: a constant output does not condition on the policy text, so
-      the textual gradient with respect to that judge is <em>zero</em> — no clause edit can move
-      it, and its errors pollute the misalignment pool. Measured case (GenAI run 5): qwen-7B voted
-      <code>not_gen_ai</code> on 49/50 anchors and stayed byte-flat across three accepted edits
-      while every reading judge gained +8.8 to +21.2 macro-F1. The flag is recorded on the cycle,
-      shown as a ⚠ chip in the Judges table, and included in the drafter packet with an explicit
-      instruction: don't spend the edit budget chasing a judge that isn't listening — the fix
-      lives outside the policy (compression, a lighter response contract, or dropping the judge).
-      This deliberately never touches the model-agnostic blame contract: it flags the judge,
-      never a policy node.</p>
+      <p><strong>The compliance flag — the converse check.</strong> Blame assumes every judge is at
+      least <em>reading</em> the policy. The k=0 baseline and each cycle also compute per-judge
+      self-health (label distribution, accuracy) and flag a judge <strong>non-compliant</strong>
+      when ≥90% of its votes are one class: a constant output does not condition on the policy
+      text, so the textual gradient with respect to that judge is <em>zero</em> — no clause edit
+      can move it, and its errors pollute the misalignment pool. Measured case (GenAI run 5):
+      qwen-7B voted <code>not_gen_ai</code> on 49/50 anchors and stayed byte-flat across three
+      accepted edits while every reading judge gained +8.8 to +21.2 macro-F1. The response is to
+      <strong>deweight, not fix</strong> (the "Deweight non-compliant" knob, default on): the
+      flagged judge's votes leave the system majority vote and the anchor/blame signal, while its
+      own row stays reported ("⚠ non-compliant · deweighted" in the Judges table) and the drafter
+      packet says so explicitly — don't spend the edit budget chasing a judge that isn't
+      listening; the fix lives outside the policy (compression, a lighter response contract, or
+      dropping the judge). The flag is sticky for the run and caught at the baseline, not
+      diagnosed afterward. This deliberately never touches the model-agnostic blame contract: it
+      flags the judge, never a policy node. The holdout/benchmark readouts stay full-panel
+      (product truth, cross-run comparable); deweighting shapes the in-run gate and optimizer
+      only.</p>
       <p><strong>Anchor value</strong> drives the <code>top_importance</code> selection strategy —
       which misalignments the drafter studies. <strong>Re-adjudication priority</strong> is the same
       score, but faded by how confident we already are in the golden label:</p>
@@ -497,6 +504,20 @@
         every cycle records the bundle size (the parameter-count analog), every run records which
         judges labeled under the compressed render, and the fixed benchmark scores both. Nobody in
         the PPO/GEPA/VISTA lineage has measured this axis.</li>
+        <li><strong>Cross-judge interference — panel vs one-judge-at-a-time optimization</strong> —
+        the hypothesis (2026-07-10): one judge's errors may hinder the others' improvement, through
+        the majority vote and through the misalignment pool the drafter studies. The ablation:
+        optimize against the full panel vs against one judge at a time (same seeds, same splits),
+        and compare per-judge lift — the goal being <em>decider-agnostic</em> guideline
+        improvements. Compliance deweighting is the first intervention on this axis: remove the
+        non-listening judge's interference and measure whether the compliant judges' trajectory
+        steepens.</li>
+        <li><strong>Test-partition regime</strong> — fixed yardstick vs per-cycle resample
+        (<em>Randomize test / cycle</em>), and the cross-run variant: K-fold-style
+        <strong>parallel runs</strong> that rotate the test partition (same seed family, fold
+        index as the only difference), averaging out single-partition luck the way K-fold CV
+        does — at K× the cost. Resample mode already pays for a paired incumbent re-eval on each
+        fresh partition, which doubles as a winner's-curse mitigation (see below).</li>
       </ul>
       <p class="hint">Known bias to fix before publishing: the gate's winner's curse (one noisy eval,
       ε=0, inherited baseline). Mitigations to A/B — ε&gt;0, paired incumbent re-eval, N-consecutive-wins —

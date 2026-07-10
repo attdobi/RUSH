@@ -209,6 +209,12 @@
       // Cross-run label cache: only byte-identical prompts hit (v0
       // baseline/benchmark legs); candidates always run live.
       label_cache: $('#experimentLabelCache')?.checked === true,
+      // Gate partition: fixed yardstick vs per-cycle resample (paired
+      // incumbent re-eval on the fresh partition).
+      test_mode: $('#experimentTestResample')?.checked === true ? 'resample' : 'fixed',
+      // Non-compliant judges (constant output) deweighted from the system
+      // vote + optimizer signal.
+      compliance_deweight: $('#experimentComplianceDeweight')?.checked !== false,
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,
@@ -840,25 +846,28 @@
       return `<span class="experiment-delta ${cls}">${diff > 0 ? '+' : ''}${(diff * 100).toFixed(1)}</span>`;
     };
 
-    // Judge self-health from the latest cycle that recorded it: a judge
-    // flagged degenerate emits a near-constant label — policy edits cannot
+    // Compliance flag from the latest cycle that recorded judge health: a
+    // non-compliant judge emits a near-constant label — policy edits cannot
     // move it, so say so right where its flat Δ row invites the question.
+    // When the run deweights, its votes are out of the system majority.
     const healthByJudge = {};
     cycles.forEach((c) => (c.judge_health || []).forEach((h) => {
       if (h?.model) healthByJudge[h.model] = h;
     }));
+    const deweighted = exp.compliance_deweight !== false;
 
     const rows = scorers.map((scorer) => {
       const m = finalMetrics[scorer] || {};
       const isSystem = scorer === 'system';
       const name = isSystem ? 'system (majority vote)' : scorer;
       const health = healthByJudge[scorer];
-      const degenerateChip = health?.degenerate
+      const nonCompliant = health && (health.compliant === false || health.degenerate === true);
+      const complianceChip = nonCompliant
         ? ` <span class="experiment-chip experiment-chip--failed"
-            title="Degenerate judge: ${Math.round((health.top_share || 0) * 100)}% of its train votes are '${esc(health.top_label || '')}' — it is not conditioning on the policy text, so no policy edit can improve it. Fix lives outside the policy: prompt compression, a lighter response contract, or drop it from the panel.">⚠ constant output</span>`
+            title="Non-compliant judge: ${Math.round((health.top_share || 0) * 100)}% of its train votes are '${esc(health.top_label || '')}' — it is not conditioning on the policy text, so no policy edit can improve it.${deweighted ? ' Deweighted: its votes are excluded from the system majority vote and the optimizer signal (this row stays for transparency).' : ''} Fix lives outside the policy: prompt compression, a lighter response contract, or drop it from the panel.">⚠ non-compliant${deweighted ? ' · deweighted' : ''}</span>`
         : '';
       return `<tr class="${isSystem ? 'experiment-judge-system' : ''}">
-        <td>${esc(name)}${degenerateChip}</td>
+        <td>${esc(name)}${complianceChip}</td>
         <td>${fmtPct(m.accuracy)} ${delta(scorer, 'accuracy')}</td>
         <td>${fmtPct(m.macro_f1)} ${delta(scorer, 'macro_f1')}</td>
         <td>${fmtPct(m.macro_precision)} ${delta(scorer, 'macro_precision')}</td>
