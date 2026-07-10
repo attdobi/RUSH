@@ -363,3 +363,32 @@ CREATE TABLE IF NOT EXISTS rush.gate_review (
     REFERENCES rush.experiment_cycle(experiment_id, k)
 );
 CREATE INDEX IF NOT EXISTS gate_review_exp_idx ON rush.gate_review (experiment_id, k);
+
+-- ---------------------------------------------------------------------------
+-- Cross-run label cache (Attila 2026-07-09): never pay for the same
+-- (image, prompt, model) twice. prompt_sha256 is CONTENT-derived — it hashes
+-- the system prompt + user instructions + response schema + the exact policy
+-- render the judge saw + image-prep knobs + temperature + runtime params
+-- (see pipeline/label_cache.py), so prompt drift auto-invalidates and no
+-- manual cache-busting exists. image_sha256 = the source-file sha256 (same
+-- identity as item.entity_id). Nondeterministic judges (temp != 0) take 3
+-- live rounds per key before the majority is served; temp == 0 takes 1. The
+-- disagreement across rounds is the intra-rater flip rate. The table also
+-- self-provisions on first live use (pipeline/label_cache.py DDL_TEMPLATE),
+-- so a fresh machine only needs Postgres running.
+CREATE TABLE IF NOT EXISTS rush.label_cache (
+  image_sha256         TEXT NOT NULL,
+  prompt_sha256        TEXT NOT NULL,
+  model_id             TEXT NOT NULL,
+  sample_idx           INT  NOT NULL,
+  label                TEXT NOT NULL,
+  response             JSONB NOT NULL,              -- full llm-output projection of the live call
+  area                 TEXT,
+  policy_graph_version TEXT,                        -- provenance only; NOT part of the key
+  prompt_version       TEXT,
+  policy_render        TEXT,                        -- full | compressed
+  run_id               TEXT,                        -- first run that produced this sample
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (image_sha256, prompt_sha256, model_id, sample_idx)
+);
+CREATE INDEX IF NOT EXISTS label_cache_model_idx ON rush.label_cache (model_id);

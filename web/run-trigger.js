@@ -852,6 +852,7 @@
       models,
       local_reasoning: localReasoning,
       compressed_models: compressedModelsForSelected(models),
+      label_cache: $('#runTriggerLabelCache')?.checked === true,
       split,
       limit: sampleIds ? null : limit,
       sample_ids: sampleIds || null,

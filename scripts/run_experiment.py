@@ -87,6 +87,10 @@ _STOP_REQUESTED = False
 # Comma-separated judge ids labeling under the compressed policy render;
 # set once in main() and appended to every child argv (see _run_child).
 _COMPRESSED_MODELS_ARG: str = ""
+# Cross-run label cache flag; set once in main() and appended to every child
+# argv. In practice only the fixed benchmark/baseline legs ever hit — every
+# candidate policy has fresh bytes, so its fingerprint never matches.
+_LABEL_CACHE_ARG: bool = False
 
 
 def _forward_signal(signum: int, _frame: object) -> None:  # pragma: no cover - signal path
@@ -222,6 +226,9 @@ def _run_child(
         # pass — train, candidate eval, holdout, benchmark — so a run's
         # render assignment is constant end to end.
         argv += ["--compressed-models", _COMPRESSED_MODELS_ARG]
+    if _LABEL_CACHE_ARG and live:
+        # Live-only by contract: dry children must never touch Postgres.
+        argv += ["--label-cache"]
 
     # A stop requested during a non-child phase (drafter/gate/scoring) must
     # not launch — and pay for — the next labeling run.
@@ -414,6 +421,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "policy-rendering × judge-scale knob (small judges "
                          "collapse under the full bundle; see "
                          "pipeline/policy_render.py). Subset of --models.")
+    ap.add_argument("--label-cache", action="store_true",
+                    help="Serve already-sampled (image, prompt, model) keys "
+                         "from the Postgres label cache in every live child "
+                         "pass (see pipeline/label_cache.py). Only "
+                         "byte-identical prompts hit — in practice the v0 "
+                         "baseline/benchmark legs; candidates always run live.")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
     ap.add_argument("--drafter-context", choices=["text_and_images", "text_only"],
                     default="text_only",
@@ -487,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     global _COMPRESSED_MODELS_ARG
     _COMPRESSED_MODELS_ARG = ",".join(compressed_models)
+    global _LABEL_CACHE_ARG
+    _LABEL_CACHE_ARG = bool(args.label_cache)
     if (args.drafter_model.startswith("google/")
             and args.drafter_context == "text_and_images"):
         # Mirror of the web validator: the gemini text transport would
@@ -561,6 +576,7 @@ def main(argv: list[str] | None = None) -> int:
         "drafter_model": args.drafter_model,
         "drafter_context": args.drafter_context,
         "compressed_models": compressed_models,
+        "label_cache": bool(args.label_cache),
         "base_version": base_version,
         "base_generator": _gen_id(area, base_version),
         "current_version": base_version,

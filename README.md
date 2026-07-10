@@ -347,6 +347,44 @@ Batching sends the policy bundle (~3.7k tokens) once instead of once per image; 
 
 Every call in a labeling pass shares the same system + instructions + policy prefix (~5–7k tokens); caching is a **prefix match**, so all three hosted clients put that shared text *before* the per-image bytes. **Anthropic** additionally sets an explicit `cache_control: {"type": "ephemeral"}` breakpoint on the shared text block — after the first call writes the cache (1.25× input rate), every later call in the pass re-reads the prefix at ~0.1×; note the model-dependent minimum cacheable prefix (Haiku 4.5: 4096 tokens — smaller policies silently skip caching, harmlessly). **OpenAI** caches prefixes automatically; the clients send a stable `prompt_cache_key` (`rush:<area>:<policy_version>`, hosted models only) so concurrent judges route to the same cache shard. **Gemini** caches implicitly once the text part leads. Cache hits are recorded per vote (`cached_input_tokens`, `cache_creation_input_tokens` in `llm_outputs.jsonl` / `label_votes.jsonl`) and priced with provider-specific discounts in `pipeline/providers/pricing.py` (Anthropic reads 0.1×/writes 1.25×; OpenAI cached 0.5×; Gemini cached 0.25×). Caveats: a new policy version is a new prefix (each candidate eval re-warms once); the first `concurrency`-wide wave of a pass all miss (a cache entry is only readable after the first response starts); verify hits by checking the cached-token fields in the run artifacts.
 
+### Label cache — never pay for the same (image, prompt, model) twice
+
+Live runs with **Label cache** on (UI checkbox, default checked; CLI `--label-cache` on both
+`run_bulk_labeling.py` and `run_experiment.py`) serve verdicts from Postgres
+(`rush.label_cache`) instead of re-calling the judge, once a key has been sampled enough
+times. The key is `(image_sha256, prompt_sha256, model_id)`:
+
+- **`image_sha256`** — the source-file sha256 from the sample manifest (the label store's
+  `entity_id`); stable across manifests, renames, and re-samples.
+- **`prompt_sha256`** — **content-derived, never version-named** (`pipeline/label_cache.py`):
+  a sha256 over the system prompt + user instructions + response schema + the exact policy
+  render the judge saw (full vs compressed digests hash differently for free) + image-prep
+  knobs + temperature + runtime params. Any prompt drift — a `_prompts.py` rewrite, a policy
+  edit, an effort change — auto-invalidates; there is no manual cache-busting.
+
+**Sampling rule:** judges decoding at `temperature == 0` cache after **1** live round;
+everything else takes **3** independent live rounds first, and the served label is the
+**majority vote** over them. The disagreement across those rounds is recorded as the
+**intra-rater flip rate** — a per-model self-consistency score the panel's inter-rater
+disagreement cannot see (0.0 = never flipped; qwen-style pathologies show up here
+instantly). Ties resolve to the latest round, and the served justification always argues
+for the served label.
+
+**Auditability:** a served majority-of-3 label is *denoised* relative to a fresh
+single-shot sample, so every cached vote carries a `label_cache` marker
+(`{hit, n_samples, flip_rate, labels, prompt_sha256}`) in `label_votes.jsonl` /
+`llm_outputs.jsonl`, costs $0, and writes no cost-ledger row; the run manifest records
+hits/misses/stored + the per-judge sampling requirement. In practice only the
+byte-identical **v0 baseline/benchmark legs** ever hit — every candidate policy has fresh
+bytes, so the crank's exploration always runs live (correct, not a limitation).
+
+**Setup (once per machine, e.g. the mac mini):** have Postgres running and reachable at
+`RUSH_DB_URL` (default `postgresql:///adobi`) — that's it. The table self-provisions on
+first live use (`CREATE TABLE IF NOT EXISTS`; also in `pipeline/labelstore/schema.sql` via
+`scripts/labelstore_ingest.py --init`). The cache is **fail-open**: no Postgres → the run
+proceeds fully live and the manifest records why. Dry runs never touch the database. Each
+machine keeps its own independent cache; there is deliberately no cross-machine sync.
+
 ## Reaching the local GPUs (`RUSH_LOCAL_BASE_URL`)
 
 The local models (Gemma-embedding, `gemma-4-26b-a4b-qat`, `qwen2.5-vl-7b` — the ~4s/img vision model in the measured cheap panel — and `qwen3.6-27b` for text) run on a GPU host (2× RTX 3090) shared over LM Studio's LM Link mesh. LM Link makes them usable *inside the LM Studio app* but does not auto-expose an HTTP server, so a separate process must reach a real endpoint:

@@ -39,6 +39,12 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from . import persistence
+from .label_cache import (
+    LabelCache,
+    prompt_fingerprint,
+    required_samples,
+    serve_payload,
+)
 from .providers._config import resolve_temperature
 from .providers.base import LabelClient, LabelRequest, LabelResponse
 from .providers.pricing import compute_call_cost, PRICING_VERSION
@@ -155,6 +161,9 @@ class RunSummary:
     per_model_completed: dict[str, int] = field(default_factory=dict)
     per_model_errored: dict[str, int] = field(default_factory=dict)
     fatal_error: str | None = None
+    label_cache_hits: int = 0
+    label_cache_misses: int = 0
+    label_cache_stored: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -406,6 +415,41 @@ def _build_label_vote(
     return vote
 
 
+def _response_from_cached(
+    image_id: str, model_id: str, served: dict
+) -> LabelResponse:
+    """Rehydrate a LabelResponse from a served label-cache payload.
+
+    Token/cost fields were stripped at serve time (the cached call costs
+    nothing); ``cost_usd=0.0`` (not None) so persistence never recomputes a
+    phantom price for it.
+    """
+    return LabelResponse(
+        image_id=image_id,
+        model_id=model_id,
+        label=str(served.get("label", "")),
+        l2_label=str(served.get("l2_label", "")),
+        justification=str(served.get("justification", "")),
+        confidence=_coerce_optional_confidence(served.get("confidence")),
+        difficulty=str(served.get("difficulty", "medium")),
+        is_boundary=bool(served.get("is_boundary")),
+        raw_provider_payload={"label_cache": True},
+        error=None,
+        latency_ms=0,
+        attempts=1,
+        prepared_image_sha256=str(served.get("prepared_image_sha256", "")),
+        prepared_image_width=int(served.get("prepared_image_width", 0) or 0),
+        prepared_image_height=int(served.get("prepared_image_height", 0) or 0),
+        prepared_image_mime_type=str(served.get("prepared_image_mime_type", "")),
+        prepared_image_byte_size=int(served.get("prepared_image_byte_size", 0) or 0),
+        is_boundary_between=list(served.get("is_boundary_between") or []),
+        policy_citations=list(served.get("policy_citations") or []),
+        policy_quotes=list(served.get("policy_quotes") or []),
+        justification_too_long=bool(served.get("justification_too_long")),
+        cost_usd=0.0,
+    )
+
+
 def _model_runtime_config(
     models: list[ModelSpec],
     *,
@@ -631,6 +675,7 @@ def run_labeling(
     area: str | None = None,
     policy_version: str | None = None,
     compressed_models: frozenset[str] | set[str] | None = None,
+    label_cache: bool = False,
 ) -> RunSummary:
     """Execute one labeling run.
 
@@ -643,6 +688,13 @@ def run_labeling(
     judges measurably collapse under the full bundle — see
     :mod:`pipeline.policy_render`). Per-judge, so the policy-rendering ×
     judge-scale axis is a recorded property of every run.
+
+    ``label_cache``: reuse stored verdicts for (image, prompt, model) keys
+    already sampled enough times (see :mod:`pipeline.label_cache` — 3 live
+    rounds for temp != 0 judges, 1 for temp == 0). Live runs only: dry runs
+    never touch the database, per the standing dry-run contract. Fail-open —
+    a missing/unreachable Postgres disables the cache and the run proceeds
+    fully live, with the reason recorded in the manifest.
     """
     if concurrency < 1:
         raise ValueError(f"concurrency must be >= 1, got {concurrency}")
@@ -697,6 +749,41 @@ def run_labeling(
     policy_markdown_compressed = (
         compress_policy_markdown(policy_markdown) if compressed_ids else ""
     )
+
+    # Cross-run label cache: per-judge content-derived prompt fingerprint
+    # (hashes the exact render this judge sees, so full vs compressed split
+    # naturally) + per-judge sampling requirement from resolved temperature.
+    cache: LabelCache | None = None
+    prompt_fp: dict[str, str] = {}
+    samples_required: dict[str, int] = {}
+    if label_cache and not dry_run:
+        run_ontology = get_ontology(run_area)
+        for spec in model_specs:
+            spec_temperature = (
+                spec.resolved_temperature
+                if spec.resolved_temperature is not None
+                else resolve_temperature(spec.model_id)
+            )
+            prompt_fp[spec.model_id] = prompt_fingerprint(
+                area=run_area,
+                prompt_version=prompt_version,
+                system_prompt=run_ontology.system_prompt,
+                user_instructions=run_ontology.user_instructions,
+                response_schema=run_ontology.response_schema,
+                policy_markdown=(
+                    policy_markdown_compressed
+                    if spec.model_id in compressed_ids
+                    else policy_markdown
+                ),
+                max_image_size=run_ontology.max_image_size,
+                jpeg_quality=IMAGE_PREP_QUALITY,
+                temperature=spec_temperature,
+                reasoning_effort=reasoning_effort,
+                model_params=spec.params or {},
+            )
+            samples_required[spec.model_id] = required_samples(spec_temperature)
+        cache = LabelCache()
+    abstain_sentinel = get_ontology(run_area).abstain_label
 
     sample_manifest_path = sample_manifest_path or DEFAULT_SAMPLE_MANIFEST
     try:
@@ -779,7 +866,11 @@ def run_labeling(
     # self-describing cost data (not stale historical cost_usd).
     cost_rows: list[dict] = []
 
-    def _persist_response(response: LabelResponse, batch_index: int = 0) -> bool:
+    def _persist_response(
+        response: LabelResponse,
+        batch_index: int = 0,
+        cache_meta: dict | None = None,
+    ) -> bool:
         if response.cost_usd is None:
             response.cost_usd = compute_call_cost(
                 response.model_id,
@@ -811,6 +902,12 @@ def run_labeling(
                 policy_graph_version=policy_graph_version,
                 prompt_version=prompt_version,
             )
+            if cache_meta:
+                # Auditability contract: a served majority-of-N label is
+                # denoised relative to a fresh single-shot sample, so every
+                # cached vote says so — and carries the intra-rater flip rate.
+                llm_output["label_cache"] = dict(cache_meta)
+                label_vote["label_cache"] = dict(cache_meta)
             with write_lock:
                 persistence.append_llm_output(
                     paths,
@@ -819,6 +916,10 @@ def run_labeling(
                     model_id=response.model_id,
                 )
                 persistence.append_label_vote(paths, label_vote)
+                if cache_meta:
+                    # No provider call happened: no cost row (zero-token rows
+                    # would pollute the speed/cost ledgers).
+                    return True
                 # Durable, analysis-ready cost row: LIVE registry rates +
                 # pricing_version (recomputed, not the possibly-stale
                 # provider/response cost).
@@ -894,6 +995,52 @@ def run_labeling(
             if spec.model_id in compressed_ids
             else policy_markdown
         )
+
+        # Label cache: serve every (image, prompt, model) key already sampled
+        # to its requirement; only the rest go to the provider. The manifest
+        # sample sha256 is the cache identity — samples without one (older
+        # manifests) simply stay live.
+        completed = 0
+        errored = 0
+        fp = prompt_fp.get(spec.model_id, "")
+        live_positions = list(range(len(batch)))
+        if cache is not None and fp:
+            live_positions = []
+            for pos, (sample, _model_spec) in enumerate(batch):
+                voted = (
+                    cache.lookup(
+                        sample.sha256,
+                        fp,
+                        spec.model_id,
+                        required=samples_required[spec.model_id],
+                    )
+                    if sample.sha256
+                    else None
+                )
+                if voted is None:
+                    live_positions.append(pos)
+                    continue
+                cache_meta = {
+                    "hit": True,
+                    "n_samples": voted["n_samples"],
+                    "flip_rate": voted["flip_rate"],
+                    "labels": voted["labels"],
+                    "prompt_sha256": fp,
+                }
+                served = _response_from_cached(
+                    sample.sample_id, spec.model_id, serve_payload(voted)
+                )
+                if _persist_response(
+                    served, batch_index=batch_index, cache_meta=cache_meta
+                ):
+                    completed += 1
+                else:
+                    errored += 1
+        if not live_positions:
+            _record_batch_cost(batch_index, spec.model_id, len(batch), 0.0)
+            return spec.model_id, completed, errored
+
+        live_pairs = [batch[pos] for pos in live_positions]
         requests = [
             _build_request(
                 sample,
@@ -903,7 +1050,7 @@ def run_labeling(
                 prompt_version=prompt_version,
                 area=run_area,
             )
-            for sample, model_spec in batch
+            for sample, model_spec in live_pairs
         ]
         try:
             client = _client_for(spec)
@@ -917,7 +1064,7 @@ def run_labeling(
                     responses = [client.label(request) for request in requests]
         except Exception as exc:  # client raised; treat each image as a hard error.
             with write_lock:
-                for sample, model_spec in batch:
+                for sample, model_spec in live_pairs:
                     persistence.append_error(
                         paths,
                         stage="provider_call",
@@ -926,11 +1073,11 @@ def run_labeling(
                         reason=f"{type(exc).__name__}: {exc}",
                     )
             _record_batch_cost(batch_index, spec.model_id, len(batch), None)
-            return spec.model_id, 0, len(batch)
+            return spec.model_id, completed, errored + len(live_pairs)
 
         if len(responses) != len(requests):
             with write_lock:
-                for sample, model_spec in batch:
+                for sample, model_spec in live_pairs:
                     persistence.append_error(
                         paths,
                         stage="provider_call",
@@ -942,18 +1089,41 @@ def run_labeling(
                         ),
                     )
             _record_batch_cost(batch_index, spec.model_id, len(batch), None)
-            return spec.model_id, 0, len(batch)
+            return spec.model_id, completed, errored + len(live_pairs)
 
         responses = _retry_parse_failed_responses(client, requests, responses)
 
-        completed = 0
-        errored = 0
         batch_cost: float | None = None
-        for response in responses:
+        for pos, response in zip(live_positions, responses):
             if _persist_response(response, batch_index=batch_index):
                 completed += 1
                 if response.cost_usd is not None:
                     batch_cost = (batch_cost or 0.0) + float(response.cost_usd)
+                if (
+                    cache is not None
+                    and fp
+                    and response.error is None
+                    and response.label != abstain_sentinel
+                ):
+                    # Store the same llm-output projection we persist, so a
+                    # future served vote is byte-equivalent to this one.
+                    sample = batch[pos][0]
+                    if sample.sha256:
+                        cache.store(
+                            sample.sha256,
+                            fp,
+                            spec.model_id,
+                            _build_llm_output(response),
+                            area=run_area,
+                            policy_graph_version=policy_graph_version,
+                            prompt_version=prompt_version,
+                            policy_render=(
+                                "compressed"
+                                if spec.model_id in compressed_ids
+                                else "full"
+                            ),
+                            run_id=rid,
+                        )
             else:
                 errored += 1
         _record_batch_cost(batch_index, spec.model_id, len(batch), batch_cost)
@@ -1068,6 +1238,21 @@ def run_labeling(
     }
     final_manifest["cost"] = cost_block
     final_manifest["per_model_timing"] = per_model_timing
+    if label_cache:
+        if cache is not None:
+            final_manifest["label_cache"] = cache.manifest_block(
+                samples_required=samples_required
+            )
+            summary.label_cache_hits = cache.stats["hits"]
+            summary.label_cache_misses = cache.stats["misses"]
+            summary.label_cache_stored = cache.stats["stored"]
+        else:
+            # Requested on a dry run: recorded, never honored — dry runs do
+            # not touch the database (standing contract).
+            final_manifest["label_cache"] = {
+                "enabled": False,
+                "reason": "dry runs never touch the label cache",
+            }
     persistence.write_run_manifest(paths, final_manifest)
     return summary
 

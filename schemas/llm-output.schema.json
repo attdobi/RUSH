@@ -59,6 +59,18 @@
       "type": "boolean",
       "description": "Server-set flag (not labeler-set): true when justification exceeds the policy-grounded cap (~350 tokens / ~1500 chars)."
     },
+    "label_cache": {
+      "type": "object",
+      "properties": {
+        "hit": {"type": "boolean"},
+        "n_samples": {"type": "integer", "minimum": 1},
+        "flip_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "labels": {"type": "array", "items": {"type": "string"}},
+        "prompt_sha256": {"type": "string"}
+      },
+      "additionalProperties": false,
+      "description": "Present only on votes served from the cross-run label cache (pipeline/label_cache.py): no provider call happened; the label is the majority over n_samples stored live rounds and flip_rate is the intra-rater disagreement across them."
+    },
     "confidence": {
       "type": [
         "number",

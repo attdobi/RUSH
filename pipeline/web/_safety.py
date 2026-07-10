@@ -422,6 +422,7 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "compressed_models": _compressed_models(
             payload.get("compressed_models"), models
         ),
+        "label_cache": payload.get("label_cache") is True,
         "allow_spend": True,
         "allow_holdout": payload.get("allow_holdout") is True,
         "concurrency": concurrency,
@@ -672,6 +673,7 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "compressed_models": _compressed_models(
             payload.get("compressed_models"), models
         ),
+        "label_cache": payload.get("label_cache") is True,
         "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),

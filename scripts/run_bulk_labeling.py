@@ -134,6 +134,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "pipeline/policy_render.py). Must be a subset of --models."
         ),
     )
+    parser.add_argument(
+        "--label-cache",
+        action="store_true",
+        help=(
+            "Serve (image, prompt, model) keys already sampled enough times "
+            "from the Postgres label cache instead of re-calling the provider "
+            "(3 live rounds for temp!=0 judges, 1 for temp==0; see "
+            "pipeline/label_cache.py). Live runs only; fail-open if the "
+            "database is unavailable."
+        ),
+    )
     parser.add_argument("--allow-holdout", action="store_true",
                         help="Required to dispatch against the holdout split.")
     parser.add_argument("--live", action="store_true",
@@ -371,6 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=not args.live,
         reasoning_effort=args.reasoning_effort,
         compressed_models=parse_compressed_models(args.compressed_models),
+        label_cache=args.label_cache,
     )
 
     completed_with_errors = summary.errored_calls > 0 and run_completed_with_results(summary)
@@ -404,6 +416,12 @@ def main(argv: list[str] | None = None) -> int:
         "dry_run": summary.dry_run,
         "scoring": scoring_result,
     }
+    if args.label_cache:
+        payload["label_cache"] = {
+            "hits": summary.label_cache_hits,
+            "misses": summary.label_cache_misses,
+            "stored": summary.label_cache_stored,
+        }
     json.dump(payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0 if fatal_error is None else 1

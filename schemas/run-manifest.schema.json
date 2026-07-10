@@ -123,6 +123,23 @@
       "additionalProperties": false,
       "description": "Character sizes of both policy renders used in this run."
     },
+    "label_cache": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "reason": {"type": "string"},
+        "error": {"type": "string"},
+        "hits": {"type": "integer", "minimum": 0},
+        "misses": {"type": "integer", "minimum": 0},
+        "stored": {"type": "integer", "minimum": 0},
+        "samples_required": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      },
+      "additionalProperties": false,
+      "description": "Cross-run label cache telemetry (pipeline/label_cache.py): served vs live calls, per-judge sampling requirement (1 at temp==0, else 3), and the fail-open error when Postgres was unavailable."
+    },
     "image_prep": {
       "type": "object",
       "required": ["longest_edge_px", "format", "quality"],

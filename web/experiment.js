@@ -206,6 +206,9 @@
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
       drafter_context: $('#experimentDrafterContext')?.value || 'text_only',
       compressed_models: selectedCompressedModels(models),
+      // Cross-run label cache: only byte-identical prompts hit (v0
+      // baseline/benchmark legs); candidates always run live.
+      label_cache: $('#experimentLabelCache')?.checked === true,
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,

@@ -204,6 +204,18 @@
     },
     "justification_too_long": {
       "type": "boolean"
+    },
+    "label_cache": {
+      "type": "object",
+      "properties": {
+        "hit": {"type": "boolean"},
+        "n_samples": {"type": "integer", "minimum": 1},
+        "flip_rate": {"type": "number", "minimum": 0, "maximum": 1},
+        "labels": {"type": "array", "items": {"type": "string"}},
+        "prompt_sha256": {"type": "string"}
+      },
+      "additionalProperties": false,
+      "description": "Present only on votes served from the cross-run label cache: majority over n_samples stored live rounds; flip_rate = intra-rater disagreement."
     }
   }
 }

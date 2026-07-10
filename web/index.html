@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r63" />
-  <script src="demos.js?v=demo-mnist-kdd-r63"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r64" />
+  <script src="demos.js?v=demo-mnist-kdd-r64"></script>
 </head>
 <body>
   <header class="hero">
@@ -172,6 +172,7 @@
               <option value="strict">strict</option>
             </select>
           </label>
+          <label class="checkbox-label" title="Serve (image, prompt, model) verdicts already sampled 3× in earlier live runs (1× at temp=0) from the local Postgres label cache instead of re-calling the judge. Only byte-identical prompts hit — in practice the v0 baseline/benchmark legs; candidate policies always run live. Served votes carry the majority label + intra-rater flip rate and are marked in the run record. Fail-open: no Postgres, no cache, the run proceeds fully live."><input id="experimentLabelCache" type="checkbox" checked /> Label cache</label>
           <label class="checkbox-label" title="Score the FIXED cross-run validation split (same images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
           <span id="experimentBenchmarkNote" class="hint experiment-benchmark-note"></span>
         </div>
@@ -332,16 +333,16 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r63"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r63"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r63"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r63"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r63"></script>
-  <script src="benchmarks.js?v=demo-mnist-kdd-r63"></script>
-  <script src="about.js?v=demo-mnist-kdd-r63"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r63"></script>
+  <script src="app.js?v=demo-mnist-kdd-r64"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r64"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r64"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r64"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r64"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r64"></script>
+  <script src="about.js?v=demo-mnist-kdd-r64"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r64"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r63"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r63"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r64"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r64"></script>
 </body>
 </html>
