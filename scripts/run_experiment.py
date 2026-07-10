@@ -753,6 +753,12 @@ def main(argv: list[str] | None = None) -> int:
                 _sync()
                 continue
             mis_records = _load_misalignment(train_run["run_id"])
+            # Policy blame: which nodes WRONG votes cited, across ≥2 distinct
+            # judges — evidence the policy TEXT misleads (model-agnostic by
+            # construction). Fed to the drafter (fix the clause, help every
+            # judge) and the gate (judge removals fairly); recorded for audit.
+            blame = exp.policy_blame(mis_records)
+            cycle["policy_blame"] = blame
             anchors = exp.select_anchors(
                 mis_records, seed=seed, k=k, max_anchors=args.max_anchors,
                 train_ids=train_ids, strategy=args.strategy,
@@ -853,6 +859,7 @@ def main(argv: list[str] | None = None) -> int:
                 aligned_images=aligned_images or None,
                 provider="anthropic" if args.drafter_model.startswith("anthropic/")
                 else "openai",
+                policy_blame=blame or None,
             )
             chat = drafter_chat or exp.fake_drafter_callable(base_dir)
             n_drafter_calls = len(usage_drafter)
@@ -1052,6 +1059,7 @@ def main(argv: list[str] | None = None) -> int:
                     persona=args.gate_persona,
                     bundle_chars_before=bundle_before,
                     bundle_chars_after=bundle_after,
+                    policy_blame=blame or None,
                 )
                 n_gate_calls = len(usage_gate)
                 try:

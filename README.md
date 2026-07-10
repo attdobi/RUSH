@@ -176,8 +176,15 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      the sampling seed) with editable seed/sizes and a **Mint splits** button. The seed is the
      cross-machine alignment contract: the same seed + sizes over the same source tree produces
      byte-identical manifests everywhere. MNIST's splits are committed, so the row is hidden there.
-   * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low; it drafts, it never
-     judges) writes ONE clipped policy edit per cycle from the misaligned anchors. Its "Input"
+   * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low, plus the Gemini
+     flashes; it drafts, it never judges) writes ONE clipped policy edit per cycle from the
+     misaligned anchors **plus the cycle's policy-blame table**: the nodes most often cited by
+     *wrong* votes across ≥2 distinct judges (every judge cites the node it applied, so wrong
+     votes name the clause that misled them — model-agnostic by construction, and recorded on the
+     cycle as `policy_blame`). A blamed clause takes precedence: fixing the text helps every judge
+     at once. The drafter's edit repertoire is full — it may narrow or delete clauses, remove
+     nodes, and simplify the graph (including repairing an implicated root clause), not just
+     append; the gate is instructed that well-evidenced removals are legitimate. Its "Input"
      knob (`--drafter-context`) picks what each anchor carries: **`text only` (default)** — every
      judge's text output (label, confidence, difficulty, boundary flag, justification) plus the
      SME truth, the justifications usually carry the visual evidence in words — or `images + text`,

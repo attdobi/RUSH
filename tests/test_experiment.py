@@ -994,6 +994,82 @@ def test_genai_prompts_never_recommend_abstain():
     assert "abstain" not in LABELING_RESPONSE_SCHEMA["properties"]["label"]["enum"]
 
 
+def _blame_vote(model, label, cites, conf=0.9, l2=None):
+    return {"labeler_id": model, "label": label, "confidence": conf,
+            "policy_citations": cites, "l2_label": l2 or ""}
+
+
+def test_policy_blame_is_model_agnostic_and_ranks_shared_failures():
+    # Attila 2026-07-10: a failure observed in one judge should improve the
+    # guideline for ALL judges — so blame requires ≥2 DISTINCT models, and a
+    # single model's quirk never steers the policy.
+    records = [
+        {"image_id": "img_a", "sme_truth": "gen_ai", "votes": [
+            _blame_vote("m/one", "not_gen_ai", ["GA.boundary.cgi_game_render"]),
+            _blame_vote("m/two", "not_gen_ai", [], l2="GA.boundary.cgi_game_render"),
+            _blame_vote("m/three", "gen_ai", ["GA.surface_texture.plastic_skin"]),
+        ]},
+        {"image_id": "img_b", "sme_truth": "gen_ai", "votes": [
+            _blame_vote("m/one", "not_gen_ai",
+                        ["GA.boundary.cgi_game_render", "GA.quirk.solo"]),
+            _blame_vote("m/two", "gen_ai", ["GA.boundary.cgi_game_render"]),
+        ]},
+    ]
+    blame = exp.policy_blame(records)
+    assert [b["node"] for b in blame] == ["GA.boundary.cgi_game_render"]
+    top = blame[0]
+    # 3 wrong votes (l2_label counts as a citation), 1 right vote (m/two on
+    # img_b cited the node while agreeing with truth), 2 distinct models.
+    assert top["n_wrong_votes"] == 3
+    assert top["n_right_votes"] == 1
+    assert top["n_models_wrong"] == 2
+    assert top["models_wrong"] == ["m/one", "m/two"]
+    assert top["example_images"] == ["img_a", "img_b"]
+    # GA.quirk.solo: wrong-cited by ONE model only -> excluded.
+    # plastic_skin: only right votes -> excluded.
+    assert exp.policy_blame(records, min_models=1)[0]["node"] == "GA.boundary.cgi_game_render"
+
+
+def test_policy_blame_flows_into_drafter_and_gate_packets():
+    blame = [{"node": "GA.boundary.cgi_game_render", "n_wrong_votes": 3,
+              "n_right_votes": 1, "n_models_wrong": 2,
+              "models_wrong": ["m/one", "m/two"],
+              "avg_wrong_confidence": 0.9, "example_images": ["img_a"]}]
+    drafter = exp.build_drafter_messages(
+        policy_markdown="# P", base_version="v0.1", area="Generative_AI",
+        anchors=[], max_changes=3, k=1, policy_blame=blame,
+    )
+    payload = json.loads(drafter[1]["content"])
+    assert payload["policy_blame"] == blame
+    bare = exp.build_drafter_messages(
+        policy_markdown="# P", base_version="v0.1", area="Generative_AI",
+        anchors=[], max_changes=3, k=1,
+    )
+    assert "policy_blame" not in json.loads(bare[1]["content"])
+
+    gate = json.loads(exp.build_gate_messages(
+        metric=exp.GATE_METRIC, value_before=0.9, value_after=0.95, epsilon=0.0,
+        metric_pass=True, metrics_before={}, metrics_after={}, diffs=[],
+        anchors=[], k=1, policy_blame=blame,
+    )[1]["content"])
+    assert gate["policy_blame_nodes"] == blame
+
+
+def test_prompts_carry_blame_guidance_and_removal_freedom():
+    # The drafter may delete/narrow/simplify — not just append (Attila
+    # 2026-07-10) — and both gate prompts must not treat removal as unsound.
+    for area in ("MNIST_Digits", "Generative_AI"):
+        prompt = exp.drafter_system_prompt(area=area, max_changes=3)
+        assert "POLICY BLAME" in prompt
+        assert "EDIT REPERTOIRE" in prompt
+        assert "REMOVE" in prompt
+        assert "not limited to" in prompt
+        assert "restrains ADDITIONS" in prompt
+    for gate_prompt in (exp.GATE_SYSTEM_PROMPT, exp.GATE_AGENT_ONLY_SYSTEM_PROMPT):
+        assert "never treat removal or simplification as inherently unsound" in gate_prompt
+        assert "policy_blame_nodes" in gate_prompt
+
+
 def test_drafter_prompt_forbids_abstain_and_unknown_nodes():
     # The policy-updater must never grow abstain/unknown/uncertain labels,
     # nodes, or routing rules — uncertainty lives in confidence/difficulty.

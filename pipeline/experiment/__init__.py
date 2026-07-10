@@ -284,6 +284,78 @@ def select_aligned_anchors(
     )
 
 
+def policy_blame(
+    misalignment_records: list[dict[str, Any]],
+    *,
+    min_models: int = 2,
+    top_n: int = 8,
+) -> list[dict[str, Any]]:
+    """Rank the policy nodes most often CITED BY WRONG VOTES across judges.
+
+    Every judge cites the node it applied (l2_label + policy_citations) —
+    so when a vote disagrees with the SME truth, its citations name the
+    policy text that led it there. Aggregated across the batch, a node that
+    misleads MULTIPLE different judges is evidence the POLICY TEXT is at
+    fault, not any one model (Attila 2026-07-10: a failure observed in one
+    judge should improve the guideline for all of them — measured case: the
+    v0.1 "benign illustration"/insufficient-evidence defaults routing
+    stylized AI art to not_gen_ai, cited by every judge that missed).
+
+    Model-agnostic by construction: nodes implicated by fewer than
+    ``min_models`` DISTINCT judges are dropped, so one model's quirks never
+    steer the policy. ``n_right_votes`` is reported for contrast — a node
+    that also carries many correct decisions wants NARROWING; a node cited
+    almost only in error is a removal candidate.
+    """
+    stats: dict[str, dict[str, Any]] = {}
+    for rec in misalignment_records:
+        truth = rec.get("sme_truth")
+        image_id = rec.get("image_id")
+        for vote in rec.get("votes") or []:
+            label = vote.get("label")
+            if label in (None, "", "abstain"):
+                continue
+            model = vote.get("labeler_id") or vote.get("model_id") or "?"
+            cited = {c for c in (vote.get("policy_citations") or []) if c}
+            if vote.get("l2_label"):
+                cited.add(str(vote["l2_label"]))
+            wrong = label != truth
+            for node in cited:
+                s = stats.setdefault(node, {
+                    "node": node, "n_wrong_votes": 0, "n_right_votes": 0,
+                    "wrong_models": set(), "wrong_confidences": [],
+                    "example_images": [],
+                })
+                if wrong:
+                    s["n_wrong_votes"] += 1
+                    s["wrong_models"].add(str(model))
+                    if isinstance(vote.get("confidence"), (int, float)):
+                        s["wrong_confidences"].append(float(vote["confidence"]))
+                    if (image_id and image_id not in s["example_images"]
+                            and len(s["example_images"]) < 3):
+                        s["example_images"].append(image_id)
+                else:
+                    s["n_right_votes"] += 1
+    out: list[dict[str, Any]] = []
+    for s in stats.values():
+        if len(s["wrong_models"]) < min_models:
+            continue
+        confs = s["wrong_confidences"]
+        out.append({
+            "node": s["node"],
+            "n_wrong_votes": s["n_wrong_votes"],
+            "n_right_votes": s["n_right_votes"],
+            "n_models_wrong": len(s["wrong_models"]),
+            "models_wrong": sorted(s["wrong_models"]),
+            "avg_wrong_confidence": (
+                round(sum(confs) / len(confs), 3) if confs else None
+            ),
+            "example_images": s["example_images"],
+        })
+    out.sort(key=lambda r: (-r["n_models_wrong"], -r["n_wrong_votes"], r["node"]))
+    return out[:top_n]
+
+
 # ---------------------------------------------------------------------------
 # Edit clipping: 1..max_changes discrete node-file changes per version bump
 
@@ -604,6 +676,11 @@ GATE_SYSTEM_PROMPT = (
     "semantic content, "
     "decision boundary, or objective fact is not an improvement; SKIP it even "
     "if the metric ticked up (small-partition noise can pass a no-op). "
+    "Deletions and simplifications are LEGITIMATE edits: a well-evidenced "
+    "narrowing or removal of a clause implicated in systematic "
+    "misalignments (see policy_blame_nodes when present) is often the best "
+    "possible edit — never treat removal or simplification as inherently "
+    "unsound. "
     "You can NEVER accept a metric-failing candidate. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
@@ -635,6 +712,11 @@ GATE_AGENT_ONLY_SYSTEM_PROMPT = (
     "Diff churn that changes no semantic content, decision boundary, or "
     "objective fact is not an improvement and must be skipped regardless of "
     "structural tidiness. "
+    "Deletions and simplifications are LEGITIMATE edits: a well-evidenced "
+    "narrowing or removal of a clause implicated in systematic "
+    "misalignments (see policy_blame_nodes when present) is often the best "
+    "possible edit — never treat removal or simplification as inherently "
+    "unsound. "
     "Respond with JSON only: {\"decision\": \"accept\"|\"skip\", "
     "\"rationale\": \"<=80 words\", \"risk_flags\": [\"...\"]}."
 )
@@ -691,6 +773,7 @@ def build_gate_messages(
     persona: str = DEFAULT_GATE_PERSONA,
     bundle_chars_before: int | None = None,
     bundle_chars_after: int | None = None,
+    policy_blame: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     """Assemble the gate agent's review packet (metric table + diff + anchors).
 
@@ -751,6 +834,11 @@ def build_gate_messages(
             for a in anchors
         ],
     }
+    if policy_blame:
+        # Which policy nodes wrong votes cited, across ≥2 judges — evidence
+        # for judging whether a candidate's clause-narrowing or removal is
+        # well-targeted rather than destructive.
+        payload["policy_blame_nodes"] = policy_blame
     if bundle_chars_before is not None and bundle_chars_after is not None:
         # Hard evidence for the prompt-mass watch: the policy bundle is every
         # judge's context window, and a measured failure mode (2026-07-09) is
@@ -888,6 +976,22 @@ DRAFTER_SYSTEM_PROMPT = (
     "cases WITHOUT regressing the aligned ones — use the aligned anchors as "
     "positive references for what the current policy already gets right, so "
     "your edit sharpens the boundary instead of over-correcting past it. "
+    "POLICY BLAME: when the packet includes policy_blame, treat it as the "
+    "strongest structural signal — it lists the policy nodes most often "
+    "cited by WRONG votes across MULTIPLE different judges, i.e. clauses "
+    "whose text itself misleads (a default or example routing judges to the "
+    "wrong label). Fixing a blamed clause helps every judge at once and "
+    "takes precedence over patching per-image symptoms; use n_right_votes "
+    "for calibration — a node that also carries correct decisions wants "
+    "NARROWING, one cited almost only in error is a removal candidate. "
+    "EDIT REPERTOIRE: you may amend, narrow, or DELETE clauses, REMOVE "
+    "entire nodes, and simplify the graph — you are not limited to "
+    "appending and clarifying. When existing text causes misalignments, "
+    "prefer repairing or removing the offending clause over adding a "
+    "parallel rule that contradicts it. This applies to the root file too: "
+    "its effectively-frozen status restrains ADDITIONS, never the repair or "
+    "narrowing of a clause the evidence implicates. State a removal's "
+    "purpose in the edit. "
     "Write minimal full-file markdown changes. HARD BUDGET: at most "
     "{max_changes} file changes total (modified + added + removed combined); "
     "fewer is better — one focused, human-reviewable change is ideal. "
@@ -1026,6 +1130,7 @@ def build_drafter_messages(
     anchor_images: list[dict[str, Any]] | None = None,
     aligned_images: list[dict[str, Any]] | None = None,
     provider: str = "openai",
+    policy_blame: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Assemble the drafter packet: current bundle + both anchor sets + budget.
 
@@ -1066,6 +1171,8 @@ def build_drafter_messages(
         "misaligned_samples": [_anchor_sample_block(a) for a in anchors],
         "aligned_samples": [_anchor_sample_block(a) for a in aligned_anchors],
     }
+    if policy_blame:
+        volatile_payload["policy_blame"] = policy_blame
     system = {
         "role": "system",
         "content": drafter_system_prompt(area=area, max_changes=max_changes),

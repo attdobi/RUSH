@@ -169,7 +169,15 @@
         most instructive anchors and writes a single policy edit of ≤5 node files. It drafts; it
         never judges. Its <strong>no-reword rule</strong> forbids paraphrase-only churn: a sentence
         may be touched only to change its semantic meaning, tighten a decision boundary, or clarify
-        an objective fact — everything else stays byte-for-byte intact so every diff is real.</li>
+        an objective fact — everything else stays byte-for-byte intact so every diff is real.
+        Its packet includes <strong>policy blame</strong> — the nodes most often cited by
+        <em>wrong</em> votes across ≥2 different judges (every judge cites the node it applied, so
+        wrong votes name the clause that misled them). Model-agnostic by construction: one judge's
+        quirks never steer the policy, but a clause that misleads several judges gets fixed once and
+        helps them all. And its <strong>edit repertoire is full</strong>: it may narrow or delete
+        clauses, remove entire nodes, and simplify the graph — including repairing an implicated
+        root clause — not just append and clarify; the gate is told evidenced removals are
+        legitimate.</li>
         <li><strong>Gate</strong> — a deterministic rule: accept the edit only if the panel's
         test-partition macro-F1 strictly improves. An optional <strong>gate agent</strong>
         (<em>the acceptance critic</em>, ledgered as <code>gate_agent</code>) is a
@@ -229,12 +237,15 @@
         (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤15 misaligned + ≤5 aligned
         become the anchor set (both counts are knobs).</li>
         <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
-        <em>generator</em> — the exact prompt the judges run), and per anchor the SME golden label
+        <em>generator</em> — the exact prompt the judges run), per anchor the SME golden label
         plus each judge's full text output (label, confidence, difficulty, boundary flag,
-        justification). With the Input knob on <code>images + text</code> the anchor image pixels
+        justification), and the cycle's <strong>policy-blame table</strong> — nodes cited by wrong
+        votes across ≥2 judges, with right-vote counts for calibration (a node also carrying
+        correct decisions wants narrowing; one cited almost only in error is a removal candidate).
+        With the Input knob on <code>images + text</code> the anchor image pixels
         are also attached (<code>text only</code> is the default — the justifications usually carry
         the visual evidence in words). It returns <em>one</em> edit touching ≤3 nodes (the clip
-        knob). Its token usage and cost are recorded per cycle.</li>
+        knob) — add, amend, narrow, or remove. Its token usage and cost are recorded per cycle.</li>
         <li><strong>Score.</strong> The panel relabels the fixed test partition under the candidate
         policy <var>G<sub>k</sub></var> ⊕ <var>e</var>.</li>
         <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive
