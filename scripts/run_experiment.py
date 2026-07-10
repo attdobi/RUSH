@@ -70,6 +70,7 @@ from pipeline.manifest import load_records  # noqa: E402
 from pipeline.policy_diff import (  # noqa: E402
     _call_chat_with_retries,
     _proposal_from_llm_json,
+    call_and_parse_with_reask,
     _version_dir,
     accept_proposal,
     get_proposal,
@@ -872,8 +873,19 @@ def main(argv: list[str] | None = None) -> int:
                 return cost
 
             try:
-                raw = _call_chat_with_retries(
-                    chat, messages, model_id=args.drafter_model,
+                # Transport errors retry inside _call_chat_with_retries; a
+                # syntactically bad completion (empty / prose / broken JSON)
+                # gets re-asked with the parse error echoed back instead of
+                # skipping the cycle — the train batch is already paid for.
+                raw, (proposed_files, removed), messages = call_and_parse_with_reask(
+                    chat, messages,
+                    parse=_proposal_from_llm_json,
+                    parse_attempts=3,
+                    on_parse_retry=lambda attempt, exc: _phase(
+                        f"cycle {k}/{args.k_max}: drafter reply unparseable "
+                        f"(attempt {attempt}/3: {str(exc)[:80]}) — re-asking"
+                    ),
+                    model_id=args.drafter_model,
                     reasoning_effort="high", timeout_s=300.0, retries=2, backoff_s=2.0,
                     # OpenAI cache routing: the drafter prefix (system + policy
                     # bundle) repeats across cycles while the policy is unchanged.
@@ -882,7 +894,6 @@ def main(argv: list[str] | None = None) -> int:
                         if args.drafter_model.startswith("openai/") else None
                     ),
                 )
-                proposed_files, removed = _proposal_from_llm_json(raw)
             except Exception as draft_exc:  # noqa: BLE001 - a bad draft skips the cycle
                 drafter_cost = _close_drafter_cost(cycle, n_drafter_calls)
                 cycle["status"] = "skipped"

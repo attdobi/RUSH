@@ -243,7 +243,19 @@ def _proposal_from_llm_json(raw: str) -> tuple[dict[str, str], list[str]]:
     try:
         doc = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"LLM response was not valid JSON: {exc}") from exc
+        # Models sometimes wrap the object in ```json fences or lead with
+        # prose. Salvage the outermost {...} span before giving up — free,
+        # vs. a re-ask round trip (see call_and_parse_with_reask).
+        start, end = raw.find("{"), raw.rfind("}")
+        salvaged = None
+        if 0 <= start < end:
+            try:
+                salvaged = json.loads(raw[start:end + 1])
+            except json.JSONDecodeError:
+                salvaged = None
+        if salvaged is None:
+            raise ValueError(f"LLM response was not valid JSON: {exc}") from exc
+        doc = salvaged
     if not isinstance(doc, dict):
         raise ValueError("LLM response must be a JSON object")
     files = doc.get("files")
@@ -421,6 +433,54 @@ def _call_chat_with_retries(
 
     assert last_exc is not None
     raise last_exc
+
+
+def call_and_parse_with_reask(
+    chat_callable: ChatCallable,
+    messages: list[dict[str, str]],
+    *,
+    parse: Callable[[str], Any],
+    parse_attempts: int = 3,
+    on_parse_retry: Callable[[int, Exception], None] | None = None,
+    **chat_kwargs: Any,
+) -> tuple[str, Any, list[dict[str, str]]]:
+    """Call the LLM and parse its reply, RE-ASKING on a malformed completion.
+
+    Transport failures (timeouts, 5xx) retry inside
+    :func:`_call_chat_with_retries` as before; this loop handles the OTHER
+    failure mode — a syntactically bad completion (empty string, prose, or
+    broken JSON: "Expecting value: line 1 column 1"). Instead of abandoning
+    work already paid for (the crank's train batch + labeling spend), the
+    bad reply is echoed back as an assistant turn with the parse error and
+    a corrective instruction, up to ``parse_attempts`` total completions.
+
+    Returns ``(raw, parsed, conversation)`` — the conversation includes any
+    corrective turns so callers can persist the full exchange. The final
+    attempt's parse error propagates unchanged.
+    """
+    attempts = max(1, int(parse_attempts))
+    convo = list(messages)
+    for attempt in range(1, attempts + 1):
+        raw = _call_chat_with_retries(chat_callable, convo, **chat_kwargs)
+        try:
+            return raw, parse(raw), convo
+        except ValueError as parse_exc:
+            if attempt >= attempts:
+                raise
+            if on_parse_retry is not None:
+                on_parse_retry(attempt, parse_exc)
+            convo = convo + [
+                {"role": "assistant",
+                 "content": (raw or "(empty response)")[:4000]},
+                {"role": "user",
+                 "content": (
+                     f"Your previous reply could not be parsed ({parse_exc}). "
+                     "Respond again with EXACTLY one JSON object in the "
+                     "required schema — no prose, no markdown fences, no text "
+                     "before or after the JSON."
+                 )},
+            ]
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def propose_diff(
