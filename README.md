@@ -156,7 +156,22 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
 1. **Run the loop** — the experiment crank IS the page. The config panel is grouped by role:
    * **Judges** — your 2–5 cheap panel models. They label every image and score every metric;
      all decision-quality numbers (F1 before/after, the learning curve, the gate metric) come from
-     THIS panel. No expensive model ever scores quality.
+     THIS panel. No expensive model ever scores quality. Each judge row carries a **Policy** toggle
+     (`--compressed-models`, per-judge): `full` labels under the complete policy bundle;
+     `compressed` labels under the **deterministic structural digest**
+     (`pipeline/policy_render.py`) — rationale, SME-workflow, and dataset-curation sections
+     dropped whole, every node id / edge / decision rule kept byte-for-byte. A projection, never a
+     paraphrase: no compression agent, nothing to audit, and (policy version, render) still pins
+     the exact prompt bytes. Why it exists (measured 2026-07-09): the bundle is the judge's entire
+     context, and qwen-7B collapsed to the policy's default branch under the full ~25k-char GenAI
+     bundle (0/6 generated images detected) while scoring 8/8 on the same images under a two-line
+     prompt — prompt drowning, not capability; 26B gemma kept discriminating. Default: compressed
+     ON only for `local/qwen2.5-vl-7b`. The render assignment is recorded on every run manifest
+     (`compressed_policy_models`, `policy_render_chars`) and experiment state, every cycle records
+     the bundle size (`policy_bundle_chars` — the parameter-count analog), and the digest itself is
+     browsable at `GET /api/policy/render?area=…&render=compressed` ("view compressed render" link
+     by the picker) — it is the production artifact a lightweight labeler would ship with. Together
+     these make **policy length × judge capacity** a first-class research axis of the crank.
    * **Splits** (GenAI only) — the current minted split state (dev / holdout / benchmark sizes +
      the sampling seed) with editable seed/sizes and a **Mint splits** button. The seed is the
      cross-machine alignment contract: the same seed + sizes over the same source tree produces

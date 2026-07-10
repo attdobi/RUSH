@@ -38,6 +38,7 @@ from pipeline.io_paths import (  # noqa: E402  (after sys.path edit)
     genai_manifest_default,
 )
 from pipeline.manifest import HOLDOUT_SPLITS, load_records, select_samples  # noqa: E402
+from pipeline.policy_render import parse_compressed_models  # noqa: E402
 from pipeline.providers._config import resolve_temperature  # noqa: E402
 from pipeline.runner import (  # noqa: E402
     DEFAULT_PROMPT_VERSION,
@@ -121,6 +122,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Comma-separated local model reasoning toggles, e.g. "
             "local/qwen3.6-27b=on,local/gemma-4-26b-a4b-qat=off."
+        ),
+    )
+    parser.add_argument(
+        "--compressed-models",
+        default=None,
+        help=(
+            "Comma-separated judge ids that label under the deterministic "
+            "structural digest of the policy bundle instead of the full "
+            "render (small judges collapse under the full bundle — see "
+            "pipeline/policy_render.py). Must be a subset of --models."
         ),
     )
     parser.add_argument("--allow-holdout", action="store_true",
@@ -359,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
         allow_holdout=args.allow_holdout,
         dry_run=not args.live,
         reasoning_effort=args.reasoning_effort,
+        compressed_models=parse_compressed_models(args.compressed_models),
     )
 
     completed_with_errors = summary.errored_calls > 0 and run_completed_with_results(summary)

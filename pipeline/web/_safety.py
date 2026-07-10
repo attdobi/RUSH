@@ -419,6 +419,9 @@ def validate_start_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "mode": mode,
         "reasoning_effort": reasoning_effort,
         "local_reasoning": local_reasoning,
+        "compressed_models": _compressed_models(
+            payload.get("compressed_models"), models
+        ),
         "allow_spend": True,
         "allow_holdout": payload.get("allow_holdout") is True,
         "concurrency": concurrency,
@@ -652,6 +655,9 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
             "drafter_model", "openai/gpt-5.5", policy_allowed_only=True
         ),
         "drafter_context": _drafter_context(payload.get("drafter_context")),
+        "compressed_models": _compressed_models(
+            payload.get("compressed_models"), models
+        ),
         "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
         "holdout_final": bool(payload.get("holdout_final")),
@@ -701,6 +707,25 @@ def _dev_golden_pool_n(area: str) -> int | None:
         return None
     _DEV_GOLDEN_POOL_CACHE[key] = pool_n
     return pool_n
+
+
+def _compressed_models(raw: Any, models: list[str]) -> list[str]:
+    """Judges labeling under the compressed policy render (per-judge knob,
+    Attila 2026-07-09 — the policy-rendering × judge-scale axis). Must be a
+    subset of the run's panel."""
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list) or not all(isinstance(m, str) for m in raw):
+        raise APIError(400, "validation_error",
+                       "compressed_models must be a list of model ids",
+                       details={"field": "compressed_models"})
+    unknown = sorted(set(raw) - set(models))
+    if unknown:
+        raise APIError(400, "validation_error",
+                       "compressed_models must be a subset of models; "
+                       f"unknown: {', '.join(unknown)}",
+                       details={"field": "compressed_models"})
+    return sorted(set(raw))
 
 
 def _drafter_context(raw: Any) -> str:

@@ -61,6 +61,52 @@ def _redirect(handler, location: str) -> None:
     handler.end_headers()
 
 
+def handle_policy_render(handler) -> None:
+    """Serve a policy bundle render as browsable plain text.
+
+    ``?area=<area>&version=<vX.Y>&render=full|compressed`` — the compressed
+    render IS the artifact a small production judge labels under (the
+    deterministic structural digest), so the SME must be able to read exactly
+    what shipped. A size header line makes the prompt-mass comparison
+    one-glance.
+    """
+    import re as _re
+
+    from pipeline.policy_iterator import load_policy_markdown
+    from pipeline.policy_render import compress_policy_markdown
+    from pipeline.web.demo_area import normalize_policy_area
+
+    query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
+    try:
+        area = normalize_policy_area((query.get("area") or [None])[0])
+    except ValueError as exc:
+        raise APIError(400, "bad_request", str(exc)) from exc
+    version = (query.get("version") or ["v0.1"])[0].strip() or "v0.1"
+    if not _re.fullmatch(r"v[0-9][\w.\-]*", version):
+        raise APIError(400, "bad_request", f"invalid policy version: {version!r}")
+    render = (query.get("render") or ["compressed"])[0].strip() or "compressed"
+    if render not in {"full", "compressed"}:
+        raise APIError(400, "bad_request", "render must be full|compressed")
+    policy_dir = handler.repo_root / "policy-graph" / area / version
+    if not policy_dir.is_dir():
+        raise APIError(404, "not_found", f"no such policy version: {area}/{version}")
+    full = load_policy_markdown(policy_dir)
+    text = compress_policy_markdown(full) if render == "compressed" else full
+    header = (
+        f"# {area} {version} — {render} render · {len(text)} chars "
+        f"(~{len(text) // 4} tokens)"
+        + (f" · full render: {len(full)} chars (~{len(full) // 4} tokens)\n\n"
+           if render == "compressed" else "\n\n")
+    )
+    raw = (header + text).encode("utf-8")
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/plain; charset=utf-8")
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.send_header("Cache-Control", "no-store")
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
 def handle_thumbnail(handler) -> None:
     query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
     requested = (query.get("path") or [""])[0]
@@ -255,6 +301,10 @@ def handle_api(handler, registry: RunRegistry, *, method: str) -> None:
             query = parse_qs(urlsplit(handler.path).query, keep_blank_values=True)
             status, body = handlers_dq.handle_insights(query)
             send_json(handler, status, body)
+            return
+
+        if method == "GET" and path == "/api/policy/render":
+            handle_policy_render(handler)
             return
 
         # ----- X3: policy versions / proposals ---------------------------

@@ -83,6 +83,9 @@ CHILD = "scripts/run_bulk_labeling.py"
 
 _CURRENT_CHILD: subprocess.Popen | None = None
 _STOP_REQUESTED = False
+# Comma-separated judge ids labeling under the compressed policy render;
+# set once in main() and appended to every child argv (see _run_child).
+_COMPRESSED_MODELS_ARG: str = ""
 
 
 def _forward_signal(signum: int, _frame: object) -> None:  # pragma: no cover - signal path
@@ -212,6 +215,12 @@ def _run_child(
         argv += ["--live", "--allow-spend"]
     if allow_holdout:
         argv += ["--allow-holdout"]
+    if _COMPRESSED_MODELS_ARG:
+        # Per-judge policy render (policy-rendering × judge-scale axis): the
+        # flagged judges label under the deterministic digest in EVERY child
+        # pass — train, candidate eval, holdout, benchmark — so a run's
+        # render assignment is constant end to end.
+        argv += ["--compressed-models", _COMPRESSED_MODELS_ARG]
 
     # A stop requested during a non-child phase (drafter/gate/scoring) must
     # not launch — and pay for — the next labeling run.
@@ -397,6 +406,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                          "metric_only: rule alone | "
                          "off: accept EVERY clipped edit (metric recorded, never enforced "
                          "— shows unfiltered policy drift; requires --live).")
+    ap.add_argument("--compressed-models", default=None,
+                    help="Comma-separated judge ids that label under the "
+                         "deterministic structural digest of the policy "
+                         "bundle instead of the full render — the "
+                         "policy-rendering × judge-scale knob (small judges "
+                         "collapse under the full bundle; see "
+                         "pipeline/policy_render.py). Subset of --models.")
     ap.add_argument("--drafter-model", default=exp.DEFAULT_DRAFTER_MODEL)
     ap.add_argument("--drafter-context", choices=["text_and_images", "text_only"],
                     default="text_only",
@@ -460,6 +476,16 @@ def main(argv: list[str] | None = None) -> int:
         print("[experiment] judge panel should be 2-5 models", file=sys.stderr)
         if not models:
             return 2
+    compressed_models = sorted(
+        m.strip() for m in (args.compressed_models or "").split(",") if m.strip()
+    )
+    unknown_compressed = [m for m in compressed_models if m not in models]
+    if unknown_compressed:
+        print("[experiment] --compressed-models must be a subset of --models; "
+              f"unknown: {', '.join(unknown_compressed)}", file=sys.stderr)
+        return 2
+    global _COMPRESSED_MODELS_ARG
+    _COMPRESSED_MODELS_ARG = ",".join(compressed_models)
     manifest = args.manifest or (
         MNIST_SAMPLE_MANIFEST if area == MNIST_POLICY_AREA else genai_manifest_default()
     )
@@ -525,6 +551,7 @@ def main(argv: list[str] | None = None) -> int:
         "gate_persona": args.gate_persona,
         "drafter_model": args.drafter_model,
         "drafter_context": args.drafter_context,
+        "compressed_models": compressed_models,
         "base_version": base_version,
         "base_generator": _gen_id(area, base_version),
         "current_version": base_version,

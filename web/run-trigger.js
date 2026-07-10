@@ -74,6 +74,14 @@
   const REASONING_SUFFIXES = ['xhigh', 'high', 'medium', 'low'];
   const LOCAL_REASONING_SESSION_KEY = 'rush_local_reasoning_overrides_v1';
   const localReasoningOverrides = readLocalReasoningOverrides();
+  // Per-judge policy render (the policy-rendering × judge-scale knob): judges
+  // toggled "compressed" label under the deterministic structural digest of
+  // the policy bundle instead of the full render. Default ON only for the
+  // measured drowned judge (qwen-7B: 0/6 under the full bundle, 8/8 under a
+  // short prompt — 2026-07-09 probe).
+  const COMPRESSED_POLICY_SESSION_KEY = 'rush_compressed_policy_overrides_v1';
+  const DEFAULT_COMPRESSED_MODELS = new Set(['local/qwen2.5-vl-7b']);
+  const compressedPolicyOverrides = readCompressedPolicyOverrides();
 
   // Mirror of pipeline/providers/pricing.py — keep in EXACT sync. GPT reasoning variants mirror their base model prices.
   // Note: gpt-5.5 input of 1.25 looks like the cached-input rate.
@@ -484,6 +492,49 @@
     }, {});
   }
 
+  function readCompressedPolicyOverrides() {
+    try {
+      const raw = window.sessionStorage.getItem(COMPRESSED_POLICY_SESSION_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeCompressedPolicyOverrides() {
+    try {
+      window.sessionStorage.setItem(COMPRESSED_POLICY_SESSION_KEY, JSON.stringify(compressedPolicyOverrides));
+    } catch (error) { /* in-memory object still tracks this page */ }
+  }
+
+  function compressedPolicyEnabled(modelId) {
+    if (Object.prototype.hasOwnProperty.call(compressedPolicyOverrides, modelId)) {
+      return compressedPolicyOverrides[modelId] === true;
+    }
+    return DEFAULT_COMPRESSED_MODELS.has(modelId);
+  }
+
+  function compressedModelsForSelected(models = selectedModels()) {
+    return models.filter(compressedPolicyEnabled);
+  }
+  // The experiment form (experiment.js) reads the same picker.
+  window.rushCompressedModelsForSelected = compressedModelsForSelected;
+
+  function renderCompressedPolicyToggle(model) {
+    const enabled = compressedPolicyEnabled(model);
+    return `
+      <div class="local-reasoning-control" data-compressed-policy-for="${attr(model)}">
+        <span class="local-reasoning-label" title="Which render of the policy bundle this judge labels under. Compressed = the deterministic structural digest (rationale/SME-workflow/curation sections dropped, every decision rule kept verbatim) — small judges measurably collapse under the full bundle (qwen-7B: 0/6 detected under the full ~25k-char policy, 8/8 under a short prompt). The policy-rendering × judge-scale research knob; recorded on every run.">Policy</span>
+        <label class="local-reasoning-switch" aria-label="Policy render for ${attr(model)}">
+          <input class="compressed-policy-input" type="checkbox" data-compressed-policy-model="${attr(model)}"${enabled ? ' checked' : ''} />
+          <span class="local-reasoning-slider" aria-hidden="true"></span>
+          <span class="local-reasoning-state">${enabled ? 'compressed' : 'full'}</span>
+        </label>
+      </div>`;
+  }
+
   function renderLocalReasoningToggle(model) {
     const enabled = localReasoningEnabled(model);
     const stateText = enabled ? 'On' : 'Off';
@@ -548,6 +599,7 @@
     const localClass = isLocal ? ' model-pick--local' : '';
     const badge = `<span class="cost-badge cost-badge--${badgeTier.toLowerCase()}" title="Relative COST tier from the estimated $/1k labels${isLocal ? ' (local GPU: free)' : ''}">${esc(badgeTier)}</span>`;
     const reasoningToggle = isLocal ? renderLocalReasoningToggle(model) : '';
+    const policyToggle = renderCompressedPolicyToggle(model);
     return `
       <div class="model-pick${localClass}">
         <label class="model-pick-select">
@@ -556,6 +608,7 @@
           ${badge}
         </label>
         ${reasoningToggle}
+        ${policyToggle}
       </div>`;
   }
 
@@ -608,6 +661,12 @@
   function populateModels() {
     const picker = $('#runTriggerModels');
     if (!picker) return;
+    // The "view compressed render" link follows the active demo's area — it
+    // serves the exact digest a compressed judge labels under.
+    const renderLink = document.getElementById('compressedRenderLink');
+    if (renderLink) {
+      renderLink.href = `/api/policy/render?area=${encodeURIComponent(activePolicyArea())}&version=v0.1&render=compressed`;
+    }
     // Group every model by PROVIDER so a family is easy to scan (Attila's
     // reorg). Within a group, sort by price high-to-low; each row still carries its
     // computed $/1k estimate and a cost-tier badge.
@@ -793,6 +852,7 @@
       area: activePolicyArea(),
       models,
       local_reasoning: localReasoning,
+      compressed_models: compressedModelsForSelected(models),
       split,
       limit: sampleIds ? null : limit,
       sample_ids: sampleIds || null,
@@ -1091,7 +1151,16 @@
     $('#cascadeEscalateModel')?.addEventListener('change', refreshRunButtonLabel);
     $('#runTriggerModels')?.addEventListener('change', event => {
       const input = event.target;
-      if (!(input instanceof HTMLInputElement) || !input.classList.contains('local-reasoning-input')) return;
+      if (!(input instanceof HTMLInputElement)) return;
+      if (input.classList.contains('compressed-policy-input')) {
+        const model = input.dataset.compressedPolicyModel || '';
+        compressedPolicyOverrides[model] = input.checked === true;
+        writeCompressedPolicyOverrides();
+        const stateEl = input.closest('.local-reasoning-switch')?.querySelector('.local-reasoning-state');
+        if (stateEl) stateEl.textContent = input.checked ? 'compressed' : 'full';
+        return;
+      }
+      if (!input.classList.contains('local-reasoning-input')) return;
       const model = input.dataset.localReasoningModel || '';
       if (!isLocalModel(model)) return;
       localReasoningOverrides[model] = input.checked === true;

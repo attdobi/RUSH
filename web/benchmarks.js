@@ -99,10 +99,16 @@
       const optimizer = `${shortModel(e.drafter_model)}${inputLabel}`;
       const anchors = `${STRATEGY_LABELS[e.strategy] || esc(e.strategy || '—')} · ${esc(e.max_anchors ?? '—')}/${esc(e.max_aligned_anchors ?? '—')}`;
       const loop = `${esc(e.k_max ?? '—')} · ${esc(e.batch_n ?? '—')} · ${esc(e.test_n ?? '—')}`;
+      // policy-rendering × judge-scale: flag judges that labeled under the
+      // compressed render so cross-run rows are comparable at a glance.
+      const compressed = Array.isArray(e.compressed_models) ? e.compressed_models : [];
+      const judgesCell = compressed.length
+        ? `${esc((e.judge_models || []).length)} judges <span class="hint" title="labeled under the compressed policy render: ${esc(compressed.join(', '))}">· ${compressed.length} compressed</span>`
+        : `${esc((e.judge_models || []).length)} judges`;
       return `<tr class="${e.benchmark ? '' : 'benchmarks-row--none'}">
         <td class="benchmarks-run-cell">#${esc(e.run_number ?? '?')} · seed ${esc(e.seed)}<span class="hint">${esc(started)}</span></td>
         <td>${statusChip(e.status)}<span class="hint">${esc(e.accepted ?? 0)} accepted / ${esc(e.cycles_done ?? 0)}</span></td>
-        <td>${esc(e.base_version)} → ${esc(e.current_version)}</td>
+        <td>${esc(e.base_version)} → ${esc(e.current_version)}<span class="hint">${judgesCell}</span></td>
         <td>${gate}</td>
         <td>${esc(optimizer)}</td>
         <td>${anchors}</td>

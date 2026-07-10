@@ -459,6 +459,9 @@ class RunRegistry:
                 for model_id, enabled in local_reasoning.items()
             )
             argv.extend(["--local-reasoning", local_reasoning_arg])
+        if request.get("compressed_models"):
+            argv.extend(["--compressed-models",
+                         ",".join(request["compressed_models"])])
         if request.get("limit") is not None:
             argv.extend(["--limit", str(request["limit"])])
         if request.get("sample_ids"):
@@ -619,6 +622,9 @@ class RunRegistry:
         ]
         if request.get("seed") is not None:
             argv.extend(["--seed", str(request["seed"])])
+        if request.get("compressed_models"):
+            argv.extend(["--compressed-models",
+                         ",".join(request["compressed_models"])])
         if request.get("policy_version"):
             argv.extend(["--policy-version", request["policy_version"]])
         if request.get("holdout_final"):
@@ -659,7 +665,8 @@ class RunRegistry:
                     "seed", "k_max", "batch_n", "test_n", "max_changes",
                     "max_anchors", "max_aligned_anchors", "epsilon",
                     "gate_model", "gate_mode", "gate_persona", "drafter_model",
-                    "drafter_context", "live", "holdout_final",
+                    "drafter_context", "compressed_models", "live",
+                    "holdout_final",
                 )
             },
         }

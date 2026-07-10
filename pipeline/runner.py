@@ -66,6 +66,7 @@ from .manifest import (
     load_records,
     select_samples,
 )
+from .policy_render import compress_policy_markdown
 from .web.demo_area import area_from_policy_version
 from .web.demo_area import normalize_policy_area
 
@@ -446,6 +447,8 @@ def _initial_manifest(
     reasoning_effort: str | None = None,
     area: str = "Generative_AI",
     policy_version: str = "v0.1",
+    compressed_policy_models: list[str] | None = None,
+    policy_render_chars: dict | None = None,
 ) -> dict:
     manifest: dict = {
         "run_id": run_id,
@@ -500,6 +503,13 @@ def _initial_manifest(
         manifest["split"] = split
     if limit is not None:
         manifest["limit"] = limit
+    if compressed_policy_models:
+        # Policy-rendering × judge-scale axis: which judges labeled under the
+        # deterministic digest instead of the full bundle, and both renders'
+        # sizes — the run is only comparable/reproducible with this recorded.
+        manifest["compressed_policy_models"] = sorted(compressed_policy_models)
+        if policy_render_chars:
+            manifest["policy_render_chars"] = policy_render_chars
     return manifest
 
 
@@ -620,12 +630,19 @@ def run_labeling(
     reasoning_effort: str | None = None,
     area: str | None = None,
     policy_version: str | None = None,
+    compressed_models: frozenset[str] | set[str] | None = None,
 ) -> RunSummary:
     """Execute one labeling run.
 
     Defaults are intentionally safe: ``client_factory`` is the deterministic
     fake and ``dry_run=True``. The CLI flips ``dry_run=False`` only after
     real provider clients are wired by X1 and Pista approves spend.
+
+    ``compressed_models``: judge ids that label under the deterministic
+    structural digest of the policy bundle instead of the full render (small
+    judges measurably collapse under the full bundle — see
+    :mod:`pipeline.policy_render`). Per-judge, so the policy-rendering ×
+    judge-scale axis is a recorded property of every run.
     """
     if concurrency < 1:
         raise ValueError(f"concurrency must be >= 1, got {concurrency}")
@@ -668,6 +685,18 @@ def run_labeling(
 
     policy_dir = policy_graph_dir or DEFAULT_POLICY_GRAPH_DIR
     policy_markdown = load_policy_markdown(policy_dir)
+    compressed_ids = frozenset(compressed_models or ())
+    unknown_compressed = compressed_ids - {s.model_id for s in model_specs}
+    if unknown_compressed:
+        raise ValueError(
+            "compressed_models not in this run's panel: "
+            + ", ".join(sorted(unknown_compressed))
+        )
+    # Digested ONCE per run — deterministic projection of the same bundle, so
+    # (policy version, render) still pins the exact prompt bytes per judge.
+    policy_markdown_compressed = (
+        compress_policy_markdown(policy_markdown) if compressed_ids else ""
+    )
 
     sample_manifest_path = sample_manifest_path or DEFAULT_SAMPLE_MANIFEST
     try:
@@ -701,6 +730,12 @@ def run_labeling(
         expected_calls=expected,
         dry_run=dry_run,
         reasoning_effort=reasoning_effort,
+        compressed_policy_models=sorted(compressed_ids),
+        policy_render_chars=(
+            {"full": len(policy_markdown),
+             "compressed": len(policy_markdown_compressed)}
+            if compressed_ids else None
+        ),
     )
     persistence.write_run_manifest(paths, manifest)
 
@@ -852,11 +887,18 @@ def run_labeling(
         # blocked call only ties up its own lane's worker(s), never another
         # lane's.
         _, spec = batch[0]
+        # Per-judge render: flagged judges get the deterministic digest, the
+        # rest the full bundle (batches are homogeneous by model).
+        batch_policy = (
+            policy_markdown_compressed
+            if spec.model_id in compressed_ids
+            else policy_markdown
+        )
         requests = [
             _build_request(
                 sample,
                 model_spec,
-                policy_markdown=policy_markdown,
+                policy_markdown=batch_policy,
                 policy_graph_version=policy_graph_version,
                 prompt_version=prompt_version,
                 area=run_area,

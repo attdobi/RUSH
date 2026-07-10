@@ -108,6 +108,21 @@
       "minimum": 0,
       "description": "Number of logical provider batches scheduled for the run."
     },
+    "compressed_policy_models": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Judge ids that labeled under the deterministic structural digest of the policy bundle instead of the full render (policy-rendering × judge-scale axis; pipeline/policy_render.py)."
+    },
+    "policy_render_chars": {
+      "type": "object",
+      "required": ["full", "compressed"],
+      "properties": {
+        "full": {"type": "integer", "minimum": 0},
+        "compressed": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false,
+      "description": "Character sizes of both policy renders used in this run."
+    },
     "image_prep": {
       "type": "object",
       "required": ["longest_edge_px", "format", "quality"],

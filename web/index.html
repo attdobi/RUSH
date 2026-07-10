@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RUSH — SME policy, LLM labeling, measurable quality</title>
-  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r53" />
-  <script src="demos.js?v=demo-mnist-kdd-r53"></script>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r55" />
+  <script src="demos.js?v=demo-mnist-kdd-r55"></script>
 </head>
 <body>
   <header class="hero">
@@ -88,7 +88,7 @@
           </div>
         </details>
         <fieldset class="model-picker compact-model-picker" aria-label="Judge panel">
-          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate)</span></legend>
+          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate) · per-judge <strong>Policy</strong> toggle = full bundle vs the deterministic compressed render (<a id="compressedRenderLink" href="/api/policy/render?render=compressed" target="_blank" rel="noopener" title="The exact digest a compressed judge labels under — the production artifact for lightweight labelers">view compressed render ↗</a>)</span></legend>
           <div id="runTriggerModels" class="model-picker-list"></div>
         </fieldset>
         <div class="run-controls experiment-config-row" id="genaiSplitsRow" aria-label="GenAI data splits" hidden>
@@ -322,16 +322,16 @@
     </details>
   </main>
 
-  <script src="app.js?v=demo-mnist-kdd-r53"></script>
-  <script src="run-trigger.js?v=demo-mnist-kdd-r53"></script>
-  <script src="experiment.js?v=demo-mnist-kdd-r53"></script>
-  <script src="summary.js?v=demo-mnist-kdd-r53"></script>
-  <script src="adjudicate.js?v=demo-mnist-kdd-r53"></script>
-  <script src="benchmarks.js?v=demo-mnist-kdd-r53"></script>
-  <script src="about.js?v=demo-mnist-kdd-r53"></script>
-  <script src="provenance.js?v=demo-mnist-kdd-r53"></script>
+  <script src="app.js?v=demo-mnist-kdd-r55"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r55"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r55"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r55"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r55"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r55"></script>
+  <script src="about.js?v=demo-mnist-kdd-r55"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r55"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-  <script src="policy-graph.js?v=demo-mnist-kdd-r53"></script>
-  <script src="justifications.js?v=demo-mnist-kdd-r53"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r55"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r55"></script>
 </body>
 </html>

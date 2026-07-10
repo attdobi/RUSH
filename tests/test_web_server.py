@@ -321,6 +321,24 @@ def test_validate_experiment_payload_live_requires_launch_pin() -> None:
     assert excinfo.value.code == "launch_pin_required"
 
 
+def test_validate_experiment_payload_compressed_models() -> None:
+    from pipeline.web._safety import APIError, validate_experiment_payload
+
+    # Default: nobody compressed.
+    assert validate_experiment_payload(_experiment_payload())["compressed_models"] == []
+    payload = _experiment_payload()
+    picked = validate_experiment_payload(
+        {**payload, "compressed_models": [payload["models"][0]]}
+    )
+    assert picked["compressed_models"] == [payload["models"][0]]
+    # Must be a subset of the panel.
+    with pytest.raises(APIError) as excinfo:
+        validate_experiment_payload(
+            {**payload, "compressed_models": ["local/not-on-panel"]}
+        )
+    assert excinfo.value.status == 400
+
+
 def test_validate_experiment_payload_aligned_anchor_split() -> None:
     from pipeline.web._safety import validate_experiment_payload
 

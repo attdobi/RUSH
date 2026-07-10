@@ -202,6 +202,7 @@
           <tr><td>Seed</td><td>13</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
           <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config. Its per-cycle spend is recorded on each cycle and shown in the gate ledger.</td></tr>
           <tr><td>Input</td><td>text only</td><td>What the drafter gets per anchor. <code>text only</code> (default): every judge's full text output — label, confidence, difficulty, boundary flag, justification — plus the SME truth. The justifications describe what the judges saw, so this is usually enough, and it keeps optimizer cost flat as anchor counts grow. <code>images + text</code>: additionally attaches the anchor image bytes so the drafter can inspect the pixels itself — stronger evidence on visual boundary cases (a 9 with a broken loop, a plastic-skin artifact) at extra input-token cost per cycle.</td></tr>
+          <tr><td>Policy render</td><td>full (qwen-7B: compressed)</td><td><strong>Per-judge</strong>, on each judge's row in the panel picker. <code>full</code>: the judge labels under the complete policy bundle. <code>compressed</code>: it labels under the <em>deterministic structural digest</em> — rationale ("why this node exists"), SME-workflow, and dataset-curation sections dropped whole; every node id, edge, and decision rule kept byte-for-byte (a projection, never a paraphrase — no compression agent, nothing to audit). Why it exists: the bundle is the judge's entire context, and prompt mass measurably drowns small judges — qwen-7B went 0/6 detected under the full ~25k-char GenAI bundle and 8/8 under a two-line prompt on the same images, while 26B gemma kept discriminating. The digest is the production artifact a lightweight labeler would ship with; view it via the "compressed render" link by the panel picker. Recorded on every run + run manifest, so <strong>policy length × judge capacity</strong> is a first-class research axis (see below).</td></tr>
           <tr><td>Anchors (method)</td><td>random (S1)</td><td>How misalignments are picked for the drafter: <code>random</code> = the null hypothesis every gradient must beat; <code>top |g|</code> = confident-wrong first; <code>top importance</code> = the four-tier rank below.</td></tr>
           <tr><td>Misaligned</td><td>15</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
           <tr><td>Aligned</td><td>5</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
@@ -422,6 +423,15 @@
         sampling? If not, the gradient formalism isn't earning its complexity — itself a result.</li>
         <li><strong>Prompt-tuning architectures</strong> — the drafter is one optimizer; the crank A/Bs it
         against reflective / GEPA-style / node-statistic alternatives on the same seeds and splits.</li>
+        <li><strong>Policy length × judge capacity</strong> — the policy is a growing textual
+        parameter, and each judge has a capacity budget it must fit inside. Measured (2026-07-09):
+        under the full ~25k-char GenAI bundle a 7B judge collapsed to the policy's default branch
+        on every call (0/6 generated images detected) yet scored 8/8 on the same images under a
+        two-line prompt, while a 26B judge kept discriminating — prompt drowning, not capability.
+        The per-judge <em>policy render</em> knob makes this a two-way ablation the crank can run:
+        every cycle records the bundle size (the parameter-count analog), every run records which
+        judges labeled under the compressed render, and the fixed benchmark scores both. Nobody in
+        the PPO/GEPA/VISTA lineage has measured this axis.</li>
       </ul>
       <p class="hint">Known bias to fix before publishing: the gate's winner's curse (one noisy eval,
       ε=0, inherited baseline). Mitigations to A/B — ε&gt;0, paired incumbent re-eval, N-consecutive-wins —

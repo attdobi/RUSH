@@ -1971,6 +1971,7 @@ def list_experiments(repo_root: Path | str) -> list[dict[str, Any]]:
                 "gate_persona": state.get("gate_persona"),
                 "drafter_model": state.get("drafter_model"),
                 "drafter_context": state.get("drafter_context"),
+                "compressed_models": state.get("compressed_models") or [],
                 "strategy": state.get("strategy"),
                 "batch_n": state.get("batch_n"),
                 "test_n": state.get("test_n"),

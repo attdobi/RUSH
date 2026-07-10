@@ -112,6 +112,14 @@
     ).map((input) => input.value).filter(Boolean);
   }
 
+  function selectedCompressedModels(models) {
+    // Per-judge policy render from the shared picker (run-trigger.js owns
+    // the toggles + session overrides).
+    return typeof window.rushCompressedModelsForSelected === 'function'
+      ? window.rushCompressedModelsForSelected(models)
+      : [];
+  }
+
   function fmtPct(value, digits = 1) {
     return (value === null || value === undefined) ? '—' : `${(value * 100).toFixed(digits)}%`;
   }
@@ -197,6 +205,7 @@
       gate_persona: $('#experimentGatePersona')?.value || 'lenient',
       drafter_model: $('#experimentDrafterModel')?.value || 'openai/gpt-5.5',
       drafter_context: $('#experimentDrafterContext')?.value || 'text_only',
+      compressed_models: selectedCompressedModels(models),
       strategy: $('#experimentStrategy')?.value || 'random_misalignment',
       // Fixed cross-run benchmark readout (validation split, start + final).
       validation_final: $('#experimentValidationFinal')?.checked === true,
