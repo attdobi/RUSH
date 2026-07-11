@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label-noise crank simulator</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header>
+  <h1>Label-noise crank simulator</h1>
+  <p class="explainer">
+    A judge panel labels 2D points by reading the current policy boundary; panel-vs-human
+    misalignment picks anchors; a clipped gradient step drafts a candidate boundary; a gate
+    accepts it only if macro-F1 against the <em>human</em> test labels does not drop. Human labels
+    are noisy. Every run simulates two coupled universes over the same world with common random
+    numbers &mdash; the <strong>noisy</strong> one (corrupted human labels) and its
+    <strong>clean twin</strong> (labels&nbsp;=&nbsp;ground truth) &mdash; so any gap between them
+    is attributable to label noise alone. Bayesian per-label confidence can deweight (or upweight)
+    suspect anchors, and a budgeted SME queue re-adjudicates the most suspicious labels.
+  </p>
+  <p class="note">Mirrors <code>sim/label-noise/labelsim</code> v0.1 semantics (GenAI binary arm).
+    Fully seeded: any control change deterministically re-runs the whole trajectory, then animates it.</p>
+</header>
+
+<div class="layout">
+
+  <aside class="controls">
+    <div class="buttons">
+      <button class="btn" id="btnReset" title="Recompute the full trajectory from the seed and rewind to cycle 0">Reset</button>
+      <button class="btn" id="btnStep" title="Advance one crank cycle">Step</button>
+      <button class="btn primary" id="btnPlay" title="Animate at about 3 cycles per second">Pause</button>
+    </div>
+
+    <div class="group">
+      <div class="group-title">World</div>
+      <div class="ctl">
+        <label for="seed" title="Master seed: keys every random stream (data, judges, noise, queues). Same seed + same controls = same trajectory.">Seed</label>
+        <input type="number" id="seed" value="13" step="1">
+      </div>
+      <div class="ctl">
+        <label for="npoints" title="Number of 2D points in the world. 35% are held out as the test pool.">Points</label>
+        <select id="npoints">
+          <option value="300" selected>300</option>
+          <option value="600">600</option>
+        </select>
+      </div>
+      <div class="ctl stack" id="ctlCycles">
+        <label for="cycles" title="Crank cycles per run.">Cycles <span class="val" id="cyclesVal">30</span></label>
+        <input type="range" id="cycles" min="10" max="60" step="1" value="30">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Label noise</div>
+      <div class="ctl">
+        <label for="noiseModel" title="uniform: flips anywhere (catastrophic interior mislabels). boundary: flip probability ~ exp(-margin/tau) under the oracle boundary — mistakes live on the contested ridge, like adult-vs-racy.">Model</label>
+        <select id="noiseModel">
+          <option value="uniform">uniform</option>
+          <option value="boundary" selected>boundary</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="oneWay" title="Only items whose TRUE class is gen_ai can be mislabeled (flip_from=1). Two-sided noise largely cancels at a boundary; the one-way failure mode drags it.">One-way (gen_ai only)</label>
+        <input type="checkbox" id="oneWay">
+      </div>
+      <div class="ctl stack">
+        <label for="rate" title="Fraction of ALL labels flipped at world creation (one-way concentrates them in the gen_ai class, capped at the class size — comparable to two-sided at the same rate).">Rate <span class="val" id="rateVal">0.15</span></label>
+        <input type="range" id="rate" min="0" max="0.4" step="0.01" value="0.15">
+      </div>
+      <div class="ctl stack" id="ctlTau">
+        <label for="tau" title="Boundary concentration for the boundary model: smaller tau = flips hug the true boundary tighter.">Tau <span class="val" id="tauVal">0.25</span></label>
+        <input type="range" id="tau" min="0.1" max="0.6" step="0.01" value="0.25">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Confidence weighting</div>
+      <div class="ctl">
+        <label for="weighting" title="How the Bayesian per-label confidence w scales each anchor: off = trust every human label; deweight = weight w; deweight_hard = drop w &lt; 0.5; upweight = 1 + (1 - w), the parallel universe that hyper-focuses on suspects.">Mode</label>
+        <select id="weighting">
+          <option value="off" selected>off</option>
+          <option value="deweight">deweight</option>
+          <option value="deweight_hard">deweight_hard</option>
+          <option value="upweight">upweight</option>
+        </select>
+      </div>
+      <div class="ctl stack">
+        <label for="c0" title="Prior P(a single human label is correct) at N=1. The panel's votes then update each label's posterior (p_catch 0.75, p_false 0.25).">Prior c0 <span class="val" id="c0Val">0.90</span></label>
+        <input type="range" id="c0" min="0.5" max="0.99" step="0.01" value="0.9">
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">Crank</div>
+      <div class="ctl">
+        <label for="anchorStrategy" title="How the top-10 anchors are picked from misaligned batch items, scored consensus x confidence weight: stack_rank = highest first; pps = sample proportional to score; random = uniform.">Anchor pick</label>
+        <select id="anchorStrategy">
+          <option value="stack_rank" selected>stack_rank</option>
+          <option value="pps">pps</option>
+          <option value="random">random</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label for="gateOn" title="Gate on: accept the candidate boundary only if system-vote macro-F1 against HUMAN test labels does not drop. Off: accept every clipped step.">Gate</label>
+        <input type="checkbox" id="gateOn" checked>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group-title">SME re-adjudication</div>
+      <div class="ctl">
+        <label for="readjStrategy" title="Queue over labels with accumulated panel-disagreement mass: stack_rank = top-B by mass; pps = sample proportional to mass; random = uniform; off = nobody reviews.">Queue</label>
+        <select id="readjStrategy">
+          <option value="off" selected>off</option>
+          <option value="stack_rank">stack_rank</option>
+          <option value="pps">pps</option>
+          <option value="random">random</option>
+        </select>
+      </div>
+      <div class="ctl stack" id="ctlBudget">
+        <label for="budget" title="Train-pool reviews per cycle.">Budget / cycle <span class="val" id="budgetVal">5</span></label>
+        <input type="range" id="budget" min="0" max="10" step="1" value="5">
+      </div>
+      <div class="ctl" id="ctlIncludeTest">
+        <label for="includeTest" title="Also spend SME budget reviewing the test partition — the gate's yardstick is corrupted too.">Review test set too</label>
+        <input type="checkbox" id="includeTest">
+      </div>
+      <div class="ctl stack" id="ctlTestBudget">
+        <label for="testBudget" title="Test-pool reviews per cycle.">Test budget / cycle <span class="val" id="testBudgetVal">5</span></label>
+        <input type="range" id="testBudget" min="0" max="10" step="1" value="5">
+      </div>
+      <div class="ctl stack" id="ctlQSme">
+        <label for="qSme" title="P(a full-attention SME review returns ground truth); otherwise the current label stands. The emergent overturn % should land near the empirical 33-44%.">SME quality q <span class="val" id="qSmeVal">0.95</span></label>
+        <input type="range" id="qSme" min="0.5" max="1" step="0.01" value="0.95">
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="chips">
+      <div class="chip"><div class="l">Cycle</div><div class="v" id="chipCycle">0 / 30</div></div>
+      <div class="chip" title="Human labels currently differing from ground truth (whole world)"><div class="l">Label errors</div><div class="v" id="chipErrors">0</div></div>
+      <div class="chip" title="Cumulative SME reviews / labels actually changed"><div class="l">Reviewed / overturned</div><div class="v" id="chipReviewed">0 / 0</div></div>
+      <div class="chip" title="Emergent overturn rate — compare with the empirical 33-44%"><div class="l">Overturn %</div><div class="v" id="chipOverturn">—</div></div>
+      <div class="chip" title="Candidate steps accepted by the gate so far"><div class="l">Gate accepts</div><div class="v" id="chipAccept">0</div></div>
+      <div class="chip" title="False accepts: gate said yes but the truth-scored gate would have rejected"><div class="l">False accepts</div><div class="v" id="chipFA">0</div></div>
+    </div>
+
+    <section class="card" id="scatterCard">
+      <div class="card-title">World and policy boundaries (noisy universe)</div>
+      <svg id="scatter" role="img" aria-label="Scatter of the 2D world with policy boundaries"></svg>
+      <div id="scatterTip"></div>
+      <div class="legend">
+        <span class="item"><span class="sw dot0"></span>true not_gen_ai</span>
+        <span class="item"><span class="sw dot1"></span>true gen_ai</span>
+        <span class="item"><span class="sw ring"></span>mislabeled now</span>
+        <span class="item"><span class="sw diamond"></span>adjudicated</span>
+        <span class="item"><span class="sw halo"></span>this cycle's anchors</span>
+        <span class="item"><span class="sw line noisy"></span>noisy policy</span>
+        <span class="item"><span class="sw line clean"></span>clean twin policy</span>
+        <span class="item"><span class="sw line oracle"></span>oracle</span>
+      </div>
+    </section>
+
+    <div class="charts">
+      <section class="card chart" id="chartF1"></section>
+      <section class="card chart" id="chartDiv"></section>
+      <section class="card chart" id="chartConf"></section>
+    </div>
+  </main>
+
+</div>
+
+<script src="./vendor/d3.v7.min.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

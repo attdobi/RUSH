@@ -259,6 +259,7 @@ Everything below is the operator manual: setup, data, GPUs, serving, and validat
 - `data/seed/` — golden-set records, labels, not-enough-data metrics, and policy-suggestion examples.
 - `docs/visuals/` — SVG visuals for the README and web UI.
 - `scripts/validate_foundation.py` — dependency-free validation.
+- `sim/label-noise/` — **label-noise simulation lab**: the crank abstracted into a 2D geometry (policy = decision boundary, judges = noisy readers, human labels = corrupted truth) to measure how mislabeled anchors bend the learned policy (twin-universe divergence with common random numbers) and whether confidence deweighting + budgeted SME re-adjudication converge back to truth. numpy package + pre-registered suites S1–S5, an executed notebook, and a d3 interactive twin-universe sandbox. Start with its [README](sim/label-noise/README.md).
 
 ## Quickstart — clone and go (portable fixture)
 

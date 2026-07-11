@@ -39,6 +39,13 @@
       "autoPort": false
     },
     {
+      "name": "sim-label-noise",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8794", "-d", "/Users/adobi/RUSH/sim/label-noise/web"],
+      "port": 8794,
+      "autoPort": false
+    },
+    {
       "name": "rush-web-verify2",
       "runtimeExecutable": "/Users/adobi/RUSH/.venv/bin/python",
       "runtimeArgs": [
