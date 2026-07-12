@@ -91,6 +91,23 @@ def _headline(result: dict) -> None:
             ct, _ = c["anchor_contamination"]
             print(f"  {c['strategy']:10s} rate={c['rate']:.2f}  "
                   f"oracle-F1 {f1:.3f}±{ci:.3f}  gini {g:.2f}  contam {ct:.2f}")
+    elif suite == "S6":
+        f1c, cic = result["clean_reference_f1"]
+        print(f"  clean reference oracle-F1 {f1c:.3f}±{cic:.3f}")
+        for c in result["cells"]:
+            f1, ci = c["final_oracle_f1"]
+            ct, _ = c["anchor_contamination"]
+            en, _ = c["anchor_enrichment"]
+            tag = c["model"] + (" 1-way" if c["one_way"] else "")
+            print(f"  {tag:14s} rate={c['rate']:.2f} {c['arm']:9s} "
+                  f"F1 {f1:.3f}±{ci:.3f}  anchors {ct:.0%} mislabeled ({en:.1f}x base)")
+    elif suite == "S7":
+        for c in result["cells"]:
+            dd, ddci = c["pairwise_decision_disagreement"]
+            f1, _ = c["final_f1_mean"]
+            sp, _ = c["final_f1_spread"]
+            print(f"  {c['condition']:15s} pairwise final disagreement {dd:.3f}±{ddci:.3f}  "
+                  f"F1 {f1:.3f} (spread {sp:.3f})")
 
 
 if __name__ == "__main__":

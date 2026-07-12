@@ -71,6 +71,10 @@ class CrankConfig:
     panel: PanelConfig = field(default_factory=PanelConfig)
     v0_rotate_deg: tuple = (30.0, 60.0)  # genai v0 misspecification range
     v0_jitter: float = 0.8               # mnist v0 prototype jitter (data std units)
+    # Vary ONLY the starting policy while keeping the world, labels, and every
+    # other stream fixed (initial-condition sensitivity / Lyapunov probes).
+    # None -> the run seed keys the init stream as usual.
+    v0_seed: int | None = None
     dataset_kw: dict = field(default_factory=dict)
 
 
@@ -84,7 +88,7 @@ def _make_v0(cfg: CrankConfig, ds, oracle):
     mode-independent — identical across twin universes and mitigation arms —
     so divergence at k=0 is exactly zero and every RELATIVE comparison is
     attributable to the loop. Supported claims are the relative ones."""
-    rng = _stream(cfg.seed, "init")
+    rng = _stream(cfg.seed if cfg.v0_seed is None else cfg.v0_seed, "init")
     if ds.n_classes == 2:
         pol = LogisticPolicy(oracle.w, oracle.b)
         lo, hi = cfg.v0_rotate_deg

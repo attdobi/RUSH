@@ -531,6 +531,89 @@
       ε=0, inherited baseline). Mitigations to A/B — ε&gt;0, paired incumbent re-eval, N-consecutive-wins —
       and always report lift from the holdout/benchmark, never the gate set alone.</p>
     </section>
+
+    <section>
+      <h2>The label-noise lab — what wrong human labels do to the crank</h2>
+      <p>RLHF goes both ways: the SME labels are the reward signal, so a <strong>mislabeled image
+      becomes an anchor point</strong> and can steer the policy toward the wrong boundary — the
+      catastrophic failure mode re-adjudication exists to handle. And the labels are measurably
+      imperfect: of LLM-vs-SME disagreements sent to review, ~33% were overturned in favor of the
+      LLM (~44% in the sensitive-content area). <code>sim/label-noise/</code> simulates the whole
+      loop in a 2D geometry where ground truth is knowable: the policy document becomes a decision
+      boundary, judges become noisy readers of it, and every run is paired with a <em>clean twin</em>
+      sharing common random numbers — so any gap between the two trajectories is attributable to the
+      labels alone. Divergence is measured the way we would measure it on real policies: distance in
+      parameter (document) space plus the fraction of a probe grid the two policies decide
+      differently — and compared against a closed-form prediction (the noisy-Bayes boundary shift
+      <var>Δ = logit(1/(2(1−ρ₁)))/β</var>, which collapses a class entirely once half its labels
+      flip one-way; symmetric two-sided noise cancels and predicts no shift at all).</p>
+      <ul>
+        <li><strong>Geometry beats rate — and the gate is a measurable brake.</strong> Interior
+        and one-way (directional, adult-vs-racy style) mislabels do the damage; symmetric boundary
+        flips largely cancel — exactly as the closed-form theory predicts. The measured crank sits
+        <em>between</em> two reference curves: above the idealized closed form (any misspecified
+        model fit to corrupted labels over-rotates) but well below the naive full-fit
+        counterfactual — gate + edit clipping recover a third to half of the drift that plain
+        training on the same noisy labels would take. (The tempting "anchors importance-sample the
+        mislabels and amplify the bias" story was tested against that counterfactual and rejected:
+        anchors concentrate <em>attention</em> on mislabels — 40% of anchor picks are mislabeled
+        at just 10% noise — without adding net displacement.) Gated runs start losing the
+        boundary's orientation right where theory puts the class collapse — half a class flipped
+        one-way; ungated runs are unstable at any noise level, which is what the gate is for.</li>
+        <li><strong>Confidence weighting alone does not converge.</strong> De-weighting suspect
+        anchors cannot repair the gate's corrupted yardstick, and in the multiclass regime soft
+        deweighting scored <em>worse than doing nothing</em> (0.644 vs 0.709 macro-F1) — early on,
+        the posterior cannot tell "hard but correct" from "wrong", so it discards exactly the
+        boundary evidence learning needs.</li>
+        <li><strong>Deweight + budgeted re-adjudication converges</strong> — to within noise of the
+        clean-label run in the calibrated mnist regime (0.746 vs 0.755; under genai's 60%-of-a-class
+        stress it recovers 0.86 of a 0.19-point hole). The confidence posterior's real job is <em>triage</em>:
+        route scarce SME attention, then restore confirmed labels to full weight. The emergent
+        overturn rate among reviewed items lands at 0.32–0.36, bracketing the empirical band's
+        lower edge (33–44%), with no tuning.</li>
+        <li><strong>The test set is not optional.</strong> With noise only in the test partition,
+        the gate false-accepts 16–20% of steps and false-rejects up to 26%; a 5-review/cycle
+        stack-ranked test queue collapses that to 1–3% / 4–10%. The gate's yardstick deserves SME
+        attention as much as the anchors do.</li>
+        <li><strong>Hyper-focus is real.</strong> Mislabels are persistently misaligned, so the
+        anchor pool self-enriches in exactly the wrong points (anchor picks concentrate: Gini
+        doubles under noise on genai, 0.33 to 0.63–0.67, and rises ~15–20% on mnist;
+        deterministic stack-ranking most concentrated) — the gate is
+        what keeps that from sinking the run.</li>
+      </ul>
+      <p><strong>How we test this on the real crank</strong> — the sim proves directions and
+      mechanisms; these runs check that textual policy space behaves like the sim's parameter
+      plane:</p>
+      <ul>
+        <li><strong>Protocol A — controlled injection.</strong> Take a trusted config (GenAI
+        benchmark, fixed seed), flip a known fraction of golden labels one-way on a confusable axis
+        (photo-real generation ↔ real photo), and run corrupted vs uncorrupted with the same seed.
+        Readouts: benchmark-F1 gap, divergence between the two final policy documents (embedding
+        distance plus an SME reading the diff), and whether the drafter's accepted edits cite the
+        planted mislabels.</li>
+        <li><strong>Protocol B — the natural experiment.</strong> The re-adjudication log
+        accumulates exactly the needed pair — each reviewed item's pre-correction and
+        post-correction label (runtime-local on the demo machine, so it grows as reviews happen).
+        Once enough reviews accumulate, re-run one completed config against each label set; the
+        divergence between the two final policies measures what our real overturn rate has been
+        doing to policy development. No labeling cost beyond the runs.</li>
+        <li><strong>Test-set queue.</strong> Add the gate partition's items to the adjudication
+        queue at high tier — per the sim, a ~5-review/cycle test budget is the cheapest
+        gate-integrity insurance available.</li>
+        <li><strong>Deweighting ships as triage only.</strong> The label store already carries
+        <code>human_confidence</code>; use it to rank the queue, not to silently drop labels, until
+        the weighting-alone result is reproduced (or refuted) on the real crank.</li>
+        <li><strong>Rate × queue-strategy sweep.</strong> Stack-rank vs PPS vs random should
+        separate at LOW noise rates, where ranking quality matters (at high rates any review hits a
+        mislabel) — this feeds the anchor-sampling (E4) and SME stack-ranking (E5) experiments of the
+        benchmark-grid plan.</li>
+      </ul>
+      <p class="hint">Assets: <code>sim/label-noise/README.md</code> (protocols + 12-seed results),
+      <code>notebooks/label_noise_sim.ipynb</code> (theory, loss-landscape view, executed figures),
+      and the d3 twin-universe sandbox (<code>python3 -m http.server 8794 -d sim/label-noise/web</code>).
+      The suites are seeded and re-run in ~2 minutes; treat effect directions as transferable,
+      absolute numbers as world-specific.</p>
+    </section>
     </div>
   </div>`;
 

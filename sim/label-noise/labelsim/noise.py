@@ -40,9 +40,10 @@ class NoiseConfig:
     # run); 'test' isolates gate damage (S4).
     target: str = "both"
     # Directional confusion: only items whose TRUE class == flip_from get
-    # flipped (rate applies within that class). Two-sided noise largely
-    # cancels at a boundary; the adult-vs-racy failure mode is one-way and
-    # actually drags it. None = two-sided.
+    # flipped. The count is still rate x len(all eligible) — comparable to
+    # two-sided cells at the same rate — capped at the class pool. Two-sided
+    # noise largely cancels at a boundary; the adult-vs-racy failure mode is
+    # one-way and actually drags it. None = two-sided.
     flip_from: int | None = None
     pairs: tuple = MNIST_CONFUSABLE_PAIRS
 

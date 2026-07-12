@@ -241,8 +241,106 @@ def s5_sampling(dataset: str = "genai", n_seeds: int = 12) -> dict:
     return {"suite": "S5", "dataset": dataset, "n_seeds": n_seeds, "cells": cells}
 
 
+def s6_breakdown(dataset: str = "genai", n_seeds: int = 8) -> dict:
+    """Where does the system break down? Rate sweep to 50% x noise geometry,
+    no-mitigation vs the best strategy (deweight + stack-ranked readjudication
+    of train AND test), tracking the anchor pool: contamination (share of
+    anchor picks that are mislabeled at pick time) and enrichment vs the base
+    mislabel rate — anchors live on the misalignment boundary, which is where
+    the mislabels concentrate."""
+    rates = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]
+    geoms = [("boundary", False), ("uniform", False)]
+    if dataset == "genai":
+        geoms.append(("boundary", True))   # the directional adult-vs-racy mode
+    arms = {
+        "off": {},
+        "dw+readj": {"weighting": "deweight",
+                     "readj": ReadjConfig(strategy="stack_rank", budget=5,
+                                          include_test=True, test_budget=3)},
+    }
+    cells = []
+    for model, one_way in geoms:
+        for rate in rates:
+            for arm, over in arms.items():
+                f1s, contams, enrich, aurocs, gate_fa = [], [], [], [], []
+                for seed in _seeds(n_seeds):
+                    cfg = base_config(dataset, seed=seed,
+                                      noise=suite_noise(dataset, model=model,
+                                                        rate=rate, one_way=one_way),
+                                      **over)
+                    res = run_crank(cfg)
+                    s = res["series"]
+                    f1s.append(_final(s, "policy_f1_true"))
+                    aurocs.append(_final(s, "detection_auroc"))
+                    gate_fa.append(_gate_rates(s)["FA"])
+                    contam = np.array(s["anchor_contamination"], dtype=float)
+                    c = float(np.nanmean(contam)) if not np.all(np.isnan(contam)) else float("nan")
+                    contams.append(c)
+                    base = res["flipped"].sum() / res["ds"].n  # effective rate (one-way caps)
+                    enrich.append(c / base if base > 0 else float("nan"))
+                cells.append({
+                    "model": model, "one_way": one_way, "rate": rate, "arm": arm,
+                    "final_oracle_f1": mean_ci(f1s),
+                    "anchor_contamination": mean_ci(contams),
+                    "anchor_enrichment": mean_ci(enrich),
+                    "detection_auroc": mean_ci(aurocs),
+                    "gate_false_accept_rate": mean_ci(gate_fa),
+                })
+    clean = [_final(run_crank(base_config(dataset, seed=s,
+                                          noise=NoiseConfig(model="none", rate=0.0))
+                             )["series"], "policy_f1_true") for s in _seeds(n_seeds)]
+    return {"suite": "S6", "dataset": dataset, "n_seeds": n_seeds,
+            "clean_reference_f1": mean_ci(clean), "cells": cells}
+
+
+def s7_init_sensitivity(dataset: str = "genai", n_seeds: int = 4,
+                        m_inits: int = 6) -> dict:
+    """How much do starting conditions matter? Same world, same labels, same
+    streams — vary ONLY v0 (m_inits different init draws) and measure how far
+    the final policies land from each other: mean pairwise decision
+    disagreement + the spread of final oracle F1. Small spread = the crank is
+    well-posed (starts wash out); large spread = sensitive to initial
+    conditions (the Lyapunov-flavored failure). 'badstart' widens the v0
+    misspecification from 30-60 to 60-120 degrees."""
+    from .datasets import probe_grid
+    from .policy import decision_disagreement
+    conditions = {
+        "clean": {"noise": NoiseConfig(model="none", rate=0.0)},
+        "noisy": {"noise": suite_noise(dataset, rate=0.2)},
+        "noisy_badstart": {"noise": suite_noise(dataset, rate=0.2),
+                           "v0_rotate_deg": (60.0, 120.0)},
+    }
+    cells = []
+    for cond, over in conditions.items():
+        pair_dd, f1_mean, f1_spread = [], [], []
+        for seed in _seeds(n_seeds):
+            cfg = base_config(dataset, seed=seed, **over)
+            ds, labels = build_world(cfg)
+            probe = probe_grid(ds)
+            finals, f1s = [], []
+            for j in range(m_inits):
+                cfg_j = dataclasses.replace(cfg, v0_seed=seed + 7919 * (j + 1))
+                res = run_crank(cfg_j, ds=ds, labels=labels)
+                finals.append(res["policy"])
+                f1s.append(_final(res["series"], "policy_f1_true"))
+            dds = [decision_disagreement(a, b, probe)
+                   for i, a in enumerate(finals) for b in finals[i + 1:]]
+            pair_dd.append(float(np.mean(dds)))
+            f1_mean.append(float(np.mean(f1s)))
+            f1_spread.append(float(np.max(f1s) - np.min(f1s)))
+        cells.append({
+            "condition": cond,
+            "pairwise_decision_disagreement": mean_ci(pair_dd),
+            "final_f1_mean": mean_ci(f1_mean),
+            "final_f1_spread": mean_ci(f1_spread),
+        })
+    return {"suite": "S7", "dataset": dataset, "n_seeds": n_seeds,
+            "m_inits": m_inits, "cells": cells}
+
+
 SUITES = {"S1": s1_dose_response, "S2": s2_mitigation, "S3": s3_parallel_universe,
-          "S4": s4_test_corruption, "S5": s5_sampling}
+          "S4": s4_test_corruption, "S5": s5_sampling, "S6": s6_breakdown,
+          "S7": s7_init_sensitivity}
 
 
 def run_suite(name: str, dataset: str = "genai", n_seeds: int = 12,
