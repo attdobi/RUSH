@@ -1,2 +1,4 @@
 # Suite outputs are regenerable (fully seeded); keep the repo lean.
 results/
+# Jupyter runtime state (the executed notebook itself IS committed).
+.ipynb_checkpoints/
