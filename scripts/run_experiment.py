@@ -455,6 +455,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--strategy", choices=list(exp.STRATEGIES), default=exp.DEFAULT_STRATEGY,
                     help="Anchor selection: random_misalignment (S1, unbiased) or "
                          "top_gradient (most-important-first: panel avg |g| desc).")
+    ap.add_argument("--corrupt-labels", type=float, default=0.0,
+                    help="Protocol A (sim/label-noise): flip this fraction of "
+                         f"golden labels [0..{exp.CORRUPT_LABELS_MAX}] IN MEMORY "
+                         "for the run's train + test partitions — the label "
+                         "store, adjudication log, holdout, and fixed benchmark "
+                         "never see a flipped label. Seed-derived, recorded "
+                         "(corrupt_seed, n_flipped, flipped_ids) for the "
+                         "corrupted-vs-clean twin analysis.")
+    ap.add_argument("--corrupt-mode", choices=list(exp.CORRUPT_MODES), default="random",
+                    help="random (default): flips drawn uniformly over the dev "
+                         "pool, applied BEFORE the k=0 baseline. anchors: pool "
+                         "restricted to images the panel already misaligned on "
+                         "in the k=0 baseline (tier-1/2 style targets) — flips "
+                         "necessarily apply AFTER the baseline pass, so k=0 "
+                         "metrics are pre-corruption (noted in the record).")
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--batch-size", type=int, default=10,
                     help="Images per provider batch inside child runs.")
@@ -496,6 +511,13 @@ def main(argv: list[str] | None = None) -> int:
         # Same contract as the web validator: a negative epsilon would accept
         # equal-or-worse candidates — including dry-run no-op edits.
         print("[experiment] --epsilon must be a finite non-negative number", file=sys.stderr)
+        return 2
+    if not (math.isfinite(args.corrupt_labels)
+            and 0 <= args.corrupt_labels <= exp.CORRUPT_LABELS_MAX):
+        # Same contract as the web validator; past 0.6 a "corrupted run" is
+        # mostly noise labeling itself.
+        print(f"[experiment] --corrupt-labels must be in [0, {exp.CORRUPT_LABELS_MAX}]",
+              file=sys.stderr)
         return 2
 
     area = args.area
@@ -571,6 +593,30 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 2
 
+    # ---- Protocol A label corruption (sim/label-noise, run knob). The plan
+    # exists ONLY in this process's memory: the manifest on disk, the label
+    # store, the adjudication log, and the holdout/benchmark readouts never
+    # see a flipped label. mode=random draws uniformly over the dev pool
+    # here, BEFORE the k=0 baseline; mode=anchors needs the baseline's
+    # misalignments and draws after that pass (k=0 metrics pre-corruption).
+    corrupt_overrides: dict[str, str] = {}
+    corrupt_plan: dict[str, Any] | None = None
+    dev_truth: dict[str, str] = {}
+    if args.corrupt_labels > 0:
+        dev_truth = exp.load_truth_labels(
+            manifest, task=task, restrict_ids=[*test_ids, *train_pool]
+        )
+        if args.corrupt_mode == "random":
+            corrupt_plan = exp.plan_label_corruption(
+                dev_truth, seed=seed, fraction=args.corrupt_labels, task=task,
+                mode="random",
+            )
+            corrupt_overrides = corrupt_plan["overrides"]
+            print(f"[experiment] Protocol A: flipping "
+                  f"{corrupt_plan['n_flipped']}/{len(dev_truth)} dev golden "
+                  f"labels in memory (mode random, rho {args.corrupt_labels})",
+                  flush=True)
+
     state: dict[str, Any] = {
         "experiment_id": experiment_id,
         "run_number": exp.next_run_number(ROOT, area),
@@ -594,6 +640,14 @@ def main(argv: list[str] | None = None) -> int:
         "label_cache": bool(args.label_cache),
         "test_mode": args.test_mode,
         "compliance_deweight": args.compliance_deweight == "on",
+        # Protocol A record: enough to rerun the twin analysis (ids only —
+        # the flipped labels themselves are never persisted anywhere).
+        "corrupt_labels": args.corrupt_labels,
+        "corrupt_mode": args.corrupt_mode,
+        "corrupt_seed": corrupt_plan["corrupt_seed"] if corrupt_plan else None,
+        "n_flipped": corrupt_plan["n_flipped"] if corrupt_plan else 0,
+        "flipped_ids": corrupt_plan["flipped_ids"] if corrupt_plan else [],
+        "corrupt_note": None,
         "base_version": base_version,
         "base_generator": _gen_id(area, base_version),
         "current_version": base_version,
@@ -693,8 +747,33 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[experiment] warning: could not archive proposal {proposal_id}: {exc}",
                   file=sys.stderr, flush=True)
 
-    # Golden truth for the test partition — the gate's fixed ruler.
-    test_truth = exp.load_truth_labels(manifest, task=task, restrict_ids=test_ids)
+    def _corrupted(truth: dict[str, str]) -> dict[str, str]:
+        """The run's operative truth view: golden labels + planted flips.
+
+        Train/test legs only — the holdout and benchmark readouts keep
+        scoring against the clean manifest truth directly.
+        """
+        if not corrupt_overrides:
+            return truth
+        return {i: corrupt_overrides.get(i, label) for i, label in truth.items()}
+
+    def _dev_panel_metrics(
+        run_dir: Path, restrict_ids: list[str],
+        system_exclude: frozenset[str] = frozenset(),
+    ) -> dict[str, dict[str, Any]]:
+        """load_run_panel_metrics for train/test legs, under the run's ruler."""
+        truth = _corrupted(
+            exp.load_truth_labels(manifest, task=task, restrict_ids=restrict_ids)
+        )
+        return exp.panel_metrics(
+            exp.load_votes(run_dir), truth, task=task, system_exclude=system_exclude
+        )
+
+    # Golden truth for the test partition — the gate's fixed ruler (with this
+    # run's planted flips overlaid when Protocol A corruption is on).
+    test_truth = _corrupted(
+        exp.load_truth_labels(manifest, task=task, restrict_ids=test_ids)
+    )
 
     try:
         # ---- k=0 baseline: score the starting generator on the test partition
@@ -713,7 +792,9 @@ def main(argv: list[str] | None = None) -> int:
         # known BEFORE the first drafter call, and (when deweighting is on)
         # its votes leave the system majority + the optimization signal from
         # the very first measurement.
-        baseline_health = exp.judge_health(_load_misalignment(baseline["run_id"]))
+        baseline_health = exp.judge_health(exp.corrupt_misalignment_records(
+            _load_misalignment(baseline["run_id"]), corrupt_overrides
+        ))
         noncompliant: set[str] = set(exp.noncompliant_judges(baseline_health))
         deweight = args.compliance_deweight == "on"
 
@@ -729,9 +810,8 @@ def main(argv: list[str] | None = None) -> int:
                     + ("; deweighted from the system vote" if deweight else "")
                 )
         state["noncompliant_judges"] = sorted(noncompliant)
-        current_test_metrics = exp.load_run_panel_metrics(
-            _run_dir(baseline["run_id"]), manifest, task=task, restrict_ids=test_ids,
-            system_exclude=_sys_excl(),
+        current_test_metrics = _dev_panel_metrics(
+            _run_dir(baseline["run_id"]), test_ids, _sys_excl()
         )
         current_test_run_id = baseline["run_id"]
         _ingest(baseline["run_id"])
@@ -751,6 +831,27 @@ def main(argv: list[str] | None = None) -> int:
                 "closed_at": exp.utcnow_iso(),
             }
         )
+        if args.corrupt_labels > 0 and args.corrupt_mode == "anchors":
+            # Anchors mode: the flip pool is what the panel ALREADY misses at
+            # k=0 (tier-1/2 style targets), so the plan can only be drawn now
+            # — the k=0 metrics above are pre-corruption by construction.
+            pool = [str(r.get("image_id"))
+                    for r in _load_misalignment(baseline["run_id"])
+                    if r.get("misalignment_type") != "all_agree"]
+            corrupt_plan = exp.plan_label_corruption(
+                dev_truth, seed=seed, fraction=args.corrupt_labels, task=task,
+                pool=pool, mode="anchors",
+            )
+            corrupt_overrides = corrupt_plan["overrides"]
+            test_truth = _corrupted(test_truth)
+            state["corrupt_seed"] = corrupt_plan["corrupt_seed"]
+            state["n_flipped"] = corrupt_plan["n_flipped"]
+            state["flipped_ids"] = corrupt_plan["flipped_ids"]
+            state["corrupt_note"] = ("k=0 baseline metrics are pre-corruption "
+                                     "(anchors mode flips after the baseline pass)")
+            _phase(f"Protocol A: flipped {corrupt_plan['n_flipped']}/{len(pool)} "
+                   f"k=0-misaligned labels in memory (mode anchors, "
+                   f"rho {args.corrupt_labels})")
         _sync()
 
         # ---- the crank
@@ -790,9 +891,8 @@ def main(argv: list[str] | None = None) -> int:
             _ingest(train_run["run_id"])
             if train_run.get("errored_calls"):
                 cycle["train_errored_calls"] = train_run["errored_calls"]
-            cycle["metrics"]["train"] = exp.load_run_panel_metrics(
-                _run_dir(train_run["run_id"]), manifest, task=task,
-                restrict_ids=train_ids, system_exclude=_sys_excl(),
+            cycle["metrics"]["train"] = _dev_panel_metrics(
+                _run_dir(train_run["run_id"]), train_ids, _sys_excl()
             )
 
             # 2. S1: random misalignment anchors. A missing misalignment
@@ -808,7 +908,13 @@ def main(argv: list[str] | None = None) -> int:
                 _phase(f"cycle {k}/{args.k_max}: train scoring failed — cycle skipped")
                 _sync()
                 continue
-            mis_records = _load_misalignment(train_run["run_id"])
+            # Protocol A: overlay the run's planted flips (sme_truth +
+            # re-derived misalignment_type) on the drafter/blame/health view.
+            # The on-disk artifact — what the store ingests and the SME queue
+            # rebuilds from — stays clean-truth.
+            mis_records = exp.corrupt_misalignment_records(
+                _load_misalignment(train_run["run_id"]), corrupt_overrides
+            )
             # Per-node citation stats: which nodes votes cited, wrong vs
             # right, with wrong_share + an advisory edit-type hint (split /
             # remove / clarify). The FULL table (every cited node, incl.
@@ -1070,9 +1176,9 @@ def main(argv: list[str] | None = None) -> int:
                             eligible_test, seed=exp.cycle_seed(seed, k),
                             test_n=args.test_n,
                         )
-                        gate_truth = exp.load_truth_labels(
+                        gate_truth = _corrupted(exp.load_truth_labels(
                             manifest, task=task, restrict_ids=gate_test_ids
-                        )
+                        ))
                         cycle["test_ids"] = gate_test_ids
                         _phase(
                             f"cycle {k}/{args.k_max}: re-evaluating incumbent "
@@ -1094,9 +1200,9 @@ def main(argv: list[str] | None = None) -> int:
                         incumbent_cost = _run_cost(incumbent_run["run_id"])
                         _add_cost(incumbent_cost)
                         _ingest(incumbent_run["run_id"])
-                        current_test_metrics = exp.load_run_panel_metrics(
-                            _run_dir(incumbent_run["run_id"]), manifest, task=task,
-                            restrict_ids=gate_test_ids, system_exclude=_sys_excl(),
+                        current_test_metrics = _dev_panel_metrics(
+                            _run_dir(incumbent_run["run_id"]), gate_test_ids,
+                            _sys_excl(),
                         )
                         current_test_run_id = incumbent_run["run_id"]
                     else:
@@ -1129,9 +1235,8 @@ def main(argv: list[str] | None = None) -> int:
                 _ingest(cand_run["run_id"])
                 if cand_run.get("errored_calls"):
                     cycle["candidate_errored_calls"] = cand_run["errored_calls"]
-                candidate_metrics = exp.load_run_panel_metrics(
-                    _run_dir(cand_run["run_id"]), manifest, task=task,
-                    restrict_ids=gate_test_ids, system_exclude=_sys_excl(),
+                candidate_metrics = _dev_panel_metrics(
+                    _run_dir(cand_run["run_id"]), gate_test_ids, _sys_excl()
                 )
                 cycle["metrics"]["test_candidate"] = candidate_metrics
 
@@ -1438,6 +1543,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"policy: {state['base_version']} -> {state['current_version']} "
           f"({len(accepted_cycles)} accepted, "
           f"{sum(1 for c in state['cycles'] if c.get('status') == 'skipped')} skipped)")
+    if state.get("corrupt_labels"):
+        print(f"Protocol A: rho {state['corrupt_labels']} ({state['corrupt_mode']}) — "
+              f"{state['n_flipped']} label(s) flipped in memory, never persisted; "
+              "NOT a clean baseline")
     for cycle in state["cycles"]:
         if cycle.get("k") == 0:
             f1 = (cycle["metrics"]["test"].get(exp.SYSTEM_SCORER) or {}).get("macro_f1")

@@ -632,6 +632,11 @@ class RunRegistry:
             argv.append("--label-cache")
         if request.get("test_mode") == "resample":
             argv.extend(["--test-mode", "resample"])
+        if request.get("corrupt_labels"):
+            # Protocol A label corruption — only threaded when nonzero so
+            # clean runs keep a knob-free argv.
+            argv.extend(["--corrupt-labels", str(request["corrupt_labels"]),
+                         "--corrupt-mode", request.get("corrupt_mode") or "random"])
         if request.get("compliance_deweight") is False:
             argv.extend(["--compliance-deweight", "off"])
         if request.get("policy_version"):
@@ -675,7 +680,8 @@ class RunRegistry:
                     "max_anchors", "max_aligned_anchors", "epsilon",
                     "gate_model", "gate_mode", "gate_persona", "drafter_model",
                     "drafter_context", "compressed_models", "label_cache",
-                    "test_mode", "compliance_deweight", "live", "holdout_final",
+                    "test_mode", "corrupt_labels", "corrupt_mode",
+                    "compliance_deweight", "live", "holdout_final",
                 )
             },
         }

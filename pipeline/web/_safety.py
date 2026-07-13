@@ -584,6 +584,22 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         raise APIError(400, "validation_error", "epsilon must be a finite non-negative number",
                        details={"field": "epsilon"})
 
+    # Protocol A label corruption (sim/label-noise): a fraction of golden
+    # labels flipped IN MEMORY for the run's train/test partitions. Capped at
+    # 0.6 — past that a "corrupted run" is mostly noise labeling itself.
+    corrupt_labels = payload.get("corrupt_labels", 0)
+    if corrupt_labels is None:
+        corrupt_labels = 0
+    if (
+        not isinstance(corrupt_labels, (int, float))
+        or isinstance(corrupt_labels, bool)
+        or not math.isfinite(corrupt_labels)
+        or not 0 <= corrupt_labels <= 0.6
+    ):
+        raise APIError(400, "validation_error",
+                       "corrupt_labels must be a number in [0, 0.6]",
+                       details={"field": "corrupt_labels"})
+
     gate_mode = payload.get("gate_mode") or "agent"
     if gate_mode not in {"agent", "agent_only", "metric_only", "off"}:
         raise APIError(400, "validation_error",
@@ -675,6 +691,8 @@ def validate_experiment_payload(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "label_cache": payload.get("label_cache") is True,
         "test_mode": _test_mode(payload.get("test_mode")),
+        "corrupt_labels": float(corrupt_labels),
+        "corrupt_mode": _corrupt_mode(payload.get("corrupt_mode")),
         "compliance_deweight": payload.get("compliance_deweight") is not False,
         "strategy": _experiment_strategy(payload.get("strategy")),
         "policy_version": _experiment_policy_version(payload.get("policy_version")),
@@ -694,6 +712,17 @@ def _test_mode(raw: Any) -> str:
     raise APIError(400, "validation_error",
                    "test_mode must be 'fixed' or 'resample'",
                    details={"field": "test_mode"})
+
+
+def _corrupt_mode(raw: Any) -> str:
+    """Protocol A flip pool: random (uniform over dev) or anchors (k=0 misses)."""
+    if raw in (None, "", "random"):
+        return "random"
+    if raw == "anchors":
+        return "anchors"
+    raise APIError(400, "validation_error",
+                   "corrupt_mode must be 'random' or 'anchors'",
+                   details={"field": "corrupt_mode"})
 
 
 def _gate_persona(raw: Any) -> str:

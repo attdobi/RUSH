@@ -184,6 +184,104 @@ def sample_train_batch(
     return sorted(fresh + top_up)
 
 
+# ---------------------------------------------------------------------------
+# Protocol A: controlled label corruption (the sim/label-noise lab, run knob)
+#
+# The crank's answer to "what do wrong human labels do to policy descent?":
+# flip a seeded fraction of golden labels IN MEMORY for one run and watch the
+# trajectory. The flips exist only in the driver's truth view — the manifest,
+# label store, adjudication log, holdout, and fixed benchmark never see them.
+
+CORRUPT_MODES = ("random", "anchors")
+CORRUPT_LABELS_MAX = 0.6
+
+
+def corruption_seed(seed: int) -> int:
+    """Stable corruption RNG seed derived from the master seed (audit value)."""
+    return random.Random(f"{seed}:corrupt").getrandbits(48)
+
+
+def plan_label_corruption(
+    truth_labels: dict[str, str],
+    *,
+    seed: int,
+    fraction: float,
+    task: ScoringTask,
+    pool: Iterable[str] | None = None,
+    mode: str = "random",
+) -> dict[str, Any]:
+    """Seeded Protocol A corruption plan: which golden labels flip, to what.
+
+    ``pool`` restricts the draw (the driver passes all dev ids for mode
+    ``random``, the k=0-misaligned ids for mode ``anchors``); ids without a
+    golden label are skipped. ``fraction`` of the eligible pool flips: binary
+    tasks flip to the other class, multiclass to a seeded random other class.
+
+    Purely a plan — nothing is written anywhere. Returns ``{"corrupt_mode",
+    "corrupt_seed", "n_flipped", "flipped_ids", "overrides"}`` where
+    ``overrides`` maps image_id -> flipped label; the caller applies it to
+    its OWN in-memory truth view only.
+    """
+    if mode not in CORRUPT_MODES:
+        raise ValueError(f"corrupt mode must be one of {CORRUPT_MODES}: {mode!r}")
+    if not (math.isfinite(fraction) and 0 <= fraction <= CORRUPT_LABELS_MAX):
+        raise ValueError(
+            f"corrupt fraction must be in [0, {CORRUPT_LABELS_MAX}]: {fraction!r}"
+        )
+    eligible = (
+        sorted(set(pool) & truth_labels.keys())
+        if pool is not None else sorted(truth_labels)
+    )
+    n = min(len(eligible), int(round(fraction * len(eligible))))
+    rng_seed = corruption_seed(seed)
+    rng = random.Random(rng_seed)
+    flipped = sorted(rng.sample(eligible, n)) if n else []
+    overrides: dict[str, str] = {}
+    for image_id in flipped:
+        others = [c for c in task.classes if c != truth_labels[image_id]]
+        overrides[image_id] = others[0] if len(others) == 1 else rng.choice(others)
+    return {
+        "corrupt_mode": mode,
+        "corrupt_seed": rng_seed,
+        "n_flipped": len(flipped),
+        "flipped_ids": flipped,
+        "overrides": overrides,
+    }
+
+
+def corrupt_misalignment_records(
+    records: list[dict[str, Any]],
+    overrides: dict[str, str],
+) -> list[dict[str, Any]]:
+    """The driver-side corrupted view of a child run's misalignment records.
+
+    Replaces ``sme_truth`` for flipped images and re-derives
+    ``misalignment_type``/``severity`` from the UNCHANGED votes under the
+    flipped truth (the child scorer's own classification rule), so anchors,
+    blame, judge health, and the drafter packet all see one consistent
+    corrupted ruler. Returns copies — the input records and the on-disk
+    artifacts stay clean-truth.
+    """
+    if not overrides:
+        return records
+    from pipeline.scoring.misalignment import _classify
+
+    out: list[dict[str, Any]] = []
+    for rec in records:
+        new_truth = overrides.get(str(rec.get("image_id")))
+        if new_truth is None or new_truth == rec.get("sme_truth"):
+            out.append(rec)
+            continue
+        per_labeler = {
+            _common.labeler_id_for(v): v.get("label", _common.ABSTAIN)
+            for v in (rec.get("votes") or [])
+        }
+        mis_type, severity = _classify(per_labeler, new_truth)
+        out.append({**rec, "sme_truth": new_truth,
+                    "misalignment_type": mis_type, "severity": severity})
+    return out
+
+
 def select_anchors(
     misalignment_records: list[dict[str, Any]],
     *,
@@ -2295,6 +2393,10 @@ def list_experiments(repo_root: Path | str) -> list[dict[str, Any]]:
                 "max_changes": state.get("max_changes"),
                 "base_version": state.get("base_version"),
                 "current_version": state.get("current_version"),
+                # Protocol A label corruption — the Benchmarks tab chips
+                # corrupted runs so they are never mistaken for clean baselines.
+                "corrupt_labels": state.get("corrupt_labels"),
+                "corrupt_mode": state.get("corrupt_mode"),
                 "dry_run": state.get("dry_run", False),
                 "cost_usd_total": state.get("cost_usd_total"),
                 "started_at": state.get("started_at"),

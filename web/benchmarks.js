@@ -62,6 +62,16 @@
     return `<span class="experiment-chip ${cls}">${esc(status || '?')}</span>`;
   }
 
+  // Protocol A runs (label-noise lab): a seeded fraction of this run's
+  // train/test golden labels was flipped in memory, so its numbers measure
+  // corruption response — never comparable to a clean baseline.
+  function corruptChip(e) {
+    if (!(typeof e.corrupt_labels === 'number' && e.corrupt_labels > 0)) return '';
+    const mode = e.corrupt_mode === 'anchors' ? 'anchors' : 'random';
+    return `<span class="experiment-chip experiment-chip--corrupted"
+      title="Protocol A label corruption: ρ=${esc(e.corrupt_labels)} of this run's train/test golden labels flipped in memory (${esc(mode)} pool; label store, adjudication queue, holdout, and fixed benchmark untouched). This row measures corruption response — do NOT read it as a clean baseline.">corrupted ρ=${esc(e.corrupt_labels)} ${esc(mode)}</span>`;
+  }
+
   async function render() {
     const host = $('#benchmarksTable');
     const statusLine = $('#benchmarksStatusLine');
@@ -123,7 +133,7 @@
         ? `${esc((e.judge_models || []).length)} judges <span class="hint" title="labeled under the compressed policy render: ${esc(compressed.join(', '))}">· ${compressed.length} compressed</span>`
         : `${esc((e.judge_models || []).length)} judges`;
       return `<tr class="${e.benchmark ? '' : 'benchmarks-row--none'}">
-        <td class="benchmarks-run-cell">#${esc(e.run_number ?? '?')} · seed ${esc(e.seed)}<span class="hint">${esc(started)}</span></td>
+        <td class="benchmarks-run-cell">#${esc(e.run_number ?? '?')} · seed ${esc(e.seed)}${corruptChip(e)}<span class="hint">${esc(started)}</span></td>
         <td>${statusChip(e.status)}<span class="hint">${esc(e.accepted ?? 0)} accepted / ${esc(e.cycles_done ?? 0)}</span></td>
         <td>${esc(e.base_version)} → ${policyArtifactLinks(e)}<span class="hint">${judgesCell}</span></td>
         <td>${gate}</td>

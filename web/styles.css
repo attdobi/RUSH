@@ -2709,6 +2709,9 @@ main { padding-bottom: 82px; }
 .experiment-chip--skipped { color: var(--gold); border-color: rgba(255, 209, 102, .55); }
 .experiment-chip--failed { color: #1a0710; background: var(--red); border-color: var(--red); }
 .experiment-chip--neutral { color: var(--muted); }
+/* Protocol A label-corruption warning (Benchmarks tab): outline red, so a
+   corrupted run is never mistaken for a clean baseline. */
+.experiment-chip--corrupted { color: var(--red); border-color: rgba(255, 111, 145, .55); background: rgba(255, 111, 145, .12); margin-left: 6px; }
 .experiment-ledger-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
 .experiment-ledger-table th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .experiment-ledger-table td { padding: 10px; border-bottom: 1px solid rgba(44, 62, 104, .5); vertical-align: top; color: var(--text); }
