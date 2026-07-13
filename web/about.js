@@ -544,62 +544,41 @@
       boundary, judges become noisy readers of it, and every run is paired with a <em>clean twin</em>
       sharing common random numbers — so any gap between the two trajectories is attributable to the
       labels alone.</p>
-      <p><strong>The whole story fits on one plane</strong>
-      (<code>notebooks/confusion_plane.ipynb</code> — start here, no embeddings needed). Plot the
-      policy at (<em>catch rate</em> = share of true violations flagged, <em>clear rate</em> = share
-      of benign items cleared). Perfect is the corner (1,&thinsp;1); the height below it is exactly
-      <var>1 − macro-F1</var>; and the remaining distance to the corner <em>is</em> the misalignment
-      pool the crank harvests for anchors — the loop runs on its own residual error, so steps shrink
-      automatically as it improves. Corrupting a fraction <var>ρ</var> of a class's labels at random
-      adulterates that fuel in exactly two ways: a flip on an item the policy <em>misses</em>
-      silences a real learning opportunity (that gradient → 0), while a flip on an item it
-      <em>catches</em> manufactures a fake over-enforcement signal whose anchor pulls the boundary
-      backward — descent in a chaotic direction. The two cancel at the <strong>stall law
-      <var>t* = 1 − ρ</var></strong>: corrupt 20% of a class's labels and its catch rate parks near
-      80% no matter how many cycles run or how good the judges are; at <var>ρ = ½</var> the fuel
-      cancels everywhere — the same coin-flip collapse the noisy-Bayes shift
-      <var>Δ = logit(1/(2(1−ρ₁)))/β</var> predicts. The full simulated crank (panel, confidence,
-      gate) lands within ~2 points of the law across ρ = 20–50%.</p>
+      <p><strong>The simplest picture</strong> (<code>notebooks/confusion_plane.ipynb</code> —
+      start here): track the policy with just two numbers — the share of real violations it
+      <em>catches</em>, and the share of benign items it <em>clears</em>. Learning runs on
+      system-vs-SME disagreements, and a wrong label corrupts that signal in one of two ways.
+      Either it <em>hides a real mistake</em>: the policy misses a violation, the bad label says
+      the miss was fine, and that learning opportunity silently disappears. Or it <em>invents a
+      fake one</em>: the policy was right, the bad label says it wasn't, and the next edit "fixes"
+      something that was never broken. The two effects balance at a predictable point — corrupt a
+      fraction <var>ρ</var> of a class's labels and that class's catch rate stops improving near
+      <var>1 − ρ</var>, no matter how long the loop runs (20% bad labels → stuck near an 80% catch
+      rate; 50% → coin flip). The full simulation, with the judge panel, label confidence, and
+      gate all running, lands within a couple of points of that prediction.</p>
       <ul>
-        <li><strong>Macro-F1 hides the stall — monitor the axes, not the height.</strong> One-way
-        corruption trades catch for clear along the nearly-flat F1 ridge: at ρ = 10% the dashboard
-        gives up ~0.02 of macro-F1 while the <em>miss rate nearly doubles</em> (catch ≈ 0.90 →
-        0.79). The stall is also self-hiding from inside — the anchor pool stays busy and the gate,
-        scoring candidates against the same corrupted labels, blesses the backward steps. Track
-        per-class FNR/FPR separately, not just the aggregate score.</li>
-        <li><strong>At the stall, half the residual misalignment queue is label errors</strong> —
-        that is the stall condition itself (real fuel = phantom fuel). So "send the most important
-        residual misalignments for re-adjudication" targets the densest label-error population at
-        exactly the moment learning has stopped. The emergent overturn rate among reviewed items
-        lands at 0.32–0.44 with no tuning — and the production 33–44% band sitting just under the
-        50% stall ceiling is what a loop near its noise equilibrium looks like.</li>
-        <li><strong>Weighting changes how you walk; re-adjudication redraws the map.</strong>
-        De-weighting suspect anchors mutes real and phantom fuel alike and never repairs the gate's
-        corrupted yardstick — in the multiclass regime soft deweighting scored <em>worse than doing
-        nothing</em> (0.644 vs 0.709 macro-F1; early on, the posterior cannot tell "hard but
-        correct" from "wrong"). Re-adjudication rewrites labels, so the ceiling <var>1 − ρ(k)</var>
-        lifts as the queue is worked and the climb resumes: at ρ = 40%, unmitigated 0.731 →
-        deweight-only 0.815 → deweight + re-adjudication 0.901 ≈ the clean twin's 0.885 (and
-        0.746 vs 0.755 in the 12-seed mnist grid). Confidence's real job is <em>triage</em>; SMEs
-        do the repair, then confirmed labels return to full weight.</li>
-        <li><strong>The gate is a measurable brake, not an amplifier.</strong> Gated runs track the
-        stall law and sit slightly <em>above</em> it at the collapse edge; ungated runs fall below
-        the law at every noise level. The crank also displaces <em>less</em> than plain training on
-        the same noisy labels — gate + edit clipping recover a third to half of that drift. (The
-        tempting "anchors importance-sample the mislabels and amplify the bias" story was tested
-        against that counterfactual and rejected: anchors concentrate <em>attention</em> on
-        mislabels — 40% of anchor picks are mislabeled at just 10% noise — without adding net
-        displacement.) Geometry still beats rate: one-way, directional (adult-vs-racy style) flips
-        do the damage; symmetric two-sided flips largely cancel.</li>
-        <li><strong>The test set is not optional.</strong> With noise only in the test partition,
-        the gate false-accepts 16–20% of steps and false-rejects up to 26%; a 5-review/cycle
-        stack-ranked test queue collapses that to 1–3% / 4–10%. The gate's yardstick deserves SME
-        attention as much as the anchors do.</li>
-        <li><strong>Hyper-focus is real.</strong> Mislabels are persistently misaligned, so the
-        anchor pool self-enriches in exactly the wrong points (anchor picks concentrate: Gini
-        doubles under noise on genai, 0.33 to 0.63–0.67, and rises ~15–20% on mnist;
-        deterministic stack-ranking most concentrated) — the gate is
-        what keeps that from sinking the run.</li>
+        <li><strong>A single aggregate score can hide the damage.</strong> Bad labels trade missed
+        violations for the appearance of fewer false alarms, and the overall score barely prices
+        the swap: at 10% bad labels, macro-F1 drops ~0.02 while missed violations nearly
+        <em>double</em>. Watch per-class miss and over-flag rates (FNR/FPR), not just the headline
+        metric.</li>
+        <li><strong>A stalled run is full of label errors — which is what re-adjudication is
+        for.</strong> At the point where learning stops, roughly half of the remaining
+        system-vs-SME disagreements are wrong labels, not wrong policy. Sending the most important
+        residual misalignments to SMEs hits the densest pocket of label errors at exactly the
+        right moment — and it is why a third to a half of reviewed disagreements get overturned
+        (the sim reproduces the observed 33–44% band with no tuning).</li>
+        <li><strong>Fix the labels, don't just down-weight them.</strong> De-weighting suspect
+        labels treats the symptom — and can discard hard-but-correct evidence the policy needs —
+        while re-adjudication removes the cause, and learning resumes. In the sim at 40% bad
+        labels: 0.73 uncorrected → 0.82 with down-weighting → 0.90 with down-weighting +
+        re-adjudication, against a clean run's 0.89.</li>
+        <li><strong>The gate helps, but can't catch this alone — and the test set needs reviews
+        too.</strong> Whatever form the gate takes — a threshold on F1 (or any decision-quality
+        metric), a critic agent, a combination, or none — it scores candidate policies against the
+        same SME labels, so bad labels tilt the yardstick itself. Runs with the gate off drift much
+        further in the sim (keep it on), and a few re-adjudication reviews per cycle on the test
+        partition keep the yardstick honest.</li>
       </ul>
       <p><strong>How we test this on the real crank</strong> — the sim proves directions and
       mechanisms; these runs check that textual policy space behaves like the sim's parameter
