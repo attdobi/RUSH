@@ -185,11 +185,13 @@ The web demo (`rush.attiladobi.com` / `http://127.0.0.1:8766`) is five views aro
      judge — see "The compliance flag"), **Randomize test / cycle** (off: per-cycle gate
      partitions with paired incumbent re-eval — see "Test-partition regime"), **Benchmark
      readout** (on: the fixed cross-run validation readout that lands on the Benchmarks tab),
-     and **Corrupt labels ρ + flip pool** (0: Protocol A of the label-noise lab — flips a
-     seeded fraction of the run's train/test golden labels *in memory only*, `random` over the
-     dev pool or restricted to the k=0-misaligned `anchors` pool; flipped ids are recorded on
-     the run, the label store / adjudication queue / holdout / fixed benchmark are never
-     touched, and corrupted runs carry a red chip on the Benchmarks tab).
+     and **Corrupt labels % + flip pool** (0: Protocol A of the label-noise lab — flips a
+     seeded percentage (0–60%) of the run's golden labels *in memory only*; the flip pool
+     picks the denominator and the failure archetype: `random` = the whole dev pool, honest
+     background SME error, vs `k=0 misaligned` = only the panel's existing k=0 mistakes, the
+     self-confirming-reviewer worst case. Flipped ids are recorded on the run, the label
+     store / adjudication queue / holdout / fixed benchmark are never touched, and corrupted
+     runs carry a red chip on the Benchmarks tab).
    * **Optimizer** — the drafter model (gpt-5.5 down to gpt-5.4-mini-low, plus the Gemini
      flashes; it drafts, it never judges) writes ONE clipped policy edit per cycle from the
      misaligned anchors **plus the cycle's policy-blame table**: the nodes most often cited by

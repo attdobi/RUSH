@@ -212,8 +212,9 @@
       // Gate partition: fixed yardstick vs per-cycle resample (paired
       // incumbent re-eval on the fresh partition).
       test_mode: $('#experimentTestResample')?.checked === true ? 'resample' : 'fixed',
-      // Protocol A label corruption (in-memory only; 0 = clean run).
-      corrupt_labels: Number($('#experimentCorruptLabels')?.value) || 0,
+      // Protocol A label corruption (in-memory only; 0 = clean run). The UI
+      // takes a PERCENT (0-60); the API and driver take a fraction.
+      corrupt_labels: (Number($('#experimentCorruptLabels')?.value) || 0) / 100,
       corrupt_mode: $('#experimentCorruptMode')?.value || 'random',
       // Non-compliant judges (constant output) deweighted from the system
       // vote + optimizer signal.

@@ -67,9 +67,10 @@
   // corruption response — never comparable to a clean baseline.
   function corruptChip(e) {
     if (!(typeof e.corrupt_labels === 'number' && e.corrupt_labels > 0)) return '';
-    const mode = e.corrupt_mode === 'anchors' ? 'anchors' : 'random';
+    const mode = e.corrupt_mode === 'anchors' ? 'k=0 misaligned' : 'random';
+    const pct = Math.round(e.corrupt_labels * 1000) / 10; // fraction -> percent
     return `<span class="experiment-chip experiment-chip--corrupted"
-      title="Protocol A label corruption: ρ=${esc(e.corrupt_labels)} of this run's train/test golden labels flipped in memory (${esc(mode)} pool; label store, adjudication queue, holdout, and fixed benchmark untouched). This row measures corruption response — do NOT read it as a clean baseline.">corrupted ρ=${esc(e.corrupt_labels)} ${esc(mode)}</span>`;
+      title="Protocol A label corruption: ${pct}% of this run's golden labels (${esc(mode)} pool) flipped in memory — ρ=${esc(e.corrupt_labels)}. The label store, adjudication queue, holdout, and fixed benchmark were untouched. This row measures corruption response — do NOT read it as a clean baseline.">corrupted ${pct}% ${esc(mode)}</span>`;
   }
 
   async function render() {
