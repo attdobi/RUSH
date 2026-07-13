@@ -3032,9 +3032,11 @@ body.view-about #provenance { display: none !important; }
 /* ---- R40: About visual pass ----------------------------------------------
    Display-math blocks: each equation is a grid row (lhs = rhs — note) with
    serif math type, so formulas read like a paper instead of a code dump. */
-.about-eq { display: grid; grid-template-columns: max-content max-content max-content minmax(0, 1fr); gap: 6px 10px; align-items: baseline; margin: 12px 0; padding: 12px 16px; border: 1px solid var(--line); border-left: 3px solid var(--blue, #82b5ff); border-radius: 0 11px 11px 0; background: rgba(8, 16, 31, .55); break-inside: avoid; }
+/* r71: cap the formula column so long right-hand sides wrap instead of
+   crushing the note column into one-word-per-line (Attila 2026-07-12). */
+.about-eq { display: grid; grid-template-columns: max-content max-content fit-content(56%) minmax(150px, 1fr); gap: 6px 10px; align-items: baseline; margin: 12px 0; padding: 12px 16px; border: 1px solid var(--line); border-left: 3px solid var(--blue, #82b5ff); border-radius: 0 11px 11px 0; background: rgba(8, 16, 31, .55); break-inside: avoid; }
 .about-eq .eq-l { justify-self: end; color: var(--text); }
-.about-eq .eq-r { color: var(--text); }
+.about-eq .eq-r { color: var(--text); overflow-wrap: break-word; min-width: 0; }
 .about-eq .eq-l, .about-eq .eq-r { font-family: Georgia, 'Times New Roman', serif; font-size: 15.5px; letter-spacing: .01em; }
 .about-eq .eq-l i, .about-eq .eq-r i, .about-eq var { font-family: Georgia, 'Times New Roman', serif; font-style: italic; }
 .about-eq .eq-op { color: var(--muted); font-family: Georgia, serif; font-size: 15px; text-align: center; }
