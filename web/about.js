@@ -543,35 +543,54 @@
       loop in a 2D geometry where ground truth is knowable: the policy document becomes a decision
       boundary, judges become noisy readers of it, and every run is paired with a <em>clean twin</em>
       sharing common random numbers — so any gap between the two trajectories is attributable to the
-      labels alone. Divergence is measured the way we would measure it on real policies: distance in
-      parameter (document) space plus the fraction of a probe grid the two policies decide
-      differently — and compared against a closed-form prediction (the noisy-Bayes boundary shift
-      <var>Δ = logit(1/(2(1−ρ₁)))/β</var>, which collapses a class entirely once half its labels
-      flip one-way; symmetric two-sided noise cancels and predicts no shift at all).</p>
+      labels alone.</p>
+      <p><strong>The whole story fits on one plane</strong>
+      (<code>notebooks/confusion_plane.ipynb</code> — start here, no embeddings needed). Plot the
+      policy at (<em>catch rate</em> = share of true violations flagged, <em>clear rate</em> = share
+      of benign items cleared). Perfect is the corner (1,&thinsp;1); the height below it is exactly
+      <var>1 − macro-F1</var>; and the remaining distance to the corner <em>is</em> the misalignment
+      pool the crank harvests for anchors — the loop runs on its own residual error, so steps shrink
+      automatically as it improves. Corrupting a fraction <var>ρ</var> of a class's labels at random
+      adulterates that fuel in exactly two ways: a flip on an item the policy <em>misses</em>
+      silences a real learning opportunity (that gradient → 0), while a flip on an item it
+      <em>catches</em> manufactures a fake over-enforcement signal whose anchor pulls the boundary
+      backward — descent in a chaotic direction. The two cancel at the <strong>stall law
+      <var>t* = 1 − ρ</var></strong>: corrupt 20% of a class's labels and its catch rate parks near
+      80% no matter how many cycles run or how good the judges are; at <var>ρ = ½</var> the fuel
+      cancels everywhere — the same coin-flip collapse the noisy-Bayes shift
+      <var>Δ = logit(1/(2(1−ρ₁)))/β</var> predicts. The full simulated crank (panel, confidence,
+      gate) lands within ~2 points of the law across ρ = 20–50%.</p>
       <ul>
-        <li><strong>Geometry beats rate — and the gate is a measurable brake.</strong> Interior
-        and one-way (directional, adult-vs-racy style) mislabels do the damage; symmetric boundary
-        flips largely cancel — exactly as the closed-form theory predicts. The measured crank sits
-        <em>between</em> two reference curves: above the idealized closed form (any misspecified
-        model fit to corrupted labels over-rotates) but well below the naive full-fit
-        counterfactual — gate + edit clipping recover a third to half of the drift that plain
-        training on the same noisy labels would take. (The tempting "anchors importance-sample the
-        mislabels and amplify the bias" story was tested against that counterfactual and rejected:
-        anchors concentrate <em>attention</em> on mislabels — 40% of anchor picks are mislabeled
-        at just 10% noise — without adding net displacement.) Gated runs start losing the
-        boundary's orientation right where theory puts the class collapse — half a class flipped
-        one-way; ungated runs are unstable at any noise level, which is what the gate is for.</li>
-        <li><strong>Confidence weighting alone does not converge.</strong> De-weighting suspect
-        anchors cannot repair the gate's corrupted yardstick, and in the multiclass regime soft
-        deweighting scored <em>worse than doing nothing</em> (0.644 vs 0.709 macro-F1) — early on,
-        the posterior cannot tell "hard but correct" from "wrong", so it discards exactly the
-        boundary evidence learning needs.</li>
-        <li><strong>Deweight + budgeted re-adjudication converges</strong> — to within noise of the
-        clean-label run in the calibrated mnist regime (0.746 vs 0.755; under genai's 60%-of-a-class
-        stress it recovers 0.86 of a 0.19-point hole). The confidence posterior's real job is <em>triage</em>:
-        route scarce SME attention, then restore confirmed labels to full weight. The emergent
-        overturn rate among reviewed items lands at 0.32–0.36, bracketing the empirical band's
-        lower edge (33–44%), with no tuning.</li>
+        <li><strong>Macro-F1 hides the stall — monitor the axes, not the height.</strong> One-way
+        corruption trades catch for clear along the nearly-flat F1 ridge: at ρ = 10% the dashboard
+        gives up ~0.02 of macro-F1 while the <em>miss rate nearly doubles</em> (catch ≈ 0.90 →
+        0.79). The stall is also self-hiding from inside — the anchor pool stays busy and the gate,
+        scoring candidates against the same corrupted labels, blesses the backward steps. Track
+        per-class FNR/FPR separately, not just the aggregate score.</li>
+        <li><strong>At the stall, half the residual misalignment queue is label errors</strong> —
+        that is the stall condition itself (real fuel = phantom fuel). So "send the most important
+        residual misalignments for re-adjudication" targets the densest label-error population at
+        exactly the moment learning has stopped. The emergent overturn rate among reviewed items
+        lands at 0.32–0.44 with no tuning — and the production 33–44% band sitting just under the
+        50% stall ceiling is what a loop near its noise equilibrium looks like.</li>
+        <li><strong>Weighting changes how you walk; re-adjudication redraws the map.</strong>
+        De-weighting suspect anchors mutes real and phantom fuel alike and never repairs the gate's
+        corrupted yardstick — in the multiclass regime soft deweighting scored <em>worse than doing
+        nothing</em> (0.644 vs 0.709 macro-F1; early on, the posterior cannot tell "hard but
+        correct" from "wrong"). Re-adjudication rewrites labels, so the ceiling <var>1 − ρ(k)</var>
+        lifts as the queue is worked and the climb resumes: at ρ = 40%, unmitigated 0.731 →
+        deweight-only 0.815 → deweight + re-adjudication 0.901 ≈ the clean twin's 0.885 (and
+        0.746 vs 0.755 in the 12-seed mnist grid). Confidence's real job is <em>triage</em>; SMEs
+        do the repair, then confirmed labels return to full weight.</li>
+        <li><strong>The gate is a measurable brake, not an amplifier.</strong> Gated runs track the
+        stall law and sit slightly <em>above</em> it at the collapse edge; ungated runs fall below
+        the law at every noise level. The crank also displaces <em>less</em> than plain training on
+        the same noisy labels — gate + edit clipping recover a third to half of that drift. (The
+        tempting "anchors importance-sample the mislabels and amplify the bias" story was tested
+        against that counterfactual and rejected: anchors concentrate <em>attention</em> on
+        mislabels — 40% of anchor picks are mislabeled at just 10% noise — without adding net
+        displacement.) Geometry still beats rate: one-way, directional (adult-vs-racy style) flips
+        do the damage; symmetric two-sided flips largely cancel.</li>
         <li><strong>The test set is not optional.</strong> With noise only in the test partition,
         the gate false-accepts 16–20% of steps and false-rejects up to 26%; a 5-review/cycle
         stack-ranked test queue collapses that to 1–3% / 4–10%. The gate's yardstick deserves SME
@@ -613,7 +632,8 @@
         benchmark-grid plan.</li>
       </ul>
       <p class="hint">Assets: <code>sim/label-noise/README.md</code> (protocols + 12-seed results),
-      <code>notebooks/label_noise_sim.ipynb</code> (theory, loss-landscape view, executed figures),
+      <code>notebooks/confusion_plane.ipynb</code> (the plane, the stall law, start here),
+      <code>notebooks/label_noise_sim.ipynb</code> (theory, loss-landscape view, suites S1–S7),
       and the d3 twin-universe sandbox (<code>python3 -m http.server 8794 -d sim/label-noise/web</code>).
       The suites are seeded and re-run in ~2 minutes; treat effect directions as transferable,
       absolute numbers as world-specific.</p>
