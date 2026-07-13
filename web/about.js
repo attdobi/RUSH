@@ -199,7 +199,7 @@
       </ul>
     </section>
 
-    <section class="about-section">
+    <section class="about-section about-section--span">
       <h2>Every knob on the Run tab</h2>
       <p>The full hyperparameter surface of one run. Negatives/positives = the misaligned/aligned
       anchor images the drafter studies.</p>

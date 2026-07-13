@@ -2800,6 +2800,11 @@ body.view-about section[data-view]:not([data-view="about"]) { display: none !imp
 .about-columns { column-width: 33rem; column-gap: 52px; }
 .about-section { break-inside: avoid; display: block; }
 .about-section:not(:first-child) { margin-top: 22px; }
+/* The knob-reference section is far taller than any column: an unbreakable
+   (break-inside: avoid) block taller than the column box overlaps the
+   neighboring column's content on some viewports. Span it across all
+   columns instead — the wide 3-column table reads better full-width anyway. */
+.about-section--span { column-span: all; break-inside: auto; }
 .about-columns > .about-section:first-child h2 { margin-top: 4px; }
 .about-doc h2 { margin: 4px 0 8px; font-size: 20px; text-wrap: balance; }
 .about-doc h3 { margin: 22px 0 6px; font-size: 15px; color: var(--text); }
