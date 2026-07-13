@@ -3049,7 +3049,10 @@ body.view-about #provenance { display: none !important; }
 .about-eq sub, .about-eq sup { font-size: .68em; }
 /* Knob reference table */
 .about-knob-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12.5px; break-inside: avoid; }
-.about-knob-table th, .about-knob-table td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; }
+/* overflow-wrap: the About column is 33rem; one long unbreakable token (a
+   repo path, a code identifier) in a cell would otherwise push the table's
+   min-content width past the column and overlap the neighboring column. */
+.about-knob-table th, .about-knob-table td { border: 1px solid var(--line); padding: 7px 9px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .about-knob-table th { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .about-knob-table td:first-child { white-space: nowrap; font-weight: 700; color: var(--text); }
 .about-knob-table td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
