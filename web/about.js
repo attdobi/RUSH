@@ -360,12 +360,13 @@
       <p>The golden label carries its own confidence, growing with the number of SME confirmations
       <var>m</var><sub>SME</sub>:</p>
       ${eq([
-        ['<var>p</var><sub>human</sub>', '=', '1 − 1 / (<var>m</var><sub>SME</sub> + 0.2)', 'm=1 → 0.17 (default) · m=2 → 0.55 · m=3 → 0.69'],
+        ['<var>p</var><sub>human</sub>', '=', '1 − 1 / (<var>m</var><sub>SME</sub> + 4)', 'm=1 → 0.80 (default) · m=2 → 0.83 · m=3 → 0.86'],
       ])}
-      <p>Re-adjudication priority is multiplied by <code>(1 − p_human)</code>, so once two or three SMEs
-      have re-confirmed a label, its weight for going back to a human vanishes — the human queue keeps
-      flowing toward genuinely unresolved cases. (Policy anchor value is <em>not</em> faded: the policy
-      still has to learn even a certain label.)</p>
+      <p>Re-adjudication priority is multiplied by <code>(1 − p_human)</code>. Even a single seed label
+      starts at ~80% confidence, so an unconfirmed item keeps only ~20% of its raw weight for the human
+      queue, and each re-confirmation drives that toward zero — the queue keeps flowing toward the
+      still-contested cases. (Policy anchor value is <em>not</em> faded: the policy still has to learn
+      even a certain label.)</p>
     </section>
 
     <section class="about-section">

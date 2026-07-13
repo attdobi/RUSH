@@ -72,28 +72,30 @@ loss in multiclass.
 
 ## Human-label confidence
 
-Humans are judges too, and one human label is weak evidence ("the golden set
-is not so golden"). With `m` = number of human labels **agreeing with the
+Humans are judges too, and a lone human label is not certain truth ("the
+golden set is not so golden") — though a single confirmed label already
+carries real weight. With `m` = number of human labels **agreeing with the
 current resolved label** (per category, or the high-level binary label):
 
-> **p_human = 1 − 1/(m + 0.2)**
+> **p_human = 1 − 1/(m + 4)**
 
 | m | p_human |
 |---|---|
-| 0 | 0.0 (clamped; raw formula −4) |
-| 1 | 0.167 |
-| 2 | 0.545 |
-| 3 | 0.688 |
-| 5 | 0.808 |
+| 0 | 0.0 (override; raw formula +0.75) |
+| 1 | 0.800 |
+| 2 | 0.833 |
+| 3 | 0.857 |
+| 5 | 0.889 |
 
 Stored on `rush.golden_label.human_confidence`, recomputed at every golden
 materialization (`pipeline/labelstore.human_confidence`), and surfaced in
 both gradient views. Uses: (a) weight the loss on items whose "truth" is
-itself shaky — a confident-wrong verdict against an m=1 label is a
-*re-adjudication candidate* before it is a *policy-edit candidate*; (b) the
-doc's §4.1 tier weights govern sampling; `p_human` refines the loss weighting
-within a tier. All current seeds are m=1 (p=0.167) — the number will move as
-the re-adjudication loop adds real SME events.
+itself shaky — re-adjudication priority is anchor value × (1 − p_human), so a
+re-confirmed label (higher m) fades out of the human queue toward a pure
+policy-edit signal, while unconfirmed panel disagreement drives the queue;
+(b) the doc's §4.1 tier weights govern sampling; `p_human` refines the loss
+weighting within a tier. All current seeds are m=1 (p=0.800) — the number will
+move as the re-adjudication loop adds real SME events.
 
 ## The four candidate-selection strategies
 

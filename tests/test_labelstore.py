@@ -77,18 +77,18 @@ def test_golden_row_requires_events():
 
 
 def test_human_confidence_formula():
-    # p = 1 - 1/(m + 0.2): a lone human label is weak evidence; agreement
-    # compounds it, saturating toward 1.
-    assert labelstore.human_confidence(1) == pytest.approx(1 - 1 / 1.2)   # 0.1667
-    assert labelstore.human_confidence(2) == pytest.approx(1 - 1 / 2.2)   # 0.5455
-    assert labelstore.human_confidence(3) == pytest.approx(1 - 1 / 3.2)   # 0.6875
-    assert labelstore.human_confidence(10) == pytest.approx(1 - 1 / 10.2)
-    # m=0 (no agreeing human evidence): the raw formula would go negative
-    # (1 - 1/0.2 = -4); clamped to zero confidence.
+    # p = 1 - 1/(m + 4): a single confirmed label already carries weight;
+    # agreement compounds it, saturating toward 1.
+    assert labelstore.human_confidence(1) == pytest.approx(1 - 1 / 5)   # 0.800
+    assert labelstore.human_confidence(2) == pytest.approx(1 - 1 / 6)   # 0.8333
+    assert labelstore.human_confidence(3) == pytest.approx(1 - 1 / 7)   # 0.8571
+    assert labelstore.human_confidence(10) == pytest.approx(1 - 1 / 14)
+    # m=0 (no agreeing human evidence): the new formula is positive here
+    # (1 - 1/4 = 0.75), but m=0 is an explicit override to zero confidence.
     assert labelstore.human_confidence(0) == 0.0
 
 
 def test_golden_row_carries_human_confidence():
     row = labelstore.golden_row(["4", "9", "4"], seed_source="sme_single", last_epoch=2)
-    # m = num_sme_agree_current = 2 -> 1 - 1/2.2
-    assert row["human_confidence"] == pytest.approx(1 - 1 / 2.2, abs=1e-6)
+    # m = num_sme_agree_current = 2 -> 1 - 1/6
+    assert row["human_confidence"] == pytest.approx(1 - 1 / 6, abs=1e-6)

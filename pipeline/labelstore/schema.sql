@@ -59,10 +59,10 @@ CREATE TABLE IF NOT EXISTS rush.golden_label (  -- materialized from label_event
   num_sme_labels        INT NOT NULL DEFAULT 0,
   num_sme_agree_current INT NOT NULL DEFAULT 0,
   confidence_tier       TEXT NOT NULL,        -- §4.1 tiers
-  -- Human-label confidence (Attila 2026-07-06): p = 1 - 1/(m + 0.2) where
+  -- Human-label confidence (Attila 2026-07-06): p = 1 - 1/(m + 4) where
   -- m = number of human labels AGREEING with the current resolved label.
-  -- m=1 -> 0.167, m=2 -> 0.545, m=3 -> 0.688 — a lone human label is weak
-  -- evidence ("the golden set is not so golden"); agreement compounds it.
+  -- m=1 -> 0.800, m=2 -> 0.833, m=3 -> 0.857 — a single confirmed label
+  -- already carries weight; agreement compounds it toward 1 (m=0 -> 0).
   human_confidence      NUMERIC,
   at_cap                BOOLEAN NOT NULL DEFAULT FALSE,
   persistent_misaligned BOOLEAN NOT NULL DEFAULT FALSE,

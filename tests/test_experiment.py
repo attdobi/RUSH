@@ -1405,10 +1405,10 @@ def test_importance_boundary_and_confidence_amplify():
 
 def test_human_confidence_fades_readjudication():
     assert exp.human_confidence(0) == 0.0
-    assert exp.human_confidence(1) == pytest.approx(0.166667, abs=1e-5)
-    assert exp.human_confidence(2) == pytest.approx(0.545455, abs=1e-5)
+    assert exp.human_confidence(1) == pytest.approx(0.8, abs=1e-5)
+    assert exp.human_confidence(2) == pytest.approx(0.833333, abs=1e-5)
     assert exp.human_confidence(3) > exp.human_confidence(2)
-    # A re-confirmed label (m=3) has far lower re-adjudication priority than a
+    # A re-confirmed label (m=3) has lower re-adjudication priority than a
     # default single-confirmation one, with identical panel evidence.
     common = dict(sme_fraction=0.0, consensus_fraction=1.0, majority_aligned=False,
                   mean_grad=0.9, boundary_rate=0.0)
@@ -1526,7 +1526,7 @@ def test_confirm_fades_and_overturn_reclassifies(tmp_path):
     assert it1["review"]["resolved"] is True      # m=2 (seed + confirm) -> ≥2 SMEs agree
     assert q1["n_open"] == 0
     assert it1["agg"]["effective_importance"] < base_imp
-    assert it1["agg"]["human_confidence"] > 0.5   # m=2 -> 0.545
+    assert it1["agg"]["human_confidence"] > 0.5   # m=2 -> 0.833
 
     # OVERTURN to "1" (what the panel confidently said): the item is re-scored
     # against the new truth and becomes T4 (aligned & unanimous) — it drops.

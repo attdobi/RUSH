@@ -140,8 +140,8 @@ readjudication_value  =  anchor_value · (1 − p_human)
   golden label an SME has already re-confirmed barely needs another look:
 
 ```
-p_human  =  1 − 1 / (m_conf + 0.2)       m_conf = # SME confirmations
-         →  0.000 (m=0),  0.167 (m=1),  0.545 (m=2),  0.688 (m=3)
+p_human  =  1 − 1 / (m_conf + 4)         m_conf = # SME confirmations
+         →  0.000 (m=0),  0.800 (m=1),  0.833 (m=2),  0.857 (m=3)
 ```
 
 (Computed by `importance_scores` + `human_confidence`; weights `GRAD_WEIGHT = 1.0`,
@@ -356,7 +356,7 @@ lift from the **locked holdout** and the **fixed cross-run benchmark**
 | p, \|g\| = 1−p, h = c(1−c), ℓ = −ln p | `vote_gradient` |
 | aᵢ, kᵢ, mean\|g\|, boundary_rate, tie | `panel_signal` |
 | I_base, anchor_value, readjudication_value, tiers T1–T4 | `importance_scores` |
-| p_human = 1 − 1/(m+0.2) | `human_confidence` |
+| p_human = 1 − 1/(m+4) | `human_confidence` |
 | fixed stratified test partition | `partition_test_train` |
 | seeded no-replacement train batch Bₖ | `sample_train_batch` |
 | anchor selection (random / top_gradient / top_importance) | `select_anchors` |

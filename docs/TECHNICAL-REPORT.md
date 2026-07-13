@@ -330,7 +330,7 @@ I_base = ( m + κ·(2m − 1) + 1 ) / 3        ∈ [0, 1]
 amp             = (1 + 1.0·mean|g|) · (1 + 0.5·b)          confidence & boundary amplifier
 anchor value    = I_base · amp                              → ranks policy-learning anchors
 re-adjudication = anchor · (1 − p_human)                    → ranks the human queue
-p_human         = 1 − 1/(m_SME + 0.2)                       m=1 → 0.167, m=2 → 0.545, m=3 → 0.688
+p_human         = 1 − 1/(m_SME + 4)                         m=1 → 0.800, m=2 → 0.833, m=3 → 0.857
 ```
 
 **Anchor value** drives the `top_importance` selection strategy — which misalignments the
@@ -667,7 +667,7 @@ clearly labeled as illustrative; every run reproducible from its committed
 | p, \|g\| = 1−p, h = c(1−c), loss = −ln p | `vote_gradient` · mirrored as SQL `rush.sample_gradient` |
 | a, m, κ, b, difficulty, tie handling | `panel_signal` (Python only; SQL `rush.panel_signal` holds coarser split/boundary rollups) |
 | I_base, tiers T1–T4 (κ > 0.5 strict), anchor, re-adjudication | `importance_scores` (`CONSENSUS_HIGH=0.5`, `GRAD_WEIGHT=1.0`, `BOUNDARY_WEIGHT=0.5`) |
-| p_human = 1 − 1/(m_SME + 0.2) | `human_confidence` |
+| p_human = 1 − 1/(m_SME + 4) | `human_confidence` |
 | Fixed stratified test partition | `partition_test_train` (`"{seed}:test:{class}"`) |
 | Seeded no-replacement mini-batch B_k | `sample_train_batch` (`"{seed}:train:{k}"`) |
 | Anchor strategies S1 / top_gradient / top_importance | `select_anchors`; positives via `select_aligned_anchors` |

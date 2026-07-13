@@ -1684,14 +1684,17 @@ BLAME_WEIGHT = 1.0       # policy-blame amplifier: x (1 + w * blame_share)
 
 
 def human_confidence(sme_confirmations: int = 1) -> float:
-    """p_human = 1 - 1/(m + 0.2), m = # SME confirmations of the golden label.
+    """p_human = 1 - 1/(m + 4), m = # SME confirmations of the golden label.
 
-    HIS formula: m=1 (default) -> 0.167, m=2 -> 0.545, m=3 -> 0.688; m=0 -> 0.
-    Re-adjudication priority is multiplied by (1 - p_human), so a re-confirmed
-    label drops toward zero priority.
+    HIS formula: m=1 (default) -> 0.800, m=2 -> 0.833, m=3 -> 0.857; m=0 -> 0.
+    A single seed label already carries ~80% confidence, rising with each
+    confirmation. m=0 (no agreeing human evidence) stays 0.0 — an explicit
+    override, not the raw 0.75 — so a human-unsupported label keeps FULL
+    re-adjudication priority. Re-adjudication priority is multiplied by
+    (1 - p_human), so a re-confirmed label drops toward zero priority.
     """
     m = max(0, int(sme_confirmations))
-    return 0.0 if m == 0 else round(1.0 - 1.0 / (m + 0.2), 6)
+    return 0.0 if m == 0 else round(1.0 - 1.0 / (m + 4), 6)
 
 
 def importance_scores(*, sme_fraction, consensus_fraction, majority_aligned,

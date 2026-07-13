@@ -34,17 +34,18 @@ SME_CAP = 3
 
 
 def human_confidence(num_agreeing: int) -> float:
-    """Attila's human-label confidence: p = 1 - 1/(m + 0.2).
+    """Attila's human-label confidence: p = 1 - 1/(m + 4).
 
     ``m`` counts the human labels AGREEING with the current resolved label
-    (per category, or the high-level binary label). A lone human label is
-    weak evidence — m=1 -> 0.167, m=2 -> 0.545, m=3 -> 0.688 — agreement
-    compounds it, saturating toward 1.
+    (per category, or the high-level binary label). A single confirmed label
+    already carries meaningful weight — m=1 -> 0.800, m=2 -> 0.833,
+    m=3 -> 0.857 — and agreement compounds it, saturating toward 1.
     """
     m = max(0, int(num_agreeing))
-    # The raw formula goes negative below m=1 (1 - 1/0.2 = -4); clamp at 0 —
-    # "no agreeing human evidence" is zero confidence, not negative.
-    return max(0.0, 1.0 - 1.0 / (m + 0.2))
+    # m=0 is an explicit override, NOT a clamp: the new formula is positive at
+    # m=0 (1 - 1/4 = 0.75), but "no agreeing human evidence" must read as zero
+    # confidence so a human-unsupported label keeps FULL re-adjudication weight.
+    return 0.0 if m == 0 else 1.0 - 1.0 / (m + 4)
 
 
 def db_url() -> str:
