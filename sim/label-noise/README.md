@@ -161,8 +161,17 @@ Sweep `rate × strategy` before concluding.)
 ./.venv/bin/pytest sim/label-noise/tests -q
 ```
 
-Notebook: `notebooks/label_noise_sim.ipynb` — the narrative version with
-plots (committed with outputs, renders on GitHub).
+Notebooks (committed with outputs, render on GitHub):
+
+- `notebooks/label_noise_sim.ipynb` — the full narrative: theory, loss
+  landscape, suites S1–S7.
+- `notebooks/confusion_plane.ipynb` — the simple version, no embeddings:
+  gradient descent on the (catch rate, clear rate) plane, the stall law
+  `t* = 1 − ρ` verified against the full crank, and why re-adjudication (not
+  deweighting) lifts the ceiling. Start here.
+- `notebooks/policy_convergence_poc.ipynb` — the formal update operator,
+  silence/sabotage corruption modes, and the loader for real
+  corrupted-vs-clean runs.
 
 Interactive: `web/index.html` — a d3 port of the GenAI binary arm with the
 twin universe animated live (noise/weighting/re-adjudication sliders):
