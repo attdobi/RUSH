@@ -3098,3 +3098,46 @@ body.view-about #provenance { display: none !important; }
   color: var(--muted);
 }
 .policy-graph-spotlight #policyGraphStatus { margin: 0; text-align: right; }
+
+/* ---------------------------------------------------------------------- */
+/* Mobile phones (r80). The topbar grid demanded a 460px middle column,   */
+/* so every view rendered ~530px wide on a 375px screen; wide data tables */
+/* in the loop and summary views stretched the page further.              */
+@media (max-width: 720px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "brand" "switcher" "actions" "nav";
+    justify-items: stretch;
+    gap: 10px;
+  }
+  .brand { justify-self: start; }
+  .demo-selector { max-width: 100%; justify-self: stretch; }
+  .demo-switcher-option { min-height: 42px; padding: 8px 12px; font-size: 13px; }
+  .view-switcher {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    border-radius: 18px;
+    max-width: 100%;
+  }
+  .view-switcher-option { flex: 1 1 auto; padding: 7px 10px; }
+  .topbar-actions { align-items: flex-start; }
+
+  /* Wide data tables scroll inside their own box instead of stretching
+     the page (loop ledger/judges, run summary, About appendix, ...). */
+  main table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* About equation blocks: on phones the 4-column layout starved the
+     formula column down to one character per line. Keep label + operator +
+     formula on one row and drop the note to its own full-width row. */
+  .about-eq { grid-template-columns: max-content max-content minmax(0, 1fr); }
+  .about-eq .eq-l { justify-self: start; }
+  .about-eq .eq-note { grid-column: 1 / -1; padding-left: 0; margin: -2px 0 8px; }
+  .about-eq .eq-note:empty { display: none; }
+  .about-eq .about-eq-span { grid-column: 1 / -1; }
+}
