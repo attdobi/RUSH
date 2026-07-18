@@ -151,6 +151,118 @@
 
         <text x="600" y="530" text-anchor="middle" fill="var(--muted)" font-size="11" font-style="italic">One cycle k (solid): label → stack rank &amp; select → draft → eval → gate. After the last cycle (dashed): residuals → SME queue. No agent approves its own work.</text>
       </svg>
+
+      <!-- Portrait variant for phones: same nodes, same copy, vertical flow.
+           Shown only ≤720px (CSS swaps the two). Marker ids suffixed M to
+           avoid colliding with the landscape svg's defs. -->
+      <svg class="arch-svg-mobile" viewBox="0 0 390 1470" role="img"
+           aria-label="RUSH multi-agent architecture (mobile): policy graph, data splits, judge panel, anchor selection, drafter, candidate eval, gate, SME">
+        <defs>
+          <marker id="archArrowM" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+          <marker id="archArrowGreenM" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/>
+          </marker>
+        </defs>
+
+        <!-- Policy graph -->
+        <rect x="24" y="16" width="342" height="84" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="195" y="44" text-anchor="middle" fill="var(--text)" font-size="14" font-weight="800">POLICY GRAPH G<tspan baseline-shift="sub" font-size="10">k</tspan> — the parameter</text>
+        <text x="195" y="66" text-anchor="middle" fill="var(--muted)" font-size="10.5">versioned markdown KG · the judges' exact prompt</text>
+        <text x="195" y="84" text-anchor="middle" fill="var(--muted)" font-size="10.5">accepted edits mint v&lt;run&gt;.&lt;k&gt;</text>
+
+        <!-- Data splits -->
+        <rect x="24" y="150" width="342" height="130" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">DATA — seeded splits</text>
+        <text x="42" y="200" fill="var(--muted)" font-size="10.5">train batch N · fresh per cycle</text>
+        <text x="42" y="218" fill="var(--muted)" font-size="10.5">test T · fixed at k=0 (gate)</text>
+        <text x="204" y="200" fill="var(--muted)" font-size="10.5">holdout · end-of-run only</text>
+        <text x="204" y="218" fill="var(--muted)" font-size="10.5">benchmark · fixed cross-run</text>
+        <text x="195" y="248" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">same seed ⇒ same data path</text>
+
+        <!-- Judge panel -->
+        <rect x="24" y="330" width="342" height="160" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="195" y="356" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">JUDGE PANEL</text>
+        <text x="195" y="374" text-anchor="middle" fill="var(--muted)" font-size="10.5">MAS labelers — 2–5 independent mLLMs</text>
+        <g font-size="10.5" text-anchor="middle">
+          <rect x="93" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="116" y="403" fill="var(--text)">J1</text>
+          <rect x="145" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="168" y="403" fill="var(--text)">J2</text>
+          <rect x="197" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="220" y="403" fill="var(--text)">J3</text>
+          <rect x="249" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="272" y="403" fill="var(--text)">J4</text>
+        </g>
+        <text x="195" y="432" text-anchor="middle" fill="var(--muted)" font-size="10.5">ŷ, confidence, difficulty, boundary flag, justification</text>
+        <text x="195" y="460" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">label only · never draft · never gate</text>
+
+        <!-- Stack rank -->
+        <rect x="24" y="540" width="342" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="566" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">STACK RANK &amp; SELECT</text>
+        <text x="195" y="588" text-anchor="middle" fill="var(--muted)" font-size="10.5">anchors: ≤15 misaligned + ≤5 aligned</text>
+        <text x="195" y="608" text-anchor="middle" fill="var(--muted)" font-size="10.5">random / top |g| / importance</text>
+        <text x="195" y="628" text-anchor="middle" fill="var(--muted)" font-size="10.5">judge votes + SME truth (+ images, if Input allows)</text>
+        <text x="195" y="662" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">random = the null hypothesis</text>
+
+        <!-- Drafter -->
+        <rect x="24" y="740" width="342" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--purple)" stroke-width="1.6"/>
+        <text x="195" y="766" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">DRAFTER</text>
+        <text x="195" y="784" text-anchor="middle" fill="var(--muted)" font-size="10.5">the policy-iteration agent (optimizer)</text>
+        <text x="195" y="810" text-anchor="middle" fill="var(--muted)" font-size="10.5">one edit per cycle · ≤5 node files</text>
+        <text x="195" y="830" text-anchor="middle" fill="var(--muted)" font-size="10.5">no per-image answers · no reword</text>
+        <text x="195" y="850" text-anchor="middle" fill="var(--muted)" font-size="10.5">grows KG sub-nodes, not the root</text>
+        <text x="195" y="876" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">drafts only · never scores</text>
+
+        <!-- Candidate eval -->
+        <rect x="24" y="940" width="342" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="968" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">CANDIDATE EVAL</text>
+        <text x="195" y="992" text-anchor="middle" fill="var(--muted)" font-size="10.5">the same judge panel re-labels the fixed test T</text>
+        <text x="195" y="1010" text-anchor="middle" fill="var(--muted)" font-size="10.5">under G ⊕ e → F1 before vs after</text>
+
+        <!-- Gate -->
+        <rect x="24" y="1100" width="342" height="122" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--gold)" stroke-width="1.6"/>
+        <text x="195" y="1126" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">GATE</text>
+        <text x="195" y="1148" text-anchor="middle" fill="var(--muted)" font-size="10.5">metric rule (default): accept ⇔ F1 improves + ε</text>
+        <text x="195" y="1166" text-anchor="middle" fill="var(--muted)" font-size="10.5">optional gate agent — the acceptance critic</text>
+        <text x="195" y="1182" text-anchor="middle" fill="var(--muted)" font-size="10.5">(persona: lenient · moderate · strict)</text>
+        <text x="195" y="1204" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">verdicts only · never edits</text>
+
+        <!-- SME -->
+        <rect x="24" y="1310" width="342" height="118" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--green)" stroke-width="1.6"/>
+        <text x="195" y="1336" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">SME — the human principal</text>
+        <text x="195" y="1358" text-anchor="middle" fill="var(--muted)" font-size="10.5">owns the golden labels y · works the queue</text>
+        <text x="195" y="1376" text-anchor="middle" fill="var(--muted)" font-size="10.5">reviews gate verdicts — the critic-of-the-critic</text>
+        <text x="195" y="1400" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">the only human · the only source of truth</text>
+
+        <!-- Main chain (center verticals) -->
+        <g fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrowM)">
+          <path d="M195,280 L195,326"/>
+          <path d="M195,490 L195,536"/>
+          <path d="M195,690 L195,736"/>
+          <path d="M195,890 L195,936"/>
+          <path d="M195,1050 L195,1096"/>
+        </g>
+        <!-- Policy -> judges, routed down the right edge past DATA -->
+        <path d="M366,74 C382,90 382,120 382,180 L382,360 C382,390 376,398 370,404" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrowM)"/>
+        <text x="378" y="230" fill="var(--muted)" font-size="10" transform="rotate(90 378,230)">policy = the judges' prompt</text>
+        <!-- SME truth -> stack rank, up the right edge -->
+        <g fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#archArrowGreenM)">
+          <path d="M366,1340 C382,1320 382,1260 382,1100 L382,660 C382,636 376,626 370,618"/>
+        </g>
+        <text x="374" y="1000" fill="var(--green)" font-size="10" transform="rotate(90 374,1000)">golden truth y → misalignment</text>
+        <!-- Accept: gate -> policy, up the left edge (green) -->
+        <path d="M24,1160 C8,1140 8,1080 8,700 L8,120 C8,80 14,66 20,58" fill="none" stroke="var(--green)" stroke-width="1.8" marker-end="url(#archArrowGreenM)"/>
+        <text x="16" y="960" fill="var(--green)" font-size="10" font-weight="700" transform="rotate(-90 16,960)">accept ⇒ G ⊕ e mints v&lt;run&gt;.&lt;k&gt;</text>
+        <text x="195" y="1246" text-anchor="middle" fill="var(--red)" font-size="10.5">skip ⇒ the incumbent stays</text>
+        <!-- Post-run residuals -> SME queue -->
+        <text x="195" y="1272" text-anchor="middle" fill="var(--muted)" font-size="10">AFTER THE RUN — residuals still misaligned under the final policy</text>
+        <text x="195" y="1288" text-anchor="middle" fill="var(--muted)" font-size="10">→ re-adjudication queue: misaligned + high LLM consensus (T1) first</text>
+        <path d="M195,1294 L195,1306" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#archArrowM)"/>
+
+        <text x="195" y="1456" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">One cycle k: label → rank → draft → eval → gate. No agent approves its own work.</text>
+      </svg>
       </div>
     </section>
 

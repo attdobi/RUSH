@@ -3099,6 +3099,9 @@ body.view-about #provenance { display: none !important; }
 }
 .policy-graph-spotlight #policyGraphStatus { margin: 0; text-align: right; }
 
+/* Portrait architecture diagram: exists only for phones; hidden on desktop. */
+.arch-svg-mobile { display: none; }
+
 /* ---------------------------------------------------------------------- */
 /* Mobile phones (r80). The topbar grid demanded a 460px middle column,   */
 /* so every view rendered ~530px wide on a 375px screen; wide data tables */
@@ -3130,6 +3133,19 @@ body.view-about #provenance { display: none !important; }
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* Architecture diagram: swap the 1200x545 landscape svg (which needs a
+     900px horizontal scroll on a phone) for the portrait variant. */
+  .arch-svg { display: none; }
+  .arch-svg-mobile { display: block; width: 100%; height: auto; }
+  /* Reclaim the nested section paddings (.section 18 + .about-section 14)
+     so the portrait diagram gets nearly the full phone width. */
+  .about-arch .arch-scroll {
+    overflow-x: visible;
+    padding: 10px 6px 6px;
+    margin-left: -28px;
+    margin-right: -28px;
   }
 
   /* About equation blocks: on phones the 4-column layout starved the
