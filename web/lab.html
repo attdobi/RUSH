@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RUSH — SME policy, LLM labeling, measurable quality</title>
+  <link rel="stylesheet" href="styles.css?v=demo-mnist-kdd-r82" />
+  <script src="demos.js?v=demo-mnist-kdd-r82"></script>
+</head>
+<body>
+  <header class="hero">
+    <nav class="topbar" aria-label="Primary">
+      <div class="brand"><span class="mark">R</span><span>RUSH</span></div>
+      <div class="demo-selector" aria-label="Active demo">
+        <span class="demo-switcher-label" id="demoSelectorLabel">Demo</span>
+        <div id="demoSelector" class="demo-switcher" role="group" aria-labelledby="demoSelectorLabel">
+          <button class="demo-switcher-option" type="button" data-demo-id="genai" aria-pressed="false">
+            <span>GenAI Image Classification</span>
+          </button>
+          <button class="demo-switcher-option" type="button" data-demo-id="mnist" aria-pressed="false">
+            <span>MNIST Digit Classification</span>
+          </button>
+        </div>
+      </div>
+      <div class="view-switcher" id="viewSwitcher" role="group" aria-label="View">
+        <button class="view-switcher-option" type="button" data-view="loop" aria-pressed="true">Run the loop</button>
+        <button class="view-switcher-option" type="button" data-view="summary" aria-pressed="false">Run summary</button>
+        <button class="view-switcher-option" type="button" data-view="adjudicate" aria-pressed="false">Adjudicate</button>
+        <button class="view-switcher-option" type="button" data-view="benchmarks" aria-pressed="false">Benchmarks</button>
+        <button class="view-switcher-option" type="button" data-view="about" aria-pressed="false">About</button>
+      </div>
+      <div class="topbar-actions" aria-label="Repository actions">
+        <div class="topbar-action-links">
+          <a class="nav-pill" href="https://github.com/attdobi/RUSH" target="_blank" rel="noopener">GitHub ↗</a>
+        </div>
+      </div>
+    </nav>
+
+    <section class="hero-grid hero-grid--compact">
+      <div class="hero-copy">
+        <p class="eyebrow" id="heroEyebrow">Reinforcement learning Using SME feedback and High-reasoning models</p>
+        <h1 id="heroH1">Cheap models label. Hard cases escalate. SMEs decide — and the policy learns.</h1>
+        <p class="lede" id="heroLede">A panel of low-cost models labels everything against an SME-owned policy graph; disagreements climb to a high-reasoning judge, the residue goes to experts, and every accepted ruling becomes the next policy version. Decision quality grows run over run.</p>
+      </div>
+    </section>
+  </header>
+
+  <main>
+    <section id="experiment" data-view="loop" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">The RUSH loop</p>
+        <h2>Pick the judges. Turn the crank. Watch the policy learn.</h2>
+        <p>Every run is numbered and seeded, and starts from the same fixed generator (k=0 = policy v0.1).
+        Each cycle: a seeded train mini-batch → the most instructive misalignments become anchors → one
+        policy edit (≤5 changes, human-reviewable) → scored on the run's fixed test partition → the gate
+        accepts only if the system-of-judges macro-F1 improves (a gate agent can veto, never force —
+        or switch the gate off to watch unfiltered drift).
+        Accepted edits become new policy-graph nodes below. You audit the gate afterward — every verdict
+        is training data for the critic.</p>
+      </div>
+
+      <div class="experiment-config api-panel" aria-label="Configure and start a run">
+        <details class="experiment-help" id="experimentHelp">
+          <summary>How this works — judges vs drafter vs gate (and what costs money)</summary>
+          <div class="experiment-help-body">
+            <p><strong>Judges — your panel.</strong> The 2–5 cheap models below label every image and score
+            every metric. All decision-quality numbers on this page — F1 before/after, the learning curve,
+            the gate metric — come from THIS panel. No expensive model ever scores quality. Every batch is
+            compliance-checked: a judge emitting a near-constant label is flagged non-compliant and (by
+            default) deweighted — its votes leave the majority vote and the optimizer signal, because no
+            policy edit can fix a judge that isn't reading the policy.</p>
+            <p><strong>Drafter — the optimizer.</strong> Once per cycle, one model reads the most
+            instructive misaligned anchors and writes ONE policy edit of at most 5 node files. A cheaper
+            drafter is a legitimate choice — it drafts, it never judges. "Input" picks what it reads per
+            anchor: <em>text fields only</em> (default — each judge's label, confidence, difficulty,
+            boundary flag, and justification, plus the SME truth) or <em>images + text</em>, which also
+            attaches the anchor pixels for visual boundary cases at extra token cost. "Anchors" picks how
+            the misalignments are chosen: an unbiased random sample, top-gradient (confident-wrong panels
+            first, |g| = 1−p), or top-importance (the four-tier misalignment × consensus rank — see the
+            About tab).</p>
+            <p><strong>Gate — four modes.</strong> Default: a deterministic rule — an edit is accepted
+            only if the panel's test-partition macro-F1 strictly improves. "+ agent" keeps that rule as
+            the hard wall and lets a gate agent VETO a suspicious win (never force one). "Critic agent
+            only" hands the decision to the agent: the metric is reported as advisory evidence but not
+            enforced, so the critic may accept a metric-flat edit it judges sound — the arm that tests
+            LLM judgment against the metric rule (agent failure falls back to the metric rule). OFF
+            accepts everything. Every rationale is reported in the gate ledger below.</p>
+            <p><strong>Cost.</strong> Each cycle labels N train + T test images with every judge; the
+            benchmark readout adds two passes over the fixed 1,000-image validation split. Accepted
+            versions are named v&lt;run&gt;.&lt;k&gt; — run 5 accepting at cycle 3 mints v5.3.</p>
+          </div>
+        </details>
+        <fieldset class="model-picker compact-model-picker" aria-label="Judge panel">
+          <legend>Judges — 2–5 cheap models; they label AND score everything <span class="muted legend-note">· LOW / MEDIUM / HIGH badges = relative cost (est. $ / 1k labels, full-rate — prompt caching lands the real spend below the estimate) · per-judge <strong>Prompt compression</strong> toggle: On = the judge labels under the deterministic compressed policy, Off = the full bundle (<a id="compressedRenderLink" href="/api/policy/render?render=compressed" target="_blank" rel="noopener" title="The exact digest a compressed judge labels under — the production artifact for lightweight labelers">view compressed render ↗</a>)</span></legend>
+          <div id="runTriggerModels" class="model-picker-list"></div>
+        </fieldset>
+        <div class="run-controls experiment-config-row" id="genaiSplitsRow" aria-label="GenAI data splits" hidden>
+          <span class="experiment-group-label">Splits</span>
+          <label title="The split-assignment seed — the alignment contract between machines: the same seed + sizes over the same source tree produces byte-identical dev/holdout/benchmark manifests everywhere. Change it only to deliberately re-deal the splits (prior runs' benchmark numbers stop being same-images-comparable).">Split seed<input id="genaiSplitSeed" type="number" value="20260510"></label>
+          <label title="dev_golden pool size — the only split runs sample from (per-run test partition + train batches)">Dev<input id="genaiSplitDev" type="number" value="2000" min="10" max="10000"></label>
+          <label title="Locked holdout size — scored only start/final with --holdout-final">Holdout<input id="genaiSplitHoldout" type="number" value="1000" min="10" max="10000"></label>
+          <label title="Fixed cross-run benchmark size — the same images every run (0 = none)">Benchmark<input id="genaiSplitValidation" type="number" value="200" min="0" max="10000"></label>
+          <button id="genaiSplitsMint" type="button">Mint splits</button>
+          <span id="genaiSplitsStatus" class="status-line" role="status"></span>
+        </div>
+        <div class="run-controls experiment-config-row" aria-label="Loop parameters">
+          <span class="experiment-group-label">Loop</span>
+          <label>Cycles k<input id="experimentKMax" type="number" value="5" min="1" max="50"></label>
+          <label>Train batch N<input id="experimentBatchN" type="number" value="20" min="2" max="200"></label>
+          <label>Test size T<input id="experimentTestN" type="number" value="100" min="10" max="1000"></label>
+          <label>Seed<input id="experimentSeed" type="number" value="13" placeholder="random"></label>
+        </div>
+        <div class="run-controls experiment-config-row" aria-label="Optimizer">
+          <span class="experiment-group-label">Optimizer</span>
+          <label>Drafter
+            <select id="experimentDrafterModel">
+              <option value="openai/gpt-5.5" selected>gpt-5.5 (default)</option>
+              <option value="openai/gpt-5.5-low">gpt-5.5-low</option>
+              <option value="openai/gpt-5.4-mini-low">gpt-5.4-mini-low — cheap</option>
+              <option value="google/gemini-3.5-flash">gemini-3.5-flash</option>
+              <option value="google/gemini-3.1-flash-lite">gemini-3.1-flash-lite — cheapest (text-only input)</option>
+              <option value="anthropic/claude-opus-4-7">opus-4-7</option>
+            </select>
+          </label>
+          <label title="What the drafter reads per anchor. Text fields only (default): every judge's full text output — label, confidence, difficulty, boundary flag, justification — plus the SME truth; cheap, and usually enough because the justifications describe what the judges saw. Images + text fields: additionally attaches the anchor image bytes so the drafter can look at the pixels itself — stronger evidence on visual boundary cases, at extra input-token cost per cycle.">Input
+            <select id="experimentDrafterContext">
+              <option value="text_only" selected>text fields only (default)</option>
+              <option value="text_and_images">images + text — drafter sees pixels</option>
+            </select>
+          </label>
+          <label title="Edit clip: the most policy-node files one proposal may touch — the trust region that keeps every step human-reviewable.">Max changes<input id="experimentMaxChanges" type="number" value="3" min="1" max="5"></label>
+        </div>
+        <div class="run-controls experiment-config-row" aria-label="Anchors">
+          <span class="experiment-group-label">Anchors</span>
+          <label title="How the misaligned anchors that drive each edit are chosen.">Method
+            <select id="experimentStrategy">
+              <option value="random_misalignment" selected>random misalignments (S1)</option>
+              <option value="top_gradient">top gradient |g| — most informative first</option>
+              <option value="top_importance">top importance — 4-tier (misalignment × consensus × boundary)</option>
+            </select>
+          </label>
+          <label title="misaligned (error/SVM) anchors sent to the drafter">Misaligned<input id="experimentMaxAnchors" type="number" value="15" min="1" max="20"></label>
+          <label title="correctly-classified anchors sent alongside so the drafter learns from correct calls too (0 = off)">Aligned<input id="experimentMaxAlignedAnchors" type="number" value="5" min="0" max="20"></label>
+        </div>
+        <div class="run-controls experiment-config-row" aria-label="Gate and readouts">
+          <span class="experiment-group-label">Gate</span>
+          <label>Mode
+            <select id="experimentGateModel">
+              <option value="metric_only" selected>Metric rule only — scored by your panel (default)</option>
+              <optgroup label="Metric rule + agent veto (rule is the hard wall)">
+                <option value="openai/gpt-5.5">+ gpt-5.5 gate agent — optional veto, reported in the ledger</option>
+                <option value="openai/gpt-5.5-low">+ gpt-5.5-low gate agent</option>
+                <option value="openai/gpt-5.4-mini-medium">+ gpt-5.4-mini-medium gate agent (cheap)</option>
+                <option value="openai/gpt-5.4-mini-low">+ gpt-5.4-mini-low gate agent (cheapest)</option>
+                <option value="google/gemini-3.5-flash">+ gemini-3.5-flash gate agent</option>
+                <option value="google/gemini-3.1-flash-lite">+ gemini-3.1-flash-lite gate agent (cheapest)</option>
+                <option value="anthropic/claude-opus-4-7">+ opus-4-7 gate agent</option>
+              </optgroup>
+              <optgroup label="Critic agent only (agent verdict decides; metric advisory)">
+                <option value="agent_only:openai/gpt-5.5">gpt-5.5 critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.5-low">gpt-5.5-low critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.4-mini-medium">gpt-5.4-mini-medium critic gate — no metric rule</option>
+                <option value="agent_only:openai/gpt-5.4-mini-low">gpt-5.4-mini-low critic gate — no metric rule</option>
+                <option value="agent_only:google/gemini-3.5-flash">gemini-3.5-flash critic gate — no metric rule</option>
+                <option value="agent_only:google/gemini-3.1-flash-lite">gemini-3.1-flash-lite critic gate — no metric rule</option>
+                <option value="agent_only:anthropic/claude-opus-4-7">opus-4-7 critic gate — no metric rule</option>
+              </optgroup>
+              <option value="off">Gate OFF — accept every edit</option>
+            </select>
+          </label>
+          <label title="How strict the gate agent is. Lenient: a flat metric on a small test set is sampling noise — skip only clear defects or large regressions. Strict: any regression or unmeasured value skips. Applies to both agent modes; ignored by metric-only/OFF.">Persona
+            <select id="experimentGatePersona">
+              <option value="lenient" selected>lenient (default)</option>
+              <option value="moderate">moderate</option>
+              <option value="strict">strict</option>
+            </select>
+          </label>
+          <label class="checkbox-label" title="Serve (image, prompt, model) verdicts already sampled 3× in earlier live runs (1× at temp=0) from the local Postgres label cache instead of re-calling the judge. Only byte-identical prompts hit — in practice the v0 baseline/benchmark legs; candidate policies always run live. Served votes carry the majority label + intra-rater flip rate and are marked in the run record. Fail-open: no Postgres, no cache, the run proceeds fully live."><input id="experimentLabelCache" type="checkbox" checked /> Label cache</label>
+          <label class="checkbox-label" title="Score the FIXED cross-run validation split (same images every run) under the start + final policy — the benchmark numbers for comparing runs. Adds two full panel passes of cost."><input id="experimentValidationFinal" type="checkbox" checked /> Benchmark readout</label>
+          <label class="checkbox-label" title="A judge flagged non-compliant (near-constant output — it is not conditioning on the policy, so no edit can move it) is DEWEIGHTED: its votes leave the system majority vote and the optimizer's anchor/blame signal. Its own row stays on the chart for transparency. Goal is policy development, so deweight rather than chase (compression is the classification-goal alternative)."><input id="experimentComplianceDeweight" type="checkbox" checked /> Deweight non-compliant</label>
+          <label class="checkbox-label" title="Randomize = re-draw the gate's test partition every cycle instead of keeping one fixed partition for the whole run. OFF (default): one seeded test partition all run — the stable gate yardstick. ON: each cycle draws a fresh partition from images never used for training and re-evaluates the incumbent on it before the candidate (paired eval on the same fresh images) — removes fixed-partition overfitting at ~+1 test eval per cycle. The cross-run benchmark stays the honest comparison either way."><input id="experimentTestResample" type="checkbox" /> Randomize test / cycle</label>
+          <label title="Protocol A — controlled label-noise injection (the label-noise lab, About tab). Flips this PERCENT of golden labels in memory for this run only (0 = clean run, max 60%). What the percent covers depends on Flip pool: random = the run's whole dev pool (train pool + test partition); k=0 misaligned = only the images the panel got wrong at k=0. Seed-derived and recorded (flipped ids on the run record), never written to the label store, adjudication queue, holdout, or fixed benchmark; corrupted runs get a warning chip on the Benchmarks tab. Sim prediction: silence-type flips erase the learning signal (slower, lower convergence), sabotage-type flips inject spurious anchors (chaotic descent) — see the policy-convergence PoC notebook in sim/label-noise/.">Corrupt labels %<input id="experimentCorruptLabels" type="number" value="0" min="0" max="60" step="5"></label>
+          <label title="Where the flips land — the two Protocol A arms. random (uniform): flips spread across the whole dev pool, applied BEFORE the k=0 baseline — models honest background SME error, a mix of silence-type flips (label moves to agree with the panel: learning signal erased) and sabotage-type flips (a correct label goes wrong: spurious anchors). k=0 misaligned (anchors): flips ONLY items the panel already got wrong at k=0 — the self-confirming reviewer who rubber-stamps the panel's mistakes; concentrated silence-type corruption exactly where anchors come from (applied AFTER the baseline pass, so k=0 metrics stay pre-corruption). random measures dose-response to honest noise; k=0 misaligned is the targeted worst case.">Flip pool
+            <select id="experimentCorruptMode">
+              <option value="random" selected>random (uniform)</option>
+              <option value="anchors">k=0 misaligned (anchors)</option>
+            </select>
+          </label>
+          <span id="experimentBenchmarkNote" class="hint experiment-benchmark-note"></span>
+        </div>
+        <div class="run-controls experiment-config-row experiment-start-row" aria-label="Start">
+          <span class="experiment-group-label">Run</span>
+          <label class="checkbox-label experiment-spend-label"><input id="experimentAllowSpend" type="checkbox" checked /> Allow spend</label>
+          <label class="experiment-launch-pin-label">Enter code to run
+            <input id="experimentLaunchPin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="run launch code">
+          </label>
+          <button id="experimentStart" class="primary-action" type="button">Start run</button>
+          <span id="experimentStartStatus" class="status-line" role="status"></span>
+        </div>
+        <p id="experimentPanelSummary" class="legend-note"></p>
+      </div>
+
+      <div id="experimentLiveCard" class="api-panel experiment-live-card" hidden></div>
+
+      <div class="run-controls" aria-label="Run picker">
+        <label>Run
+          <select id="experimentSelect"></select>
+        </label>
+        <button id="experimentRefresh" type="button">Refresh</button>
+        <span id="experimentStatusLine" class="status-line" role="status" aria-live="polite"></span>
+      </div>
+      <div id="experimentSummary" class="experiment-summary"></div>
+
+      <h3 class="experiment-block-title">Learning curve <span class="muted">— decision quality per cycle</span></h3>
+      <div class="run-controls experiment-chart-controls" aria-label="Trajectory controls">
+        <label>Metric
+          <select id="experimentMetric"></select>
+        </label>
+        <label>X axis
+          <select id="experimentXAxis">
+            <option value="steps" selected>Accepted steps — learning only</option>
+            <option value="cycles">Every cycle k</option>
+          </select>
+        </label>
+        <label class="checkbox-label chart-train-toggle"><input id="experimentShowTrain" type="checkbox" /> train batches</label>
+        <span class="legend-note" id="experimentChartLegend"></span>
+      </div>
+      <div id="experimentChart" class="api-panel experiment-chart"></div>
+
+      <h3 class="experiment-block-title">Judges on this run <span class="muted">— final test metrics vs k=0</span></h3>
+      <div id="experimentJudgeTable"></div>
+
+      <h3 class="experiment-block-title">Gate ledger <span class="muted">— every proposed edit, its anchors, and the verdict</span></h3>
+      <div id="experimentLedger"></div>
+      <div id="experimentHoldout"></div>
+
+      <div id="policyEvolution">
+        <h3 class="experiment-block-title">Policy evolution <span class="muted">— the knowledge graph the judges run on</span></h3>
+        <div id="experimentKgCycles" class="experiment-kg-cycles" aria-label="Step the graph through this run's cycles"></div>
+<div class="policy-graph-block policy-graph-spotlight">
+        <div class="policy-graph-copy">
+          <div>
+            <h3 id="policyGraphTitle">Policy graph v_n</h3>
+            <p class="body-copy" id="policyGraphBlurb">This graph IS the prompt the labelers run: Markdown guidelines plus the edges models must cite. Hover to trace; click to read a guideline.</p>
+          </div>
+          <div class="run-controls compact-run-controls policy-graph-version-controls" aria-label="Policy version picker">
+            <label>Policy version
+              <select id="policyGraphVersion"></select>
+            </label>
+            <div class="policy-graph-version-stepper" aria-label="Policy version stepper">
+              <button id="policyGraphPrevVersion" type="button" disabled>Previous</button>
+              <button id="policyGraphNextVersion" type="button" disabled>Next version</button>
+              <span id="policyGraphNextNote">accept a proposal to create the next version</span>
+            </div>
+            <span id="policyGraphStatus" class="status-line" role="status"></span>
+          </div>
+        </div>
+        <div id="policyGraphSvgWrap" class="policy-graph-wrap"></div>
+        <p class="fineprint">Policy truth lives in Markdown nodes and <code>edges.json</code>.</p>
+      </div>
+        <h3 class="experiment-block-title">Node changes vs k=0 <span class="muted">— what each node learned, and the images that taught it</span></h3>
+        <div id="experimentPolicyChanges"></div>
+      </div>
+
+      <h3 class="experiment-block-title">Confusion — final policy on this run's test partition <span class="muted">— the 10×10 grid + per-class quality</span></h3>
+      <div id="experimentConfusion"></div>
+    </section>
+    <section id="summary" data-view="summary" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Run summary</p>
+        <h2>Every judgment, per image — run by run, cycle by cycle.</h2>
+        <p>Pick a run and a mini-batch k: every image the panel labeled in that evaluation, with each judge's
+        full response — label, confidence, difficulty, justification, policy citations — ranked misaligned-first.</p>
+      </div>
+      <div class="run-controls" aria-label="Summary picker">
+        <label>Run
+          <select id="summaryRunSelect"></select>
+        </label>
+        <label>Cycle
+          <select id="summaryCycleSelect"></select>
+        </label>
+        <label>Evaluation
+          <select id="summaryEvalSelect"></select>
+        </label>
+        <label class="checkbox-label"><input id="summaryOnlyMisaligned" type="checkbox" /> misaligned only</label>
+        <button id="summaryRefresh" type="button">Refresh</button>
+        <span id="summaryStatusLine" class="status-line" role="status"></span>
+      </div>
+      <div id="summaryCycleCard" class="experiment-summary"></div>
+      <div id="summaryTable"></div>
+    </section>
+    <section id="adjudicate" data-view="adjudicate" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Adjudication queue</p>
+        <h2>Still misaligned after the loop — flagged for a human SME.</h2>
+        <p>The running cross-run list: every train / test / holdout / benchmark image whose latest
+        evaluation still shows a misalignment, deduped by image and tagged with the run number(s)
+        that flagged it. Two distinct signals rank it — <strong>SME agreement</strong> (LLM&#8596;human)
+        and <strong>LLM consensus</strong> (LLM&#8596;LLM, SME-blind) — combined into the four-tier
+        importance. <strong>Click any column header to sort by it.</strong> Full definitions are on the
+        <a href="#about" class="inline-link">About tab</a>. Dry runs never queue human work.</p>
+        <p class="adjudicate-tier-legend">
+          <span class="adjudicate-tier adjudicate-tier--1">T1</span> misaligned + high consensus (worst)
+          <span class="adjudicate-tier adjudicate-tier--2">T2</span> misaligned + low consensus
+          <span class="adjudicate-tier adjudicate-tier--3">T3</span> aligned + low consensus
+          <span class="adjudicate-tier adjudicate-tier--4">T4</span> aligned + high consensus (ideal)
+        </p>
+      </div>
+      <div class="run-controls" aria-label="Adjudication controls">
+        <label class="checkbox-label"><input id="adjudicateHideResolved" type="checkbox" /> hide resolved</label>
+        <button id="adjudicateRefresh" type="button">Refresh</button>
+        <span id="adjudicateStatusLine" class="status-line" role="status"></span>
+      </div>
+      <p class="hint adjudicate-action-hint">Expand a row (▸) to see the per-judge evidence and act: <strong>Confirm</strong> the golden label (the LLMs were wrong — raises human confidence, fades the item), <strong>Overturn</strong> it to a new label (the golden set was wrong — the panel is re-scored against the new truth), or <strong>Uncertain</strong>.</p>
+      <div id="adjudicateSummary" class="experiment-summary"></div>
+      <div id="adjudicateTable"></div>
+    </section>
+    <section id="benchmarks" data-view="benchmarks" class="section api-section">
+      <div class="section-head compact">
+        <p class="eyebrow">Cross-run benchmarks</p>
+        <h2>Every run on the same yardstick.</h2>
+        <p>One row per live run of the active demo: its configuration knobs and its start&nbsp;→&nbsp;final
+        <strong>system macro-F1 on the fixed validation benchmark</strong> — the same images every run, never
+        used for training or gating, so runs, anchor strategies, gate modes, and drafters compare honestly.
+        The locked-holdout readout is shown alongside when a run paid for it. Runs without a benchmark
+        readout show a dash — tick <em>Benchmark readout</em> on the run form to get one. Dry runs are
+        excluded (fake labels would fake the numbers).</p>
+      </div>
+      <div class="run-controls" aria-label="Benchmark controls">
+        <button id="benchmarksRefresh" type="button">Refresh</button>
+        <span id="benchmarksStatusLine" class="status-line" role="status"></span>
+      </div>
+      <div id="benchmarksTable"></div>
+    </section>
+    <section id="about" data-view="about" class="section api-section">
+      <div id="aboutContent"></div>
+    </section>
+    <details id="provenance" class="section provenance-section">
+      <summary>How this policy was created — provenance &amp; Gp-0 prompt spec</summary>
+      <div class="section-head compact">
+        <p class="eyebrow">Provenance</p>
+        <h2>How this policy was created.</h2>
+      </div>
+      <div id="provenancePanel" class="provenance-panel" aria-live="polite"></div>
+    </details>
+  </main>
+
+  <script src="app.js?v=demo-mnist-kdd-r82"></script>
+  <script src="run-trigger.js?v=demo-mnist-kdd-r82"></script>
+  <script src="experiment.js?v=demo-mnist-kdd-r82"></script>
+  <script src="summary.js?v=demo-mnist-kdd-r82"></script>
+  <script src="adjudicate.js?v=demo-mnist-kdd-r82"></script>
+  <script src="benchmarks.js?v=demo-mnist-kdd-r82"></script>
+  <script src="about.js?v=demo-mnist-kdd-r82"></script>
+  <script src="provenance.js?v=demo-mnist-kdd-r82"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+  <script src="policy-graph.js?v=demo-mnist-kdd-r82"></script>
+  <script src="justifications.js?v=demo-mnist-kdd-r82"></script>
+</body>
+</html>

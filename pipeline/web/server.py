@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import json
+import os
 from pathlib import Path
 import re
 from typing import Any
@@ -12,9 +14,9 @@ from ._safety import APIError, safe_static_path, utcnow_iso, whitelisted_static_
 from .build_id import get_build_id
 from .handlers_runs import handle_api, send_api_error
 from .run_registry import RunRegistry
+from .studio import dispatch as dispatch_studio
 
 SERVER_VERSION = "rush-web-server-v1"
-
 
 _LOCAL_ASSET_RE = re.compile(
     r"(<(?:script|link)\b[^>]*?\b(?:src|href)=)([\"'])([^\"']+)(\2)",
@@ -26,15 +28,9 @@ def _with_build_version(url: str, build_id: str) -> str:
     if not url or "://" in url or url.startswith("//") or url.startswith("#"):
         return url
     parts = urlsplit(url)
-    query_pairs = [
-        (key, value)
-        for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        if key != "v"
-    ]
+    query_pairs = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True) if key != "v"]
     query_pairs.append(("v", build_id))
-    return urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, urlencode(query_pairs), parts.fragment)
-    )
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query_pairs), parts.fragment))
 
 
 def _rewrite_index_html(raw: bytes, build_id: str) -> bytes:
@@ -55,30 +51,22 @@ def _rewrite_index_html(raw: bytes, build_id: str) -> bytes:
 
 class RushWebRequestHandler(SimpleHTTPRequestHandler):
     """Serve web-root static files and dispatch ``/api/*`` to JSON handlers."""
-
     server_version_name = SERVER_VERSION
 
-    def __init__(
-        self,
-        *args: Any,
-        repo_root: Path,
-        registry: RunRegistry,
-        started_at: str,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, *args: Any, repo_root: Path, registry: RunRegistry, started_at: str, **kwargs: Any) -> None:
         self.repo_root = repo_root.resolve()
         self.web_root = self.repo_root / "web"
         self.registry = registry
         self.started_at = started_at
         super().__init__(*args, directory=str(self.web_root), **kwargs)
 
-    def version_string(self) -> str:  # pragma: no cover - cosmetic header only
+    def version_string(self) -> str:
         return self.server_version_name
 
     def translate_path(self, path: str) -> str:
         return str(safe_static_path(self.repo_root, self.web_root, path))
 
-    def list_directory(self, path: str):  # noqa: ANN001 - inherited API
+    def list_directory(self, path: str):
         self.send_error(404, "not_found")
         return None
 
@@ -109,10 +97,11 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
 
     def _is_index_request(self) -> bool:
         request_path = urlsplit(self.path).path
-        return request_path in {"/", "/index.html", "/web/", "/web/index.html"}
+        return request_path in {"/", "/index.html", "/web/", "/web/index.html", "/lab.html", "/web/lab.html"}
 
     def _send_rewritten_index(self, *, head_only: bool = False) -> None:
-        index_path = self.web_root / "index.html"
+        filename = "lab.html" if urlsplit(self.path).path.endswith("/lab.html") else "index.html"
+        index_path = self.web_root / filename
         if not index_path.is_file():
             self.send_error(404, "not_found")
             return
@@ -129,8 +118,25 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
             if hasattr(self, "_cache_control_override"):
                 delattr(self, "_cache_control_override")
 
-    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def _send_studio(self) -> None:
+        # Operator-selected evidence root supports a read-only demo worktree.
+        # Browser parameters can never choose this root. All writes stay bound
+        # to self.repo_root in the existing research-lab handlers.
+        source_root = Path(os.environ.get("RUSH_STUDIO_DATA_ROOT") or self.repo_root).expanduser()
+        status, payload = dispatch_studio(source_root, self.path)
+        raw = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self) -> None:
         if self._handle_download(method="GET"):
+            return
+        if self.path.startswith("/api/studio/"):
+            self._send_studio()
             return
         if self.path.startswith("/api/"):
             handle_api(self, self.registry, method="GET")
@@ -143,13 +149,16 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
         except APIError as exc:
             send_api_error(self, exc)
 
-    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def do_POST(self) -> None:
+        if self.path.startswith("/api/studio/"):
+            self.send_error(405, "The policy studio is read-only")
+            return
         if self.path.startswith("/api/"):
             handle_api(self, self.registry, method="POST")
             return
         self.send_error(405, "Method not allowed")
 
-    def do_HEAD(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def do_HEAD(self) -> None:
         if self._handle_download(method="HEAD"):
             return
         if self.path.startswith("/api/"):
@@ -164,23 +173,11 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
             send_api_error(self, exc)
 
 
-def create_server(
-    *,
-    host: str = "127.0.0.1",
-    port: int = 8766,
-    repo_root: str | Path,
-    registry: RunRegistry | None = None,
-) -> ThreadingHTTPServer:
+def create_server(*, host: str = "127.0.0.1", port: int = 8766, repo_root: str | Path, registry: RunRegistry | None = None) -> ThreadingHTTPServer:
     """Create a localhost-only ThreadingHTTPServer."""
     if host != "127.0.0.1":
         raise ValueError("RUSH web server refuses to bind anything except 127.0.0.1")
     root = Path(repo_root).resolve()
     active_registry = registry or RunRegistry(root)
-    started_at = utcnow_iso()
-    handler_cls = partial(
-        RushWebRequestHandler,
-        repo_root=root,
-        registry=active_registry,
-        started_at=started_at,
-    )
+    handler_cls = partial(RushWebRequestHandler, repo_root=root, registry=active_registry, started_at=utcnow_iso())
     return ThreadingHTTPServer((host, port), handler_cls)
