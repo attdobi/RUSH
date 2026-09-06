@@ -51,6 +51,10 @@ class Bridge(unittest.TestCase):
         class Upstream(BaseHTTPRequestHandler):
             def do_GET(self):
                 cls.calls.append((self.path,self.headers.get('Authorization'),self.headers.get('Cookie')))
+                if self.path.startswith('/api/thumbnail?'):
+                    self.send_response(302);self.send_header('Location','/data/images/test.png?v=known');self.end_headers();return
+                if self.path=='/data/images/test.png?v=known':
+                    self.send_response(200);self.send_header('Content-Type','image/png');self.end_headers();self.wfile.write(b'known-image-bytes');return
                 if self.path=='/api/redirect':self.send_response(302);self.send_header('Location','http://example.invalid/');self.end_headers();return
                 if self.path=='/api/missing':self.send_error(404);return
                 data=json.dumps({'path':self.path}).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(data)
@@ -69,8 +73,22 @@ class Bridge(unittest.TestCase):
         path='/api/policy/graph?area=MNIST_Digits&version=v0.1'
         self.assertEqual(self.get(path)['path'],path)
     def test_experiments_proposals_and_media_same_origin(self):
-        for p in ('/api/experiments','/api/policy/proposals/demo','/api/thumbnail?path=data/image.png','/data/runs/r/scoring/misalignment.json','/policy-graph/MNIST_Digits/v0.1/MD.root.md'):
+        for p in ('/api/experiments','/api/policy/proposals/demo','/data/runs/r/scoring/misalignment.json','/policy-graph/MNIST_Digits/v0.1/MD.root.md'):
             self.assertEqual(self.get(p)['path'],p)
+    def test_native_thumbnail_redirect_returns_image_bytes(self):
+        with urlopen(self.origin+'/api/thumbnail?path=data/image.png') as r:
+            self.assertEqual(r.headers['Content-Type'],'image/png')
+            self.assertEqual(r.read(),b'known-image-bytes')
+            self.assertTrue(r.geturl().startswith(self.origin+'/data/'))
+
+    def test_redirect_targets_remain_same_origin_and_static(self):
+        origin='http://127.0.0.1:8766'
+        for target in ('https://evil.test/data/a.png','/api/experiments/start',
+                       '//evil.test/data/a.png','/data/%2e%2e/secret','/data/.env',
+                       'http://user:secret@127.0.0.1:8766/data/a.png'):
+            self.assertIsNone(P.media_redirect(origin,'/api/thumbnail',target))
+        self.assertEqual(P.media_redirect(origin,'/api/thumbnail','/data/a.png?v=2'),'/data/a.png?v=2')
+
     def test_all_write_verbs_blocked(self):
         for method in ('POST','PUT','PATCH','DELETE'):
             before=len(self.calls)

@@ -15,6 +15,12 @@
   }
   function cancel(){controllers.forEach(c=>c.abort());controllers.clear();}
   function stop(){playing=false;clearTimeout(timer);if($('evPlay'))$('evPlay').textContent='▶ Replay this run';}
+  function clearEvidence(){
+    run=null;selected=null;++detailSeq;stop();
+    $('evTrail').replaceChildren();$('evFrame').textContent='';$('evDetail').hidden=true;
+    $('evDiff').textContent='';$('evPlay').disabled=true;
+    document.querySelectorAll('.policy-node').forEach(el=>el.classList.remove('ev-added','ev-edited','ev-proposed'));
+  }
   function active(){const chip=document.querySelector('.experiment-kg-chip--active');return Number(chip?.dataset.kgK??run?.cycles?.at(-1)?.k??0);}
   function highlight(){
     const c=run?.cycles.find(x=>x.k===active());
@@ -31,8 +37,8 @@
     });
   }
   async function load(){
-    const id=$('experimentSelect')?.value;if(!id)return;
-    const token=++sequence;cancel();
+    const id=$('experimentSelect')?.value;if(!id){clearEvidence();$('evSource').textContent='No run selected. The native policy graph is available below.';return;}
+    const token=++sequence;cancel();if(run?.experiment_id!==id)clearEvidence();
     $('evSource').textContent=`Reading /api/experiments/${id} …`;
     try {
       const data=await read(`/api/experiments/${encodeURIComponent(id)}`);
@@ -42,10 +48,10 @@
       $('evSource').textContent=`Native API · run #${data.run_number??'?'} · seed ${data.seed??'?'} · ${data.dry_run===false?'recorded model run':data.dry_run===true?'DRY RUN — synthetic labels':'label origin unspecified'}`;
       $('evPlay').disabled=data.cycles.length<2;
       show();
-    }catch(error){if(token!==sequence)return;run=null;$('evSource').textContent=`Evidence panel: ${error.message}. The original graph and lab remain available.`;$('evTrail').replaceChildren();stop();}
+    }catch(error){if(token!==sequence)return;clearEvidence();$('evSource').textContent=`Evidence panel: ${error.message}. The original graph and lab remain available.`;$('evTrail').replaceChildren();stop();}
   }
   async function show(){
-    if(!run)return;
+    if(!run||run.experiment_id!==$('experimentSelect')?.value||run.area!==area())return;
     const token=++detailSeq,k=active(),c=run.cycles.find(x=>x.k===k);if(!c)return;
     selected=c;
     const f=C.frames(run).find(x=>x.k===k),m=C.metrics(c),changes=C.evidence(c);
@@ -70,6 +76,10 @@
     }catch(_){/* Stored lean anchors are still genuine evidence; do not invent images. */}
     if(token!==detailSeq||c!==selected)return;
     $('evAnchors').innerHTML=anchors.slice(0,12).map((a,i)=>`<button type="button" data-ev-anchor="${i}" title="${esc(a.image_id)} — reference ${esc(a.sme_truth)}">${a.repo_rel_path?`<img loading="lazy" src="/api/thumbnail?path=${encodeURIComponent(a.repo_rel_path)}" alt="Anchor ${esc(a.image_id)}"/>`:'<span>No image</span>'}<small>${esc(a.sme_truth??'reference missing')}</small></button>`).join('')||'<p>No anchor images stored for this step.</p>';
+    $('evAnchors').querySelectorAll('img').forEach(img=>img.addEventListener('error',()=>{
+      const missing=document.createElement('span');missing.className='ev-image-missing';
+      missing.textContent='Image file unavailable';missing.title=img.alt;img.replaceWith(missing);
+    },{once:true}));
     $('evAnchors').querySelectorAll('[data-ev-anchor]').forEach(button=>button.addEventListener('click',()=>{
       const a=anchors[Number(button.dataset.evAnchor)];
       window.rushShowEvidence?.({...a,run_id:c.train_run_id,votes:(a.votes||[]).map(v=>({...v,model:v.model||v.labeler_id||v.model_id}))});

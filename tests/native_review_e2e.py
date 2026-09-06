@@ -10,7 +10,8 @@ import os
 from pathlib import Path
 import threading
 from urllib.error import HTTPError
-from urllib.request import Request,urlopen
+from urllib.request import Request,urlopen,build_opener
+from urllib.parse import quote
 
 from playwright.sync_api import sync_playwright
 
@@ -37,6 +38,25 @@ def main():
     out=ROOT/'test-results/native-review';out.mkdir(parents=True,exist_ok=True)
     checks=[]
     try:
+        # Test the real native 302 -> media path using an image committed to RUSH.
+        sample_root=ROOT/'data/images/genai-classification/sample'
+        image=next((p for p in sample_root.rglob('*') if p.suffix.lower() in ('.png','.jpg','.jpeg')),None)
+        assert image is not None,'No committed image available for the native media contract'
+        media_path='/api/thumbnail?path='+quote(image.relative_to(ROOT).as_posix(),safe='')
+        try:
+            build_opener(P.NoRedirect()).open(origin+media_path)
+            raise AssertionError('Native thumbnail redirect was not preserved')
+        except HTTPError as e:
+            assert e.code==302 and e.headers['Location'].startswith('/data/')
+        with urlopen(source+media_path) as response:
+            expected=response.read();media_type=response.headers.get('Content-Type')
+        with urlopen(origin+media_path) as response:
+            assert response.read()==expected and response.headers.get('Content-Type')==media_type
+            assert response.geturl().startswith(origin+'/data/')
+        assert media_type.startswith('image/')
+        media_check={'path':image.relative_to(ROOT).as_posix(),'sha256':hashlib.sha256(expected).hexdigest(),
+                     'same_bytes':True,'native_redirect':302}
+
         with sync_playwright() as pw:
             browser=pw.chromium.launch(headless=True,args=['--no-sandbox'])
             for demo,area in [('genai','Generative_AI'),('mnist','MNIST_Digits')]:
@@ -67,6 +87,7 @@ def main():
                 assert native==proxied
                 page.locator('#policyEvolution').scroll_into_view_if_needed()
                 page.screenshot(path=str(out/f'{demo}-actual-artifacts.png'))
+                page.locator('.policy-graph-block').screenshot(path=str(out/f'{demo}-native-graph.png'))
                 page.locator('#viewSwitcher [data-view="about"]').click()
                 page.wait_for_selector('#aboutContent .about-arch',state='visible',timeout=30000)
                 assert len(page.locator('#aboutContent').inner_text())>20000
@@ -81,7 +102,7 @@ def main():
             urlopen(Request(origin+'/api/experiments/start',data=b'{}',method='POST'))
             raise AssertionError('Preview forwarded a write')
         except HTTPError as e:assert e.code==405
-        result={'about_original_sha':'013af218b8a8b053aaea5263fc03684ddd8c7a24','checks':checks,
+        result={'about_original_sha':'013af218b8a8b053aaea5263fc03684ddd8c7a24','checks':checks,'thumbnail':media_check,
                 'scope':'Full app, real native server, committed artifacts. Not private host, SQL connection or model execution.'}
         (out/'results.json').write_text(json.dumps(result,indent=2))
         print(json.dumps(result,indent=2))

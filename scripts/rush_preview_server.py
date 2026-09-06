@@ -13,7 +13,7 @@ import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +32,30 @@ def validate_origin(value: str) -> str:
             or p.path not in ('', '/') or p.query or p.fragment):
         raise ValueError('Upstream must be an http(s) origin without credentials, path or query')
     return value.rstrip('/')
+
+
+def media_redirect(origin: str, request_path: str, location: str) -> str | None:
+    """Relay only same-origin static evidence redirects back through the preview.
+
+    The native thumbnail API deliberately returns 302. Do not follow arbitrary
+    redirects on the server or expose the browser to an external destination.
+    """
+    if not location or any(ord(c) < 32 or c == "\\" for c in location):
+        return None
+    try:
+        target = urlsplit(urljoin(origin + request_path, location))
+        base = urlsplit(origin)
+        origin_key = lambda u: (u.scheme, u.hostname, u.port or (443 if u.scheme == 'https' else 80))
+        if target.username or target.password or origin_key(target) != origin_key(base):
+            return None
+        decoded = unquote(target.path)
+        if not decoded.startswith(('/data/', '/policy-graph/', '/download/')):
+            return None
+        if '\\' in decoded or any(part.startswith('.') for part in decoded.split('/')):
+            return None
+        return urlunsplit(('', '', target.path, target.query, ''))
+    except ValueError:
+        return None
 
 
 def enhanced_index(root: Path, name: str) -> bytes:
@@ -84,7 +108,7 @@ def create_preview(root: Path, upstream: str, port: int = 8767):
                     'database_access':'none; upstream owns persistence'}).encode())
                 return
             if path.startswith(PROXIED):
-                # No browser-supplied destination, cookies, authorization, or redirects.
+                # Fixed destination, no cookies/authorization; static redirects are validated below.
                 req = Request(upstream + self.path, headers={'Accept':self.headers.get('Accept', '*/*')}, method='GET')
                 try:
                     with opener.open(req, timeout=20) as response:
@@ -93,6 +117,13 @@ def create_preview(root: Path, upstream: str, port: int = 8767):
                             raise ValueError('Response limit exceeded')
                         self.respond(response.status, data, response.headers.get('Content-Type', 'application/octet-stream'))
                 except HTTPError as exc:
+                    location = media_redirect(upstream, self.path, exc.headers.get('Location', ''))
+                    if exc.code in (301, 302, 303, 307, 308) and location:
+                        self.send_response(exc.code)
+                        self.send_header('Location', location)
+                        self.send_header('Content-Length', '0')
+                        self.end_headers()
+                        return
                     status = exc.code if not 300 <= exc.code < 400 else 502
                     data = json.dumps({'error':'upstream_http_error', 'status':exc.code, 'path':parts.path}).encode()
                     self.respond(status, data)
