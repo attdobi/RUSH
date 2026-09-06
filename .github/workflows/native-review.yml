@@ -1,0 +1,41 @@
+name: Native research integration
+on:
+  push:
+    branches: [feat/policy-intelligence-executive-demo]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install test dependencies
+        run: |
+          python -m pip install -r requirements.txt playwright
+          python -m playwright install --with-deps chromium
+          npm install --prefix /tmp/rush-d3 d3@7.9.0
+      - name: Pure contracts and read-only bridge
+        run: |
+          python tests/test_native_review.py
+          node --test tests/lab-evidence-core.test.cjs
+      - name: Existing graph and render contracts
+        run: python -m pytest -q tests/test_handlers_policy_graph.py tests/test_policy_render.py
+      - name: Full native application with committed artifacts
+        env:
+          D3_JS: /tmp/rush-d3/node_modules/d3/dist/d3.min.js
+        run: python tests/native_review_e2e.py
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-review-evidence
+          path: test-results/native-review/
+          if-no-files-found: warn

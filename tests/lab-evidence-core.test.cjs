@@ -1,0 +1,16 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const C=require('../web/lab-evidence-core.js');
+const make=()=>({area:'Generative_AI',base_version:'v0.1',cycles:[{k:0,kind:'baseline'},{k:1,status:'accepted',new_version:'v5.1'},{k:2,status:'skipped',generator_before:'v5.1',generator_after:'v5.1'}]});
+test('native legacy new_version contract is supported',()=>assert.deepEqual(C.frames(make()).map(f=>f.version),['v0.1','v5.1','v5.1']));
+test('rejected candidate does not change the graph',()=>{const r=make();r.cycles[2].generator_after='v5.2';assert.throws(()=>C.frames(r),/Unaccepted/);});
+test('explicit parent mismatch is rejected',()=>{const r=make();r.cycles[1].generator_before='v99.1';assert.throws(()=>C.frames(r),/lineage/);});
+test('MNIST area-qualified versions normalize',()=>assert.equal(C.version('MNIST_Digits.v1.2','MNIST_Digits'),'v1.2'));
+test('wrong-area versions are not stripped',()=>assert.equal(C.version('MNIST_Digits.v1.2','Generative_AI'),null));
+test('cycles must not reorder silently',()=>{const r=make();r.cycles.reverse();assert.throws(()=>C.frames(r));});
+test('duplicate cycle rejected',()=>{const r=make();r.cycles.push(r.cycles[2]);assert.throws(()=>C.frames(r));});
+test('no metrics means unknown rather than perfect',()=>assert.equal(C.metrics({}).coverage,null));
+test('missing abstentions means unknown coverage',()=>assert.equal(C.metrics({metrics:{test:{system:{n:10}}}}).coverage,null));
+test('zero valid rate remains zero',()=>assert.equal(C.pct(0),'0.0%'));
+test('abstentions included in coverage',()=>assert.equal(C.metrics({metrics:{test:{system:{n:8,n_abstained:2}}}}).coverage,.8));
+test('edits follow native edit_summary',()=>assert.equal(C.evidence({edit_summary:[{path:'GA.rule.md',change:'added'}]})[0].id,'GA.rule'));
+test('in-flight cycle not promoted',()=>{const r=make();r.cycles.push({k:3,status:'open'});assert.equal(C.frames(r).length,3);});

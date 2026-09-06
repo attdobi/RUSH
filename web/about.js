@@ -1,88 +1,746 @@
-/* Research notebook. Definitions, implemented controls, hypotheses, and evidence
- * limitations are intentionally separate. Renders without a running API. */
+// About this demo — the metric formalism, project-agnostic. Opens with the
+// MAS architecture diagram (four independent agents: judge panel = MAS
+// labelers, drafter = policy-iteration agent, gate + acceptance critic, SME =
+// human principal) and closes with the PPO/GEPA/VISTA comparison (distilled
+// from docs/TECHNICAL-REPORT.md §7). In between: every config knob on the Run
+// tab, what one optimization cycle actually does (what
+// the drafter sees, what the gate computes), the per-judge gradient (p, |g|),
+// the two multi-LLM alignment signals (SME agreement vs LLM consensus), the
+// four-tier importance that ranks the adjudication queue and the
+// policy-learning anchors, and how human-label confidence fades
+// re-adjudication. Kept in sync with pipeline/experiment panel_signal /
+// importance_scores and scripts/run_experiment.py. Sections are wrapped in
+// .about-section so they flow into balanced columns without a definition
+// splitting mid-way; formulas use the .about-eq display-math grid.
 (() => {
-  'use strict';
-  const HTML = `<article class="rch-methods">
-    <header class="rch-method-head"><span class="rch-eyebrow">RUSH / RESEARCH NOTEBOOK</span><h2>Policy learning is an empirical question.</h2><p>The research object is a versioned policy graph—not a larger prompt and not a prettier score. We study whether localized rules, expert feedback, and controlled evaluation improve decision quality across cases the optimizer did not get to inspect.</p></header>
-    <nav class="rch-method-nav" aria-label="Methods notebook"><a href="#method-mechanism">Mechanism</a><a href="#method-measurement">Measurement</a><a href="#method-golden">Golden sets</a><a href="#method-gates">Gates & generalization</a><a href="#method-hypotheses">Research agenda</a><a href="#method-routing">Decision paths</a><a href="#method-knobs">Lab controls</a><a href="#method-plan">Ablation plan</a><a href="#method-literature">Related work</a></nav>
-    <section id="method-mechanism"><span class="rch-eyebrow">01 / THE MECHANISM</span><h3>The policy graph is the parameter we edit.</h3><p>Let G<sub>k</sub> be the policy graph at step k. Its Markdown nodes contain decision criteria, boundaries, exceptions, and supporting context; its explicit edges describe relationships. The judge receives a rendered policy bundle or the configured structural digest. A node in the visualization is not automatically a separate model, an executable predicate, or a measured causal contributor.</p>
-      <div class="rch-contract"><span><b>DATA</b>Golden labels & split identity</span><span><b>JUDGES</b>Predictions under G<sub>k</sub></span><span><b>ANCHORS</b>Misalignment evidence</span><span><b>DRAFTER</b>Bounded node edits</span><span><b>EVALUATION</b>Candidate vs incumbent</span><span><b>GATE</b>Accept / veto / retain</span></div>
-      <div class="rch-equation">G<sub>k+1</sub> = G′<sub>k</sub> when the configured gate accepts; otherwise G<sub>k+1</sub> = G<sub>k</sub>.<small>This is a state transition, not a convergence theorem. A rejected proposal is part of the experimental record but does not become the deployed policy.</small></div>
-      <div class="rch-method-grid"><div><h4>What runs today</h4><p>A seeded classification experiment, a configurable judge panel, error-driven anchor selection, localized policy proposals, deterministic scoring, configurable acceptance, and recorded human review. The GenAI and MNIST tasks use different label spaces but share the experimental machinery. Dataset labels are reference labels; they are not proof that an SME personally adjudicated every image.</p></div><div><h4>What the terminology does not imply</h4><p>The current loop optimizes policy text. It does not perform PPO or GRPO model-weight updates. Human feedback supplies labels, review, and future training data; storing a review does not demonstrate that a critic has been trained. A cap on edited files is a reviewability constraint, not a PPO probability-ratio clip.</p></div></div>
+  const $ = (sel) => document.querySelector(sel);
+
+  // eq(rows, footnote): one display-math block. Each row is [lhs, op, rhs, note].
+  const eq = (rows, span) => `<div class="about-eq">${rows.map(([l, o, r, n]) =>
+    `<span class="eq-l">${l}</span><span class="eq-op">${o}</span><span class="eq-r">${r}</span><span class="eq-note">${n || ''}</span>`).join('')}${span ? `<span class="about-eq-span">${span}</span>` : ''}</div>`;
+
+  const HTML = `
+  <div class="about-doc">
+    <div class="section-head compact about-intro">
+      <p class="eyebrow">About this demo</p>
+      <h2>How RUSH scores, ranks, and learns — every knob and every number.</h2>
+      <p>This applies to every project (MNIST digits, GenAI images, or a real policy). A panel of
+      cheap LLM judges labels each item against a versioned policy graph; a human SME owns the golden
+      label. The numbers on the other tabs all come from the definitions below; the knob-by-knob
+      run-form reference lives at the <a href="#about-knobs" class="inline-link">end of this page</a>.</p>
+    </div>
+
+    <section class="about-section about-arch">
+      <h2>The architecture — one cycle around the loop</h2>
+      <div class="arch-scroll">
+      <svg class="arch-svg" viewBox="0 0 1200 545" role="img"
+           aria-label="RUSH multi-agent architecture: policy graph, judge panel, anchor selection, drafter, candidate eval, gate, SME">
+        <defs>
+          <marker id="archArrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+          <marker id="archArrowGreen" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/>
+          </marker>
+        </defs>
+
+        <!-- Policy graph: the parameter -->
+        <rect x="430" y="16" width="340" height="80" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="600" y="46" text-anchor="middle" fill="var(--text)" font-size="15" font-weight="800">POLICY GRAPH G<tspan baseline-shift="sub" font-size="11">k</tspan> — the parameter</text>
+        <text x="600" y="68" text-anchor="middle" fill="var(--muted)" font-size="11">versioned markdown KG · the exact prompt the judges run</text>
+        <text x="600" y="84" text-anchor="middle" fill="var(--muted)" font-size="11">accepted edits mint v&lt;run&gt;.&lt;k&gt;</text>
+
+        <!-- Data splits -->
+        <rect x="28" y="150" width="200" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="128" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">DATA — seeded splits</text>
+        <text x="44" y="200" fill="var(--muted)" font-size="11">train batch N · fresh per cycle</text>
+        <text x="44" y="220" fill="var(--muted)" font-size="11">test T · fixed at k=0 (gate)</text>
+        <text x="44" y="240" fill="var(--muted)" font-size="11">holdout · end-of-run only</text>
+        <text x="44" y="260" fill="var(--muted)" font-size="11">benchmark · fixed cross-run</text>
+        <text x="44" y="285" fill="var(--muted)" font-size="10" font-style="italic">same seed ⇒ same data path</text>
+
+        <!-- Judge panel -->
+        <rect x="272" y="150" width="240" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="392" y="176" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">JUDGE PANEL</text>
+        <text x="392" y="194" text-anchor="middle" fill="var(--muted)" font-size="11">MAS labelers — 2–5 independent mLLMs</text>
+        <g font-size="10.5" text-anchor="middle">
+          <rect x="290" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="313" y="223" fill="var(--text)">J1</text>
+          <rect x="342" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="365" y="223" fill="var(--text)">J2</text>
+          <rect x="394" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="417" y="223" fill="var(--text)">J3</text>
+          <rect x="446" y="208" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="469" y="223" fill="var(--text)">J4</text>
+        </g>
+        <text x="392" y="252" text-anchor="middle" fill="var(--muted)" font-size="11">ŷ, confidence, difficulty,</text>
+        <text x="392" y="268" text-anchor="middle" fill="var(--muted)" font-size="11">boundary flag, justification</text>
+        <text x="392" y="289" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">label only · never draft · never gate</text>
+
+        <!-- Anchor selection / stack ranking -->
+        <rect x="556" y="150" width="200" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="656" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">STACK RANK &amp; SELECT</text>
+        <text x="656" y="196" text-anchor="middle" fill="var(--muted)" font-size="11">anchors: ≤15 misaligned + ≤5 aligned</text>
+        <text x="656" y="216" text-anchor="middle" fill="var(--muted)" font-size="11">random / top |g| / importance</text>
+        <text x="656" y="236" text-anchor="middle" fill="var(--muted)" font-size="11">judge votes + SME truth</text>
+        <text x="656" y="256" text-anchor="middle" fill="var(--muted)" font-size="11">(+ images, if Input allows)</text>
+        <text x="656" y="285" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">random = the null hypothesis</text>
+
+        <!-- Drafter -->
+        <rect x="800" y="150" width="240" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--purple)" stroke-width="1.6"/>
+        <text x="920" y="176" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">DRAFTER</text>
+        <text x="920" y="194" text-anchor="middle" fill="var(--muted)" font-size="11">the policy-iteration agent (optimizer)</text>
+        <text x="920" y="222" text-anchor="middle" fill="var(--muted)" font-size="11">one edit per cycle · ≤5 node files</text>
+        <text x="920" y="242" text-anchor="middle" fill="var(--muted)" font-size="11">no per-image answers · no reword</text>
+        <text x="920" y="262" text-anchor="middle" fill="var(--muted)" font-size="11">grows KG sub-nodes, not the root</text>
+        <text x="920" y="289" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">drafts only · never scores</text>
+
+        <!-- Candidate eval -->
+        <rect x="800" y="380" width="240" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="920" y="408" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">CANDIDATE EVAL</text>
+        <text x="920" y="432" text-anchor="middle" fill="var(--muted)" font-size="11">the same judge panel re-labels</text>
+        <text x="920" y="450" text-anchor="middle" fill="var(--muted)" font-size="11">the fixed test T under G ⊕ e</text>
+        <text x="920" y="472" text-anchor="middle" fill="var(--muted)" font-size="11">→ F1 before vs after</text>
+
+        <!-- Gate -->
+        <rect x="430" y="380" width="300" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--gold)" stroke-width="1.6"/>
+        <text x="580" y="406" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">GATE</text>
+        <text x="580" y="428" text-anchor="middle" fill="var(--muted)" font-size="11">metric rule (default): accept ⇔ F1 improves + ε</text>
+        <text x="580" y="446" text-anchor="middle" fill="var(--muted)" font-size="11">optional gate agent — the acceptance critic</text>
+        <text x="580" y="462" text-anchor="middle" fill="var(--muted)" font-size="11">(persona: lenient · moderate · strict)</text>
+        <text x="580" y="481" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">verdicts only · never edits</text>
+
+        <!-- SME -->
+        <rect x="28" y="380" width="340" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--green)" stroke-width="1.6"/>
+        <text x="198" y="406" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">SME — the human principal</text>
+        <text x="198" y="430" text-anchor="middle" fill="var(--muted)" font-size="11">owns the golden labels y · works the re-adjudication queue</text>
+        <text x="198" y="448" text-anchor="middle" fill="var(--muted)" font-size="11">reviews gate verdicts — the critic-of-the-critic</text>
+        <text x="198" y="472" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">the only human · the only source of truth</text>
+
+        <!-- Flows -->
+        <g fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrow)">
+          <path d="M470,96 C440,118 410,130 396,146"/>
+          <path d="M228,225 L268,225"/>
+          <path d="M512,225 L552,225"/>
+          <path d="M756,225 L796,225"/>
+          <path d="M730,96 C800,112 870,128 912,146"/>
+          <path d="M920,300 L920,376"/>
+          <path d="M800,435 L734,435"/>
+          <path d="M310,380 C420,344 540,330 640,304"/>
+        </g>
+        <!-- Post-run flow (dashed): only AFTER the last cycle closes does the
+             driver stack-rank the residual misalignments under the final
+             policy into the SME re-adjudication queue. Routed around the page
+             edge to read as outside the per-cycle loop. -->
+        <path d="M426,56 L18,56 L18,430 L24,430" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#archArrow)"/>
+        <g fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#archArrowGreen)">
+          <path d="M368,435 L426,435"/>
+        </g>
+        <path d="M534,380 L534,233" fill="none" stroke="var(--green)" stroke-width="1.8"/>
+        <path d="M534,217 L534,100" fill="none" stroke="var(--green)" stroke-width="1.8" marker-end="url(#archArrowGreen)"/>
+
+        <!-- Flow labels -->
+        <text x="256" y="132" fill="var(--muted)" font-size="10.5">policy = the judges’ prompt</text>
+        <text x="795" y="110" fill="var(--muted)" font-size="10.5" text-anchor="end">drafter reads the full policy</text>
+        <text x="930" y="340" fill="var(--muted)" font-size="10.5">candidate edit e (≤5 files)</text>
+        <text x="365" y="356" fill="var(--muted)" font-size="10.5">golden truth y → misalignment</text>
+        <text x="18" y="30" fill="var(--muted)" font-size="10.5">AFTER THE RUN — residuals still misaligned under the final policy</text>
+        <text x="18" y="46" fill="var(--muted)" font-size="10.5">→ re-adjudication queue: misaligned + high LLM consensus (T1) first</text>
+        <text x="544" y="330" fill="var(--green)" font-size="10.5" font-weight="700">accept ⇒ G ⊕ e mints v&lt;run&gt;.&lt;k&gt;</text>
+        <text x="544" y="348" fill="var(--red)" font-size="10.5">skip ⇒ the incumbent stays</text>
+
+        <text x="600" y="530" text-anchor="middle" fill="var(--muted)" font-size="11" font-style="italic">One cycle k (solid): label → stack rank &amp; select → draft → eval → gate. After the last cycle (dashed): residuals → SME queue. No agent approves its own work.</text>
+      </svg>
+
+      <!-- Portrait variant for phones: same nodes, same copy, vertical flow.
+           Shown only ≤720px (CSS swaps the two). Marker ids suffixed M to
+           avoid colliding with the landscape svg's defs. -->
+      <svg class="arch-svg-mobile" viewBox="0 0 390 1470" role="img"
+           aria-label="RUSH multi-agent architecture (mobile): policy graph, data splits, judge panel, anchor selection, drafter, candidate eval, gate, SME">
+        <defs>
+          <marker id="archArrowM" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+          <marker id="archArrowGreenM" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--green)"/>
+          </marker>
+        </defs>
+
+        <!-- Policy graph -->
+        <rect x="24" y="16" width="342" height="84" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="195" y="44" text-anchor="middle" fill="var(--text)" font-size="14" font-weight="800">POLICY GRAPH G<tspan baseline-shift="sub" font-size="10">k</tspan> — the parameter</text>
+        <text x="195" y="66" text-anchor="middle" fill="var(--muted)" font-size="10.5">versioned markdown KG · the judges' exact prompt</text>
+        <text x="195" y="84" text-anchor="middle" fill="var(--muted)" font-size="10.5">accepted edits mint v&lt;run&gt;.&lt;k&gt;</text>
+
+        <!-- Data splits -->
+        <rect x="24" y="150" width="342" height="130" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="176" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">DATA — seeded splits</text>
+        <text x="42" y="200" fill="var(--muted)" font-size="10.5">train batch N · fresh per cycle</text>
+        <text x="42" y="218" fill="var(--muted)" font-size="10.5">test T · fixed at k=0 (gate)</text>
+        <text x="204" y="200" fill="var(--muted)" font-size="10.5">holdout · end-of-run only</text>
+        <text x="204" y="218" fill="var(--muted)" font-size="10.5">benchmark · fixed cross-run</text>
+        <text x="195" y="248" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">same seed ⇒ same data path</text>
+
+        <!-- Judge panel -->
+        <rect x="24" y="330" width="342" height="160" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--blue)" stroke-width="1.6"/>
+        <text x="195" y="356" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">JUDGE PANEL</text>
+        <text x="195" y="374" text-anchor="middle" fill="var(--muted)" font-size="10.5">MAS labelers — 2–5 independent mLLMs</text>
+        <g font-size="10.5" text-anchor="middle">
+          <rect x="93" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="116" y="403" fill="var(--text)">J1</text>
+          <rect x="145" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="168" y="403" fill="var(--text)">J2</text>
+          <rect x="197" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="220" y="403" fill="var(--text)">J3</text>
+          <rect x="249" y="388" width="46" height="22" rx="7" fill="rgba(130,181,255,.12)" stroke="var(--blue)" stroke-width="1"/>
+          <text x="272" y="403" fill="var(--text)">J4</text>
+        </g>
+        <text x="195" y="432" text-anchor="middle" fill="var(--muted)" font-size="10.5">ŷ, confidence, difficulty, boundary flag, justification</text>
+        <text x="195" y="460" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">label only · never draft · never gate</text>
+
+        <!-- Stack rank -->
+        <rect x="24" y="540" width="342" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="566" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">STACK RANK &amp; SELECT</text>
+        <text x="195" y="588" text-anchor="middle" fill="var(--muted)" font-size="10.5">anchors: ≤15 misaligned + ≤5 aligned</text>
+        <text x="195" y="608" text-anchor="middle" fill="var(--muted)" font-size="10.5">random / top |g| / importance</text>
+        <text x="195" y="628" text-anchor="middle" fill="var(--muted)" font-size="10.5">judge votes + SME truth (+ images, if Input allows)</text>
+        <text x="195" y="662" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">random = the null hypothesis</text>
+
+        <!-- Drafter -->
+        <rect x="24" y="740" width="342" height="150" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--purple)" stroke-width="1.6"/>
+        <text x="195" y="766" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">DRAFTER</text>
+        <text x="195" y="784" text-anchor="middle" fill="var(--muted)" font-size="10.5">the policy-iteration agent (optimizer)</text>
+        <text x="195" y="810" text-anchor="middle" fill="var(--muted)" font-size="10.5">one edit per cycle · ≤5 node files</text>
+        <text x="195" y="830" text-anchor="middle" fill="var(--muted)" font-size="10.5">no per-image answers · no reword</text>
+        <text x="195" y="850" text-anchor="middle" fill="var(--muted)" font-size="10.5">grows KG sub-nodes, not the root</text>
+        <text x="195" y="876" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">drafts only · never scores</text>
+
+        <!-- Candidate eval -->
+        <rect x="24" y="940" width="342" height="110" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--line)" stroke-width="1.4"/>
+        <text x="195" y="968" text-anchor="middle" fill="var(--text)" font-size="12.5" font-weight="800">CANDIDATE EVAL</text>
+        <text x="195" y="992" text-anchor="middle" fill="var(--muted)" font-size="10.5">the same judge panel re-labels the fixed test T</text>
+        <text x="195" y="1010" text-anchor="middle" fill="var(--muted)" font-size="10.5">under G ⊕ e → F1 before vs after</text>
+
+        <!-- Gate -->
+        <rect x="24" y="1100" width="342" height="122" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--gold)" stroke-width="1.6"/>
+        <text x="195" y="1126" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">GATE</text>
+        <text x="195" y="1148" text-anchor="middle" fill="var(--muted)" font-size="10.5">metric rule (default): accept ⇔ F1 improves + ε</text>
+        <text x="195" y="1166" text-anchor="middle" fill="var(--muted)" font-size="10.5">optional gate agent — the acceptance critic</text>
+        <text x="195" y="1182" text-anchor="middle" fill="var(--muted)" font-size="10.5">(persona: lenient · moderate · strict)</text>
+        <text x="195" y="1204" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">verdicts only · never edits</text>
+
+        <!-- SME -->
+        <rect x="24" y="1310" width="342" height="118" rx="14" fill="rgba(16,26,49,.85)" stroke="var(--green)" stroke-width="1.6"/>
+        <text x="195" y="1336" text-anchor="middle" fill="var(--text)" font-size="13" font-weight="800">SME — the human principal</text>
+        <text x="195" y="1358" text-anchor="middle" fill="var(--muted)" font-size="10.5">owns the golden labels y · works the queue</text>
+        <text x="195" y="1376" text-anchor="middle" fill="var(--muted)" font-size="10.5">reviews gate verdicts — the critic-of-the-critic</text>
+        <text x="195" y="1400" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">the only human · the only source of truth</text>
+
+        <!-- Main chain (center verticals) -->
+        <g fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrowM)">
+          <path d="M195,280 L195,326"/>
+          <path d="M195,490 L195,536"/>
+          <path d="M195,690 L195,736"/>
+          <path d="M195,890 L195,936"/>
+          <path d="M195,1050 L195,1096"/>
+        </g>
+        <!-- Policy -> judges, routed down the right edge past DATA -->
+        <path d="M366,74 C382,90 382,120 382,180 L382,360 C382,390 376,398 370,404" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#archArrowM)"/>
+        <text x="378" y="230" fill="var(--muted)" font-size="10" transform="rotate(90 378,230)">policy = the judges' prompt</text>
+        <!-- SME truth -> stack rank, up the right edge -->
+        <g fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#archArrowGreenM)">
+          <path d="M366,1340 C382,1320 382,1260 382,1100 L382,660 C382,636 376,626 370,618"/>
+        </g>
+        <text x="374" y="1000" fill="var(--green)" font-size="10" transform="rotate(90 374,1000)">golden truth y → misalignment</text>
+        <!-- Accept: gate -> policy, up the left edge (green) -->
+        <path d="M24,1160 C8,1140 8,1080 8,700 L8,120 C8,80 14,66 20,58" fill="none" stroke="var(--green)" stroke-width="1.8" marker-end="url(#archArrowGreenM)"/>
+        <text x="16" y="960" fill="var(--green)" font-size="10" font-weight="700" transform="rotate(-90 16,960)">accept ⇒ G ⊕ e mints v&lt;run&gt;.&lt;k&gt;</text>
+        <text x="195" y="1246" text-anchor="middle" fill="var(--red)" font-size="10.5">skip ⇒ the incumbent stays</text>
+        <!-- Post-run residuals -> SME queue -->
+        <text x="195" y="1272" text-anchor="middle" fill="var(--muted)" font-size="10">AFTER THE RUN — residuals still misaligned under the final policy</text>
+        <text x="195" y="1288" text-anchor="middle" fill="var(--muted)" font-size="10">→ re-adjudication queue: misaligned + high LLM consensus (T1) first</text>
+        <path d="M195,1294 L195,1306" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#archArrowM)"/>
+
+        <text x="195" y="1456" text-anchor="middle" fill="var(--muted)" font-size="10" font-style="italic">One cycle k: label → rank → draft → eval → gate. No agent approves its own work.</text>
+      </svg>
+      </div>
     </section>
-    <section id="method-measurement"><span class="rch-eyebrow">02 / MEASUREMENT</span><h3>Keep the denominator visible.</h3><p>For each class, compute one-vs-rest true positives (TP), false positives (FP), false negatives (FN), and true negatives (TN). Report the per-class counts with aggregate scores. In MNIST, an aggregate FPR is a macro average over ten one-vs-rest problems—not the binary GenAI FPR and not production prevalence.</p>
-      <div class="rch-method-grid"><div class="rch-equation">FPR = FP / (FP + TN)<br>FNR = FN / (FN + TP)<br>F1 = 2TP / (2TP + FP + FN)<small>When the F1 denominator is positive and TP = 0, F1 = 0. A genuinely undefined denominator remains undefined; it must not be silently replaced by evidence of success.</small></div><div class="rch-equation">Coverage = N<sub>decided</sub> / N<sub>evaluated</sub><br>Risk<sub>selective</sub> = N<sub>wrong, decided</sub> / N<sub>decided</sub><small>High quality after abstaining on difficult cases can coexist with low coverage. Compare the risk–coverage trade-off and review cost, not the conditional accuracy alone.</small></div></div>
-      <p><strong>Legacy F1 correction.</strong> Older code could omit zero-F1 classes from the macro average. The branch corrects that computation; previously saved scores and acceptance decisions remain historical artifacts. Re-score saved predictions and establish a clean baseline before resuming a comparison. The workbench recomputes diagnostics when valid confusion counts are available and otherwise labels values as stored measurements. It does not rewrite a historic gate verdict.</p>
-      <p><strong>Uncertainty belongs to the estimand.</strong> A Wilson interval can describe a single binomial rate under its sampling assumptions. It is not an interval for macro-F1, an automatic solution to correlated examples, or a repeated-testing correction. Paired comparisons should use the same held-out items and account for repeated seeds and relevant clusters; selecting the best arm changes the interpretation of its validation gain.</p>
-      <div class="rch-calculator"><span class="rch-eyebrow">INTERACTIVE UNCERTAINTY CHECK / NOT AN EXPERIMENT RESULT</span><h4>Zero observed false positives does not mean zero risk.</h4><label>False positives<input id="methodFP" type="number" min="0" step="1" value="0"/></label><label>Evaluated negatives<input id="methodNegatives" type="number" min="1" step="1" value="300"/></label><output id="methodInterval" aria-live="polite"></output><p>Two-sided 95% Wilson interval for a single binomial rate. The inference assumes the evaluated negatives support that sampling model; distribution shift, clustering, and adaptive selection are not addressed by this calculation.</p></div>
+
+    <div class="about-columns">
+    <section class="about-section">
+      <h2>The cast — four independent agents</h2>
+      <p>RUSH is a multi-agent system with a strict separation of powers: no agent both proposes
+      and approves, no LLM owns the ground truth, and each role can run a different model. The
+      canonical names, as they appear in the code, the ledgers, and this UI:</p>
+      <ul>
+        <li><strong>Judges</strong> (<em>the judge panel</em> — the MAS labeling layer) — 2–5 cheap
+        mLLMs that label every item independently and produce <em>every</em> decision-quality
+        metric. They label only: they never draft, never gate, and never see the golden label while
+        judging (LLM consensus κ is computed SME-blind). No expensive model ever scores quality.
+        The panel is also what makes <strong>policy blame</strong> measurable: several independent
+        labelers citing the same clause while voting wrong indicts the policy text itself — a
+        signal a single-labeler system cannot produce (see the derived-scores section).</li>
+        <li><strong>Drafter</strong> (<em>the policy-iteration agent</em>; "the optimizer" in the
+        cost ledger and on this page) — one model (cheap or frontier) that, each cycle, reads the
+        most instructive anchors and writes a single policy edit of ≤5 node files. It drafts; it
+        never judges. Its <strong>no-reword rule</strong> forbids paraphrase-only churn: a sentence
+        may be touched only to change its semantic meaning, tighten a decision boundary, or clarify
+        an objective fact — everything else stays byte-for-byte intact so every diff is real.
+        Its packet includes <strong>policy blame</strong> — the nodes most often cited by
+        <em>wrong</em> votes across ≥2 different judges (every judge cites the node it applied, so
+        wrong votes name the clause that misled them). Model-agnostic by construction: one judge's
+        quirks never steer the policy, but a clause that misleads several judges gets fixed once and
+        helps them all. And its <strong>edit repertoire is full</strong>: it may narrow or delete
+        clauses, remove entire nodes, and simplify the graph — including repairing an implicated
+        root clause — not just append and clarify; the gate is told evidenced removals are
+        legitimate.</li>
+        <li><strong>Gate</strong> — a deterministic rule: accept the edit only if the panel's
+        test-partition macro-F1 strictly improves. An optional <strong>gate agent</strong>
+        (<em>the acceptance critic</em>, ledgered as <code>gate_agent</code>) is a
+        <em>subtractive</em> soundness check on top of that rule: it can veto a metric-passing edit
+        it judges unsound — one that <strong>overfits to named examples instead of stating a general
+        rule</strong>, leaks the golden answer, games one judge's quirks, tells judges to abstain,
+        dumps pair-specific rules into the root instead of the owning node, or <strong>merely
+        rewords existing sentences</strong> without changing their meaning (a no-op edit can pass
+        the metric on small-partition noise). It never forces or accepts, and it never writes edits;
+        the metric stays the hard gate. The over-specificity veto is the crank's fourth overfitting
+        guard, alongside the ≤5-change trust region, the no-per-image-answers drafter rule, and the
+        aligned anchors.</li>
+        <li><strong>SME</strong> (<em>the human principal</em>) — owns the golden labels, works the
+        re-adjudication queue, and reviews gate verdicts (the recorded critic-of-the-critic, future
+        RLHF data for the gate agent). The only human in the loop, and the only source of truth.</li>
+      </ul>
     </section>
-    <section id="method-golden"><span class="rch-eyebrow">03 / GOLDEN-SET DEVELOPMENT</span><h3>Label quality and coverage are separate axes.</h3><p>Agreement is not ground truth. Record who labeled an item, which policy version they used, whether they saw model suggestions, and what changed after adjudication. A multi-model panel may share systematic errors. A unanimous panel can disagree with the reference because the models are wrong, because the reference is wrong, or because the policy is ambiguous.</p>
-      <div class="rch-table-scroll"><table><thead><tr><th>Signal</th><th>Operational use</th><th>What must be audited</th></tr></thead><tbody><tr><td>Reference disagreement + high model consensus</td><td>Prioritize investigation of a systematic error, mislabeled reference, or ambiguous policy.</td><td>Do not automatically relabel to the majority. Preserve original and revised labels with adjudicator provenance.</td></tr><tr><td>Reference disagreement + low consensus</td><td>Investigate hard boundaries and candidate rules.</td><td>A hard example need not be representative of production risk.</td></tr><tr><td>Reference agreement + low consensus</td><td>Study fragility, prompt sensitivity, and judge correlation.</td><td>Correct majority votes can hide unstable constituent judges.</td></tr><tr><td>Reference agreement + high consensus</td><td>Use a stratified audit sample as a control.</td><td>Auditing only disagreements misses shared, confidently wrong decisions.</td></tr></tbody></table></div>
-      <p><strong>Label graduation is a workflow, not a theorem.</strong> Single-model, multi-model, non-expert human, multiple-human, SME, multiple-SME, and policy-expert judgments are possible provenance tiers. Select the reference tier for the application and measure reviewer disagreement. More votes or a higher title do not make a label infallible.</p>
-      <p><strong>Coverage is not a node count.</strong> A policy can accumulate many rules while leaving important threat themes, languages, sources, or boundary conditions untested. Track golden-set support by policy node and slice, audit unanimous predictions, and add new examples through an explicit sampling design. Difficulty-driven training samples require a separate representative evaluation design for production claims.</p>
+
+    <section class="about-section">
+      <h2>One cycle, end to end</h2>
+      <p>What actually happens each cycle <var>k</var> — including exactly what information the
+      optimizer is given:</p>
+      <ol class="about-flow">
+        <li><strong>Label.</strong> The panel labels a fresh <var>N</var>-image train batch under the
+        current policy <var>G<sub>k</sub></var>. Every judge returns label <var>ŷ</var>, confidence
+        <var>c</var>, difficulty, is_boundary (+ the confusion pair), and a justification citing
+        policy nodes. A <strong>compliance check</strong> runs on the batch (and on the k=0
+        baseline): a judge whose votes are ≥90% one class is flagged non-compliant — it is not
+        reading the policy — and, with deweighting on, its votes leave everything downstream
+        (sticky for the run).</li>
+        <li><strong>Select anchors.</strong> Misaligned images — computed over <em>compliant</em>
+        votes when deweighting is on — are ranked by the chosen method
+        (random / top&nbsp;<var>|g|</var> / top&nbsp;importance); the top ≤15 misaligned + ≤5 aligned
+        become the anchor set (both counts are knobs).</li>
+        <li><strong>Draft.</strong> The drafter receives: the current policy graph (the
+        <em>generator</em> — the exact prompt the judges run), per anchor the SME golden label
+        plus each judge's full text output (label, confidence, difficulty, boundary flag,
+        justification), and the cycle's <strong>policy-blame table</strong> — nodes cited by wrong
+        votes across ≥2 judges, with right-vote counts for calibration (a node also carrying
+        correct decisions wants narrowing; one cited almost only in error is a removal candidate).
+        With the Input knob on <code>images + text</code> the anchor image pixels
+        are also attached (<code>text only</code> is the default — the justifications usually carry
+        the visual evidence in words). It returns <em>one</em> edit touching ≤3 nodes (the clip
+        knob) — add, amend, narrow, or remove. Its token usage and cost are recorded per cycle.</li>
+        <li><strong>Score.</strong> The panel relabels the gate partition under the candidate
+        policy <var>G<sub>k</sub></var> ⊕ <var>e</var> — the run-long fixed partition by default,
+        or a fresh per-cycle draw with a paired incumbent re-eval when
+        <em>Randomize test / cycle</em> is on. Already-sampled (image, prompt, judge) keys are
+        served from the label cache instead of re-billed.</li>
+        <li><strong>Gate.</strong> A deterministic comparison of two panel scores — the expensive
+        model never computes decision quality (the system majority vote excludes deweighted
+        non-compliant judges on both sides):</li>
+      </ol>
+      ${eq([
+        ['accept(<var>e</var>)', '⇔', 'F1<sub>test</sub>(<var>G</var> ⊕ <var>e</var>) &gt; F1<sub>test</sub>(<var>G</var>) + <var>ε</var>', 'and no gate-agent veto'],
+      ], 'F1 = the judge panel’s macro-F1 on the run’s fixed test partition. Accepted ⇒ the policy becomes v&lt;run&gt;.&lt;k&gt;; skipped ⇒ the incumbent stays.')}
     </section>
-    <section id="method-gates"><span class="rch-eyebrow">04 / ACCEPTANCE & GENERALIZATION</span><h3>A gate constrains an update. It does not prove a rule.</h3><div class="rch-equation">Accept in metric mode only when F1<sub>candidate, dev</sub> &gt; F1<sub>incumbent, dev</sub> + ε.<small>Metric + agent mode adds a veto; agent-only and gate-off are different experimental arms. The legacy field named “test” is development validation when the optimizer repeatedly consults it.</small></div>
-      <p>The file-count limit, immutable policy versions, leakage checks, and metric gate make changes inspectable and can reduce failure risk. They do not prevent all overfitting. Repeatedly selecting on the same gate partition makes it adaptive validation. Reusing a cross-run benchmark to select prompts or configurations also turns that benchmark into development evidence.</p>
-      <div class="rch-table-scroll"><table><thead><tr><th>Partition</th><th>Permitted role</th><th>Interpretation</th></tr></thead><tbody><tr><td>Training anchors</td><td>Expose examples and reference labels to the drafter.</td><td>Used to propose a generalization; not independent evidence that it works.</td></tr><tr><td>Gate partition</td><td>Choose among candidate edits.</td><td>Development validation even when stored under <code>test</code>.</td></tr><tr><td>Cross-run benchmark</td><td>Compare complete runs on the same manifest.</td><td>A development comparison if repeatedly consulted for selection.</td></tr><tr><td>Protected final evaluation</td><td>Evaluate the precommitted final selection without further tuning.</td><td>Evidence for a specified distribution; requires split provenance and an honest stopping rule.</td></tr><tr><td>Temporal / new-theme evaluation</td><td>Probe transfer to withheld themes or later production windows.</td><td>A separate generalization question, not implied by an in-distribution score.</td></tr></tbody></table></div>
-      <p class="rch-method-note">The workbench's split audit checks available sample identifiers. Zero overlapping IDs does not detect near-duplicate images, source leakage, across-run reuse, or an exposed holdout. Missing IDs are reported as “not established,” not a pass.</p>
+
+    <section class="about-section">
+      <h2>Per-judge gradient: p and |g|</h2>
+      <p>Each judge <em>j</em> returns a label <var>ŷ</var> and a self-reported confidence
+      <var>c</var> ∈ [0,1] in <em>its own</em> label. Against the SME truth <var>y</var> we map that
+      to a probability on the true class (a binary approximation), and to a gradient magnitude — how
+      much this judgment could teach:</p>
+      ${eq([
+        ['<var>p</var>', '=', '<var>c</var>', 'judge correct (<var>ŷ</var> = <var>y</var>)'],
+        ['<var>p</var>', '=', '1 − <var>c</var>', 'judge wrong (<var>ŷ</var> ≠ <var>y</var>)'],
+        ['|<var>g</var>|', '=', '1 − <var>p</var>', 'gradient magnitude — how informative'],
+        ['<var>h</var>', '=', '<var>c</var>·(1 − <var>c</var>)', 'curvature — peaks at <var>c</var> = 0.5, blind to correctness'],
+        ['loss', '=', '−ln <var>p</var>', 'per-sample cross-entropy'],
+      ])}
+      <p>So the four corners the panel can be in:</p>
+      <ul>
+        <li><strong>Confident &amp; right</strong> (c high, ŷ=y): p≈1, <code>|g|≈0</code> — nothing to learn.</li>
+        <li><strong>Confident &amp; wrong</strong> (c high, ŷ≠y): p≈0, <code>|g|≈1</code> — the most
+        informative error; either the policy is failing or the golden label is wrong.</li>
+        <li><strong>Unsure</strong> (c≈0.5, either way): p≈0.5, <code>|g|≈0.5</code> — a moderate signal,
+        the item is genuinely ambiguous.</li>
+      </ul>
+      <p>Uncertainty lives in <var>c</var> and the difficulty rating — the judges are instructed to
+      always return a label, never abstain.</p>
     </section>
-    <section id="method-hypotheses"><span class="rch-eyebrow">05 / RESEARCH AGENDA</span><h3>Make each claim falsifiable.</h3><div class="rch-table-scroll"><table><thead><tr><th>Question</th><th>Controlled comparison</th><th>Failure criterion / measurement</th><th>Status</th></tr></thead><tbody>
-      <tr><td>Do high-value anchors teach better rules?</td><td>Random misalignments vs confidence/error ranking vs importance ranking; match panel, splits, edit budget, and seeds.</td><td>No reproducible improvement in final FPR/FNR at matched coverage and labeling cost.</td><td>Selection controls implemented; result must be measured.</td></tr>
-      <tr><td>Do bounded edits reduce harmful interference?</td><td>Vary the allowed node-edit budget. Keep untouched policy slices in the evaluation.</td><td>Target slice gains are offset by protected-slice regressions or uncontrolled prompt growth.</td><td>Budget control implemented; slice regression analysis remains a study protocol.</td></tr>
-      <tr><td>How do bad golden labels deform the policy?</td><td>Seeded label-noise arms, clean paired controls, and blinded re-adjudication.</td><td>Compare graph drift, wrong-rule persistence, recovery, and reviewer reversals—not only end-point accuracy.</td><td>Noise controls implemented; expert-repair evaluation requires adjudication data.</td></tr>
-      <tr><td>Does model diversity improve the measurement?</td><td>Single judges, matched-cost panels, and correlation-aware panel alternatives.</td><td>Additional judges repeat the same errors or increase cost without reducing risk.</td><td>Panel configuration implemented; correlation-aware weighting is a research alternative.</td></tr>
-      <tr><td>Can routing reduce context without losing critical exceptions?</td><td>Full policy vs structural digest vs routed nodes vs hybrid deterministic execution.</td><td>Measure missed-rule retrieval, FPR/FNR, coverage, latency, and tokens under identical cases.</td><td>Full/digest controls exist; general graph routing and production hybrid execution are not implemented by this UI.</td></tr>
-      <tr><td>Does the learned rule transfer to a new theme?</td><td>Leave-theme-out and temporal holdouts; fixed budgets and predeclared stopping.</td><td>A benefit disappears on new source families or future windows.</td><td>Proposed evaluation; not implied by MNIST or GenAI benchmark gains.</td></tr>
-      </tbody></table></div>
+
+    <section class="about-section">
+      <h2>Two alignment signals — do not conflate them</h2>
+      <p>A multi-LLM panel gives two <em>different</em> agreement numbers, and RUSH keeps them separate:</p>
+      ${eq([
+        ['<var>a</var>', '=', '(# judges with <var>ŷ</var> = <var>y</var>) / <var>N</var>', '<strong>SME agreement</strong> — LLM↔human, graded (3/4, 2/4, …)'],
+        ['<var>m</var>', '=', '1 − <var>a</var>', 'misalignment'],
+        ['<var>κ</var>', '=', '(# judges on the modal label) / <var>N</var>', '<strong>LLM consensus</strong> — LLM↔LLM, computed SME-blind'],
+        ['<var>b</var>', '=', '(# judges flagging boundary) / <var>N</var>', 'boundary rate'],
+      ])}
+      <p>The two come apart exactly where it matters: the panel can be <em>unanimous</em> (κ = 1) and
+      <em>entirely wrong</em> (a = 0). For accounting we collapse the panel to its <strong>majority
+      vote</strong> and compare that to the SME — but to stack-rank items we use the full graded
+      signals.</p>
     </section>
-    <section id="method-routing"><span class="rch-eyebrow">06 / KNOWLEDGE GRAPH → DECISION PROGRAM</span><h3>Separate retrieval, observation, and execution.</h3><p>The d-ai-trader design motivates an important separation: deterministic selection of which guidelines are served, model-reported citations, and a decision outcome are different objects. An observed context → served rule → cited rule → action path is useful telemetry. It is not proof that the model executed that rule faithfully or that the cited rule caused the outcome.</p>
-      <div class="rch-contract"><span><b>1 / RETRIEVAL</b>Choose relevant policy nodes</span><span><b>2 / OBSERVATION</b>Obtain typed, sourced facts</span><span><b>3 / EXECUTION</b>Evaluate explicit predicates</span><span><b>4 / ESCALATION</b>Unknown → expert review</span><span><b>5 / EVIDENCE</b>Measure against a reference</span></div>
-      <p>The separate <a id="methodPaths" href="studio.html">shadow path sandbox</a> evaluates authored, version-pinned example programs with true/false/unknown branches. It does not infer those programs from arbitrary Markdown or execute them in the live classifiers. A deterministic function over a probabilistic image observation remains only as trustworthy as the observation, provenance, rule semantics, and coverage of its tests.</p><p><strong>Promotion protocol to investigate:</strong> author a typed predicate linked to a policy node, verify the policy pin and observation source, test positive / negative / boundary / missing-evidence cases, shadow it against the full-policy reference, then evaluate paired risk and coverage before any production integration. Audit both served-but-unused rules and cited-but-unserved rules; neither pattern alone proves a rule is dead weight.</p>
+
+    <section class="about-section">
+      <h2>The four-tier hierarchy</h2>
+      <p>Consensus <em>flips its meaning</em> with alignment. When the panel is misaligned, agreeing
+      with each other makes it worse (a systematic, confident error). When it's aligned, agreeing makes
+      it better (the ideal state). That gives four tiers, ranked by how much a human should care:</p>
+      <table class="about-tier-table">
+        <thead><tr><th>Tier</th><th>Alignment</th><th>LLM consensus</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="adjudicate-tier adjudicate-tier--1">T1</span></td><td>misaligned</td><td>high</td><td><strong>The worst.</strong> Unanimous &amp; wrong — most valuable for re-adjudication and (if the label holds) for policy learning.</td></tr>
+          <tr><td><span class="adjudicate-tier adjudicate-tier--2">T2</span></td><td>misaligned</td><td>low</td><td>Split &amp; wrong — the panel argued and still missed.</td></tr>
+          <tr><td><span class="adjudicate-tier adjudicate-tier--3">T3</span></td><td>aligned</td><td>low</td><td>Right, but the panel argued — still instructive for the boundary.</td></tr>
+          <tr><td><span class="adjudicate-tier adjudicate-tier--4">T4</span></td><td>aligned</td><td>high</td><td>Unanimous &amp; right — the ideal state, lowest priority.</td></tr>
+        </tbody>
+      </table>
+      <p>A single continuous score reproduces that ordering and interpolates the graded signals:</p>
+      ${eq([
+        ['<var>I</var><sub>base</sub>', '=', '( <var>m</var> + <var>κ</var>·(2<var>m</var> − 1) + 1 ) / 3', '∈ [0, 1]'],
+      ], 'misaligned (m→1): rises with κ — consensus makes it worse · aligned (m→0): falls with κ — consensus makes it better')}
     </section>
-    <section id="method-knobs"><span class="rch-eyebrow">07 / LAB CONTROLS</span><h3>The controls are the experimental design.</h3><p>The live form is authoritative for current selections. The table describes the role of each control, not a promise that a particular setting is optimal. Model availability and price depend on the configured provider.</p><div class="rch-table-scroll"><table><thead><tr><th>Control</th><th>What changes</th><th>What to keep comparable</th></tr></thead><tbody>
-      <tr><td>Demo / label space</td><td>Binary GenAI or ten-class MNIST; policy area, manifests, and class semantics.</td><td>Do not pool the tasks' aggregate FPRs as though they share one binary denominator.</td></tr>
-      <tr><td>Panel / compression</td><td>Selected judge models and each judge's full or structurally compressed policy.</td><td>Model version, decoding, input resolution, prompt render, and cache provenance.</td></tr>
-      <tr><td>Seed / split seed</td><td>Experiment sampling versus source-manifest split assignment.</td><td>Same manifest identities and disjointness; the same seed alone cannot align different source trees.</td></tr>
-      <tr><td>Cycles k / train N / gate T</td><td>Search budget, train mini-batch size, and development-validation size.</td><td>Evaluation budget and stopping rule. More attempts increase selection pressure.</td></tr>
-      <tr><td>Drafter / input</td><td>The proposal model and text-only versus image-plus-text anchor context.</td><td>Drafter cost and information access; it must not receive protected final-evaluation answers.</td></tr>
-      <tr><td>Anchor strategy / aligned anchors</td><td>Random misalignment, confidence/error prioritization, or importance ranking; optional correct controls.</td><td>Same anchor count and available pool. Confidence/error ranking is a heuristic, not a model-weight gradient.</td></tr>
-      <tr><td>Max changes</td><td>The maximum policy-node files touched by one proposal.</td><td>Count cap is not a semantic edit-distance bound. Inspect each change.</td></tr>
-      <tr><td>Gate mode / persona / ε</td><td>Metric-only; metric plus agent veto; agent-only; or off. ε adds a metric margin through API/CLI where supported.</td><td>These are distinct experimental arms. Persona does not supersede a metric wall in veto mode.</td></tr>
-      <tr><td>Label cache / deweighting</td><td>Reuse compatible sampled predictions; exclude a flagged judge where configured.</td><td>Cache key, repeat count, judge inclusion, and coverage. Near-constant labels can also reflect class imbalance.</td></tr>
-      <tr><td>Randomize gate / cycle</td><td>Resample the development comparison and re-evaluate the incumbent where supported.</td><td>Pair candidate and incumbent on identical items. Resampling does not eliminate adaptive selection bias.</td></tr>
-      <tr><td>Label corruption / flip pool</td><td>Seeded experimental perturbation of development reference labels.</td><td>Clean evaluation, provenance of flipped IDs, and isolation from production/adjudication truth.</td></tr>
-      <tr><td>Benchmark / holdout readouts</td><td>Additional start/final evaluation passes on configured manifests.</td><td>Additional cost, which cases were exposed, and whether results informed further selection.</td></tr>
-      <tr><td>Concurrency</td><td>Parallel provider requests through API/CLI configuration.</td><td>Measure both latency and total cost; concurrency does not itself change the statistical sample size.</td></tr>
-    </tbody></table></div></section>
-    <section id="method-plan"><span class="rch-eyebrow">08 / REPRODUCIBILITY</span><h3>Write the comparison before selecting a winner.</h3><p>Export a draft ablation specification with the current lab inputs, seeds, primary endpoint, and fixed evaluation contract. This is a plan, not an execution queue: it cannot launch runs or authorize provider spending.</p><div class="rch-calculator"><label>Paired seeds<input id="methodSeeds" value="13,37,71" aria-label="Paired experiment seeds"/></label><label>Primary endpoint<select id="methodEndpoint"><option value="macro_fpr">Macro FPR</option><option value="macro_fnr">Macro FNR</option><option value="risk_at_matched_coverage">Risk at matched coverage</option></select></label><button type="button" id="methodExport">Export draft ablation plan</button><p id="methodPlanStatus" role="status"></p></div></section>
-    <section id="method-literature"><span class="rch-eyebrow">09 / RELATED WORK & BOUNDARIES</span><h3>Borrow mechanisms. Test the transfer.</h3><p><a href="https://arxiv.org/abs/2507.19457" target="_blank" rel="noopener">GEPA</a> uses reflective prompt evolution and Pareto-based candidate selection. <a href="https://arxiv.org/abs/2601.04055" target="_blank" rel="noopener">Modular Prompt Optimization</a> studies section-local textual updates under a structured prompt schema. <a href="https://arxiv.org/abs/2608.10471" target="_blank" rel="noopener">RLMOpt</a> places adaptive search inside a deterministic scoring and selection harness. These are comparison mechanisms for matched experiments. This branch does not integrate those optimizers or claim to outperform their published results.</p><p>Use <a href="https://arxiv.org/abs/1707.06347" target="_blank" rel="noopener">PPO</a> and <a href="https://arxiv.org/abs/2402.03300" target="_blank" rel="noopener">DeepSeekMath / GRPO</a> for their actual weight-optimization definitions. The research aim is to isolate how policy locality, reference quality, and routing affect final decision risk. Feedback-driven policy iteration is a useful framing; claims about a particular optimizer must match its implemented objective and update rule.</p></section>
-  </article>`;
+
+    <section class="about-section">
+      <h2>Two derived scores: anchor value and re-adjudication priority</h2>
+      <p><strong>amp is the amplifier</strong> on the base misalignment×consensus score — how much
+      this item can <em>teach</em>. Three multiplicative factors, each in [1, 1+w]: the panel's
+      confidence (mean <var>|g|</var> — a confident-wrong error teaches more than a hesitant one),
+      its boundary rate (<var>b</var> — documented confusion cases teach more), and the
+      <strong>policy-blame share</strong> (<var>s</var><sub>blame</sub> — the fraction of this
+      image's wrong votes that cited an <em>indicted</em> policy clause; see below):</p>
+      ${eq([
+        ['amp', '=', '(1 + mean|<var>g</var>|) · (1 + ½·<var>b</var>) · (1 + <var>s</var><sub>blame</sub>)', ''],
+        ['<var>s</var><sub>blame</sub>', '=', '(# wrong votes citing a blamed node) / (# wrong votes)', 'anchor-selection side only'],
+        ['anchor value', '=', '<var>I</var><sub>base</sub> · amp', 'ranks policy-learning anchors'],
+        ['re-adjudication', '=', '<var>I</var><sub>base</sub> · amp · (1 − <var>p</var><sub>human</sub>)', 'ranks the human queue (s_blame = 0 here)'],
+      ])}
+      <h3>Policy blame — the panel indicts the clause, not the model</h3>
+      <p>Every judge cites the policy node it applied, so a <em>wrong</em> vote names the clause
+      that misled it. Each cycle aggregates these into a per-node table — wrong vs right citation
+      counts, <code>wrong_share</code>, and an advisory edit-type <code>hint</code>
+      (<em>remove_or_narrow</em>: cited mostly in error, the clause misleads ·
+      <em>split_or_tighten</em>: mixed at volume, the node conflates two patterns ·
+      <em>clarify</em>: mostly right, occasional misleads) — recorded on the cycle
+      (<code>policy_blame</code>) and fed to the drafter and gate. Aggregated across the run's
+      cycles, the same stats surface on demand in the loop view's <strong>Policy evolution</strong>
+      panel: a health chip on each changed node's card, and a <em>Run health</em> row in the
+      Guideline-details pane when you click a node in the policy graph
+      (wrong✗/right✓ citations, % wrong, hint) — decision quality at the node/sub-category level,
+      exactly where you're reading that node. Only nodes wrong-cited by
+      <strong>≥2 distinct judges</strong> reach the agents or the amplifier: one judge's quirks
+      never steer the policy, but a clause that misleads several gets fixed once and helps them
+      all. <strong>This signal only exists because the labeling layer is a multi-agent panel</strong>
+      — with a single labeler, "the model is weak" and "the policy misleads" are indistinguishable;
+      with several independent labelers converging on the same cited clause, the policy text itself
+      is indicted. An image whose errors are policy-attributable outranks an idiosyncratic one
+      (via <var>s</var><sub>blame</sub>) precisely because fixing the clause fixes every judge it
+      misleads.</p>
+      <p><strong>The compliance flag — the converse check.</strong> Blame assumes every judge is at
+      least <em>reading</em> the policy. The k=0 baseline and each cycle also compute per-judge
+      self-health (label distribution, accuracy) and flag a judge <strong>non-compliant</strong>
+      when ≥90% of its votes are one class: a constant output does not condition on the policy
+      text, so the textual gradient with respect to that judge is <em>zero</em> — no clause edit
+      can move it, and its errors pollute the misalignment pool. Measured case (GenAI run 5):
+      qwen-7B voted <code>not_gen_ai</code> on 49/50 anchors and stayed byte-flat across three
+      accepted edits while every reading judge gained +8.8 to +21.2 macro-F1. The response is to
+      <strong>deweight, not fix</strong> (the "Deweight non-compliant" knob, default on): the
+      flagged judge's votes leave the system majority vote and the anchor/blame signal, while its
+      own row stays reported ("⚠ non-compliant · deweighted" in the Judges table) and the drafter
+      packet says so explicitly — don't spend the edit budget chasing a judge that isn't
+      listening; the fix lives outside the policy (compression, a lighter response contract, or
+      dropping the judge). The flag is sticky for the run and caught at the baseline, not
+      diagnosed afterward. This deliberately never touches the model-agnostic blame contract: it
+      flags the judge, never a policy node. The holdout/benchmark readouts stay full-panel
+      (product truth, cross-run comparable); deweighting shapes the in-run gate and optimizer
+      only.</p>
+      <p><strong>Anchor value</strong> drives the <code>top_importance</code> selection strategy —
+      which misalignments the drafter studies. <strong>Re-adjudication priority</strong> is the same
+      score, but faded by how confident we already are in the golden label:</p>
+      <h3>Human-label confidence</h3>
+      <p>The golden label carries its own confidence, growing with the number of SME confirmations
+      <var>m</var><sub>SME</sub>:</p>
+      ${eq([
+        ['<var>p</var><sub>human</sub>', '=', '1 − 1 / (<var>m</var><sub>SME</sub> + 4)', 'm=1 → 0.80 (default) · m=2 → 0.83 · m=3 → 0.86'],
+      ])}
+      <p>Re-adjudication priority is multiplied by <code>(1 − p_human)</code>. Even a single seed label
+      starts at ~80% confidence, so an unconfirmed item keeps only ~20% of its raw weight for the human
+      queue, and each re-confirmation drives that toward zero — the queue keeps flowing toward the
+      still-contested cases. (Policy anchor value is <em>not</em> faded: the policy still has to learn
+      even a certain label.)</p>
+    </section>
+
+    <section class="about-section">
+      <h2>The Adjudicate columns</h2>
+      <p>Each row is one image; every column is click-sortable, and hovering a header shows the same
+      short definition. <strong>Importance is the default sort — it is the re-adjudication priority
+      score above (<code>anchor value × (1 − p_human)</code>), recomputed after any SME action.</strong>
+      A high Importance means "a human should look here first."</p>
+      <table class="about-tier-table">
+        <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tier</strong></td><td>The four-tier bucket (T1 worst → T4 ideal). After an overturn, re-scored against the new label.</td></tr>
+          <tr><td><strong>SME truth</strong></td><td>The human (golden) label.</td></tr>
+          <tr><td><strong>SME agree</strong></td><td>LLM↔human: fraction of judges matching the SME label (<code>a = m/N</code>). Low = misaligned.</td></tr>
+          <tr><td><strong>LLM consensus</strong></td><td>LLM↔LLM, SME-blind: fraction on the modal label (<code>κ</code>). High + misaligned = systematic.</td></tr>
+          <tr><td><strong>Avg conf</strong></td><td>Mean self-reported judge confidence <code>c</code>.</td></tr>
+          <tr><td><strong>Difficulty</strong></td><td>low=0, medium=0.5, high=1, averaged across judges.</td></tr>
+          <tr><td><strong>Boundary</strong></td><td>Fraction of judges flagging a documented confusion boundary (<code>b</code>).</td></tr>
+          <tr><td><strong>|g|</strong></td><td>Gradient magnitude <code>1 − p</code>; confident-wrong ≈ 1, confident-right ≈ 0.</td></tr>
+          <tr><td><strong>Importance</strong></td><td><strong>The default rank.</strong> Re-adjudication priority = <code>I_base(misalignment×consensus) × (1+|g|) × (1+½·boundary) × (1 − p_human)</code>. Fades as SMEs confirm.</td></tr>
+          <tr><td><strong>Status</strong></td><td>SME verdict: open · confirmed ×N · overturned X→Y · uncertain. Resolved = two or more SMEs agree.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="about-section">
+      <h2>Where else these show up</h2>
+      <ul>
+        <li><strong>Run summary</strong> — every judge's full response per image: label, <code>c</code>,
+        difficulty, is_boundary + the confusion pair, citations, quotes, tokens, cost.</li>
+        <li><strong>Run the loop</strong> — the anchor selection strategy (<code>random</code>,
+        <code>top_gradient</code>, or <code>top_importance</code>) decides which of these the drafter sees.
+        <code>top_importance</code> ranks by the same score as the Adjudicate Importance column
+        (plus the (1 + <var>s</var><sub>blame</sub>) factor on the anchor side).</li>
+        <li><strong>Policy evolution panel</strong> — per-node decision quality on demand:
+        chips on changed-node cards, and a <em>Run health</em> row in the Guideline-details
+        pane when a node is clicked, both aggregating each cycle's <code>policy_blame</code>
+        table (wrong✗/right✓ citations, % wrong, and the split / remove / clarify hint).</li>
+        <li><strong>Final policy artifact</strong> — the optimized policy is the run's
+        <em>product</em>: every accepted version lives as a directory of <code>.md</code> node
+        files (<code>policy-graph/&lt;area&gt;/v&lt;run&gt;.&lt;k&gt;/</code>, mirrored to the
+        <code>generator_version</code> SQL table) and is viewable/downloadable — full bundle or
+        compressed digest — from the "final policy" links by the cycle stepper and from the
+        Policy column on the Benchmarks board (<code>GET /api/policy/render</code>).</li>
+      </ul>
+      <p class="hint">All formulas above are implemented verbatim in <code>pipeline/experiment</code>
+      (<code>panel_signal</code>, <code>importance_scores</code>, <code>human_confidence</code>) and mirror
+      the <code>rush.sample_gradient</code> / <code>rush.panel_signal</code> SQL views.</p>
+    </section>
+
+    <section class="about-section">
+      <h2>How RUSH differs from PPO, GEPA, VISTA</h2>
+      <p>Same family — iterate a policy against feedback with bounded steps — but RUSH makes two
+      choices most neighbors don't: the reward is <em>human</em> (SME golden labels with a live
+      correction channel), and the search state is <em>one auditable incumbent</em>, not a
+      candidate pool.</p>
+      <ul>
+        <li><strong>PPO</strong> (Schulman et al. 2017, arXiv:1707.06347) — RUSH borrows the
+        discipline, not the math. The ≤5-file clip plus the strict-improvement gate bound each
+        step the way PPO's clipped surrogate bounds a policy ratio — but here the parameter is
+        text, the "gradient" is a drafted diff, and acceptance is closer to a line search than a
+        ratio clip. The reward's human provenance follows RLHF (Ouyang et al. 2022,
+        arXiv:2203.02155).</li>
+        <li><strong>GEPA</strong> (Agrawal et al. 2025, arXiv:2507.19457) — the nearest optimizer
+        family: reflective LLM mutation of prompts with an acceptance test. GEPA keeps an
+        instance-wise Pareto <em>pool</em> of candidate prompts and optimizes the system's own
+        metric; RUSH keeps exactly one versioned incumbent — an enterprise policy must be a
+        single reviewable document — and optimizes against external SME truth that
+        re-adjudication can correct mid-run.</li>
+        <li><strong>VISTA</strong> (Long et al. 2025, arXiv:2510.15831) — the same loop shape
+        (multi-agent, test-time self-improvement) with the opposite trust model: VISTA's judges
+        and reward are model-internal; RUSH's reward is human-anchored. That provenance
+        difference is exactly why the SME sits <em>inside</em> the loop, not above it.</li>
+        <li><strong>Adjacent</strong> — TextGrad (arXiv:2406.07496) backpropagates textual
+        feedback through a computation graph; OPRO (arXiv:2309.03409) prompts an optimizer LLM
+        with a (solution, score) history; MIPROv2 / DSPy (arXiv:2406.11695) searches
+        instructions + demonstrations. All optimize a single artifact in-process; none separate
+        labeler / drafter / critic / human into independent agents around a versioned
+        incumbent.</li>
+      </ul>
+      <p class="hint">Full comparison with the formalism and citations:
+      <code>docs/TECHNICAL-REPORT.md</code> §7.</p>
+    </section>
+
+    <section class="about-section">
+      <h2>Open research questions — is textual policy-gradient descent sound?</h2>
+      <p>RUSH treats the policy prompt as the parameter and runs textual gradient descent on it. The crank
+      is the harness for testing whether that optimizer is sound. The methodological spine: <strong>every
+      gradient / stack-ranked strategy is compared against random selection</strong> on the same seed —
+      random is the null hypothesis the gradient has to beat. Full writeup in
+      <code>docs/RESEARCH.md</code>.</p>
+      <ul>
+        <li><strong>Overfitting / generalization</strong> — does an edit learn a general rule ("fire is
+        hot") or a hyper-specific one ("the blue [stove] ring is hot", which fails on the red ring, or
+        memorizes the training image)? Measured by the train → test → holdout → benchmark generalization
+        gap; the fixed cross-run benchmark exists for exactly this. Regularizers: the ≤5-change clip, the
+        gate's trust region, the "no per-image answers" drafter constraint, and the aligned anchors.</li>
+        <li><strong>Convergence, two senses</strong> — (a) does DQ plateau over accepted steps on the
+        <em>honest</em> holdout/benchmark curve (not the winner's-curse-biased gate set), and does the SME
+        queue shrink to a trickle? (b) the chaos sense: run the same config under different seeds — do the
+        final policy documents converge, or does a positive Lyapunov exponent send them to wildly different
+        policies (measured as spread in policy-embedding space)?</li>
+        <li><strong>Random vs stack-ranked selection</strong> — the central ablation: does ranking anchors
+        by the four-tier importance converge faster / higher / with fewer human touches than random
+        sampling? If not, the gradient formalism isn't earning its complexity — itself a result.</li>
+        <li><strong>Prompt-tuning architectures</strong> — the drafter is one optimizer; the crank A/Bs it
+        against reflective / GEPA-style / node-statistic alternatives on the same seeds and splits.</li>
+        <li><strong>Policy length × judge capacity</strong> — the policy is a growing textual
+        parameter, and each judge has a capacity budget it must fit inside. Measured (2026-07-09):
+        under the full ~25k-char GenAI bundle a 7B judge collapsed to the policy's default branch
+        on every call (0/6 generated images detected) yet scored 8/8 on the same images under a
+        two-line prompt, while a 26B judge kept discriminating — prompt drowning, not capability.
+        The per-judge <em>policy render</em> knob makes this a two-way ablation the crank can run:
+        every cycle records the bundle size (the parameter-count analog), every run records which
+        judges labeled under the compressed render, and the fixed benchmark scores both. Nobody in
+        the PPO/GEPA/VISTA lineage has measured this axis.</li>
+        <li><strong>Cross-judge interference — panel vs one-judge-at-a-time optimization</strong> —
+        the hypothesis (2026-07-10): one judge's errors may hinder the others' improvement, through
+        the majority vote and through the misalignment pool the drafter studies. The ablation:
+        optimize against the full panel vs against one judge at a time (same seeds, same splits),
+        and compare per-judge lift — the goal being <em>decider-agnostic</em> guideline
+        improvements. Compliance deweighting is the first intervention on this axis: remove the
+        non-listening judge's interference and measure whether the compliant judges' trajectory
+        steepens.</li>
+        <li><strong>Test-partition regime</strong> — fixed yardstick vs per-cycle resample
+        (<em>Randomize test / cycle</em>), and the cross-run variant: K-fold-style
+        <strong>parallel runs</strong> that rotate the test partition (same seed family, fold
+        index as the only difference), averaging out single-partition luck the way K-fold CV
+        does — at K× the cost. Resample mode already pays for a paired incumbent re-eval on each
+        fresh partition, which doubles as a winner's-curse mitigation (see below).</li>
+      </ul>
+      <p class="hint">Known bias to fix before publishing: the gate's winner's curse (one noisy eval,
+      ε=0, inherited baseline). Mitigations to A/B — ε&gt;0, paired incumbent re-eval, N-consecutive-wins —
+      and always report lift from the holdout/benchmark, never the gate set alone.</p>
+    </section>
+
+    <section>
+      <h2>The label-noise lab — what wrong human labels do to the crank</h2>
+      <p>RLHF goes both ways: the SME labels are the reward signal, so a <strong>mislabeled image
+      becomes an anchor point</strong> and can steer the policy toward the wrong boundary — the
+      catastrophic failure mode re-adjudication exists to handle. And the labels are measurably
+      imperfect: of LLM-vs-SME disagreements sent to review, ~33% were overturned in favor of the
+      LLM (~44% in the sensitive-content area). <code>sim/label-noise/</code> simulates the whole
+      loop in a 2D geometry where ground truth is knowable: the policy document becomes a decision
+      boundary, judges become noisy readers of it, and every run is paired with a <em>clean twin</em>
+      sharing common random numbers — so any gap between the two trajectories is attributable to the
+      labels alone.</p>
+      <p><strong>The simplest picture</strong> (<code>notebooks/confusion_plane.ipynb</code> —
+      start here): track the policy with just two numbers — the share of real violations it
+      <em>catches</em>, and the share of benign items it <em>clears</em>. Learning runs on
+      system-vs-SME disagreements, and a wrong label corrupts that signal in one of two ways.
+      Either it <em>hides a real mistake</em>: the policy misses a violation, the bad label says
+      the miss was fine, and that learning opportunity silently disappears. Or it <em>invents a
+      fake one</em>: the policy was right, the bad label says it wasn't, and the next edit "fixes"
+      something that was never broken. The two effects balance at a predictable point — corrupt a
+      fraction <var>ρ</var> of a class's labels and that class's catch rate stops improving near
+      <var>1 − ρ</var>, no matter how long the loop runs (20% bad labels → stuck near an 80% catch
+      rate; 50% → coin flip). The full simulation, with the judge panel, label confidence, and
+      gate all running, lands within a couple of points of that prediction.</p>
+      <ul>
+        <li><strong>A single aggregate score can hide the damage.</strong> Bad labels trade missed
+        violations for the appearance of fewer false alarms, and the overall score barely prices
+        the swap: at 10% bad labels, macro-F1 drops ~0.02 while missed violations nearly
+        <em>double</em>. Watch per-class miss and over-flag rates (FNR/FPR), not just the headline
+        metric.</li>
+        <li><strong>A stalled run is full of label errors — which is what re-adjudication is
+        for.</strong> At the point where learning stops, roughly half of the remaining
+        system-vs-SME disagreements are wrong labels, not wrong policy. Sending the most important
+        residual misalignments to SMEs hits the densest pocket of label errors at exactly the
+        right moment — and it is why a third to a half of reviewed disagreements get overturned
+        (the sim reproduces the observed 33–44% band with no tuning).</li>
+        <li><strong>Fix the labels, don't just down-weight them.</strong> De-weighting suspect
+        labels treats the symptom — and can discard hard-but-correct evidence the policy needs —
+        while re-adjudication removes the cause, and learning resumes. In the sim at 40% bad
+        labels: 0.73 uncorrected → 0.82 with down-weighting → 0.90 with down-weighting +
+        re-adjudication, against a clean run's 0.89.</li>
+        <li><strong>The gate helps, but can't catch this alone — and the test set needs reviews
+        too.</strong> Whatever form the gate takes — a threshold on F1 (or any decision-quality
+        metric), a critic agent, a combination, or none — it scores candidate policies against the
+        same SME labels, so bad labels tilt the yardstick itself. Runs with the gate off drift much
+        further in the sim (keep it on), and a few re-adjudication reviews per cycle on the test
+        partition keep the yardstick honest.</li>
+      </ul>
+      <p><strong>How we test this on the real crank</strong> — the sim proves directions and
+      mechanisms; these runs check that textual policy space behaves like the sim's parameter
+      plane:</p>
+      <ul>
+        <li><strong>Protocol A — controlled injection.</strong> Take a trusted config (GenAI
+        benchmark, fixed seed), flip a known fraction of golden labels one-way on a confusable axis
+        (photo-real generation ↔ real photo), and run corrupted vs uncorrupted with the same seed.
+        Readouts: benchmark-F1 gap, divergence between the two final policy documents (embedding
+        distance plus an SME reading the diff), and whether the drafter's accepted edits cite the
+        planted mislabels. <strong>Protocol A is now a run option</strong>: the <em>Corrupt
+        labels</em> knob on the run form flips a seeded in-memory fraction (random or
+        k=0-misaligned pool), records the flipped ids on the run, and chips the run as corrupted on
+        the Benchmarks tab — the store, queue, holdout, and benchmark stay clean.</li>
+        <li><strong>Protocol B — the natural experiment.</strong> The re-adjudication log
+        accumulates exactly the needed pair — each reviewed item's pre-correction and
+        post-correction label (runtime-local on the demo machine, so it grows as reviews happen).
+        Once enough reviews accumulate, re-run one completed config against each label set; the
+        divergence between the two final policies measures what our real overturn rate has been
+        doing to policy development. No labeling cost beyond the runs.</li>
+        <li><strong>Test-set queue.</strong> Add the gate partition's items to the adjudication
+        queue at high tier — per the sim, a ~5-review/cycle test budget is the cheapest
+        gate-integrity insurance available.</li>
+        <li><strong>Deweighting ships as triage only.</strong> The label store already carries
+        <code>human_confidence</code>; use it to rank the queue, not to silently drop labels, until
+        the weighting-alone result is reproduced (or refuted) on the real crank.</li>
+        <li><strong>Rate × queue-strategy sweep.</strong> Stack-rank vs PPS vs random should
+        separate at LOW noise rates, where ranking quality matters (at high rates any review hits a
+        mislabel) — this feeds the anchor-sampling (E4) and SME stack-ranking (E5) experiments of the
+        benchmark-grid plan.</li>
+      </ul>
+      <p class="hint">Assets: <code>sim/label-noise/README.md</code> (protocols + 12-seed results),
+      <code>notebooks/confusion_plane.ipynb</code> (the plane, the stall law, start here),
+      <code>notebooks/label_noise_sim.ipynb</code> (theory, loss-landscape view, suites S1–S7),
+      and the d3 twin-universe sandbox (<code>python3 -m http.server 8794 -d sim/label-noise/web</code>).
+      The suites are seeded and re-run in ~2 minutes; treat effect directions as transferable,
+      absolute numbers as world-specific.</p>
+    </section>
+    </div>
+
+    <section class="about-section about-section--span" id="about-knobs">
+      <h2>Reference — every knob on the Run tab</h2>
+      <p>The full hyperparameter surface of one run, gathered here as an appendix — the sections
+      above explain the concepts these knobs steer. Negatives/positives = the misaligned/aligned
+      anchor images the drafter studies. Two entries (<var>ε</var>, Parallelism) are API/CLI-level
+      settings not yet exposed on the run form.</p>
+      <table class="about-knob-table">
+        <thead><tr><th>Knob</th><th>Default</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Judges</td><td>2–5 models</td><td>The panel. Labels everything, scores everything; each judge also returns confidence, difficulty, is_boundary and a policy-cited justification.</td></tr>
+          <tr><td>Cycles <var>k</var></td><td>5</td><td>Optimization steps per run — each cycle proposes at most one policy edit. Accepted edits mint version <code>v&lt;run&gt;.&lt;k&gt;</code>.</td></tr>
+          <tr><td>Train batch <var>N</var></td><td>20</td><td>Fresh seeded mini-batch labeled every cycle. Its misalignments are the raw gradient signal.</td></tr>
+          <tr><td>Test size <var>T</var></td><td>100</td><td>The run's fixed test partition, drawn once at k=0 and reused all run — the gate's yardstick.</td></tr>
+          <tr><td>Seed</td><td>13</td><td>Fixes the partition and every batch draw. Same seed ⇒ same data path (reproducibility, and the handle for the chaos/Lyapunov ablation).</td></tr>
+          <tr><td>Drafter</td><td>gpt-5.5</td><td>The model that writes the edit. It sees anchors + the current policy; it never scores. A cheaper drafter is a legitimate config. Its per-cycle spend is recorded on each cycle and shown in the gate ledger.</td></tr>
+          <tr><td>Input</td><td>text only</td><td>What the drafter gets per anchor. <code>text only</code> (default): every judge's full text output — label, confidence, difficulty, boundary flag, justification — plus the SME truth. The justifications describe what the judges saw, so this is usually enough, and it keeps optimizer cost flat as anchor counts grow. <code>images + text</code>: additionally attaches the anchor image bytes so the drafter can inspect the pixels itself — stronger evidence on visual boundary cases (a 9 with a broken loop, a plastic-skin artifact) at extra input-token cost per cycle.</td></tr>
+          <tr><td>Prompt compression</td><td>Off (On for qwen-7B)</td><td><strong>Per-judge</strong>, on each judge's row in the panel picker. <strong>Off</strong>: the judge labels under the complete policy bundle. <strong>On</strong>: it labels under the <em>deterministic structural digest</em> — rationale ("why this node exists"), SME-workflow, and dataset-curation sections dropped whole; every node id, edge, and decision rule kept byte-for-byte (a projection, never a paraphrase — no compression agent, nothing to audit). Why it exists: the bundle is the judge's entire context, and prompt mass measurably drowns small judges — qwen-7B went 0/6 detected under the full ~25k-char GenAI bundle and 8/8 under a two-line prompt on the same images, while 26B gemma kept discriminating. The digest is the production artifact a lightweight labeler would ship with; view it via the "compressed render" link by the panel picker. Recorded on every run + run manifest, so <strong>policy length × judge capacity</strong> is a first-class research axis (see the research-questions section above).</td></tr>
+          <tr><td>Anchors (method)</td><td>random (S1)</td><td>How misalignments are picked for the drafter: <code>random</code> = the null hypothesis every gradient must beat; <code>top |g|</code> = confident-wrong first; <code>top importance</code> = the four-tier rank explained above.</td></tr>
+          <tr><td>Misaligned</td><td>15</td><td>The <strong>negatives</strong>: how many misaligned images (pixels included) go to the drafter each cycle.</td></tr>
+          <tr><td>Aligned</td><td>5</td><td>The <strong>positives</strong>: correctly-labeled images sent alongside, so the drafter sees what already works and does not over-correct (0 = off).</td></tr>
+          <tr><td>Max changes</td><td>3</td><td>The edit clip: at most 3 node files touched per proposal (hard cap 5) — the trust region that keeps every step human-reviewable.</td></tr>
+          <tr><td>Gate mode</td><td>metric rule</td><td>Four modes: <strong>metric rule</strong> (the default — accept only on strict panel macro-F1 improvement); + agent veto (rule stays the hard wall, agent can only reject); critic agent only (the agent's verdict decides, metric recorded as advisory, never enforced; agent failure falls back to the rule); OFF (accept every edit — the unfiltered-drift demo).</td></tr>
+          <tr><td>Gate persona</td><td>lenient</td><td>The critic's stance, appended to its system prompt. <code>lenient</code>: a flat metric on a small test partition is sampling noise — skip only clear defects or large multi-judge regressions. <code>moderate</code>: weigh measured movement and structural value together. <code>strict</code>: any regression or unmeasured claimed value skips.</td></tr>
+          <tr><td><var>ε</var> (epsilon)</td><td>0 · API/CLI only</td><td>Extra margin the candidate must clear in the gate rule (accept iff F1<sub>after</sub> &gt; F1<sub>before</sub> + ε). Not on the run form yet — set it per run via the API payload or <code>--epsilon</code> on the CLI. ε&gt;0 is the first winner's-curse mitigation on the research list.</td></tr>
+          <tr><td>Label cache</td><td>on</td><td>Never pay for the same measurement twice. Live runs serve <code>(image, prompt, judge)</code> verdicts from the local Postgres cache once the key has been sampled enough live rounds: <strong>3</strong> for judges decoding at temp&nbsp;≠&nbsp;0 (the served label is the majority vote over the rounds), <strong>1</strong> at temp&nbsp;=&nbsp;0. The prompt key is <em>content-derived, never version-named</em> — a hash of the system prompt + response schema + the exact policy render the judge saw + temperature + runtime params — so any prompt drift auto-invalidates and only byte-identical prompts hit. In practice that's the fixed v0 baseline/benchmark legs (~100% hits after warm-up); every candidate policy has fresh bytes and always runs live. Served votes are marked in the run record (<code>label_cache</code> on the vote, hit/miss counts on the manifest), cost $0, and carry the <strong>intra-rater flip rate</strong> — the disagreement across a judge's own repeated rounds on the same input, a per-model self-consistency score the panel's inter-rater split cannot see. Fail-open: no Postgres, no cache, the run proceeds fully live; dry runs never touch the database.</td></tr>
+          <tr><td>Deweight non-compliant</td><td>on</td><td>The response to a judge that fails the <strong>compliance flag</strong> (≥90% of its votes are one class — near-constant output means it is not conditioning on the policy, so no edit can move it). Deweighted = weight&nbsp;0: its votes leave the <em>system majority vote</em> AND the optimizer's anchor/blame signal (an image only it got wrong stops feeding the drafter). Its own row stays on the chart and in the Judges table — transparency, marked "⚠ non-compliant · deweighted". The stance: if the goal were classification you'd compress harder; the goal here is <em>policy development</em>, so deweight the non-listener rather than chase it.</td></tr>
+          <tr><td>Randomize test / cycle</td><td>off</td><td><strong>Off</strong>: one seeded test partition for the whole run — the stable gate yardstick (accept/skip decisions stay comparable across cycles; favors a relatively large T). <strong>On</strong> (<code>--test-mode resample</code>): every cycle re-draws the gate partition from images never used for training, and re-evaluates the <em>incumbent</em> on it before the candidate — a paired eval on the same fresh images. Removes fixed-partition overfitting and doubles as a winner's-curse mitigation, at ~+1 test eval per cycle. The cross-run benchmark stays the honest comparison either way.</td></tr>
+          <tr><td>Corrupt labels %</td><td>0% · random</td><td><strong>Protocol A of the label-noise lab</strong> (section above): flips a seeded percentage (0–60%, ρ = the fraction in the run record and API) of golden labels <em>in memory</em> — the label store, adjudication queue, holdout, and fixed benchmark never see a flipped label, and the flipped ids are recorded on the run (<code>corrupt_seed</code>, <code>flipped_ids</code>) for the corrupted-vs-clean twin analysis. The <em>Flip pool</em> select picks what the percentage covers and where flips land — the two Protocol A arms: <code>random</code> = the run's whole dev pool (train + test), applied before the k=0 baseline — honest background SME error, a mix of silence- and sabotage-type flips, the dose-response arm; <code>k=0 misaligned</code> = only the images the panel already got wrong at k=0 (tier-1/2 style targets; applied after the baseline pass, so k=0 metrics are pre-corruption) — the self-confirming reviewer who rubber-stamps the panel's mistakes, concentrated silence-type corruption exactly where anchors come from. The sim predicts silence-type flips erase learning signal (slower, lower convergence) while sabotage-type flips inject spurious anchors (descent in chaotic directions) — see the policy-convergence PoC notebook under <code>sim/label-noise/</code>. Corrupted runs carry a red chip on the Benchmarks tab.</td></tr>
+          <tr><td>Benchmark readout</td><td>on</td><td>Scores the fixed 1,000-image cross-run validation split under the start and final policy — the honest cross-run comparison. Costs two extra panel passes.</td></tr>
+          <tr><td>Parallelism</td><td>4 · API/CLI only</td><td>Concurrent labeling calls per judge; hosted judges of one provider run side by side in a shared, per-model-sized pool. The web launcher pins 4 (the validator's cap); the CLI takes <code>--concurrency</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>`;
+
   function init() {
-    const host = document.getElementById('aboutContent'); if (!host || host.dataset.researchReady) return;
-    host.dataset.researchReady = 'true'; host.innerHTML = HTML;
-    const update = () => {
-      const k = Number(document.getElementById('methodFP').value), n = Number(document.getElementById('methodNegatives').value);
-      const interval = window.RushResearchCore?.wilson(k, n);
-      document.getElementById('methodInterval').textContent = interval ? `Observed ${(k / n * 100).toFixed(2)}% · 95% interval [${(interval[0] * 100).toFixed(2)}%, ${(interval[1] * 100).toFixed(2)}%]` : 'Enter integer counts with 0 ≤ false positives ≤ negatives and negatives > 0.';
-    };
-    ['methodFP', 'methodNegatives'].forEach(id => document.getElementById(id).addEventListener('input', update)); update();
-    document.getElementById('methodExport').addEventListener('click', () => {
-      const tokens = document.getElementById('methodSeeds').value.split(',').map(x => x.trim());
-      const seeds = tokens.map(Number), status = document.getElementById('methodPlanStatus');
-      if (!tokens.length || tokens.length > 50 || tokens.some(x => !/^\d+$/.test(x)) || seeds.some(x => !Number.isSafeInteger(x)) || new Set(seeds).size !== seeds.length) {status.textContent = 'Use 1–50 distinct, nonnegative integer seeds.'; return;}
-      const ids = ['experimentKMax','experimentBatchN','experimentTestN','experimentDrafterModel','experimentDrafterContext','experimentMaxChanges','experimentGateModel','experimentGatePersona','experimentStrategy','experimentMaxAnchors','experimentMaxAlignedAnchors'];
-      const form = Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.value ?? null]));
-      const plan = {schema_version:1, kind:'draft_ablation_plan', execution_authorized:false, created_at:new Date().toISOString(),
-        area:window.rushActiveDemo?.()?.policyGraph?.area ?? null, seeds, primary_endpoint:document.getElementById('methodEndpoint').value,
-        arms:['random_misalignment','top_gradient','top_importance'], lab_inputs:form,
-        judge_models:[...document.querySelectorAll('#runTriggerModels input.model-select-input:checked')].map(el => el.value),
-        must_pin_before_execution:['source manifest hashes','base policy content hash','judge model/decoding versions','equal budget per arm','coverage constraint','protected final-evaluation protocol'],
-        comparison:'Paired cases and seeds; precommit endpoint, stopping, and selection before final evaluation.'};
-      const url = URL.createObjectURL(new Blob([JSON.stringify(plan,null,2)],{type:'application/json'}));
-      const a = document.createElement('a'); a.href = url; a.download = 'rush-ablation-plan.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
-      status.textContent = 'Draft exported. No run was started. Pin the missing manifest and policy identities before execution.';
-    });
-    const demo = window.rushActiveDemo?.()?.id || 'genai'; document.getElementById('methodPaths').href = `studio.html?demo=${encodeURIComponent(demo)}`;
+    const host = $('#aboutContent');
+    if (host) host.innerHTML = HTML;
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
+
+  if (typeof window.rushApiOnReady === 'function') window.rushApiOnReady(() => init());
+  else document.addEventListener('DOMContentLoaded', init);
 })();
