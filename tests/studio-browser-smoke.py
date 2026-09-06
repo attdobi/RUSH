@@ -18,7 +18,7 @@ def boot(browser, *, recorded=False, width=1440):
     page = browser.new_page(viewport={'width':width, 'height':1000})
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
-    html = re.sub(r'<script[^>]*src=[^>]*></script>', '', (ROOT/'index.html').read_text())
+    html = re.sub(r'<script[^>]*src=[^>]*></script>', '', (ROOT/'studio.html').read_text())
     html = re.sub(r'<link[^>]*rel="stylesheet"[^>]*>', '', html)
     page.set_content(html)
     page.add_style_tag(content=(ROOT/'studio.css').read_text())
@@ -43,7 +43,7 @@ def boot(browser, *, recorded=False, width=1440):
             return {ok:true,json:async()=>({origin:'recorded',area:'Generative_AI',version:v,nodes:[{id:'GA.root',node_type:'root',title:'Recorded intent',body:v==='v0.1'?'original rule':'changed rule',content_hash:v},{id:'GA.a',parent:'GA.root',title:'Boundary <script>bad()</script>',body:'untrusted <img src=x onerror=bad()>'}],edges:[{source:'GA.a',target:'GA.root',type:'subtype_of'}]})};
           };
         }''')
-    for name in ['studio-core.js','studio-fixtures.js','about.js','studio.js']:
+    for name in ['studio-core.js','studio-fixtures.js','studio-about.js','studio.js']:
         page.add_script_tag(content=(ROOT/name).read_text())
     page.wait_for_selector('.graph-node')
     return page, errors

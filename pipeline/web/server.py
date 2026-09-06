@@ -15,12 +15,12 @@ from .build_id import get_build_id
 from .handlers_runs import handle_api, send_api_error
 from .run_registry import RunRegistry
 from .studio import dispatch as dispatch_studio
+from .research import dispatch as dispatch_research
+from .research_shell import enhance_lab_html
 
 SERVER_VERSION = "rush-web-server-v1"
-
 _LOCAL_ASSET_RE = re.compile(
-    r"(<(?:script|link)\b[^>]*?\b(?:src|href)=)([\"'])([^\"']+)(\2)",
-    re.IGNORECASE,
+    r"(<(?:script|link)\b[^>]*?\b(?:src|href)=)([\"'])([^\"']+)(\2)", re.IGNORECASE,
 )
 
 
@@ -28,14 +28,14 @@ def _with_build_version(url: str, build_id: str) -> str:
     if not url or "://" in url or url.startswith("//") or url.startswith("#"):
         return url
     parts = urlsplit(url)
-    query_pairs = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True) if key != "v"]
-    query_pairs.append(("v", build_id))
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query_pairs), parts.fragment))
+    pairs = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True) if key != "v"]
+    pairs.append(("v", build_id))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(pairs), parts.fragment))
 
 
 def _rewrite_index_html(raw: bytes, build_id: str) -> bytes:
-    """Inject build metadata and version local script/link asset references."""
-    html = raw.decode("utf-8")
+    """Enhance the original lab and version every local script/link reference."""
+    html = enhance_lab_html(raw.decode("utf-8"))
     meta = f'<meta name="build-id" content="{build_id}">'
     if 'name="build-id"' not in html and "name='build-id'" not in html:
         charset = '<meta charset="utf-8" />'
@@ -96,11 +96,11 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
         return True
 
     def _is_index_request(self) -> bool:
-        request_path = urlsplit(self.path).path
-        return request_path in {"/", "/index.html", "/web/", "/web/index.html", "/lab.html", "/web/lab.html"}
+        return urlsplit(self.path).path in {"/", "/index.html", "/web/", "/web/index.html", "/lab.html", "/web/lab.html", "/studio.html", "/web/studio.html"}
 
     def _send_rewritten_index(self, *, head_only: bool = False) -> None:
-        filename = "lab.html" if urlsplit(self.path).path.endswith("/lab.html") else "index.html"
+        path = urlsplit(self.path).path
+        filename = "studio.html" if path.endswith("/studio.html") else "lab.html" if path.endswith("/lab.html") else "index.html"
         index_path = self.web_root / filename
         if not index_path.is_file():
             self.send_error(404, "not_found")
@@ -119,11 +119,12 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
                 delattr(self, "_cache_control_override")
 
     def _send_studio(self) -> None:
-        # Operator-selected evidence root supports a read-only demo worktree.
-        # Browser parameters can never choose this root. All writes stay bound
-        # to self.repo_root in the existing research-lab handlers.
-        source_root = Path(os.environ.get("RUSH_STUDIO_DATA_ROOT") or self.repo_root).expanduser()
-        status, payload = dispatch_studio(source_root, self.path)
+        # The operator may select an external READ-ONLY evidence root. All lab
+        # write handlers and model jobs remain bound to self.repo_root.
+        source_root = Path(os.environ.get("RUSH_STUDIO_DATA_ROOT") or self.repo_root).expanduser().resolve()
+        dispatch = dispatch_research if urlsplit(self.path).path == "/api/studio/research-run" else dispatch_studio
+        status, payload = dispatch(source_root, self.path)
+        payload = {**payload, "external_evidence": source_root != self.repo_root}
         raw = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -151,7 +152,7 @@ class RushWebRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         if self.path.startswith("/api/studio/"):
-            self.send_error(405, "The policy studio is read-only")
+            self.send_error(405, "The policy research viewer is read-only")
             return
         if self.path.startswith("/api/"):
             handle_api(self, self.registry, method="POST")

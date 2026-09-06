@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="RUSH turns golden-set evidence and expert feedback into versioned, testable policy knowledge graphs." />
+  <meta name="color-scheme" content="dark" />
+  <title>RUSH — Learn the rule. Not the row.</title>
+  <link rel="stylesheet" href="studio.css?v=studio-1" />
+  <script src="studio-core.js?v=studio-1" defer></script>
+  <script src="studio-fixtures.js?v=studio-1" defer></script>
+  <script src="about.js?v=studio-1" defer></script>
+  <script src="studio.js?v=studio-1" defer></script>
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to policy explorer</a>
+  <header class="topbar">
+    <a class="brand" href="#studio" aria-label="RUSH home"><span class="brand-mark">R<span></span></span><strong>RUSH</strong><span class="brand-caption">POLICY INTELLIGENCE</span></a>
+    <nav aria-label="Primary"><a href="#studio" class="nav-link" data-nav="studio">Policy studio</a><a href="#about" class="nav-link" data-nav="about">Method &amp; evidence</a><a class="lab-link" href="lab.html#loop" id="labLink">Open research lab <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main>
+    <div id="studioView">
+      <section class="hero">
+        <div class="hero-main"><p class="eyebrow"><span class="live-dot"></span> HUMAN FEEDBACK. COMPOUNDING POLICY KNOWLEDGE.</p><h1>Learn the rule.<br><span>Not the row.</span></h1><p class="hero-description">Turn expert judgment into a living policy graph.<br>Discover boundaries. Test generalizations. Make every decision traceable.</p>
+          <div class="hero-actions"><button class="primary" id="heroPlay" type="button">Watch the policy evolve <span aria-hidden="true">↗</span></button><a class="text-link" href="#about">What makes it credible <span aria-hidden="true">→</span></a></div>
+        </div>
+        <aside class="thesis" aria-label="The RUSH thesis"><span class="eyebrow">THE ASSET THAT COMPOUNDS</span><p>Models can change.<br>Your policy knowledge<br><em>should carry forward.</em></p><div class="thesis-rule"></div><div class="thesis-foot"><span>01 / Evidence</span><span>02 / Rules</span><span>03 / Decisions</span></div></aside>
+      </section>
+      <section class="workspace" id="workspace" aria-label="Interactive policy studio">
+        <div class="workspace-head"><div><p class="eyebrow">THE LIVING POLICY</p><h2>From expert insight to executable intent.</h2></div><div class="workspace-selects"><label>Demo<select id="demoSelect"><option value="genai">GenAI image classification</option><option value="mnist">MNIST digit classification</option></select></label><label>Evidence source<select id="sourceSelect"><option value="recorded">Recorded local history</option><option value="illustrative">Illustrative walkthrough</option></select></label></div></div>
+        <div class="source-line"><span id="sourceBadge" class="badge">CONNECTING</span><p id="sourceNote" role="status">Looking for the read-only local history API…</p><button type="button" class="quiet" id="retryHistory">Refresh history</button></div>
+        <div class="explorer-toolbar"><div class="segmented" role="group" aria-label="Graph view"><button id="knowledgeTab" type="button" aria-pressed="true">Knowledge graph</button><button id="pathsTab" type="button" aria-pressed="false">Decision paths <span class="tiny">SHADOW</span></button></div><label class="series-label" id="seriesLabel">Run / collection<select id="seriesSelect" aria-label="Recorded run or snapshot collection"></select></label><label class="search-label"><span class="sr-only">Find a policy node</span><input id="nodeSearch" type="search" placeholder="Find a rule or boundary…" autocomplete="off"></label></div>
+        <div class="explorer-grid">
+          <div class="graph-column">
+            <div class="graph-meta"><span id="graphVersion">POLICY GRAPH</span><div id="graphCounts" class="graph-counts"></div></div>
+            <div id="graphStage" class="graph-stage"><svg id="graphSvg" viewBox="0 0 940 500" aria-label="Interactive policy graph" role="group"></svg><div id="graphEmpty" class="graph-empty" hidden></div><div class="graph-tools" aria-label="Graph controls"><button type="button" id="zoomIn" aria-label="Zoom in">+</button><button type="button" id="zoomOut" aria-label="Zoom out">−</button><button type="button" id="fitGraph" aria-label="Reset graph view">Fit</button><button type="button" id="fullscreen" aria-label="Expand policy explorer">⛶</button></div><p class="graph-hint" id="graphHint">Select a node to inspect its rule · scroll to zoom · drag the canvas to pan</p></div>
+            <div class="graph-legend" id="graphLegend"><span><i class="root"></i>Policy intent</span><span><i class="rule"></i>Rule / evidence</span><span><i class="boundary"></i>Boundary</span><span><i class="exception"></i>Exception</span><span><i class="added"></i>Added this step</span></div>
+            <div id="scenarioBar" class="scenario-bar" hidden></div>
+          </div>
+          <aside class="inspector" aria-label="Policy evidence inspector"><div class="inspector-top"><span class="eyebrow" id="inspectorKicker">THE DEVELOPMENT LOOP</span><button type="button" id="clearSelection" class="quiet" hidden>Clear</button></div><div id="inspectorContent"></div><div id="searchResults" class="search-results" hidden></div></aside>
+        </div>
+        <div class="timeline-head"><div><span class="eyebrow">POLICY EVOLUTION</span><p id="timelineNote">Snapshots are evidence. Animation is navigation.</p></div><div class="playback"><button type="button" id="prevFrame" aria-label="Previous policy snapshot">←</button><button type="button" id="playFrames" class="primary">Play evolution</button><button type="button" id="nextFrame" aria-label="Next policy snapshot">→</button></div></div>
+        <div id="timeline" class="timeline" aria-label="Policy development steps"></div>
+        <label class="range-label"><span class="sr-only">Policy evolution position</span><input id="frameRange" type="range" min="0" max="5" value="0" step="1"></label>
+        <div class="workspace-foot"><p id="deltaNote">No quality claims are inferred from graph size.</p><button id="exportTrace" class="quiet" type="button">Export snapshot JSON ↗</button></div>
+      </section>
+      <section class="principles" aria-label="How policy knowledge compounds"><article><span class="principle-number">01</span><h3>Golden sets are the evidence.</h3><p>Expert-adjudicated examples expose gaps. Coverage and representativeness determine what the system can learn—and what its metrics mean.</p></article><article><span class="principle-number">02</span><h3>The graph stores the rule.</h3><p>Local, versioned edits preserve intent, exceptions and provenance. New threats should yield generalizations, not a growing list of memorized cases.</p></article><article><span class="principle-number">03</span><h3>The gate earns the release.</h3><p>Validate the change, protect important slices and reserve final evaluation. An auditable path is a mechanism to test, not a promise of higher accuracy.</p></article></section>
+    </div>
+    <section id="aboutView" hidden aria-label="Method and evidence"><div id="aboutContent"></div></section>
+  </main>
+  <footer><a class="footer-brand" href="#studio">RUSH</a><p>Human-owned policy. Evidence-led evolution.</p><a href="https://github.com/attdobi/RUSH" target="_blank" rel="noopener noreferrer">Source code ↗</a></footer>
+  <noscript><p class="noscript">JavaScript is required for the interactive graph. The research code remains available in the repository.</p></noscript>
+</body>
+</html>
