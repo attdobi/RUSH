@@ -26,7 +26,7 @@ The escalation trigger is unit-tested and panel-size-aware. In the measured run,
 
 **3. The learning loop (RLHF where the prompt is the policy).** The labeling prompt is not prose — it is a compiled, versioned **policy graph**. Tuning it is proximal policy optimization over a document: the prompt is the policy π, SME labels are the reward signal, each guideline edit is one gated, clipped textual-gradient step, and the golden set is a *maintained* reward model. The design target is decision quality on held-out data that is non-decreasing over accepted edits; an SME approves every diff today — the automated held-out DQ gate is the next wiring step (see [the RLHF mapping](#the-rlhf-mapping--the-prompt-is-the-policy-an-analogy)).
 
-**4. The honest economics.** Every dollar figure in this README lives in the measured-vs-illustrative box directly below, and each is labeled either *measured in this repo* or *illustrative at Pinterest scale* (exec-brief targets and internal pilot figures, not repo measurements). Read the box before quoting any number.
+**4. The honest economics.** Every dollar figure in this README lives in the measured-vs-illustrative box directly below, and each is labeled either *measured in this repo* or *illustrative at billions scale* (exec-brief targets and internal pilot figures, not repo measurements). Read the box before quoting any number.
 
 ---
 
@@ -41,7 +41,7 @@ The escalation trigger is unit-tested and panel-size-aware. In the measured run,
 - **458 tests pass (461 collected, 3 skipped)**; consensus layer, escalation trigger, and SME fall-through unit-tested
 - Tier-2 accuracy on the escalated set is deliberately **not quoted** — mechanics are shipped; measured numbers land with the next scored cascade run
 
-**Illustrative at Pinterest scale** (from exec strategy material — targets and internal pilot figures, not repo measurements):
+**Illustrative at billions scale** (from exec strategy material — targets and internal pilot figures, not repo measurements):
 
 - 3× BPO baseline: roughly **$0.71/image all-in under 3× BPO redundancy** (exec-brief figure, illustrative) → **$710K per 1M-image eval set**, ~2,500 human hours, multi-week latency (illustrative)
 - RUSH target (illustrative): **<$71K per 1M** with a single frontier model; **<1/50 cost** with prompt caching; **orders-of-magnitude faster turnaround** (~24h vs multi-week BPO cycles)
@@ -85,7 +85,7 @@ Cost is the measuring stick throughout: every run records per-image and per-batc
 RUSH makes three claims. Each has a specific measurement that would refute it.
 
 1. **Cost.** A cascade of cheap models + selective escalation labels a stream at a small fraction of expert-panel cost, *without* letting cheap-tier errors leak into the metric. Refuted if the cheap-resolved set shows material error. Measured status: none of the 258 cheap-resolved items on the k=200 MNIST run was wrong (caveats in the measured box above).
-2. **Quality.** Model consensus governed by a certified golden set matches or beats redundant non-expert human labeling. Measured status: 97.7% ensemble accuracy at 0.25% FPR in-repo; the Pinterest-scale comparison (85.7% consensus accuracy — an internal pilot figure against an internal 3× BPO baseline) is exec-brief context, not reproduced here.
+2. **Quality.** Model consensus governed by a certified golden set matches or beats redundant non-expert human labeling. Measured status: 97.7% ensemble accuracy at 0.25% FPR in-repo; the billions-scale comparison (85.7% consensus accuracy — an internal pilot figure against an internal 3× BPO baseline) is exec-brief context, not reproduced here.
 3. **Convergence.** The design target: decision quality on a locked holdout is non-decreasing over *accepted* policy edits, and human labeling demand decays to a maintenance trickle. The automated gate is shipped as the experiment crank: a candidate edit is accepted only if system macro-F1 on the experiment's fixed test partition strictly improves (a gate agent can veto a metric-passing edit, never force a failing one); Manual SME review of proposals remains via the policy API. Refuted if held-out DQ regresses across accepted versions, or the SME queue does not shrink. Monitored via the DQ-by-version trends and the overturn rate.
 
 "Converge" means two things in RUSH, and both are instrumented:
@@ -106,7 +106,7 @@ The naive cascade ("escalate disagreements, trust the human, keep the biggest wi
 
 - **Gate and clip every edit.** A high-reasoning model's proposed edit is a high-variance action; accept only on positive held-out advantage within the edit-size trust region. Prefer principle-level edits over item-level ones.
 - **Audit the agreements, not just the disagreements.** Escalating only disagreements builds a confidently-wrong ruler (incorporation bias: the judge helps construct its own reference standard). A small random aligned audit stream goes to SMEs too, so label-error on agreements is actually measured — alignment does not certify correctness; model and label can be wrong together.
-- **The golden set is not so golden.** In internal Pinterest-scale re-adjudication studies (not measured in this repo), experts sided with the *model* roughly ⅓ of the time on SME-seeded Trust labels and ~½ on BPO-seeded content-quality and search-relevance labels. So the top rung is *re-adjudication* — overturn or confirm, with a per-item cap on human touches (a fixed maximum number of SME reviews any single item may consume, so no case burns unbounded expert time) — not "ask the human once." A wrong golden label doesn't just waste an update; it actively teaches a wrong rule that propagates through every subsequent policy version.
+- **The golden set is not so golden.** In internal billions-scale re-adjudication studies (not measured in this repo), experts sided with the *model* roughly ⅓ of the time on SME-seeded Trust labels and ~½ on BPO-seeded content-quality and search-relevance labels. So the top rung is *re-adjudication* — overturn or confirm, with a per-item cap on human touches (a fixed maximum number of SME reviews any single item may consume, so no case burns unbounded expert time) — not "ask the human once." A wrong golden label doesn't just waste an update; it actively teaches a wrong rule that propagates through every subsequent policy version.
 - **Separate prompt-lift from label-lift.** Decompose each decision-quality change into "the prompt got better" vs "the ruler moved." A cycle dominated by label-lift is a golden-set quality event, not a modeling win, and must not be reported as one.
 
 **Split discipline is enforced in code:** the train split (dev_golden) drives policy updates; the test split (locked holdout) is the reported metric; the exporter refuses to blend them. Completed-with-errors runs finalize honestly. The full test suite passes (count cited once, in the measured box above).
