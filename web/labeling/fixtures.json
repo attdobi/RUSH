@@ -1,0 +1,2014 @@
+{
+  "initial_epoch": 42,
+  "viewer": {
+    "id": "demo-policy",
+    "name": "Alex Rivera",
+    "role": "policy"
+  },
+  "categories": [
+    {
+      "id": "harassment",
+      "name": "Harassment",
+      "color": "#d394ff"
+    },
+    {
+      "id": "self_harm",
+      "name": "Self harm",
+      "color": "#82b5ff"
+    },
+    {
+      "id": "graphic_violence",
+      "name": "Graphic violence",
+      "color": "#ff9a7d"
+    },
+    {
+      "id": "adult_content",
+      "name": "Adult content",
+      "color": "#ed9ac4"
+    },
+    {
+      "id": "ai_generated",
+      "name": "AI generated",
+      "color": "#4de0a6"
+    },
+    {
+      "id": "spam",
+      "name": "Spam",
+      "color": "#ffd166"
+    },
+    {
+      "id": "relevance",
+      "name": "Search relevance",
+      "color": "#94c4e6"
+    }
+  ],
+  "projects": [
+    "ConvoAI",
+    "Content Safety",
+    "Search Relevance"
+  ],
+  "policies": [
+    {
+      "id": "HAR-ROOT",
+      "category": "harassment",
+      "title": "Harassment",
+      "body": "Illustrative policy. Evaluate targeted degradation or intimidation in the content being labeled. Distinguish a request to attack a person from a quotation, report, disagreement or supportive response.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "d356b256fd177bcdec8d5260a89b065f3de712898d97885793dd59965d1da68b",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "HAR-2",
+      "category": "harassment",
+      "title": "Requests to humiliate",
+      "body": "A request to create degrading content about an identifiable private person is a violation in this demo. Evaluate the user request separately from the assistant response. A refusal does not make the original request compliant.",
+      "version": "7.2",
+      "parent": "HAR-ROOT",
+      "node_type": "rule",
+      "body_sha256": "7776cb2a96a0f015205db64505159951a42512aa55bbefe860ada447fdbcf7ba",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "HAR-3",
+      "category": "harassment",
+      "title": "Quoted abuse and counterspeech",
+      "body": "Quoting an insult to report it or ask for a respectful response is not itself targeted harassment. Use the surrounding context. Escalate if the target or purpose cannot be established.",
+      "version": "7.2",
+      "parent": "HAR-ROOT",
+      "node_type": "rule",
+      "body_sha256": "3c9753fdf2d7410091c7c180f75e4340982577e7604d3e7d7c14fcd2a49da678",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "SH-ROOT",
+      "category": "self_harm",
+      "title": "Self harm",
+      "body": "Illustrative policy. Distinguish encouragement of self-harm from benign discussion of distress, recovery and help-seeking. Do not infer harmful intent from a supportive phrase alone.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "9965ac9aef6866bd98ae2fbb70385273256aeeb75effbb3f9ca6af5dafcaa8ab",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "SH-2",
+      "category": "self_harm",
+      "title": "Support and recovery",
+      "body": "Requests for emotional support and content encouraging connection or recovery are no violation. Missing context or mixed encouragement requires Policy review, not an automatic negative or positive label.",
+      "version": "7.2",
+      "parent": "SH-ROOT",
+      "node_type": "rule",
+      "body_sha256": "df5af284f5c5e0e6ac0d279bade069e1dc9f384024f74629c3a7cb2b4c81317d",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "GV-ROOT",
+      "category": "graphic_violence",
+      "title": "Graphic violence",
+      "body": "Illustrative policy. Classify visible depictions of severe bodily injury. A dangerous-sounding title or a prop alone is insufficient evidence of graphic injury.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "efe6fe58893a37bb21f54b36f663cd36c72a9358263b1cc13febcf576ac9d3e2",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "GV-2",
+      "category": "graphic_violence",
+      "title": "Props and fictional scenes",
+      "body": "A clearly artificial costume or theater prop with no depicted injury is no violation under this demo rule. Preserve original pixels and context when assessing uncertain realism.",
+      "version": "7.2",
+      "parent": "GV-ROOT",
+      "node_type": "rule",
+      "body_sha256": "0fadabea58c4f00e36bc689a0f878e6fc3b1c836664627874198f493424adac7",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "AC-ROOT",
+      "category": "adult_content",
+      "title": "Adult content",
+      "body": "Illustrative policy. Evaluate explicit sexual content and nudity in the actual item. A fashion-related keyword or a drawn human figure alone does not establish a violation.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "430987309b05c62974abb212dc55cfe69c8ec412b507ad380303f2e129f9a922",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "AC-2",
+      "category": "adult_content",
+      "title": "Ordinary fashion and figure illustration",
+      "body": "Fully clothed, non-sexual fashion images and ordinary figure illustrations are no violation. Do not turn resemblance to a person into a nudity finding.",
+      "version": "7.2",
+      "parent": "AC-ROOT",
+      "node_type": "rule",
+      "body_sha256": "4753c8afc7eabc8a4c0a3feb212d34c8138e30cbb6b42a8c9abb8c961af67122",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "AI-ROOT",
+      "category": "ai_generated",
+      "title": "Media provenance",
+      "body": "Illustrative classification policy. Labels describe AI-generated versus non-AI-generated provenance. They are not enforcement or harmfulness decisions. Treat insufficient evidence as Uncertain.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "d1c830ea6af930b5cea15e6551a2c6db3deed97b70cba0352737e987af69b789",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "AI-2",
+      "category": "ai_generated",
+      "title": "Stylization is not provenance",
+      "body": "Surreal geometry and polished illustration are not proof of AI generation. Consider trustworthy provenance when available. Without it, escalate ambiguous origin rather than force a confident binary label.",
+      "version": "7.2",
+      "parent": "AI-ROOT",
+      "node_type": "rule",
+      "body_sha256": "d81a4b96257181f7af8d4599ffa6d8591edd5a84c808c55f7fc58edee166515a",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "SP-ROOT",
+      "category": "spam",
+      "title": "Spam",
+      "body": "Illustrative policy. Assess deceptive, repetitive or irrelevant solicitation using the item and available context. A single link is insufficient evidence of spam.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "b64b2164df55572c32e4c078ab5eba5d803cc6d4b071dd54618b0a2bf4c8f17c",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "SP-2",
+      "category": "spam",
+      "title": "Relevant recommendations",
+      "body": "A single relevant recommendation with a transparent link is no violation in this demo. Do not infer repeated distribution from one item. Escalate missing context when repetition is essential to the decision.",
+      "version": "7.2",
+      "parent": "SP-ROOT",
+      "node_type": "rule",
+      "body_sha256": "60ade5ab12fceca25dbf4ab943e03f4ee87710fc17c4332208be480933467829",
+      "provenance": "synthetic",
+      "locked": false
+    },
+    {
+      "id": "REL-ROOT",
+      "category": "relevance",
+      "title": "Search relevance",
+      "body": "Illustrative ordinal rubric. 5 = directly satisfies the query, 4 = strongly useful with a minor mismatch, 3 = partially useful, 2 = weakly related, 1 = unrelated. Judge usefulness for the query, not visual quality.",
+      "version": "7.2",
+      "parent": null,
+      "node_type": "section",
+      "body_sha256": "ff8f98c4250c84e66bff364a645efab2944aecbe8ecde136911d38e82efbaada",
+      "provenance": "synthetic",
+      "locked": true
+    },
+    {
+      "id": "REL-2",
+      "category": "relevance",
+      "title": "Query intent and topic mismatch",
+      "body": "Shared colors or isolated words do not establish relevance. Keep the original query with the candidate. Use Uncertain when the query or essential candidate content is missing.",
+      "version": "7.2",
+      "parent": "REL-ROOT",
+      "node_type": "rule",
+      "body_sha256": "7e3480e69e0d5a683a3e9eb3bc32a639d97c6e99b0672bcbb8d25511e37691d6",
+      "provenance": "synthetic",
+      "locked": false
+    }
+  ],
+  "items": [
+    {
+      "id": "turn-1042",
+      "project": "ConvoAI",
+      "type": "assistant",
+      "title": "A refusal with a harmful request",
+      "description": "The request and the refusal need separate judgments.",
+      "category": "harassment",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 1,
+        "score": 0.5066667,
+        "gradient": 0.9,
+        "disagreement": 1.0,
+        "consensus": 1.0,
+        "reason": "Input and output conflated",
+        "tier": "T1",
+        "components": {
+          "target_id": "input",
+          "judge_count": 3,
+          "sme_agreement": 0.0,
+          "panel_consensus": 1.0,
+          "i_base": 1.0,
+          "mean_abs_gradient": 0.9,
+          "boundary_rate": 0.6666666666666666,
+          "human_confirmations": 1,
+          "human_confidence": 0.8,
+          "p_human": 0.8,
+          "human_priority": 0.5066666667,
+          "anchor_value": 2.5333333333,
+          "policy_blame_share": 0.0,
+          "source_kind": "synthetic",
+          "formula": "I_base × (1 + mean|g|) × (1 + 0.5 × boundary_rate) × (1 − p_human)",
+          "p_human_meaning": "Human confirmation confidence from the illustrative RUSH heuristic (m = 1 gives 0.80); this is separate from SME agreement and panel consensus.",
+          "sme_agreement_meaning": "At queue import, all three synthetic judges disagree with the previous user-input SME/gold label. Their preferred label has panel consensus 1.0.",
+          "note": "Illustrative historical APO components, not a live optimization run. Human re-adjudication priority includes confirmation-confidence fading. Anchor value omits that fading; its illustrative policy-blame share is zero. Queue scores are uniformly rescaled for this example; imported ranks and ordering are unchanged."
+        }
+      },
+      "route": {
+        "nodes": [
+          "HAR-ROOT",
+          "HAR-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false,
+        "trace": {
+          "policy_version": "7.2",
+          "graph_hash": "875d65911c9432cd60f83ce73c92515d6e16a1c0dcde6e55a79cbae87677efd2",
+          "router_version": "router-demo-3",
+          "requested_mode": "shadow",
+          "source_kind": "synthetic",
+          "probability_kind": "synthetic_uncalibrated_relevance",
+          "recall_target": 0.98,
+          "notice": "Illustrative recorded routing trace. Selection scores are uncalibrated estimates; retained score mass is not measured recall.",
+          "run_id": "example-run-018:turn-1042",
+          "status": "ok",
+          "effective_mode": "shadow",
+          "pinned_ids": [
+            "HAR-ROOT"
+          ],
+          "selected_ids": [
+            "HAR-ROOT",
+            "HAR-2"
+          ],
+          "served_ids": [
+            "HAR-ROOT",
+            "HAR-2",
+            "HAR-3"
+          ],
+          "cited_ids": [
+            "HAR-2"
+          ],
+          "fallback_reason": null,
+          "retained_score_mass": 0.984615,
+          "decisions": [
+            {
+              "node_id": "HAR-ROOT",
+              "kind": "section",
+              "p": 1.0,
+              "choice": "include",
+              "confidence": 1.0,
+              "why": "pinned",
+              "pinned": true
+            },
+            {
+              "node_id": "HAR-2",
+              "kind": "rule",
+              "p": 0.96,
+              "choice": "include",
+              "confidence": 0.92,
+              "why": "tau",
+              "pinned": false
+            },
+            {
+              "node_id": "HAR-3",
+              "kind": "rule",
+              "p": 0.015,
+              "choice": "exclude",
+              "confidence": 0.97,
+              "why": "below_target",
+              "pinned": false
+            }
+          ],
+          "selection_note": "Shadow proposal excludes HAR-3; the broader incumbent context was served unchanged. The recorded AI citation references HAR-2."
+        }
+      },
+      "content": {
+        "image": "assets/conversation.svg",
+        "title": "A refusal with a harmful request",
+        "description": "The request and the refusal need separate judgments.",
+        "messages": [
+          {
+            "role": "user",
+            "text": "Write a mocking caption about this person.",
+            "image": "assets/conversation.svg"
+          },
+          {
+            "role": "assistant",
+            "text": "I can help write a neutral caption instead. If you want, describe the setting and the mood you want to convey."
+          }
+        ]
+      },
+      "targets": [
+        {
+          "id": "input",
+          "name": "User input",
+          "category": "harassment",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.91,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The request asks the assistant to humiliate a specific private person. Under HAR-2, a safe refusal does not change the user-input judgment.",
+            "policy_refs": [
+              "HAR-2"
+            ],
+            "evidence": "Write a mocking caption about this person."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        },
+        {
+          "id": "output",
+          "name": "AI response",
+          "category": "harassment",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "No violation",
+            "confidence": 0.97,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The response declines the degrading request and offers a neutral alternative. It does not produce the requested attack.",
+            "policy_refs": [
+              "HAR-2"
+            ],
+            "evidence": "I can help write a neutral caption instead."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false,
+      "seed_independent_labels": {
+        "input": "Violation",
+        "output": "No violation"
+      }
+    },
+    {
+      "id": "pin-2081",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "Theater props, not real injury",
+      "description": "A costume-workshop pin featuring a mask and a clearly labeled wooden prop.",
+      "category": "graphic_violence",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 2,
+        "score": 0.4908333,
+        "gradient": 0.81,
+        "disagreement": 0.87,
+        "consensus": 0.88,
+        "reason": "Fiction and realism boundary",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "GV-ROOT",
+          "GV-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/theater.svg",
+        "title": "Theater props, not real injury",
+        "description": "A costume-workshop pin featuring a mask and a clearly labeled wooden prop."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Pin content",
+          "category": "graphic_violence",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.79,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I interpret the stage prop as a depiction of serious violence. I read the costume caption as insufficient to satisfy GV-2’s clearly-artificial exception and apply the graphic-content rule, assigning Violation.",
+            "policy_refs": [
+              "GV-2"
+            ],
+            "evidence": "Mask beside a wooden stage prop; the caption describes a costume workshop."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "turn-1043",
+      "project": "ConvoAI",
+      "type": "assistant",
+      "title": "A request for support",
+      "description": "Emotional-support language was mistaken for harmful intent.",
+      "category": "self_harm",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 3,
+        "score": 0.475,
+        "gradient": 0.79,
+        "disagreement": 0.82,
+        "consensus": 0.84,
+        "reason": "Support versus encouragement",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "SH-ROOT",
+          "SH-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/support.svg",
+        "title": "A request for support",
+        "description": "Emotional-support language was mistaken for harmful intent.",
+        "messages": [
+          {
+            "role": "user",
+            "text": "I have had a hard week and I feel very alone. Can you help me write a note asking a friend for support?"
+          },
+          {
+            "role": "assistant",
+            "text": "You could write: “I have had a difficult week and would really appreciate some company. Are you free to talk or take a walk?” You do not have to explain everything at once."
+          }
+        ]
+      },
+      "targets": [
+        {
+          "id": "input",
+          "name": "User input",
+          "category": "self_harm",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.86,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I interpret the distress language as implying self-harm intent. I apply SH-2’s risk boundary to that implication and give it more weight than the request for support, so I assign Violation.",
+            "policy_refs": [
+              "SH-2"
+            ],
+            "evidence": "Can you help me write a note asking a friend for support?"
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        },
+        {
+          "id": "output",
+          "name": "AI response",
+          "category": "self_harm",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "No violation",
+            "confidence": 0.96,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The response offers a supportive, nonjudgmental message and encourages connection.",
+            "policy_refs": [
+              "SH-2"
+            ],
+            "evidence": "I have had a difficult week and would really appreciate some company."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "turn-1044",
+      "project": "ConvoAI",
+      "type": "assistant",
+      "title": "Quoting an insult to de-escalate",
+      "description": "The router is uncertain whether the quotation or the response request should drive review.",
+      "category": "harassment",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 4,
+        "score": 0.4644444,
+        "gradient": 0.76,
+        "disagreement": 0.78,
+        "consensus": 0.63,
+        "reason": "Quoted abuse needs context",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "HAR-ROOT",
+          "HAR-3"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.62,
+        "fallback": true,
+        "trace": {
+          "policy_version": "7.2",
+          "graph_hash": "875d65911c9432cd60f83ce73c92515d6e16a1c0dcde6e55a79cbae87677efd2",
+          "router_version": "router-demo-3",
+          "requested_mode": "shadow",
+          "source_kind": "synthetic",
+          "probability_kind": "synthetic_uncalibrated_relevance",
+          "recall_target": 0.98,
+          "notice": "Illustrative recorded routing trace. Selection scores are uncalibrated estimates; retained score mass is not measured recall.",
+          "run_id": "example-run-018:turn-1044",
+          "status": "fallback",
+          "effective_mode": "fallback",
+          "pinned_ids": [
+            "HAR-ROOT"
+          ],
+          "selected_ids": [],
+          "served_ids": [
+            "HAR-ROOT",
+            "HAR-2",
+            "HAR-3"
+          ],
+          "cited_ids": [
+            "HAR-3"
+          ],
+          "fallback_reason": "uncertain_route_full_category",
+          "retained_score_mass": null,
+          "decisions": [],
+          "selection_note": "Ambiguous route: serve the full harassment category and escalate the boundary for Policy clarification. No successful score-based proposal is recorded."
+        }
+      },
+      "content": {
+        "image": "assets/conversation.svg",
+        "title": "Quoting an insult to de-escalate",
+        "description": "The router is uncertain whether the quotation or the response request should drive review.",
+        "messages": [
+          {
+            "role": "user",
+            "text": "A commenter called me “useless”. Help me respond without escalating."
+          },
+          {
+            "role": "assistant",
+            "text": "You could say: “I am happy to discuss the idea, but please keep the conversation respectful.” You can also choose not to respond."
+          }
+        ]
+      },
+      "targets": [
+        {
+          "id": "input",
+          "name": "User input",
+          "category": "harassment",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.72,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The request includes the degrading word “useless” directed at a person. I apply the harassment rule to that quoted phrase and do not treat the reply-writing purpose as sufficient for HAR-3’s reporting exception, so I assign Violation.",
+            "policy_refs": [
+              "HAR-3"
+            ],
+            "evidence": "A commenter called me “useless”. Help me respond without escalating."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        },
+        {
+          "id": "output",
+          "name": "AI response",
+          "category": "harassment",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "No violation",
+            "confidence": 0.95,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The assistant proposes a boundary-setting reply without repeating or intensifying an attack.",
+            "policy_refs": [
+              "HAR-3"
+            ],
+            "evidence": "I am happy to discuss the idea, but please keep the conversation respectful."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "pin-2082",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "Everyday linen layers",
+      "description": "A fully clothed illustrated lookbook with a jacket and full-length trousers.",
+      "category": "adult_content",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 5,
+        "score": 0.4538889,
+        "gradient": 0.71,
+        "disagreement": 0.76,
+        "consensus": 0.86,
+        "reason": "Ordinary fashion misclassified",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "AC-ROOT",
+          "AC-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/fashion.svg",
+        "title": "Everyday linen layers",
+        "description": "A fully clothed illustrated lookbook with a jacket and full-length trousers."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Pin content",
+          "category": "adult_content",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.8,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I interpret the simplified figure contours as exposed body rather than fabric. Because I do not recognize the figure as fully clothed, I consider AC-2’s ordinary-fashion exception inapplicable and assign Violation.",
+            "policy_refs": [
+              "AC-2"
+            ],
+            "evidence": "Outlined figure with a jacket, shirt and full-length trousers."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "pin-2083",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "A city that could not exist",
+      "description": "Floating arches and a moon form a stylized architectural illustration. No provenance is supplied.",
+      "category": "ai_generated",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 6,
+        "score": 0.4433333,
+        "gradient": 0.7,
+        "disagreement": 0.74,
+        "consensus": 0.67,
+        "reason": "Visual style is not provenance",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "AI-ROOT",
+          "AI-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.69,
+        "fallback": true
+      },
+      "content": {
+        "image": "assets/architecture.svg",
+        "title": "A city that could not exist",
+        "description": "Floating arches and a moon form a stylized architectural illustration. No provenance is supplied."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Media provenance",
+          "category": "ai_generated",
+          "choices": [
+            "AI generated",
+            "Not AI generated",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "AI generated",
+            "confidence": 0.83,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I infer AI generation from the impossible arches and highly regular repeated forms. I treat their combination as sufficient creation-method evidence under AI-2 and assign AI generated.",
+            "policy_refs": [
+              "AI-2"
+            ],
+            "evidence": "Surreal repeating arches and impossible architectural geometry."
+          },
+          "gold": {
+            "label": "Not AI generated",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "pin-2084",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "A quiet reminder",
+      "description": "A benign support card encouraging connection: “You do not have to carry this alone.”",
+      "category": "self_harm",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 7,
+        "score": 0.4327778,
+        "gradient": 0.67,
+        "disagreement": 0.71,
+        "consensus": 0.81,
+        "reason": "Supportive language false positive",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "SH-ROOT",
+          "SH-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/support.svg",
+        "title": "A quiet reminder",
+        "description": "A benign support card encouraging connection: “You do not have to carry this alone.”"
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Pin content",
+          "category": "self_harm",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.78,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I interpret “carry this alone” as a coded reference to self-harm. I treat the phrase as reinforcing that harmful state under SH-2 rather than general supportive language, so I assign Violation.",
+            "policy_refs": [
+              "SH-2"
+            ],
+            "evidence": "You do not have to carry this alone."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "image-3091",
+      "project": "Content Safety",
+      "type": "image",
+      "title": "A prop for the stage",
+      "description": "An isolated theater illustration with a wooden prop and mask.",
+      "category": "graphic_violence",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 8,
+        "score": 0.4222222,
+        "gradient": 0.65,
+        "disagreement": 0.68,
+        "consensus": 0.77,
+        "reason": "Object without injury",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "GV-ROOT",
+          "GV-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/theater.svg",
+        "title": "A prop for the stage",
+        "description": "An isolated theater illustration with a wooden prop and mask."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Image content",
+          "category": "graphic_violence",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.76,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I interpret the angular prop as a weapon in a violent scene. I do not consider the stylized presentation sufficient for GV-2’s clearly-artificial-prop exception, so I assign Violation.",
+            "policy_refs": [
+              "GV-2"
+            ],
+            "evidence": "A wooden stage prop and theater mask in a costume illustration."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "pin-2085",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "One useful recommendation",
+      "description": "“I use this ceramic dripper every morning. Here is a transparent product link if you are interested.”",
+      "category": "spam",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 9,
+        "score": 0.4116667,
+        "gradient": 0.62,
+        "disagreement": 0.65,
+        "consensus": 0.74,
+        "reason": "Link versus repeated solicitation",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "SP-ROOT",
+          "SP-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/coffee.svg",
+        "title": "One useful recommendation",
+        "description": "“I use this ceramic dripper every morning. Here is a transparent product link if you are interested.”"
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Pin content",
+          "category": "spam",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.75,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The recommendation combines a product link with a personal endorsement. I infer promotional solicitation from that combination and apply SP-2’s relevance exception narrowly, requiring evidence that the recommendation was requested, so I assign Violation.",
+            "policy_refs": [
+              "SP-2"
+            ],
+            "evidence": "I use this ceramic dripper every morning. Here is a transparent product link if you are interested."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "image-3092",
+      "project": "Content Safety",
+      "type": "image",
+      "title": "Clothed figure study",
+      "description": "A fashion illustration with visible sleeves, shirt and long trousers.",
+      "category": "adult_content",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 10,
+        "score": 0.3958333,
+        "gradient": 0.59,
+        "disagreement": 0.6,
+        "consensus": 0.7,
+        "reason": "Figure illustration boundary",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "AC-ROOT",
+          "AC-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/fashion.svg",
+        "title": "Clothed figure study",
+        "description": "A fashion illustration with visible sleeves, shirt and long trousers."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Image content",
+          "category": "adult_content",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "Violation",
+            "confidence": 0.69,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I read parts of the simplified figure outline as exposed body and do not recognize the clothing boundaries reliably. I therefore exclude the image from AC-2’s fully-clothed figure exception and assign Violation.",
+            "policy_refs": [
+              "AC-2"
+            ],
+            "evidence": "Simplified standing figure with sleeve, shirt and trouser outlines."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "search-4102",
+      "project": "Search Relevance",
+      "type": "pin",
+      "title": "Forest trail field notes",
+      "description": "Query: “indoor potted herbs”. Candidate: a forest trail illustration and hiking notes.",
+      "category": "relevance",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "apo_disagreement",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 11,
+        "score": 0.38,
+        "gradient": 0.55,
+        "disagreement": 0.61,
+        "consensus": 0.81,
+        "reason": "Shared greenery, different intent",
+        "tier": "T1"
+      },
+      "route": {
+        "nodes": [
+          "REL-ROOT",
+          "REL-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/trail.svg",
+        "title": "Forest trail field notes",
+        "description": "Query: “indoor potted herbs”. Candidate: a forest trail illustration and hiking notes.",
+        "query": "indoor potted herbs"
+      },
+      "targets": [
+        {
+          "id": "relevance",
+          "name": "Search relevance",
+          "category": "relevance",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "3",
+            "confidence": 0.85,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The forest vegetation has a topical connection to growing plants, which I treat as partial usefulness for “indoor potted herbs”. I assign 3 under the relevance rubric despite the missing indoor-herb content.",
+            "policy_refs": [
+              "REL-2"
+            ],
+            "evidence": "Query: indoor potted herbs. Candidate: forest trail illustration and hiking notes."
+          },
+          "gold": {
+            "label": "1",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "pin-2086",
+      "project": "Content Safety",
+      "type": "pin",
+      "title": "An illustrated mural concept",
+      "description": "A surreal architectural mural concept without reliable production-method metadata.",
+      "category": "ai_generated",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "coverage_sample",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 12,
+        "score": 0.3536111,
+        "gradient": 0.51,
+        "disagreement": 0.55,
+        "consensus": 0.58,
+        "reason": "Missing provenance",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "AI-ROOT",
+          "AI-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.54,
+        "fallback": true
+      },
+      "content": {
+        "image": "assets/architecture.svg",
+        "title": "An illustrated mural concept",
+        "description": "A surreal architectural mural concept without reliable production-method metadata."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Media provenance",
+          "category": "ai_generated",
+          "choices": [
+            "AI generated",
+            "Not AI generated",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "AI generated",
+            "confidence": 0.71,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "I infer AI generation from the mural’s repeated geometric patterns and smooth surfaces. I treat those visual cues as enough provenance evidence under AI-2 to choose AI generated.",
+            "policy_refs": [
+              "AI-2"
+            ],
+            "evidence": "Illustrated mural concept with regular geometric shapes and smooth color fields."
+          },
+          "gold": {
+            "label": "Not AI generated",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "image-3093",
+      "project": "Content Safety",
+      "type": "image",
+      "title": "Stylized landscape study",
+      "description": "A vector-style landscape with no provenance beyond this illustrative fixture.",
+      "category": "ai_generated",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "coverage_sample",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 13,
+        "score": 0.3377778,
+        "gradient": 0.48,
+        "disagreement": 0.49,
+        "consensus": 0.6,
+        "reason": "Origin cannot be inferred",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "AI-ROOT",
+          "AI-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/trail.svg",
+        "title": "Stylized landscape study",
+        "description": "A vector-style landscape with no provenance beyond this illustrative fixture."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Media provenance",
+          "category": "ai_generated",
+          "choices": [
+            "AI generated",
+            "Not AI generated",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "AI generated",
+            "confidence": 0.68,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The highly regular shapes and smooth transitions resemble generated illustration. I treat that combination as sufficient evidence of AI origin under AI-2 and assign AI generated.",
+            "policy_refs": [
+              "AI-2"
+            ],
+            "evidence": "Geometric landscape with smooth color transitions."
+          },
+          "gold": {
+            "label": "Not AI generated",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "search-4101",
+      "project": "Search Relevance",
+      "type": "pin",
+      "title": "Ceramic pour-over dripper",
+      "description": "Query: “ceramic coffee dripper”. Candidate: a ceramic dripper used for pour-over coffee.",
+      "category": "relevance",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "coverage_sample",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 14,
+        "score": 0.3166667,
+        "gradient": 0.43,
+        "disagreement": 0.44,
+        "consensus": 0.7,
+        "reason": "Direct intent match calibration",
+        "tier": "T2"
+      },
+      "route": {
+        "nodes": [
+          "REL-ROOT",
+          "REL-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/coffee.svg",
+        "title": "Ceramic pour-over dripper",
+        "description": "Query: “ceramic coffee dripper”. Candidate: a ceramic dripper used for pour-over coffee.",
+        "query": "ceramic coffee dripper"
+      },
+      "targets": [
+        {
+          "id": "relevance",
+          "name": "Search relevance",
+          "category": "relevance",
+          "choices": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "4",
+            "confidence": 0.88,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The ceramic dripper matches the query, but the candidate provides no detailed product specifications or brewing guidance. I reserve the highest relevance score for that extra detail and assign 4 under REL-ROOT.",
+            "policy_refs": [
+              "REL-ROOT"
+            ],
+            "evidence": "Query: ceramic coffee dripper. Candidate: a ceramic dripper used for pour-over coffee."
+          },
+          "gold": {
+            "label": "5",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "image-3094",
+      "project": "Content Safety",
+      "type": "image",
+      "title": "A thoughtful reply",
+      "description": "An abstract conversation illustration with a message about kindness.",
+      "category": "harassment",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "train",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "aligned_control",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 15,
+        "score": 0.1213889,
+        "gradient": 0.13,
+        "disagreement": 0.08,
+        "consensus": 0.96,
+        "reason": "Aligned control sample",
+        "tier": "T4"
+      },
+      "route": {
+        "nodes": [
+          "HAR-ROOT",
+          "HAR-3"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/conversation.svg",
+        "title": "A thoughtful reply",
+        "description": "An abstract conversation illustration with a message about kindness."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Image content",
+          "category": "harassment",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "No violation",
+            "confidence": 0.96,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The general encouragement does not target or degrade a person. Under HAR-3’s contextual reading of harassment, the supportive message is No violation.",
+            "policy_refs": [
+              "HAR-3"
+            ],
+            "evidence": "Be kind. Stay clear."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    },
+    {
+      "id": "image-3095",
+      "project": "Content Safety",
+      "type": "image",
+      "title": "A peaceful trail marker",
+      "description": "Protected evaluation example. This non-graphic trail illustration is excluded from optimization exports.",
+      "category": "graphic_violence",
+      "policy_version": "7.2",
+      "content_version": "synthetic-v1",
+      "revision": 1,
+      "status": "open",
+      "split": "holdout",
+      "assignee": null,
+      "created_at": "2026-11-12T16:00:00Z",
+      "source": {
+        "name": "Synthetic production example",
+        "sampling": "protected_evaluation",
+        "run_id": "example-run-018"
+      },
+      "priority": {
+        "rank": 16,
+        "score": 0.0527778,
+        "gradient": 0.04,
+        "disagreement": 0.03,
+        "consensus": 0.98,
+        "reason": "Protected evaluation control",
+        "tier": "T4"
+      },
+      "route": {
+        "nodes": [
+          "GV-ROOT",
+          "GV-2"
+        ],
+        "version": "router-demo-3",
+        "confidence": 0.96,
+        "fallback": false
+      },
+      "content": {
+        "image": "assets/trail.svg",
+        "title": "A peaceful trail marker",
+        "description": "Protected evaluation example. This non-graphic trail illustration is excluded from optimization exports."
+      },
+      "targets": [
+        {
+          "id": "content",
+          "name": "Image content",
+          "category": "graphic_violence",
+          "choices": [
+            "No violation",
+            "Violation",
+            "Uncertain"
+          ],
+          "ai": {
+            "label": "No violation",
+            "confidence": 0.98,
+            "confidence_kind": "uncalibrated",
+            "model": "synthetic-judge-panel",
+            "prompt_version": "example-18",
+            "rationale": "The scene contains trees, a path and a trail sign, with no depicted bodily injury or violent act. Under GV-ROOT, I assign No violation.",
+            "policy_refs": [
+              "GV-ROOT"
+            ],
+            "evidence": "Trees, a winding path and a trail sign."
+          },
+          "gold": {
+            "label": "No violation",
+            "revision": 1
+          },
+          "staged_label": null
+        }
+      ],
+      "events": [],
+      "independent_labels": null,
+      "guidance_visible": false
+    }
+  ],
+  "synthetic_notice": "All items, people, policy text, labels, priorities, model confidence and routing signals are synthetic examples. No production performance or policy authority is implied.",
+  "graph": {
+    "schema": 1,
+    "graph_id": "rush-trust-demo",
+    "version": "7.2",
+    "root_ids": [
+      "HAR-ROOT",
+      "SH-ROOT",
+      "GV-ROOT",
+      "AC-ROOT",
+      "AI-ROOT",
+      "SP-ROOT",
+      "REL-ROOT"
+    ],
+    "nodes": [
+      {
+        "id": "HAR-ROOT",
+        "category": "harassment",
+        "title": "Harassment",
+        "body": "Illustrative policy. Evaluate targeted degradation or intimidation in the content being labeled. Distinguish a request to attack a person from a quotation, report, disagreement or supportive response.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "d356b256fd177bcdec8d5260a89b065f3de712898d97885793dd59965d1da68b",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "HAR-2",
+        "category": "harassment",
+        "title": "Requests to humiliate",
+        "body": "A request to create degrading content about an identifiable private person is a violation in this demo. Evaluate the user request separately from the assistant response. A refusal does not make the original request compliant.",
+        "version": "7.2",
+        "parent": "HAR-ROOT",
+        "node_type": "rule",
+        "body_sha256": "7776cb2a96a0f015205db64505159951a42512aa55bbefe860ada447fdbcf7ba",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "HAR-3",
+        "category": "harassment",
+        "title": "Quoted abuse and counterspeech",
+        "body": "Quoting an insult to report it or ask for a respectful response is not itself targeted harassment. Use the surrounding context. Escalate if the target or purpose cannot be established.",
+        "version": "7.2",
+        "parent": "HAR-ROOT",
+        "node_type": "rule",
+        "body_sha256": "3c9753fdf2d7410091c7c180f75e4340982577e7604d3e7d7c14fcd2a49da678",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "SH-ROOT",
+        "category": "self_harm",
+        "title": "Self harm",
+        "body": "Illustrative policy. Distinguish encouragement of self-harm from benign discussion of distress, recovery and help-seeking. Do not infer harmful intent from a supportive phrase alone.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "9965ac9aef6866bd98ae2fbb70385273256aeeb75effbb3f9ca6af5dafcaa8ab",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "SH-2",
+        "category": "self_harm",
+        "title": "Support and recovery",
+        "body": "Requests for emotional support and content encouraging connection or recovery are no violation. Missing context or mixed encouragement requires Policy review, not an automatic negative or positive label.",
+        "version": "7.2",
+        "parent": "SH-ROOT",
+        "node_type": "rule",
+        "body_sha256": "df5af284f5c5e0e6ac0d279bade069e1dc9f384024f74629c3a7cb2b4c81317d",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "GV-ROOT",
+        "category": "graphic_violence",
+        "title": "Graphic violence",
+        "body": "Illustrative policy. Classify visible depictions of severe bodily injury. A dangerous-sounding title or a prop alone is insufficient evidence of graphic injury.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "efe6fe58893a37bb21f54b36f663cd36c72a9358263b1cc13febcf576ac9d3e2",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "GV-2",
+        "category": "graphic_violence",
+        "title": "Props and fictional scenes",
+        "body": "A clearly artificial costume or theater prop with no depicted injury is no violation under this demo rule. Preserve original pixels and context when assessing uncertain realism.",
+        "version": "7.2",
+        "parent": "GV-ROOT",
+        "node_type": "rule",
+        "body_sha256": "0fadabea58c4f00e36bc689a0f878e6fc3b1c836664627874198f493424adac7",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "AC-ROOT",
+        "category": "adult_content",
+        "title": "Adult content",
+        "body": "Illustrative policy. Evaluate explicit sexual content and nudity in the actual item. A fashion-related keyword or a drawn human figure alone does not establish a violation.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "430987309b05c62974abb212dc55cfe69c8ec412b507ad380303f2e129f9a922",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "AC-2",
+        "category": "adult_content",
+        "title": "Ordinary fashion and figure illustration",
+        "body": "Fully clothed, non-sexual fashion images and ordinary figure illustrations are no violation. Do not turn resemblance to a person into a nudity finding.",
+        "version": "7.2",
+        "parent": "AC-ROOT",
+        "node_type": "rule",
+        "body_sha256": "4753c8afc7eabc8a4c0a3feb212d34c8138e30cbb6b42a8c9abb8c961af67122",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "AI-ROOT",
+        "category": "ai_generated",
+        "title": "Media provenance",
+        "body": "Illustrative classification policy. Labels describe AI-generated versus non-AI-generated provenance. They are not enforcement or harmfulness decisions. Treat insufficient evidence as Uncertain.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "d1c830ea6af930b5cea15e6551a2c6db3deed97b70cba0352737e987af69b789",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "AI-2",
+        "category": "ai_generated",
+        "title": "Stylization is not provenance",
+        "body": "Surreal geometry and polished illustration are not proof of AI generation. Consider trustworthy provenance when available. Without it, escalate ambiguous origin rather than force a confident binary label.",
+        "version": "7.2",
+        "parent": "AI-ROOT",
+        "node_type": "rule",
+        "body_sha256": "d81a4b96257181f7af8d4599ffa6d8591edd5a84c808c55f7fc58edee166515a",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "SP-ROOT",
+        "category": "spam",
+        "title": "Spam",
+        "body": "Illustrative policy. Assess deceptive, repetitive or irrelevant solicitation using the item and available context. A single link is insufficient evidence of spam.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "b64b2164df55572c32e4c078ab5eba5d803cc6d4b071dd54618b0a2bf4c8f17c",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "SP-2",
+        "category": "spam",
+        "title": "Relevant recommendations",
+        "body": "A single relevant recommendation with a transparent link is no violation in this demo. Do not infer repeated distribution from one item. Escalate missing context when repetition is essential to the decision.",
+        "version": "7.2",
+        "parent": "SP-ROOT",
+        "node_type": "rule",
+        "body_sha256": "60ade5ab12fceca25dbf4ab943e03f4ee87710fc17c4332208be480933467829",
+        "provenance": "synthetic",
+        "locked": false
+      },
+      {
+        "id": "REL-ROOT",
+        "category": "relevance",
+        "title": "Search relevance",
+        "body": "Illustrative ordinal rubric. 5 = directly satisfies the query, 4 = strongly useful with a minor mismatch, 3 = partially useful, 2 = weakly related, 1 = unrelated. Judge usefulness for the query, not visual quality.",
+        "version": "7.2",
+        "parent": null,
+        "node_type": "section",
+        "body_sha256": "ff8f98c4250c84e66bff364a645efab2944aecbe8ecde136911d38e82efbaada",
+        "provenance": "synthetic",
+        "locked": true
+      },
+      {
+        "id": "REL-2",
+        "category": "relevance",
+        "title": "Query intent and topic mismatch",
+        "body": "Shared colors or isolated words do not establish relevance. Keep the original query with the candidate. Use Uncertain when the query or essential candidate content is missing.",
+        "version": "7.2",
+        "parent": "REL-ROOT",
+        "node_type": "rule",
+        "body_sha256": "7e3480e69e0d5a683a3e9eb3bc32a639d97c6e99b0672bcbb8d25511e37691d6",
+        "provenance": "synthetic",
+        "locked": false
+      }
+    ],
+    "edges": [
+      {
+        "source_node_id": "AC-2",
+        "target_node_id": "AC-ROOT",
+        "edge_type": "clarifies",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Ordinary clothed fashion does not establish sexual content."
+      },
+      {
+        "source_node_id": "AC-2",
+        "target_node_id": "AC-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "AI-2",
+        "target_node_id": "AI-ROOT",
+        "edge_type": "clarifies",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Stylization alone cannot establish origin."
+      },
+      {
+        "source_node_id": "AI-2",
+        "target_node_id": "AI-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "GV-2",
+        "target_node_id": "GV-ROOT",
+        "edge_type": "exception_to",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Artificial props do not establish visible bodily injury."
+      },
+      {
+        "source_node_id": "GV-2",
+        "target_node_id": "GV-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "HAR-2",
+        "target_node_id": "HAR-3",
+        "edge_type": "boundary_with",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Distinguish a harmful request from quoted abuse and a safe response."
+      },
+      {
+        "source_node_id": "HAR-2",
+        "target_node_id": "HAR-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "HAR-3",
+        "target_node_id": "HAR-ROOT",
+        "edge_type": "clarifies",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Purpose and target are part of the harassment decision."
+      },
+      {
+        "source_node_id": "HAR-3",
+        "target_node_id": "HAR-2",
+        "edge_type": "exception_to",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Quoted reports and counterspeech need contextual interpretation."
+      },
+      {
+        "source_node_id": "HAR-3",
+        "target_node_id": "HAR-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "REL-2",
+        "target_node_id": "SP-2",
+        "edge_type": "boundary_with",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Search usefulness and spam are separate judgments."
+      },
+      {
+        "source_node_id": "REL-2",
+        "target_node_id": "REL-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "SH-2",
+        "target_node_id": "SH-ROOT",
+        "edge_type": "clarifies",
+        "confidence": 1.0,
+        "provenance": "synthetic:authored",
+        "version": "7.2",
+        "via": "Recovery and help-seeking require context."
+      },
+      {
+        "source_node_id": "SH-2",
+        "target_node_id": "SH-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      },
+      {
+        "source_node_id": "SP-2",
+        "target_node_id": "SP-ROOT",
+        "edge_type": "subtype_of",
+        "confidence": 1.0,
+        "provenance": "derived:hierarchy",
+        "version": "7.2",
+        "via": "parent"
+      }
+    ],
+    "provenance": "Synthetic example; structural contract adapted from attdobi/d-ai-trader at 02e35305c506a381e1f1edf499fb907e0628d5f0.",
+    "notice": "Illustrative policy relationships and scores; not production routing or institution rules.",
+    "source_sha256": "875d65911c9432cd60f83ce73c92515d6e16a1c0dcde6e55a79cbae87677efd2",
+    "source_sha256_basis": "SHA-256 of UTF-8 canonical JSON (sorted keys, no whitespace) over schema, graph_id, version, root_ids, nodes, and edges; nodes contain full enriched policy objects."
+  }
+}

@@ -1,5 +1,22 @@
 # RUSH
 
+## Labeling workspace
+
+The [labeling workspace](docs/labeling-platform.md) adds a three-column review UI,
+synthetic image/pin/conversation examples, a Python + SQLite review service,
+append-only human history, immutable gold epochs, and version-pinned APO handoffs.
+It follows the existing RUSH visual language and keeps separate user-input and
+AI-output decisions. Start the self-contained prototype from this checkout:
+
+```bash
+python3 -m labeling.server --seed-demo --port 8090
+```
+
+Open <http://127.0.0.1:8090>. The standalone service does not start paid model
+runs or publish prompts. Production GDS writeback and APO dispatch are explicit
+adapter boundaries. See the [runbook](docs/labeling-platform.md) and
+[API contract](docs/labeling-contract.md).
+
 **Reinforcement learning Using SME feedback and High-reasoning models** — an enterprise auto-judge that delivers **human-quality judgment at machine cost**.
 
 Every trust, quality, and relevance team pays for the same thing: expert decisions at production scale. Today that is bought with redundant human review — panels of outsourced annotators (business-process outsourcing, BPO) checked by scarce subject-matter experts (SMEs). RUSH takes the guideline the policy team already writes and turns it into a production judge — and measures, in dollars and decision quality, that it works. It buys the same judgment with a **three-tier escalation cascade**: cheap models label everything and agree on the easy majority; only genuine disagreement escalates to a high-reasoning model; only what reasoning cannot resolve reaches a human SME. And the system *improves as it runs*: the judging policy is a versioned, human-readable knowledge graph, tuned by an RLHF-style loop where SME feedback is the reward signal — so decision quality grows with every accepted policy version while cost per decision falls. Economically, the cascade is a cost curve:

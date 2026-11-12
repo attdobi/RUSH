@@ -57,3 +57,6 @@ data/policy_proposals/
 
 # SME re-adjudication actions are local runtime state, not committed demo data
 data/adjudication_reviews.jsonl
+
+# Labeling workspace reviews and local SQLite snapshots
+/data/labeling/

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="680" viewBox="0 0 960 680" role="img"><title>Impossible architecture illustration</title><desc>Floating coral arches and a turquoise moon form a deliberately surreal architectural illustration.</desc>
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#132a3c"/><stop offset="1" stop-color="#27505e"/></linearGradient><linearGradient id="arch" x2="1" y2="0"><stop stop-color="#e6a07b"/><stop offset="1" stop-color="#bb715d"/></linearGradient></defs>
+<rect width="960" height="680" rx="24" fill="url(#sky)"/><circle cx="713" cy="160" r="93" fill="#9bdccb"/><circle cx="742" cy="134" r="93" fill="#183043"/>
+<g fill="#6d9da7" opacity=".7"><circle cx="166" cy="142" r="3"/><circle cx="272" cy="80" r="2"/><circle cx="834" cy="295" r="2"/><circle cx="515" cy="92" r="2"/><circle cx="810" cy="64" r="3"/></g>
+<path d="M0 541 283 436l381 26 296 125v93H0Z" fill="#d6b29a"/><path d="m283 436 214 95 167-69" fill="#d0a387"/><path d="m0 541 497-10 166 149H0" fill="#c3977f"/>
+<g transform="translate(233 192)"><path d="M0 293V120Q0 0 123 0t123 120v173h-63V124q0-61-60-61t-60 61v169Z" fill="url(#arch)"/><path d="M246 293h31V118Q276-10 150-12h-27Q246 0 246 120Z" fill="#94584e"/><path d="m0 293 32 16h245l-31-16" fill="#e7aa87"/></g>
+<g transform="translate(586 310) scale(.66)"><path d="M0 293V120Q0 0 123 0t123 120v173h-63V124q0-61-60-61t-60 61v169Z" fill="url(#arch)"/><path d="M246 293h31V118Q276-10 150-12h-27Q246 0 246 120Z" fill="#94584e"/></g>
+<g transform="translate(496 133) rotate(16)"><path d="M0 62V31Q0 0 31 0t31 31v31H46V31q0-16-15-16T16 31v31Z" fill="#deb394"/></g>
+<path d="m93 573 116-50 138 21-115 51Z" fill="#e4c4aa"/><path d="M93 573v17l139 23v-18m0 0 115-51v18l-115 51" fill="#ac806a"/>
+<text x="47" y="621" font-family="Arial,sans-serif" font-size="18" letter-spacing="4" fill="#6c5349">IMPOSSIBLE ARCHITECTURE</text></svg>
